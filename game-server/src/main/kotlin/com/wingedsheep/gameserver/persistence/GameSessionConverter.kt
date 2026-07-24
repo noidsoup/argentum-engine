@@ -11,21 +11,19 @@ import com.wingedsheep.sdk.model.EntityId
 
 /**
  * Converts a GameSession to its persistent representation.
- *
- * Note: This requires access to internal session state. The GameSession class
- * must expose getters for persistence (see getStateForPersistence, etc.).
  */
 fun GameSession.toPersistent(
     lobbyId: String?
 ): PersistentGameSession {
+    val snapshot = getPersistenceSnapshot()
     return PersistentGameSession(
         sessionId = sessionId,
-        gameState = getStateForPersistence(),
-        deckLists = getDeckListsForPersistence().mapKeys { it.key.value },
-        sideboards = getSideboardsForPersistence().mapKeys { it.key.value },
-        lastProcessedMessageId = getLastMessageIdsForPersistence().mapKeys { it.key.value },
-        gameLogs = getLogsForPersistence().mapKeys { it.key.value },
-        playerInfos = getPlayerPersistenceInfo().map { (playerId, info) ->
+        gameState = snapshot.gameState,
+        deckLists = snapshot.deckLists.mapKeys { it.key.value },
+        sideboards = snapshot.sideboards.mapKeys { it.key.value },
+        lastProcessedMessageId = snapshot.lastProcessedMessageIds.mapKeys { it.key.value },
+        gameLogs = snapshot.gameLogs.mapKeys { it.key.value },
+        playerInfos = snapshot.playerInfos.map { (playerId, info) ->
             PersistentPlayerInfo(
                 playerId = playerId.value,
                 playerName = info.playerName,
@@ -35,10 +33,10 @@ fun GameSession.toPersistent(
             )
         },
         lobbyId = lobbyId,
-        replaySetup = getReplaySetup(),
-        recordedActions = getRecordedActions(),
-        recordedYields = getReplayYields(),
-        replayStartedAt = replayStartedAt?.toString(),
+        replaySetup = snapshot.replaySetup,
+        recordedActions = snapshot.recordedActions,
+        recordedYields = snapshot.recordedYields,
+        replayStartedAt = snapshot.replayStartedAt?.toString(),
     )
 }
 

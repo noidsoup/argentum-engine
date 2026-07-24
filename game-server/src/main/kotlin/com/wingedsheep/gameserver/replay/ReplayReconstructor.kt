@@ -15,10 +15,12 @@ import com.wingedsheep.gameserver.protocol.ServerMessage
 import com.wingedsheep.gameserver.session.SpectatorSeat
 import com.wingedsheep.gameserver.session.SpectatorStateBuilder
 import com.wingedsheep.sdk.model.EntityId
+import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 
 /** A replay reconstructed back into the snapshot + delta stream the client replay viewer consumes. */
+@Serializable
 data class ReconstructedReplay(
     val initialSnapshot: ServerMessage.SpectatorStateUpdate,
     val deltas: List<SpectatorReplayDelta>,

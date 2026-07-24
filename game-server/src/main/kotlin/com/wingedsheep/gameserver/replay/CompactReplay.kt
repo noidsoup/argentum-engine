@@ -41,6 +41,13 @@ data class CompactReplay(
     /** The ordered input stream applied to the game, replayed verbatim to reconstruct it. */
     val actions: List<GameAction>,
     /**
+     * The spectator stream materialized when a durable replay is saved. Durable profile replays can
+     * outlive the engine/card definitions that originally produced them; keeping this stream means
+     * viewing them never depends on re-simulating old inputs with newer behavior. Null for in-memory
+     * compact recordings and database rows written before this field existed.
+     */
+    val viewerStream: ReconstructedReplay? = null,
+    /**
      * Persistent-yield mutations (MTGO right-click "always yes/no" / "yield" preferences) applied to
      * the game out-of-band of the [actions] stream. They live on [com.wingedsheep.engine.state.GameState]
      * and are *consumed* by the pure engine during resolution (auto-answering optional triggers), so a

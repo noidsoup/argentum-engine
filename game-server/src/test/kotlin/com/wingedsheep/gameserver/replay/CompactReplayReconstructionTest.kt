@@ -2,6 +2,7 @@ package com.wingedsheep.gameserver.replay
 
 import com.wingedsheep.engine.view.ClientStateTransformer
 import com.wingedsheep.gameserver.ScenarioTestBase
+import com.wingedsheep.gameserver.persistence.toPersistent
 import com.wingedsheep.gameserver.session.GameSession
 import com.wingedsheep.gameserver.session.PlayerSession
 import com.wingedsheep.gameserver.session.SpectatorSeat
@@ -14,6 +15,9 @@ import io.mockk.every
 import io.mockk.mockk
 import org.springframework.web.socket.WebSocketSession
 import java.time.Instant
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.concurrent.thread
 
 /**
  * Proves the compact replay format is lossless: a game driven through the real [GameSession]
@@ -94,6 +98,29 @@ class CompactReplayReconstructionTest : ScenarioTestBase() {
             // (a divergence would truncate the delta list short).
             val reconstructed = reconstructor.reconstruct(replay)
             reconstructed.frameCount shouldBe (1 + actions.size)
+
+            // Durable profile replays materialize that known-good viewer stream while the finishing
+            // game's engine/card definitions are still loaded. A later deployment must use it
+            // directly rather than attempting to re-simulate the old action stream.
+            var durableReplay: CompactReplay? = null
+            val store = object : ReplayStore {
+                override fun save(replay: CompactReplay) {
+                    durableReplay = replay
+                }
+
+                override fun findByGameId(gameId: String): CompactReplay? = durableReplay
+            }
+            val service = ReplayService(GameHistoryRepository(), store, reconstructor)
+            service.save(replay, durable = true)
+            val stored = durableReplay.shouldNotBeNull()
+            stored.viewerStream shouldBe reconstructed
+            ReplayCodec.decode(ReplayCodec.encode(stored)) shouldBe stored
+
+            val newerIncompatibleEngine = mockk<ReplayReconstructor>()
+            every { newerIncompatibleEngine.reconstruct(any()) } throws
+                AssertionError("stored viewer stream should bypass reconstruction")
+            val afterDeployment = ReplayService(GameHistoryRepository(), store, newerIncompatibleEngine)
+            afterDeployment.reconstruct(stored) shouldBe reconstructed
         }
 
         test("a game whose state was injected (no recorded setup) is not replayable") {
@@ -101,6 +128,62 @@ class CompactReplayReconstructionTest : ScenarioTestBase() {
             // No startGame()/addPlayer flow: simulate a dev-scenario injection.
             session.getReplaySetup() shouldBe null
             session.getReplayFrameCount() shouldBe 0
+        }
+
+        test("Redis snapshots keep game state and replay actions on the same action boundary") {
+            val session = GameSession(cardRegistry = cardRegistry, maxPlayers = 2)
+            val p1 = EntityId.of("snapshot-player-1")
+            val p2 = EntityId.of("snapshot-player-2")
+            session.addPlayer(PlayerSession(mockWs("snapshot-ws1"), p1, "Alice"), mapOf("Forest" to 40))
+            session.addPlayer(PlayerSession(mockWs("snapshot-ws2"), p2, "Bob"), mapOf("Forest" to 40))
+            session.startGame()
+            session.keepHand(p1)
+            session.keepHand(p2)
+
+            val running = AtomicBoolean(true)
+            val failures = ConcurrentLinkedQueue<String>()
+            val reconstructor = ReplayReconstructor(cardRegistry, null)
+            val writer = thread(name = "replay-snapshot-writer") {
+                try {
+                    repeat(200) {
+                        val state = session.getStateForTesting() ?: return@repeat
+                        if (state.gameOver) return@repeat
+                        val priority = state.priorityPlayerId ?: return@repeat
+                        session.executeAutoPass(priority)
+                    }
+                } finally {
+                    running.set(false)
+                }
+            }
+
+            do {
+                val persisted = session.toPersistent(lobbyId = null)
+                val setup = persisted.replaySetup ?: continue
+                val replay = CompactReplay(
+                    gameId = persisted.sessionId,
+                    players = setup.players.map { ReplayPlayerInfo(it.playerId, it.name) },
+                    startedAt = persisted.replayStartedAt ?: Instant.EPOCH.toString(),
+                    endedAt = Instant.EPOCH.toString(),
+                    winnerName = null,
+                    setup = setup,
+                    actions = persisted.recordedActions,
+                    yields = persisted.recordedYields,
+                )
+                val reconstructed = reconstructor.reconstructStateAt(replay, replay.actions.size)
+                val persistedState = persisted.gameState
+                if (reconstructed == null || persistedState == null ||
+                    reconstructed.entities != persistedState.entities ||
+                    reconstructed.zones != persistedState.zones ||
+                    reconstructed.turnNumber != persistedState.turnNumber
+                ) {
+                    failures.add(
+                        "state/action mismatch at ${persisted.recordedActions.size} recorded actions"
+                    )
+                }
+            } while (running.get())
+
+            writer.join()
+            failures.toList() shouldBe emptyList()
         }
     }
 }

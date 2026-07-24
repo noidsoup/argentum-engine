@@ -190,6 +190,27 @@ class GameSession(
         val aiModelOverride: String? = null
     )
 
+    /**
+     * One point-in-time view of every field Redis persists for a running game.
+     *
+     * In particular, [gameState] and [recordedActions] must come from the same action boundary.
+     * Reading them through separate getters allows an action to complete between the two reads;
+     * restoring that mixed snapshot after a restart then produces a replay log that is one action
+     * behind the restored state and necessarily diverges during reconstruction.
+     */
+    internal data class PersistenceSnapshot(
+        val gameState: GameState?,
+        val deckLists: Map<EntityId, List<String>>,
+        val sideboards: Map<EntityId, List<String>>,
+        val lastProcessedMessageIds: Map<EntityId, String>,
+        val gameLogs: Map<EntityId, List<ClientEvent>>,
+        val playerInfos: Map<EntityId, PlayerPersistenceInfo>,
+        val replaySetup: com.wingedsheep.gameserver.replay.ReplaySetup?,
+        val recordedActions: List<GameAction>,
+        val recordedYields: List<com.wingedsheep.gameserver.replay.ReplayYieldEntry>,
+        val replayStartedAt: Instant?,
+    )
+
     private val actionProcessor = ActionProcessor(services)
     private val gameInitializer = GameInitializer(cardRegistry, services.printingRegistry)
     private val autoPassManager = AutoPassManager(cardRegistry)
@@ -1380,31 +1401,24 @@ class GameSession(
     // =========================================================================
 
     /**
-     * Get the current game state for persistence.
+     * Capture the complete Redis payload while action processing is excluded by [stateLock].
+     * All collections are copied before releasing the lock, so serialization cannot observe later
+     * writes either.
      */
-    internal fun getStateForPersistence(): GameState? = gameState
-
-    /**
-     * Get the deck lists for persistence.
-     */
-    internal fun getDeckListsForPersistence(): Map<EntityId, List<String>> = deckLists.toMap()
-
-    /**
-     * Get the per-player sideboards for persistence. Empty for almost every session.
-     */
-    internal fun getSideboardsForPersistence(): Map<EntityId, List<String>> = sideboards.toMap()
-
-    /**
-     * Get the game logs for persistence.
-     */
-    internal fun getLogsForPersistence(): Map<EntityId, List<ClientEvent>> =
-        gameLogs.mapValues { it.value.toList() }
-
-    /**
-     * Get the last processed message IDs for persistence.
-     */
-    internal fun getLastMessageIdsForPersistence(): Map<EntityId, String> =
-        lastProcessedMessageId.toMap()
+    internal fun getPersistenceSnapshot(): PersistenceSnapshot = synchronized(stateLock) {
+        PersistenceSnapshot(
+            gameState = gameState,
+            deckLists = deckLists.toMap(),
+            sideboards = sideboards.toMap(),
+            lastProcessedMessageIds = lastProcessedMessageId.toMap(),
+            gameLogs = gameLogs.mapValues { it.value.toList() },
+            playerInfos = playerPersistenceInfo.toMap(),
+            replaySetup = replaySetup,
+            recordedActions = recordedActions.toList(),
+            recordedYields = recordedYields.toList(),
+            replayStartedAt = replayStartedAt,
+        )
+    }
 
     /**
      * Restore session state from persistence.
