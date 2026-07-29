@@ -38,6 +38,33 @@
     ]
 }
 
+// Brilliant Plan
+{
+    "name": "Brilliant Plan",
+    "manaCost": "{4}{U}",
+    "typeLine": "Sorcery",
+    "oracleText": "Draw three cards.",
+    "script": {
+        "spellEffect": {
+            "type": "DrawCards",
+            "count": {
+                "type": "Fixed",
+                "amount": 3
+            }
+        }
+    },
+    "metadata": {
+        "collectorNumber": "36",
+        "rarity": "UNCOMMON",
+        "artist": "Song Shikai",
+        "flavorText": "At Red Cliffs, Kongming and Zhou Yu each wrote his plan for defeating the Wei on the palm of his hand. They laughed as they both revealed the same word, \"Fire.\"",
+        "imageUri": "https://cards.scryfall.io/normal/front/6/a/6acae374-9d71-4f8d-ba75-a983756624c7.jpg?1783946125"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
+
 // Corrupt Court Official
 {
     "name": "Corrupt Court Official",

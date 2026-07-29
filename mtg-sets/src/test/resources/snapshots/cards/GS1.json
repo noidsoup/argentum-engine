@@ -1,3 +1,54 @@
+// Aggressive Instinct
+{
+    "name": "Aggressive Instinct",
+    "manaCost": "{1}{G}",
+    "typeLine": "Sorcery",
+    "oracleText": "Target creature you control deals damage equal to its power to target creature you don't control.",
+    "script": {
+        "spellEffect": {
+            "type": "DealDamage",
+            "amount": {
+                "type": "EntityProperty",
+                "entity": "Target",
+                "numericProperty": "Power"
+            },
+            "target": {
+                "type": "BoundVariable",
+                "name": "creature you don't control"
+            },
+            "damageSource": {
+                "type": "BoundVariable",
+                "name": "creature you control"
+            }
+        },
+        "targetRequirements": [
+            {
+                "type": "TargetObject",
+                "filter": {
+                    "baseFilter": "creature ctrl:you"
+                },
+                "id": "creature you control"
+            },
+            {
+                "type": "TargetObject",
+                "filter": {
+                    "baseFilter": "creature ctrl:opponent"
+                },
+                "id": "creature you don't control"
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "34",
+        "artist": "Wolk Sheep",
+        "flavorText": "\"Mowu was wary that day, as though he sensed the danger ahead.\"\n—Jiang Yanggu's travelogue",
+        "imageUri": "https://cards.scryfall.io/normal/front/4/0/40ab4bcf-e6b9-4368-97d5-56862713a66a.jpg?1783934625"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
 // Ancestor Dragon
 {
     "name": "Ancestor Dragon",
@@ -37,5 +88,389 @@
     },
     "colorIdentityOverride": [
         "WHITE"
+    ]
+}
+
+// Armored Whirl Turtle
+{
+    "name": "Armored Whirl Turtle",
+    "manaCost": "{2}{U}",
+    "typeLine": "Creature — Turtle",
+    "creatureStats": {
+        "power": 0,
+        "toughness": 5
+    },
+    "metadata": {
+        "collectorNumber": "7",
+        "artist": "Tingting Yeh",
+        "flavorText": "Not all enormous beasts are quick to anger.",
+        "imageUri": "https://cards.scryfall.io/normal/front/f/c/fcc87fdf-6473-4b91-a8b9-2986e57dc071.jpg?1783934633"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
+
+// Breath of Fire
+{
+    "name": "Breath of Fire",
+    "manaCost": "{1}{R}",
+    "typeLine": "Instant",
+    "oracleText": "Breath of Fire deals 2 damage to target creature.",
+    "script": {
+        "spellEffect": {
+            "type": "DealDamage",
+            "amount": {
+                "type": "Fixed",
+                "amount": 2
+            },
+            "target": {
+                "type": "BoundVariable",
+                "name": "target creature"
+            }
+        },
+        "targetRequirements": [
+            {
+                "type": "TargetObject",
+                "filter": {
+                    "baseFilter": "creature"
+                },
+                "id": "target creature"
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "33",
+        "artist": "Xin-Yu Liu",
+        "flavorText": "Fire leads to more fire.",
+        "imageUri": "https://cards.scryfall.io/normal/front/4/1/41f2874a-2417-41cb-9cec-551eea78473c.jpg?1783934625"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
+// Cleansing Screech
+{
+    "name": "Cleansing Screech",
+    "manaCost": "{4}{R}",
+    "typeLine": "Sorcery",
+    "oracleText": "Cleansing Screech deals 4 damage to any target.",
+    "script": {
+        "spellEffect": {
+            "type": "DealDamage",
+            "amount": {
+                "type": "Fixed",
+                "amount": 4
+            },
+            "target": {
+                "type": "BoundVariable",
+                "name": "any target"
+            }
+        },
+        "targetRequirements": [
+            {
+                "type": "AnyTarget",
+                "id": "any target"
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "37",
+        "artist": "Tingting Yeh",
+        "flavorText": "\"Crackle\" and \"pop\" are the most wondrous sounds.",
+        "imageUri": "https://cards.scryfall.io/normal/front/7/9/79928b26-fcac-4c3f-9edd-292769c2e56e.jpg?1783934622"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
+// Colorful Feiyi Sparrow
+{
+    "name": "Colorful Feiyi Sparrow",
+    "manaCost": "{1}{W}",
+    "typeLine": "Creature — Bird",
+    "oracleText": "Flying",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 3
+    },
+    "keywords": [
+        "FLYING"
+    ],
+    "metadata": {
+        "collectorNumber": "2",
+        "artist": "Kee Lo",
+        "flavorText": "These nimble sparrows, not often seen, delight in tricking the pangolins that wander the forest.",
+        "imageUri": "https://cards.scryfall.io/normal/front/8/4/846169fb-8f63-4a0f-af94-e08af8927144.jpg?1783934637"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
+// Confidence from Strength
+{
+    "name": "Confidence from Strength",
+    "manaCost": "{2}{G}",
+    "typeLine": "Sorcery",
+    "oracleText": "Target creature gets +4/+4 and gains trample until end of turn. (It can deal excess combat damage to the player or planeswalker it's attacking.)",
+    "script": {
+        "spellEffect": {
+            "type": "Composite",
+            "effects": [
+                {
+                    "type": "ModifyStats",
+                    "powerModifier": {
+                        "type": "Fixed",
+                        "amount": 4
+                    },
+                    "toughnessModifier": {
+                        "type": "Fixed",
+                        "amount": 4
+                    },
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "target creature"
+                    }
+                },
+                {
+                    "type": "GrantKeyword",
+                    "keyword": "TRAMPLE",
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "target creature"
+                    }
+                }
+            ]
+        },
+        "targetRequirements": [
+            {
+                "type": "TargetObject",
+                "filter": {
+                    "baseFilter": "creature"
+                },
+                "id": "target creature"
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "35",
+        "artist": "Shinchuen Chen",
+        "flavorText": "\"Prepare for battle!\"\n—Jiang Yanggu",
+        "imageUri": "https://cards.scryfall.io/normal/front/9/8/98945e26-61e5-457d-ba8c-def924a7b1d1.jpg?1783934625"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
+// Dragon's Presence
+{
+    "name": "Dragon's Presence",
+    "manaCost": "{2}{W}",
+    "typeLine": "Instant",
+    "oracleText": "Dragon's Presence deals 5 damage to target attacking or blocking creature.",
+    "script": {
+        "spellEffect": {
+            "type": "DealDamage",
+            "amount": {
+                "type": "Fixed",
+                "amount": 5
+            },
+            "target": {
+                "type": "BoundVariable",
+                "name": "target attacking or blocking creature"
+            }
+        },
+        "targetRequirements": [
+            {
+                "type": "TargetObject",
+                "filter": {
+                    "baseFilter": {
+                        "cardPredicates": [
+                            "IsCreature"
+                        ],
+                        "statePredicates": [
+                            {
+                                "type": "StateOr",
+                                "predicates": [
+                                    "IsAttacking",
+                                    "IsBlocking"
+                                ]
+                            }
+                        ]
+                    }
+                },
+                "id": "target attacking or blocking creature"
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "16",
+        "artist": "Tan Yan Yao",
+        "flavorText": "\"The Ancestor Dragon appeared atop the clouds, amid shattering mountains and sundering earth.\"\n—Jiang Yanggu's travelogue",
+        "imageUri": "https://cards.scryfall.io/normal/front/5/3/53855022-7aff-4d13-bdd8-0abbf69204a4.jpg?1783934631"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
+// Drown in Shapelessness
+{
+    "name": "Drown in Shapelessness",
+    "manaCost": "{1}{U}",
+    "typeLine": "Instant",
+    "oracleText": "Return target creature to its owner's hand.",
+    "script": {
+        "spellEffect": {
+            "type": "MoveToZone",
+            "target": {
+                "type": "BoundVariable",
+                "name": "target creature"
+            },
+            "destination": "Hand"
+        },
+        "targetRequirements": [
+            {
+                "type": "TargetObject",
+                "filter": {
+                    "baseFilter": "creature"
+                },
+                "id": "target creature"
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "15",
+        "artist": "Pon Lee",
+        "flavorText": "\"From the swallows, I learned how to ride the winds to anywhere, and from my tears, I mastered how to harness the water.\"",
+        "imageUri": "https://cards.scryfall.io/normal/front/3/1/31420a65-5f13-4ae9-8d45-2531ee2771e8.jpg?1783934631"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
+
+// Earth-Origin Yak
+{
+    "name": "Earth-Origin Yak",
+    "manaCost": "{3}{W}",
+    "typeLine": "Creature — Ox",
+    "oracleText": "When this creature enters, creatures you control get +1/+1 until end of turn.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 4
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "ForEach",
+                    "space": {
+                        "type": "IterationSpace.Group",
+                        "filter": {
+                            "baseFilter": "creature ctrl:you"
+                        }
+                    },
+                    "body": {
+                        "type": "ModifyStats",
+                        "powerModifier": {
+                            "type": "Fixed",
+                            "amount": 1
+                        },
+                        "toughnessModifier": {
+                            "type": "Fixed",
+                            "amount": 1
+                        },
+                        "target": "Self"
+                    }
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "9",
+        "artist": "Tan Yan Yao",
+        "flavorText": "Deep in the Northern Mountains, the yaks linger silently, channeling the powers of the earth.",
+        "imageUri": "https://cards.scryfall.io/normal/front/a/b/abcde784-d0cd-4bac-b1bf-bd686ac2f73d.jpg?1783934634"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
+// Earthshaking Si
+{
+    "name": "Earthshaking Si",
+    "manaCost": "{5}{G}",
+    "typeLine": "Creature — Beast",
+    "oracleText": "Trample (This creature can deal excess combat damage to the player or planeswalker it's attacking.)",
+    "creatureStats": {
+        "power": 5,
+        "toughness": 5
+    },
+    "keywords": [
+        "TRAMPLE"
+    ],
+    "metadata": {
+        "collectorNumber": "31",
+        "artist": "Shinchuen Chen",
+        "flavorText": "\"For reasons unknown to me, herds in the Arrow Bamboo Forest have become more and more agitated.\"\n—Jiang Yanggu's travelogue",
+        "imageUri": "https://cards.scryfall.io/normal/front/4/1/418df457-4aab-486c-b691-41f03ec8a6df.jpg?1783934625"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
+// Feiyi Snake
+{
+    "name": "Feiyi Snake",
+    "manaCost": "{1}{G}",
+    "typeLine": "Creature — Snake",
+    "oracleText": "Reach (This creature can block creatures with flying.)",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 1
+    },
+    "keywords": [
+        "REACH"
+    ],
+    "metadata": {
+        "collectorNumber": "24",
+        "artist": "Qiu De En",
+        "flavorText": "Two bodies, twice the malice.",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/4/0410420a-c093-4540-8867-28d0f2d86b56.jpg?1783934627"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
+// Ferocious Zheng
+{
+    "name": "Ferocious Zheng",
+    "manaCost": "{2}{G}{G}",
+    "typeLine": "Creature — Cat Beast",
+    "creatureStats": {
+        "power": 4,
+        "toughness": 4
+    },
+    "metadata": {
+        "collectorNumber": "28",
+        "artist": "Yutaka Li",
+        "flavorText": "Known for their glowing horn and stone-rattling roar, zheng are the fiercest predators in the forest. Few survived before Jiang Yanggu came.",
+        "imageUri": "https://cards.scryfall.io/normal/front/7/a/7a6d1184-15e0-4b41-ba2d-4f68e91c61d4.jpg?1783934626"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
     ]
 }
