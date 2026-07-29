@@ -474,3 +474,134 @@
         "GREEN"
     ]
 }
+
+// Fire-Omen Crane
+{
+    "name": "Fire-Omen Crane",
+    "manaCost": "{3}{R}{R}",
+    "typeLine": "Creature — Bird Spirit",
+    "oracleText": "Flying (This creature can't be blocked except by creatures with flying or reach.)\nWhenever this creature attacks, it deals 1 damage to target creature an opponent controls.",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 3
+    },
+    "keywords": [
+        "FLYING"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": "AttackEvent",
+                "effect": {
+                    "type": "DealDamage",
+                    "amount": {
+                        "type": "Fixed",
+                        "amount": 1
+                    },
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "target creature an opponent controls"
+                    }
+                },
+                "targetRequirement": {
+                    "type": "TargetObject",
+                    "filter": {
+                        "baseFilter": "creature ctrl:opponent"
+                    },
+                    "id": "target creature an opponent controls"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "29",
+        "rarity": "UNCOMMON",
+        "artist": "Tan Yan Yao",
+        "flavorText": "If you can see it clearly, you're already on fire.",
+        "imageUri": "https://cards.scryfall.io/normal/front/a/2/a24c9c98-9eff-4f4b-93ca-9281d61e6835.jpg?1783934625"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
+// Hardened-Scale Armor
+{
+    "name": "Hardened-Scale Armor",
+    "manaCost": "{2}{G}",
+    "typeLine": "Enchantment — Aura",
+    "oracleText": "Enchant creature\nEnchanted creature gets +3/+3.",
+    "script": {
+        "staticAbilities": [
+            {
+                "type": "ModifyStats",
+                "powerBonus": 3,
+                "toughnessBonus": 3
+            }
+        ],
+        "auraTarget": {
+            "type": "TargetObject",
+            "filter": {
+                "baseFilter": "creature"
+            }
+        }
+    },
+    "metadata": {
+        "collectorNumber": "32",
+        "artist": "Tan Yan Yao",
+        "flavorText": "A pangolin's scales are resistant to all sorts of damage and weaponry. Desire for them threatens to drive the pangolin to extinction.",
+        "imageUri": "https://cards.scryfall.io/normal/front/7/0/708e7438-b449-490e-820f-9ecd3199541b.jpg?1783934625"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
+// Heavenly Qilin
+{
+    "name": "Heavenly Qilin",
+    "manaCost": "{2}{W}",
+    "typeLine": "Creature — Kirin",
+    "oracleText": "Flying (This creature can't be blocked except by creatures with flying or reach.)\nWhenever this creature attacks, another target creature you control gains flying until end of turn.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 2
+    },
+    "keywords": [
+        "FLYING"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": "AttackEvent",
+                "effect": {
+                    "type": "GrantKeyword",
+                    "keyword": "FLYING",
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "another target creature you control"
+                    }
+                },
+                "targetRequirement": {
+                    "type": "TargetObject",
+                    "filter": {
+                        "baseFilter": "creature ctrl:you",
+                        "excludeSelf": true
+                    },
+                    "id": "another target creature you control"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "6",
+        "artist": "Xin-Yu Liu",
+        "flavorText": "It strides through the universe as though stepping on the stars, crossing freely between the celestial and earthly worlds.",
+        "imageUri": "https://cards.scryfall.io/normal/front/f/1/f1cb6fba-e314-4270-bbba-fa0584530f72.jpg?1783934634"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
