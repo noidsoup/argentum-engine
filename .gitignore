@@ -189,3 +189,8 @@ gradle-app.setting
 # Claude Code local-only files (auto-loaded, machine/contributor-specific — never commit)
 CLAUDE.local.md
 .claude/settings.local.json
+
+# Local Python / knowledge-index artifacts (never commit)
+__pycache__/
+*.py[cod]
+/uncommitted/
