@@ -35,14 +35,16 @@ class GainLifeExecutor(
         var newState = state
         val events = mutableListOf<EngineGameEvent>()
 
+        val (causeId, causeTypeLine, causeColors) = DamageUtils.resolvingSpellCauseLki(state, context)
+
         for (playerId in playerIds) {
             val (gainedState, event) = DamageUtils.gainLife(
                 newState,
                 playerId,
                 amount,
-                causingSourceId = DamageUtils.resolvingSpellCauseId(
-                    newState, context.sourceId, context.causingSpellId
-                ),
+                causingSourceId = causeId,
+                causingSourceTypeLine = causeTypeLine,
+                causingSourceColors = causeColors,
             )
             newState = gainedState
             if (event != null) events.add(event)

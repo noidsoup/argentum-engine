@@ -1676,6 +1676,12 @@ class StackResolver(
             val context = EffectContext(
                 sourceId = spellId,
                 causingSpellId = spellId,
+                // Stamp the spell's characteristics now, while the stack object is live. A copy
+                // ceases to exist once it resolves (CR 707.10a), and a mid-resolution pause can
+                // retire the entity before the remaining instructions run, so later life-gain /
+                // damage attribution has nothing left to read from the id alone.
+                causingSpellTypeLine = cardComponent?.typeLine,
+                causingSpellColors = cardComponent?.colors ?: emptySet(),
                 controllerId = spellComponent.casterId,
                 targets = targets,
                 // Position-preserving view (null in slots dropped by 608.2b) so positional

@@ -49,7 +49,8 @@ class DealDamagePerEntityInZoneExecutor : EffectExecutor<DealDamagePerEntityInZo
             context.sourceId
         }
 
-        val lifeGainCauseId = DamageUtils.resolvingSpellCauseId(state, context.sourceId, context.causingSpellId)
+        val (lifeGainCauseId, lifeGainCauseTypeLine, lifeGainCauseColors) =
+            DamageUtils.resolvingSpellCauseLki(state, context)
 
         // For PlayerRef targets, resolve to potentially multiple players
         if (effect.target is EffectTarget.PlayerRef) {
@@ -63,7 +64,9 @@ class DealDamagePerEntityInZoneExecutor : EffectExecutor<DealDamagePerEntityInZo
             for (playerId in playerIds) {
                 val result = dealDamageToTarget(
                     newState, playerId, totalDamage, sourceId, cantBePrevented = false,
-                    lifeGainCauseId = lifeGainCauseId
+                    lifeGainCauseId = lifeGainCauseId,
+                    lifeGainCauseTypeLine = lifeGainCauseTypeLine,
+                    lifeGainCauseColors = lifeGainCauseColors,
                 )
                 newState = result.newState
                 events.addAll(result.events)
@@ -77,7 +80,9 @@ class DealDamagePerEntityInZoneExecutor : EffectExecutor<DealDamagePerEntityInZo
 
         return dealDamageToTarget(
             state, targetId, totalDamage, sourceId, cantBePrevented = false,
-            lifeGainCauseId = lifeGainCauseId
+            lifeGainCauseId = lifeGainCauseId,
+            lifeGainCauseTypeLine = lifeGainCauseTypeLine,
+            lifeGainCauseColors = lifeGainCauseColors,
         )
     }
 }

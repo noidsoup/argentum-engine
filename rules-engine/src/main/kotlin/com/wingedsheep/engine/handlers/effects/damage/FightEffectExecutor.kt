@@ -46,11 +46,15 @@ class FightEffectExecutor : EffectExecutor<FightEffect> {
         // Agni Kai). Stays 0 when target1 has no power or deals only lethal/sub-lethal damage.
         var excessToTarget2 = 0
 
-        val lifeGainCauseId = DamageUtils.resolvingSpellCauseId(state, context.sourceId, context.causingSpellId)
+        val (lifeGainCauseId, lifeGainCauseTypeLine, lifeGainCauseColors) =
+            DamageUtils.resolvingSpellCauseLki(state, context)
 
         if (power1 > 0) {
             val result1 = dealDamageToTarget(
-                currentState, target2Id, power1, target1Id, lifeGainCauseId = lifeGainCauseId
+                currentState, target2Id, power1, target1Id,
+                lifeGainCauseId = lifeGainCauseId,
+                lifeGainCauseTypeLine = lifeGainCauseTypeLine,
+                lifeGainCauseColors = lifeGainCauseColors,
             )
             currentState = result1.newState
             allEvents.addAll(result1.events)
@@ -63,7 +67,10 @@ class FightEffectExecutor : EffectExecutor<FightEffect> {
         // Creature 2 deals damage equal to its power to creature 1
         if (power2 > 0) {
             val result2 = dealDamageToTarget(
-                currentState, target1Id, power2, target2Id, lifeGainCauseId = lifeGainCauseId
+                currentState, target1Id, power2, target2Id,
+                lifeGainCauseId = lifeGainCauseId,
+                lifeGainCauseTypeLine = lifeGainCauseTypeLine,
+                lifeGainCauseColors = lifeGainCauseColors,
             )
             currentState = result2.newState
             allEvents.addAll(result2.events)

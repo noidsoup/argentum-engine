@@ -33,6 +33,18 @@ data class EffectContext(
      */
     val causingSpellId: EntityId? = null,
     /**
+     * Last-known type line of the spell named by [causingSpellId], stamped at spell-resolution
+     * start while that object is still live. A copy of a spell ceases to exist as soon as it
+     * finishes resolving (CR 707.10a) — and a mid-resolution pause can retire the entity before
+     * later instructions run — so the id alone would leave a `LifeChangedEvent` uncharacterized
+     * and a "white instant or sorcery spell causes you to gain life" filter (Firesong and
+     * Sunspeaker) would reject it. Set only on spell-resolution contexts, alongside
+     * [causingSpellId].
+     */
+    val causingSpellTypeLine: com.wingedsheep.sdk.core.TypeLine? = null,
+    /** Last-known colors of the spell named by [causingSpellId]. See [causingSpellTypeLine]. */
+    val causingSpellColors: Set<Color> = emptySet(),
+    /**
      * The controller of the *overall* effect/ability, stable across per-player iteration.
      * `ForEachEffect(IterationSpace.Players)` rebinds [controllerId] to each iterated player so
      * `Player.You` resolves to them, but some sub-effects still need the original activating

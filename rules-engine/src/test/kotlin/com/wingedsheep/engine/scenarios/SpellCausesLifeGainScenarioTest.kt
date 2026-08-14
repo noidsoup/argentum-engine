@@ -162,6 +162,21 @@ class SpellCausesLifeGainScenarioTest : FunSpec({
         }
     }
 
+    // Scry pauses the resolution for a select-cards decision, so the life gain lands on resume —
+    // by which time a copy of this spell has already ceased to exist (CR 707.10a).
+    val whiteScryThenGain = card("White Scry Then Gain") {
+        manaCost = "{W}"
+        colorIdentity = "W"
+        typeLine = "Instant"
+        oracleText = "Scry 1. You gain 3 life."
+        spell {
+            effect = Effects.Composite(
+                Effects.Scry(1),
+                Effects.GainLife(3),
+            )
+        }
+    }
+
     // No printed lifelink — only Red Spell Lifelink Lord grants it (Firesong-shaped).
     val redDividedBurn = card("Red Divided Burn") {
         manaCost = "{R}"
@@ -195,6 +210,7 @@ class SpellCausesLifeGainScenarioTest : FunSpec({
                 whiteGiftLife,
                 whiteDividedLifelink,
                 redDividedBurn,
+                whiteScryThenGain,
                 RenewedFaith,
             )
         )
@@ -429,6 +445,43 @@ class SpellCausesLifeGainScenarioTest : FunSpec({
         // Original + copy each deal 2 with lifelink (+4), and watcher fires twice (+6 to opp).
         d.getLifeTotal(me) shouldBe myLife + 4
         d.getLifeTotal(opp) shouldBe oppLife - 4 - 6
+    }
+
+    test("copy that pauses mid-resolution still matches once the copy is gone") {
+        val d = driver()
+        d.initMirrorMatch(deck = Deck.of("Plains" to 40), skipMulligans = true)
+        val me = d.activePlayer!!
+        val opp = d.getOpponent(me)
+        d.passPriorityUntil(Step.PRECOMBAT_MAIN)
+
+        d.putCreatureOnBattlefield(me, "Spell Life Gain Watcher")
+        d.replaceState(
+            d.state.copy(
+                pendingSpellCopies = listOf(
+                    com.wingedsheep.engine.state.PendingSpellCopy(
+                        controllerId = me,
+                        copies = 1,
+                        sourceId = me,
+                        sourceName = "Test Copier",
+                        spellFilter = GameObjectFilter.InstantOrSorcery,
+                    )
+                )
+            )
+        )
+
+        val spell = d.putCardInHand(me, "White Scry Then Gain")
+        d.giveMana(me, Color.WHITE, 1)
+
+        val myLife = d.getLifeTotal(me)
+        val oppLife = d.getLifeTotal(opp)
+
+        d.castSpell(me, spell).isSuccess shouldBe true
+        resolveUntilIdle(d)
+
+        // The scry pause retires the copy before its GainLife runs; the stamped LKI is the only
+        // thing left that can tell the watcher's filter this was a white instant.
+        d.getLifeTotal(me) shouldBe myLife + 6
+        d.getLifeTotal(opp) shouldBe oppLife - 6
     }
 
     test("white divided-damage lifelink after distribution pause still matches") {

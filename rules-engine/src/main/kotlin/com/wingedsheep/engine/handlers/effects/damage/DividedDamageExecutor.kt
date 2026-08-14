@@ -57,16 +57,16 @@ class DividedDamageExecutor(
             else EffectResult.error(state, "No targets for divided damage")
         }
 
-        val lifeGainCauseId = DamageUtils.resolvingSpellCauseId(state, context.sourceId, context.causingSpellId)
-        val causeCard = lifeGainCauseId?.let { state.getEntity(it)?.get<CardComponent>() }
+        val (lifeGainCauseId, lifeGainCauseTypeLine, lifeGainCauseColors) =
+            DamageUtils.resolvingSpellCauseLki(state, context)
 
         // If there's only one target, deal all damage directly
         if (targets.size == 1) {
             return dealDamageToTarget(
                 state, targets.first(), total, context.sourceId,
                 lifeGainCauseId = lifeGainCauseId,
-                lifeGainCauseTypeLine = causeCard?.typeLine,
-                lifeGainCauseColors = causeCard?.colors ?: emptySet(),
+                lifeGainCauseTypeLine = lifeGainCauseTypeLine,
+                lifeGainCauseColors = lifeGainCauseColors,
             )
         }
 
@@ -76,7 +76,8 @@ class DividedDamageExecutor(
             // Fallback: This shouldn't happen with proper flow, but handle gracefully
             // by creating a decision (legacy behavior)
             return createDistributionDecision(
-                state, effect, context, targets, total, lifeGainCauseId, causeCard
+                state, effect, context, targets, total,
+                lifeGainCauseId, lifeGainCauseTypeLine, lifeGainCauseColors
             )
         }
 
@@ -89,8 +90,8 @@ class DividedDamageExecutor(
                 val result = dealDamageToTarget(
                     currentState, targetId, amount, context.sourceId,
                     lifeGainCauseId = lifeGainCauseId,
-                    lifeGainCauseTypeLine = causeCard?.typeLine,
-                    lifeGainCauseColors = causeCard?.colors ?: emptySet(),
+                    lifeGainCauseTypeLine = lifeGainCauseTypeLine,
+                    lifeGainCauseColors = lifeGainCauseColors,
                 )
                 if (!result.isSuccess) {
                     return result
@@ -114,7 +115,8 @@ class DividedDamageExecutor(
         targets: List<com.wingedsheep.sdk.model.EntityId>,
         total: Int,
         lifeGainCauseId: com.wingedsheep.sdk.model.EntityId?,
-        causeCard: CardComponent?,
+        lifeGainCauseTypeLine: com.wingedsheep.sdk.core.TypeLine?,
+        lifeGainCauseColors: Set<com.wingedsheep.sdk.core.Color>,
     ): EffectResult {
         val sourceName = context.sourceId?.let { sourceId ->
             state.getEntity(sourceId)?.get<CardComponent>()?.name
@@ -144,8 +146,8 @@ class DividedDamageExecutor(
             controllerId = context.controllerId,
             targets = targets,
             lifeGainCauseId = lifeGainCauseId,
-            lifeGainCauseTypeLine = causeCard?.typeLine,
-            lifeGainCauseColors = causeCard?.colors ?: emptySet(),
+            lifeGainCauseTypeLine = lifeGainCauseTypeLine,
+            lifeGainCauseColors = lifeGainCauseColors,
         )
 
         val newState = state

@@ -747,6 +747,31 @@ object DamageUtils {
     }
 
     /**
+     * The resolving spell cause together with the characteristics a filter needs to judge it:
+     * `(id, typeLine, colors)`.
+     *
+     * The id comes from [resolvingSpellCauseId]. The characteristics prefer the entity's live
+     * [CardComponent], falling back to the LKI stamped on the context at spell-resolution start
+     * ([EffectContext.causingSpellTypeLine] / [EffectContext.causingSpellColors]). The fallback is
+     * what makes a copy work: a copy ceases to exist as it finishes resolving (CR 707.10a), and a
+     * mid-resolution pause can retire it before the remaining instructions run, at which point the
+     * id resolves to nothing and a "white instant or sorcery spell causes you to gain life" filter
+     * (Firesong and Sunspeaker) would see an uncharacterized event.
+     */
+    fun resolvingSpellCauseLki(
+        state: GameState,
+        context: EffectContext,
+    ): Triple<EntityId?, TypeLine?, Set<Color>> {
+        val causeId = resolvingSpellCauseId(state, context.sourceId, context.causingSpellId)
+        val liveCard = causeId?.let { state.getEntity(it)?.get<CardComponent>() }
+        return Triple(
+            causeId,
+            liveCard?.typeLine ?: context.causingSpellTypeLine,
+            liveCard?.colors ?: context.causingSpellColors,
+        )
+    }
+
+    /**
      * Whether [targetId] has not yet had counters put on it this turn — i.e. the placement about
      * to happen is the first this turn. Read *before* [markCounterPlacedOnCreature] sets the
      * marker, to stamp [com.wingedsheep.engine.core.CountersAddedEvent.firstThisTurn] for
