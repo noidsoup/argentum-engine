@@ -999,13 +999,17 @@ internal class CombatDamageManager(
         var newState = state
 
         // Phantom / Unbreathing Horde: prevent all combat damage and remove a +1/+1 counter.
-        val phantomResult = DamageUtils.applyPreventDamageAndRemoveCounter(
-            newState, targetId, amplifiedAmount, sourceId, isCombatDamage = true
-        )
-        if (phantomResult != null) {
-            newState = phantomResult.state
-            events.addAll(phantomResult.events)
-            return newState
+        // Skip when damage can't be prevented (Sunspine Lynx / "damage can't be prevented this turn"),
+        // matching DamageUtils.dealDamageToTarget's cantBePrevented gate.
+        if (!DamageUtils.isDamagePreventionDisabled(newState)) {
+            val phantomResult = DamageUtils.applyPreventDamageAndRemoveCounter(
+                newState, targetId, amplifiedAmount, sourceId, isCombatDamage = true
+            )
+            if (phantomResult != null) {
+                newState = phantomResult.state
+                events.addAll(phantomResult.events)
+                return newState
+            }
         }
 
         // Prevention shields
