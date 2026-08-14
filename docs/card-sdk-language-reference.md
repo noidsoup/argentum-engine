@@ -4872,6 +4872,13 @@ copy of it (CR 707.10e). The activated-ability analogue of the spell-level `cant
 > `Triggers.youCastSpell(GameObjectFilter.Instant, requires = setOf(SpellCastPredicate.CastFromZone(Zone.HAND)))`
 > → `GrantKeywordToSpellEffect(Keyword.REBOUND, EffectTarget.TriggeringEntity)`.
 
+> **Undying** (CR 702.92). `keywords(Keyword.UNDYING)` — "When this creature dies, if it had no +1/+1
+> counters on it, return it to the battlefield under its owner's control with a +1/+1 counter on it."
+> Modeled like **Persist**: a synthesized SELF dies-trigger detected in
+> `DeathAndLeaveTriggerDetector.detectUndyingTriggers`, gated on last-known +1/+1 counter count being
+> zero and suppressed on tokens (704.5s). The synthesized effect is `MoveToZoneEffect(Self, BATTLEFIELD)`
+> then `AddCountersEffect(+1/+1, 1, Self)`.
+
 > **Enduring** (Duskmourn Glimmer cycle). `card { enduring() }` wires the full mechanic: "When this
 > permanent dies, if it was a creature, return it to the battlefield under its owner's control. It's an
 > enchantment. (It's not a creature.)" Modeled like **Persist** — a synthesized SELF dies-trigger detected
@@ -4910,7 +4917,7 @@ Flying, Menace, Intimidate, Fear, Shadow, Horsemanship, all basic landwalks (Pla
 `LandwalkRule` checks `typeLine.isLand && !isBasicLand`; Trailblazer's Boots), First Strike, Double
 Strike, Trample, Deathtouch, Lifelink, Vigilance, Reach, Provoke, Defender, Indestructible, Hexproof, Shroud, Haste,
 Flash, Prowess, Flurry, Changeling, Convoke, Delve, Affinity, Storm, Flashback, Harmonize, Evoke, Sneak, Ninjutsu, Impending, Conspire, Casualty, Miracle, Hideaway, Cascade, Plot,
-Offspring, Persist, Enduring, Ascend, Wither, Toxic, Eerie, Vivid, Fateful Bite, Exploit, … (display-only — engine effect lives in handlers or
+Offspring, Persist, Undying, Enduring, Ascend, Wither, Toxic, Eerie, Vivid, Fateful Bite, Exploit, … (display-only — engine effect lives in handlers or
 composite abilities).
 
 **Parameterized `KeywordAbility.*`**

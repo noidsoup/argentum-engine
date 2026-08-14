@@ -257,6 +257,19 @@ enum class Keyword(val displayName: String) {
     PERSIST("Persist"),
 
     /**
+     * Undying (CR 702.92).
+     * "When this creature dies, if it had no +1/+1 counters on it, return it to the battlefield
+     * under its owner's control with a +1/+1 counter on it."
+     *
+     * Modeled like [PERSIST]: a synthesized self-return triggered ability detected in
+     * [com.wingedsheep.engine.event.DeathAndLeaveTriggerDetector.detectUndyingTriggers]. Fires
+     * only when the dying nontoken creature had no +1/+1 counters (intervening-if); suppressed
+     * on tokens (they cease to exist via 704.5s before any return could happen). Cards declare
+     * `keywords(Keyword.UNDYING)`; the engine synthesizes the return + counter effect.
+     */
+    UNDYING("Undying"),
+
+    /**
      * Enduring (Duskmourn: House of Horror — the Glimmer "Enduring" cycle).
      * "When this permanent dies, if it was a creature, return it to the battlefield under its
      * owner's control. It's an enchantment. (It's not a creature.)"

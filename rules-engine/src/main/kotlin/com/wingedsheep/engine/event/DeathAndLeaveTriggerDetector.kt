@@ -383,6 +383,60 @@ class DeathAndLeaveTriggerDetector(
     }
 
     /**
+     * Detect undying triggers (CR 702.92) when a nontoken creature dies with no +1/+1 counters on it.
+     *
+     * Undying is a triggered ability keyword: "When this creature dies, if it had no +1/+1 counters
+     * on it, return it to the battlefield under its owner's control with a +1/+1 counter on it."
+     *
+     * Symmetric with [detectPersistTriggers] — same projected-keyword + token-suppression gates,
+     * opposite counter polarity.
+     */
+    fun detectUndyingTriggers(
+        state: GameState,
+        event: ZoneChangeEvent,
+        triggers: MutableList<PendingTrigger>
+    ) {
+        if (event.fromZone != Zone.BATTLEFIELD || event.toZone != Zone.GRAVEYARD) return
+        if (event.lastKnown?.wasToken == true) return
+        if ((event.lastKnown?.plusOnePlusOneCounters ?: 0) > 0) return
+        if (Keyword.UNDYING.name !in (event.lastKnown?.keywords ?: emptySet())) return
+
+        val info = resolveDyingEntity(state, event) ?: return
+
+        val undyingAbility = TriggeredAbility.create(
+            trigger = EventPattern.ZoneChangeEvent(
+                from = Zone.BATTLEFIELD,
+                to = Zone.GRAVEYARD
+            ),
+            binding = TriggerBinding.SELF,
+            effect = CompositeEffect(
+                listOf(
+                    MoveToZoneEffect(
+                        target = EffectTarget.Self,
+                        destination = Zone.BATTLEFIELD
+                    ),
+                    AddCountersEffect(
+                        counterType = Counters.PLUS_ONE_PLUS_ONE,
+                        count = 1,
+                        target = EffectTarget.Self
+                    )
+                )
+            ),
+            descriptionOverride = "Undying — Return ${info.name} to the battlefield with a +1/+1 counter on it"
+        )
+
+        triggers.add(
+            PendingTrigger(
+                ability = undyingAbility,
+                sourceId = event.entityId,
+                sourceName = info.name,
+                controllerId = event.ownerId,
+                triggerContext = TriggerContext.fromEvent(event)
+            )
+        )
+    }
+
+    /**
      * Detect Enduring triggers (Duskmourn Glimmer cycle) when a permanent dies.
      *
      * Enduring: "When this permanent dies, if it was a creature, return it to the battlefield

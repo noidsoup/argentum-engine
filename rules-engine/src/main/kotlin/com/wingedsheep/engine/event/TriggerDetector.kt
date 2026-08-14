@@ -1389,6 +1389,8 @@ class TriggerDetector(
             deathAndLeaveDetector.detectDeadAuraAttachmentTriggers(state, event, triggers)
             // Handle persist (CR 702.79) — nontoken creature with persist dies with no -1/-1 counter
             deathAndLeaveDetector.detectPersistTriggers(state, event, triggers)
+            // Handle undying (CR 702.92) — nontoken creature with undying dies with no +1/+1 counter
+            deathAndLeaveDetector.detectUndyingTriggers(state, event, triggers)
             // Handle Enduring (Duskmourn Glimmer cycle) — nontoken creature with Enduring dies and
             // returns as an enchantment.
             deathAndLeaveDetector.detectEnduringTriggers(state, event, triggers)

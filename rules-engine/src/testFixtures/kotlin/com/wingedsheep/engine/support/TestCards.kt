@@ -618,6 +618,19 @@ object TestCards {
     )
 
     /**
+     * Young Wolf stand-in — 1/1 with undying. Used to exercise the undying keyword pipeline.
+     */
+    val UndyingTestCreature = CardDefinition.creature(
+        name = "Undying Test Creature",
+        manaCost = ManaCost.parse("{B}"),
+        subtypes = setOf(Subtype("Zombie")),
+        power = 1,
+        toughness = 1,
+        oracleText = "Undying",
+        keywords = setOf(Keyword.UNDYING)
+    )
+
+    /**
      * Back face of the DFC test pair — a 4/4 Werewolf with no abilities.
      */
     val TestDfcBack = CardDefinition.creature(
@@ -702,6 +715,8 @@ object TestCards {
         TestEnchantment,
         // Persist
         SafeholdElite,
+        // Undying
+        UndyingTestCreature,
         // Double-faced cards
         TestDfcFront,
         // Transform test helper
