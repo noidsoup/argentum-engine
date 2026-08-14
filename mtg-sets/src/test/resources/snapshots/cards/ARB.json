@@ -1,3 +1,65 @@
+// Bloodbraid Elf
+{
+    "name": "Bloodbraid Elf",
+    "manaCost": "{2}{R}{G}",
+    "typeLine": "Creature — Elf Berserker",
+    "oracleText": "Haste (This creature can attack and {T} as soon as it comes under your control.)\nCascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 2
+    },
+    "keywords": [
+        "HASTE",
+        "CASCADE"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": "CastThisSpellEvent",
+                "effect": "Cascade",
+                "descriptionOverride": "Cascade"
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "50",
+        "rarity": "UNCOMMON",
+        "artist": "Dominick Domingo",
+        "imageUri": "https://cards.scryfall.io/normal/front/7/e/7ef67487-c8e5-49bb-b0f7-e073ff2e31f1.jpg?1783942431",
+        "rulings": [
+            {
+                "date": "2021-06-18",
+                "text": "A spell's mana value is determined only by its mana cost. Ignore any alternative costs, additional costs, cost increases, or cost reductions."
+            },
+            {
+                "date": "2021-06-18",
+                "text": "Cascade triggers when you cast the spell, meaning that it resolves before that spell. If you end up casting the exiled card, it will go on the stack above the spell with cascade."
+            },
+            {
+                "date": "2021-06-18",
+                "text": "When the cascade ability resolves, you must exile cards. The only optional part of the ability is whether or not you cast the last card exiled."
+            },
+            {
+                "date": "2021-06-18",
+                "text": "If a spell with cascade is countered, the cascade ability will still resolve normally."
+            },
+            {
+                "date": "2021-06-18",
+                "text": "If the card has {X} in its mana cost, you must choose 0 as the value of X when casting it without paying its mana cost."
+            },
+            {
+                "date": "2021-06-18",
+                "text": "Due to a 2021 rules change to cascade, not only do you stop exiling cards if you exile a nonland card with lesser mana value than the spell with cascade, but the resulting spell you cast must also have lesser mana value."
+            }
+        ]
+    },
+    "colorIdentityOverride": [
+        "RED",
+        "GREEN"
+    ]
+}
+
 // Maelstrom Pulse
 {
     "name": "Maelstrom Pulse",

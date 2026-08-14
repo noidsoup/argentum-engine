@@ -268,6 +268,71 @@
     ]
 }
 
+// Cage of Hands
+{
+    "name": "Cage of Hands",
+    "manaCost": "{2}{W}",
+    "typeLine": "Enchantment — Aura",
+    "oracleText": "Enchant creature\nEnchanted creature can't attack or block.\n{1}{W}: Return this Aura to its owner's hand.",
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": {
+                    "type": "CostAtomWrapper",
+                    "atom": {
+                        "type": "AtomMana",
+                        "cost": "{1}{W}"
+                    }
+                },
+                "effect": {
+                    "type": "MoveToZone",
+                    "target": "Self",
+                    "destination": "Hand"
+                },
+                "descriptionOverride": "{1}{W}: Return this Aura to its owner's hand."
+            }
+        ],
+        "staticAbilities": [
+            {
+                "type": "CantAttack",
+                "filter": {
+                    "baseFilter": "permanent",
+                    "scope": "AttachedTo"
+                }
+            },
+            {
+                "type": "CantBlock",
+                "filter": {
+                    "baseFilter": "permanent",
+                    "scope": "AttachedTo"
+                }
+            }
+        ],
+        "auraTarget": {
+            "type": "TargetObject",
+            "filter": {
+                "baseFilter": "creature"
+            }
+        }
+    },
+    "metadata": {
+        "collectorNumber": "3",
+        "artist": "Mark Tedin",
+        "flavorText": "\"Our own actions built the prisons that now hold us. Our hands reached too far and tried to hold too much.\"\n—Dosan the Falling Leaf",
+        "imageUri": "https://cards.scryfall.io/normal/front/9/8/98a80b6a-90ed-482f-9714-eb856269e9d3.jpg?1783944342",
+        "rulings": [
+            {
+                "date": "2020-11-10",
+                "text": "The ability to return Cage of Hands to its owner's hand can only be activated if Cage of Hands is on the battlefield. If Cage of Hands is no longer on the battlefield when the ability resolves, Cage of Hands remains in its new zone and isn't returned to its owner's hand."
+            }
+        ]
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
 // Call to Glory
 {
     "name": "Call to Glory",

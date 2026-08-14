@@ -1,3 +1,78 @@
+// Etherium-Horn Sorcerer
+{
+    "name": "Etherium-Horn Sorcerer",
+    "manaCost": "{4}{U}{R}",
+    "typeLine": "Artifact Creature — Minotaur Wizard Sorcerer",
+    "oracleText": "{1}{U}{R}: Return this creature to its owner's hand.\nCascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 6
+    },
+    "keywords": [
+        "CASCADE"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": "CastThisSpellEvent",
+                "effect": "Cascade",
+                "descriptionOverride": "Cascade"
+            }
+        ],
+        "activatedAbilities": [
+            {
+                "id": "ability_2",
+                "cost": {
+                    "type": "CostAtomWrapper",
+                    "atom": {
+                        "type": "AtomMana",
+                        "cost": "{1}{U}{R}"
+                    }
+                },
+                "effect": {
+                    "type": "MoveToZone",
+                    "target": "Self",
+                    "destination": "Hand"
+                },
+                "descriptionOverride": "{1}{U}{R}: Return this creature to its owner's hand."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "91",
+        "rarity": "RARE",
+        "artist": "Franz Vohwinkel",
+        "imageUri": "https://cards.scryfall.io/normal/front/3/d/3df330d3-7687-4a05-b215-adca15f332da.jpg?1783940599",
+        "rulings": [
+            {
+                "date": "2012-06-01",
+                "text": "Etherium-Horn Sorcerer's first ability can only be activated when it is on the battlefield. If Etherium-Horn Sorcerer isn't on the battlefield when the ability resolves, the ability won't do anything."
+            },
+            {
+                "date": "2021-06-18",
+                "text": "A spell's mana value is determined only by its mana cost. Ignore any alternative costs, additional costs, cost increases, or cost reductions."
+            },
+            {
+                "date": "2021-06-18",
+                "text": "Cascade triggers when you cast the spell, meaning that it resolves before that spell. If you end up casting the exiled card, it will go on the stack above the spell with cascade."
+            },
+            {
+                "date": "2021-06-18",
+                "text": "When the cascade ability resolves, you must exile cards. The only optional part of the ability is whether or not you cast the last card exiled."
+            },
+            {
+                "date": "2021-06-18",
+                "text": "If a spell with cascade is countered, the cascade ability will still resolve normally."
+            }
+        ]
+    },
+    "colorIdentityOverride": [
+        "BLUE",
+        "RED"
+    ]
+}
+
 // Maelstrom Wanderer
 {
     "name": "Maelstrom Wanderer",

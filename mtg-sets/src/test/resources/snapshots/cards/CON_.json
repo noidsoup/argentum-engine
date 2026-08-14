@@ -104,6 +104,75 @@
     "colorIdentityOverride": []
 }
 
+// Fiery Fall
+{
+    "name": "Fiery Fall",
+    "manaCost": "{5}{R}",
+    "typeLine": "Instant",
+    "oracleText": "Fiery Fall deals 5 damage to target creature.\nBasic landcycling {1}{R} ({1}{R}, Discard this card: Search your library for a basic land card, reveal it, put it into your hand, then shuffle.)",
+    "keywordAbilities": [
+        {
+            "type": "Cycling",
+            "cost": "{1}{R}",
+            "searchFilter": {
+                "cardPredicates": [
+                    "IsBasicLand"
+                ]
+            },
+            "displayPrefix": "Basic landcycling"
+        }
+    ],
+    "script": {
+        "spellEffect": {
+            "type": "DealDamage",
+            "amount": {
+                "type": "Fixed",
+                "amount": 5
+            },
+            "target": {
+                "type": "BoundVariable",
+                "name": "target creature"
+            }
+        },
+        "targetRequirements": [
+            {
+                "type": "TargetObject",
+                "filter": {
+                    "baseFilter": "creature"
+                },
+                "id": "target creature"
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "63",
+        "artist": "Daarken",
+        "flavorText": "Jund feasts on the unprepared.",
+        "imageUri": "https://cards.scryfall.io/normal/front/6/8/687bb467-b447-4901-8a65-cd91fd3aa15d.jpg?1783942479",
+        "rulings": [
+            {
+                "date": "2009-02-01",
+                "text": "Unlike the normal cycling ability, basic landcycling doesn't allow you to draw a card. Instead, it lets you search your library for a basic land card. You don't choose the type of basic land card you'll find until you're performing the search. After you choose a basic land card in your library, you reveal it, put it into your hand, then shuffle your library."
+            },
+            {
+                "date": "2009-02-01",
+                "text": "Basic landcycling is a form of cycling. Any ability that triggers on a card being cycled also triggers on a card being basic landcycled. Any ability that stops a cycling ability from being activated also stops a basic landcycling ability from being activated."
+            },
+            {
+                "date": "2009-02-01",
+                "text": "Basic landcycling is an activated ability. Effects that interact with activated abilities (such as Stifle or Rings of Brighthearth) will interact with basic landcycling. Effects that interact with spells (such as Remove Soul or Faerie Tauntings) will not."
+            },
+            {
+                "date": "2009-02-01",
+                "text": "You can choose not to find a basic land card, even if there is one in your library."
+            }
+        ]
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
 // Progenitus
 {
     "name": "Progenitus",
