@@ -87,6 +87,20 @@
         "CASCADE"
     ],
     "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": "CastThisSpellEvent",
+                "effect": "Cascade",
+                "descriptionOverride": "Cascade"
+            },
+            {
+                "id": "ability_2",
+                "trigger": "CastThisSpellEvent",
+                "effect": "Cascade",
+                "descriptionOverride": "Cascade"
+            }
+        ],
         "staticAbilities": [
             {
                 "type": "GrantKeyword",
