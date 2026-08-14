@@ -1,3 +1,65 @@
+// Arc Trail
+{
+    "name": "Arc Trail",
+    "manaCost": "{1}{R}",
+    "typeLine": "Sorcery",
+    "oracleText": "Arc Trail deals 2 damage to any target and 1 damage to any other target.",
+    "script": {
+        "spellEffect": {
+            "type": "Composite",
+            "effects": [
+                {
+                    "type": "DealDamage",
+                    "amount": {
+                        "type": "Fixed",
+                        "amount": 2
+                    },
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "first target"
+                    }
+                },
+                {
+                    "type": "DealDamage",
+                    "amount": {
+                        "type": "Fixed",
+                        "amount": 1
+                    },
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "second target"
+                    }
+                }
+            ]
+        },
+        "targetRequirements": [
+            {
+                "type": "AnyTarget",
+                "id": "first target",
+                "descriptionOverride": "any target (takes 2 damage)"
+            },
+            {
+                "type": "TargetOther",
+                "baseRequirement": {
+                    "type": "AnyTarget",
+                    "descriptionOverride": "any other target (takes 1 damage)"
+                },
+                "id": "second target"
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "81",
+        "rarity": "UNCOMMON",
+        "artist": "Marc Simonetti",
+        "flavorText": "\"Don't try to hit your enemies. Concentrate on the space between them, and fill the air with doom.\"\n—Spear-Tribe teaching",
+        "imageUri": "https://cards.scryfall.io/normal/front/4/4/445e3a0a-29a7-4dc0-80fe-569b9e751db3.jpg?1783941727"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
 // Exsanguinate
 {
     "name": "Exsanguinate",

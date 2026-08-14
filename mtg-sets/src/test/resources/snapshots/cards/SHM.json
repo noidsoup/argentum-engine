@@ -68,6 +68,60 @@
     ]
 }
 
+// Glen Elendra Liege
+{
+    "name": "Glen Elendra Liege",
+    "manaCost": "{1}{U/B}{U/B}{U/B}",
+    "typeLine": "Creature — Faerie Knight",
+    "oracleText": "Flying\nOther blue creatures you control get +1/+1.\nOther black creatures you control get +1/+1.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 3
+    },
+    "keywords": [
+        "FLYING"
+    ],
+    "script": {
+        "staticAbilities": [
+            {
+                "type": "ModifyStats",
+                "powerBonus": 1,
+                "toughnessBonus": 1,
+                "filter": {
+                    "baseFilter": "creature blue ctrl:you",
+                    "excludeSelf": true
+                }
+            },
+            {
+                "type": "ModifyStats",
+                "powerBonus": 1,
+                "toughnessBonus": 1,
+                "filter": {
+                    "baseFilter": "creature black ctrl:you",
+                    "excludeSelf": true
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "163",
+        "rarity": "RARE",
+        "artist": "Kev Walker",
+        "flavorText": "Those who displease Oona soon learn the extent of the armies she commands.",
+        "imageUri": "https://cards.scryfall.io/normal/front/9/4/94cc72b7-b593-438f-a07a-35f2452e1c48.jpg?1783942732",
+        "rulings": [
+            {
+                "date": "2008-05-01",
+                "text": "The abilities are separate and cumulative. If another creature you control is both of the listed colors, it will get a total of +2/+2."
+            }
+        ]
+    },
+    "colorIdentityOverride": [
+        "BLUE",
+        "BLACK"
+    ]
+}
+
 // Wilt-Leaf Liege
 {
     "name": "Wilt-Leaf Liege",

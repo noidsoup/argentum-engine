@@ -65,6 +65,31 @@
     ]
 }
 
+// Armored Griffin
+{
+    "name": "Armored Griffin",
+    "manaCost": "{3}{W}",
+    "typeLine": "Creature — Griffin",
+    "oracleText": "Flying, vigilance",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 3
+    },
+    "keywords": [
+        "FLYING",
+        "VIGILANCE"
+    ],
+    "metadata": {
+        "collectorNumber": "13",
+        "rarity": "UNCOMMON",
+        "artist": "Bradley Williams",
+        "imageUri": "https://cards.scryfall.io/normal/front/5/4/54866603-c80c-4dc8-9655-eaf54ed2c5ab.jpg?1783946495"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
 // Bear Cub
 {
     "name": "Bear Cub",
