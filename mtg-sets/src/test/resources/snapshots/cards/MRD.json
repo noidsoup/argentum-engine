@@ -237,6 +237,39 @@
     ]
 }
 
+// Barter in Blood
+{
+    "name": "Barter in Blood",
+    "manaCost": "{2}{B}{B}",
+    "typeLine": "Sorcery",
+    "oracleText": "Each player sacrifices two creatures of their choice.",
+    "script": {
+        "spellEffect": {
+            "type": "ForEach",
+            "space": {
+                "type": "IterationSpace.Players",
+                "players": "Each"
+            },
+            "body": {
+                "type": "ForceSacrifice",
+                "filter": "creature",
+                "count": 2,
+                "target": "Controller"
+            }
+        }
+    },
+    "metadata": {
+        "collectorNumber": "57",
+        "rarity": "UNCOMMON",
+        "artist": "Paolo Parente",
+        "flavorText": "\"In the game of conquest, who cares about the pawns if the king yet reigns?\"\n—Geth, keeper of the Vault",
+        "imageUri": "https://cards.scryfall.io/normal/front/b/e/beccbb2c-ca1d-4b72-9eca-a64a313fd830.jpg?1783944550"
+    },
+    "colorIdentityOverride": [
+        "BLACK"
+    ]
+}
+
 // Battlegrowth
 {
     "name": "Battlegrowth",

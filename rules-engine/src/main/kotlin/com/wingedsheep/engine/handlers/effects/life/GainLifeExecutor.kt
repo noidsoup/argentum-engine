@@ -36,7 +36,14 @@ class GainLifeExecutor(
         val events = mutableListOf<EngineGameEvent>()
 
         for (playerId in playerIds) {
-            val (gainedState, event) = DamageUtils.gainLife(newState, playerId, amount)
+            val (gainedState, event) = DamageUtils.gainLife(
+                newState,
+                playerId,
+                amount,
+                causingSourceId = DamageUtils.resolvingSpellCauseId(
+                    newState, context.sourceId, context.causingSpellId
+                ),
+            )
             newState = gainedState
             if (event != null) events.add(event)
         }

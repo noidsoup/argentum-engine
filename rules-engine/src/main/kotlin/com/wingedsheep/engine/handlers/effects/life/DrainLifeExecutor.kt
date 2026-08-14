@@ -58,7 +58,14 @@ class DrainLifeExecutor(
 
         val gainerId = context.resolvePlayerTarget(effect.to, newState)
         if (gainerId != null && totalLost > 0) {
-            val (updatedState, gainEvent) = DamageUtils.gainLife(newState, gainerId, totalLost)
+            val (updatedState, gainEvent) = DamageUtils.gainLife(
+                newState,
+                gainerId,
+                totalLost,
+                causingSourceId = DamageUtils.resolvingSpellCauseId(
+                    newState, context.sourceId, context.causingSpellId
+                ),
+            )
             newState = updatedState
             if (gainEvent != null) events.add(gainEvent)
         }

@@ -5,6 +5,7 @@ import com.wingedsheep.engine.core.GameEvent as EngineGameEvent
 import com.wingedsheep.engine.handlers.DynamicAmountEvaluator
 import com.wingedsheep.engine.handlers.EffectContext
 import com.wingedsheep.engine.handlers.effects.EffectExecutor
+import com.wingedsheep.engine.handlers.effects.DamageUtils
 import com.wingedsheep.engine.handlers.effects.DamageUtils.dealDamageToTarget
 import com.wingedsheep.engine.state.GameState
 import com.wingedsheep.sdk.scripting.effects.DealDamageEffect
@@ -47,6 +48,8 @@ class DealDamageExecutor(
             context.sourceId
         }
 
+        val lifeGainCauseId = DamageUtils.resolvingSpellCauseId(state, context.sourceId, context.causingSpellId)
+
         // For PlayerRef targets, resolve to potentially multiple players
         if (effect.target is EffectTarget.PlayerRef) {
             val playerIds = context.resolvePlayerTargets(effect.target, state)
@@ -57,7 +60,10 @@ class DealDamageExecutor(
             var newState = state
             val events = mutableListOf<EngineGameEvent>()
             for (playerId in playerIds) {
-                val result = dealDamageToTarget(newState, playerId, amount, sourceId, effect.cantBePrevented)
+                val result = dealDamageToTarget(
+                    newState, playerId, amount, sourceId, effect.cantBePrevented,
+                    lifeGainCauseId = lifeGainCauseId
+                )
                 newState = result.newState
                 events.addAll(result.events)
             }
@@ -70,7 +76,8 @@ class DealDamageExecutor(
 
         return dealDamageToTarget(
             state, targetId, amount, sourceId, effect.cantBePrevented,
-            excessToController = effect.excessToController
+            excessToController = effect.excessToController,
+            lifeGainCauseId = lifeGainCauseId
         )
     }
 }

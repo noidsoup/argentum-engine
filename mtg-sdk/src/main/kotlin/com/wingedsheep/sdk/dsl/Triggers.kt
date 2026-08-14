@@ -1675,6 +1675,19 @@ object Triggers {
     )
 
     /**
+     * Whenever a spell (or other object) matching [spellFilter] causes you to gain life.
+     *
+     * Oracle shape: "Whenever a white instant or sorcery spell causes you to gain life, …"
+     * (Firesong and Sunspeaker). Matches only when the life-gain event carries a causing source
+     * that still exists and satisfies [spellFilter] — not combat lifelink, not permanent
+     * abilities, and not triggered abilities of cards that happen to be white instants/sorceries.
+     */
+    fun spellCausesYouToGainLife(spellFilter: GameObjectFilter): TriggerSpec = TriggerSpec(
+        event = LifeGainEvent(Player.You, causingSourceFilter = spellFilter),
+        binding = TriggerBinding.ANY
+    )
+
+    /**
      * Whenever a player gains life.
      */
     val AnyPlayerGainsLife: TriggerSpec = TriggerSpec(

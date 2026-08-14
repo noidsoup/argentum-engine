@@ -1675,6 +1675,7 @@ class StackResolver(
             val targetRequirements = state.getEntity(spellId)?.get<TargetsComponent>()?.targetRequirements ?: emptyList()
             val context = EffectContext(
                 sourceId = spellId,
+                causingSpellId = spellId,
                 controllerId = spellComponent.casterId,
                 targets = targets,
                 // Position-preserving view (null in slots dropped by 608.2b) so positional

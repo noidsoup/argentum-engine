@@ -487,10 +487,31 @@ class TriggerMatcher(
                 } else true
             }
             is EventPattern.LifeGainEvent -> {
-                event is LifeChangedEvent &&
-                    event.reason == com.wingedsheep.engine.core.LifeChangeReason.LIFE_GAIN &&
-                    matchesPlayer(trigger.player, event.playerId, controllerId) &&
-                    (!trigger.firstTimeEachTurn || event.firstThisTurn)
+                if (event !is LifeChangedEvent) return false
+                if (event.reason != com.wingedsheep.engine.core.LifeChangeReason.LIFE_GAIN) return false
+                if (!matchesPlayer(trigger.player, event.playerId, controllerId)) return false
+                if (trigger.firstTimeEachTurn && !event.firstThisTurn) return false
+                val filter = trigger.causingSourceFilter ?: return true
+                val causeId = event.causingSourceId ?: return false
+                if (state.getEntity(causeId) != null) {
+                    val predicateContext = com.wingedsheep.engine.handlers.PredicateContext(
+                        controllerId = controllerId,
+                        sourceId = sourceId
+                    )
+                    return predicateEvaluator.matches(
+                        state, state.projectedState, causeId, filter, predicateContext
+                    )
+                }
+                // Copy spells cease to exist when they leave the stack (CR 707.10a)
+                // before triggers are checked — match the filter against stamped LKI.
+                val typeLine = event.causingSourceTypeLine ?: return false
+                val record = com.wingedsheep.engine.state.CastSpellRecord(
+                    typeLine = typeLine,
+                    manaValue = 0,
+                    colors = event.causingSourceColors,
+                    isFaceDown = false,
+                )
+                predicateEvaluator.matchesFilter(record, filter)
             }
             is EventPattern.RingTemptedEvent -> {
                 event is com.wingedsheep.engine.core.RingTemptedEvent &&

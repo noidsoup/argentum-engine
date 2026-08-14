@@ -334,15 +334,34 @@ sealed interface EventPattern : TextReplaceable<EventPattern> {
      *
      * [firstTimeEachTurn] restricts the match to the first life-gaining event for that player this
      * turn — "whenever you gain life for the first time each turn" (Leech Collector).
+     *
+     * [causingSourceFilter] restricts the match to life gain caused by a game object matching the
+     * filter (typically a spell — e.g. white instant or sorcery). Backs "whenever a … spell causes
+     * you to gain life" (Firesong and Sunspeaker). Null keeps the unrestricted "whenever you gain
+     * life" shape.
      */
     @SerialName("LifeGainEvent")
     @Serializable
     data class LifeGainEvent(
         val player: Player = Player.You,
-        val firstTimeEachTurn: Boolean = false
+        val firstTimeEachTurn: Boolean = false,
+        val causingSourceFilter: GameObjectFilter? = null,
     ) : EventPattern {
-        override val description: String = "${player.description} would gain life" +
-            if (firstTimeEachTurn) " for the first time each turn" else ""
+        override val description: String = buildString {
+            append(player.description)
+            append(" would gain life")
+            if (firstTimeEachTurn) append(" for the first time each turn")
+            if (causingSourceFilter != null) {
+                append(" caused by ")
+                append(describeObjectForEvent(causingSourceFilter))
+            }
+        }
+
+        override fun applyTextReplacement(replacer: TextReplacer): EventPattern {
+            val f = causingSourceFilter ?: return this
+            val newFilter = f.applyTextReplacement(replacer)
+            return if (newFilter !== f) copy(causingSourceFilter = newFilter) else this
+        }
     }
 
     /**

@@ -229,7 +229,10 @@ class CombatContinuationResumer(
                     newState,
                     targetId,
                     damageAmount,
-                    continuation.sourceId
+                    continuation.sourceId,
+                    lifeGainCauseId = continuation.lifeGainCauseId,
+                    lifeGainCauseTypeLine = continuation.lifeGainCauseTypeLine,
+                    lifeGainCauseColors = continuation.lifeGainCauseColors,
                 )
 
                 if (!result.isSuccess) {

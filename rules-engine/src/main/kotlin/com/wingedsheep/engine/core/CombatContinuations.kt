@@ -1,5 +1,7 @@
 package com.wingedsheep.engine.core
 
+import com.wingedsheep.sdk.core.Color
+import com.wingedsheep.sdk.core.TypeLine
 import com.wingedsheep.sdk.model.EntityId
 import com.wingedsheep.sdk.scripting.effects.Effect
 import kotlinx.serialization.Serializable
@@ -65,13 +67,21 @@ data class AssignAsUnblockedContinuation(
  * @property sourceId The spell/ability that is dealing the damage
  * @property controllerId The player who controls the effect
  * @property targets The targets that damage can be distributed among
+ * @property lifeGainCauseId Resolving spell that caused this damage (stamped at pause time,
+ *   while the spell is still on the stack). Used so lifelink life gain after resume still
+ *   attributes to that spell even though the stack object may already have left.
+ * @property lifeGainCauseTypeLine / [lifeGainCauseColors] LKI for that cause when the entity
+ *   may have been removed (copy spells).
  */
 @Serializable
 data class DistributeDamageContinuation(
     override val decisionId: String,
     val sourceId: EntityId?,
     val controllerId: EntityId,
-    val targets: List<EntityId>
+    val targets: List<EntityId>,
+    val lifeGainCauseId: EntityId? = null,
+    val lifeGainCauseTypeLine: TypeLine? = null,
+    val lifeGainCauseColors: Set<Color> = emptySet(),
 ) : ContinuationFrame
 
 /**

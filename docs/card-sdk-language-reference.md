@@ -3490,6 +3490,17 @@ Triggers.youCastSpell(
 
 - `YouGainLife` — you gain any life.
 - `YouGainLifeFirstTimeEachTurn` — you gain life for the first time each turn (Leech Collector). Backed by `LifeGainEvent(firstTimeEachTurn = true)`, matched against `LifeChangedEvent.firstThisTurn` (computed in `DamageUtils.gainLife` before the per-turn life-gained marker is set).
+- `spellCausesYouToGainLife(spellFilter)` — a spell matching `spellFilter` causes you to gain life
+  ("Whenever a white instant or sorcery spell causes you to gain life, …" — Firesong and Sunspeaker).
+  Backed by `LifeGainEvent(causingSourceFilter = spellFilter)`, matched against
+  `LifeChangedEvent.causingSourceId`. Only a *resolving spell* qualifies: the id is stamped from
+  `EffectContext.causingSpellId` (set by `StackResolver` for spell resolution only), so combat
+  lifelink, permanent abilities, and activated/triggered abilities of instants or sorceries — e.g.
+  cycling Renewed Faith — do not match. Lifelink damage instructed by a spell's effect is attributed
+  to that spell, per the Firesong rulings. `LifeChangedEvent` also carries
+  `causingSourceTypeLine`/`causingSourceColors` as last-known information, so the filter still
+  matches after a copy spell ceases to exist on leaving the stack (CR 707.10a), and across
+  a mid-resolution pause such as divided-damage distribution.
 - `AnyPlayerGainsLife` — anyone gains life.
 - `YouLoseLife` — you lose any life.
 - `AnyPlayerLosesLife` — anyone loses life.

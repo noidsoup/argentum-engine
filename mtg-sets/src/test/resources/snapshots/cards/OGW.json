@@ -223,6 +223,52 @@
     ]
 }
 
+// Meandering River
+{
+    "name": "Meandering River",
+    "manaCost": "",
+    "typeLine": "Land",
+    "oracleText": "This land enters tapped.\n{T}: Add {W} or {U}.",
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": "CostTap",
+                "effect": {
+                    "type": "AddMana",
+                    "color": "WHITE"
+                },
+                "timing": "ManaAbility",
+                "isManaAbility": true
+            },
+            {
+                "id": "ability_2",
+                "cost": "CostTap",
+                "effect": {
+                    "type": "AddMana",
+                    "color": "BLUE"
+                },
+                "timing": "ManaAbility",
+                "isManaAbility": true
+            }
+        ],
+        "replacementEffects": [
+            "EntersTapped"
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "173",
+        "rarity": "UNCOMMON",
+        "artist": "Cliff Childs",
+        "flavorText": "The river split into many channels as it flowed to the Halimar Sea.",
+        "imageUri": "https://cards.scryfall.io/normal/front/6/a/6a5bedf1-92b6-465c-afc2-ce8e150a5e57.jpg?1783937892"
+    },
+    "colorIdentityOverride": [
+        "WHITE",
+        "BLUE"
+    ]
+}
+
 // Sphinx of the Final Word
 {
     "name": "Sphinx of the Final Word",
@@ -279,6 +325,52 @@
         "imageUri": "https://cards.scryfall.io/normal/front/b/0/b073e75b-b432-41a5-a71e-d169fecf774f.jpg"
     },
     "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
+// Timber Gorge
+{
+    "name": "Timber Gorge",
+    "manaCost": "",
+    "typeLine": "Land",
+    "oracleText": "This land enters tapped.\n{T}: Add {R} or {G}.",
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": "CostTap",
+                "effect": {
+                    "type": "AddMana",
+                    "color": "RED"
+                },
+                "timing": "ManaAbility",
+                "isManaAbility": true
+            },
+            {
+                "id": "ability_2",
+                "cost": "CostTap",
+                "effect": {
+                    "type": "AddMana",
+                    "color": "GREEN"
+                },
+                "timing": "ManaAbility",
+                "isManaAbility": true
+            }
+        ],
+        "replacementEffects": [
+            "EntersTapped"
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "179",
+        "rarity": "UNCOMMON",
+        "artist": "Cliff Childs",
+        "flavorText": "\"Tazeem's embrace is harsh, but for those that call it home, nothing else will do.\"",
+        "imageUri": "https://cards.scryfall.io/normal/front/5/5/55d05ff7-f071-4eb3-b10a-203741abdf10.jpg?1783937890"
+    },
+    "colorIdentityOverride": [
+        "RED",
         "GREEN"
     ]
 }

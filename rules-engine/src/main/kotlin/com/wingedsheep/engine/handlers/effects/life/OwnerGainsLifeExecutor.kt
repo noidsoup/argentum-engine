@@ -45,7 +45,12 @@ class OwnerGainsLifeExecutor : EffectExecutor<OwnerGainsLifeEffect> {
         }
 
         // PreventLifeGain / ModifyLifeGain replacements are applied by the shared primitive.
-        val (newState, event) = DamageUtils.gainLife(state, ownerId, effect.amount)
+        val (newState, event) = DamageUtils.gainLife(
+            state,
+            ownerId,
+            effect.amount,
+            causingSourceId = DamageUtils.resolvingSpellCauseId(state, context.sourceId, context.causingSpellId),
+        )
         return EffectResult.success(newState, listOfNotNull(event))
     }
 }

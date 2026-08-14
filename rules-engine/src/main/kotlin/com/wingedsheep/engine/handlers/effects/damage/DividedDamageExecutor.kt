@@ -9,6 +9,7 @@ import com.wingedsheep.engine.core.EffectResult
 import com.wingedsheep.engine.handlers.DecisionHandler
 import com.wingedsheep.engine.handlers.EffectContext
 import com.wingedsheep.engine.handlers.effects.EffectExecutor
+import com.wingedsheep.engine.handlers.effects.DamageUtils
 import com.wingedsheep.engine.handlers.effects.DamageUtils.dealDamageToTarget
 import com.wingedsheep.engine.handlers.effects.TargetResolutionUtils.toEntityId
 import com.wingedsheep.engine.state.GameState
@@ -56,9 +57,17 @@ class DividedDamageExecutor(
             else EffectResult.error(state, "No targets for divided damage")
         }
 
+        val lifeGainCauseId = DamageUtils.resolvingSpellCauseId(state, context.sourceId, context.causingSpellId)
+        val causeCard = lifeGainCauseId?.let { state.getEntity(it)?.get<CardComponent>() }
+
         // If there's only one target, deal all damage directly
         if (targets.size == 1) {
-            return dealDamageToTarget(state, targets.first(), total, context.sourceId)
+            return dealDamageToTarget(
+                state, targets.first(), total, context.sourceId,
+                lifeGainCauseId = lifeGainCauseId,
+                lifeGainCauseTypeLine = causeCard?.typeLine,
+                lifeGainCauseColors = causeCard?.colors ?: emptySet(),
+            )
         }
 
         // Multiple targets - use pre-supplied distribution from context
@@ -66,7 +75,9 @@ class DividedDamageExecutor(
         if (distribution == null) {
             // Fallback: This shouldn't happen with proper flow, but handle gracefully
             // by creating a decision (legacy behavior)
-            return createDistributionDecision(state, effect, context, targets, total)
+            return createDistributionDecision(
+                state, effect, context, targets, total, lifeGainCauseId, causeCard
+            )
         }
 
         // Deal damage to each target per the distribution
@@ -75,7 +86,12 @@ class DividedDamageExecutor(
 
         for ((targetId, amount) in distribution) {
             if (amount > 0) {
-                val result = dealDamageToTarget(currentState, targetId, amount, context.sourceId)
+                val result = dealDamageToTarget(
+                    currentState, targetId, amount, context.sourceId,
+                    lifeGainCauseId = lifeGainCauseId,
+                    lifeGainCauseTypeLine = causeCard?.typeLine,
+                    lifeGainCauseColors = causeCard?.colors ?: emptySet(),
+                )
                 if (!result.isSuccess) {
                     return result
                 }
@@ -96,7 +112,9 @@ class DividedDamageExecutor(
         effect: DividedDamageEffect,
         context: EffectContext,
         targets: List<com.wingedsheep.sdk.model.EntityId>,
-        total: Int
+        total: Int,
+        lifeGainCauseId: com.wingedsheep.sdk.model.EntityId?,
+        causeCard: CardComponent?,
     ): EffectResult {
         val sourceName = context.sourceId?.let { sourceId ->
             state.getEntity(sourceId)?.get<CardComponent>()?.name
@@ -117,12 +135,17 @@ class DividedDamageExecutor(
             minPerTarget = 1 // Per MTG rules, must assign at least 1 damage to each target
         )
 
-        // Push continuation so we know how to resume
+        // Push continuation so we know how to resume — stamp the spell cause now, while the
+        // stack object (and its LKI) is still available. After pause the spell leaves the stack
+        // before damage is applied on resume.
         val continuation = DistributeDamageContinuation(
             decisionId = decisionId,
             sourceId = context.sourceId,
             controllerId = context.controllerId,
-            targets = targets
+            targets = targets,
+            lifeGainCauseId = lifeGainCauseId,
+            lifeGainCauseTypeLine = causeCard?.typeLine,
+            lifeGainCauseColors = causeCard?.colors ?: emptySet(),
         )
 
         val newState = state

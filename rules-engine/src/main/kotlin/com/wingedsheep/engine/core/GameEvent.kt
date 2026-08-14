@@ -1,6 +1,7 @@
 package com.wingedsheep.engine.core
 
 import com.wingedsheep.sdk.core.BendType
+import com.wingedsheep.sdk.core.Color
 import com.wingedsheep.sdk.core.Phase
 import com.wingedsheep.sdk.core.Step
 import com.wingedsheep.sdk.core.TypeLine
@@ -81,6 +82,15 @@ data class ZoneChangeEvent(
  * is the first life-gaining event for [playerId] this turn (computed by `DamageUtils.gainLife`
  * before the per-turn life-gained marker is set). It backs "whenever you gain life for the first
  * time each turn" triggers (Leech Collector). It is always `false` for non-gain reasons.
+ *
+ * [causingSourceId] is only meaningful for [LifeChangeReason.LIFE_GAIN]: the game object whose
+ * cost or effect caused the gain (typically a resolving spell). Backs "whenever a … spell causes
+ * you to gain life" (Firesong and Sunspeaker). Null when the gain was not caused by a tracked
+ * spell (combat lifelink, permanent abilities, untracked paths). Always null for non-gain reasons.
+ *
+ * [causingSourceTypeLine] / [causingSourceColors] are last-known characteristics of that cause,
+ * stamped when the gain is applied. Required so filters still match after a copy spell ceases to
+ * exist (CR 707.10a) before triggers are checked.
  */
 @Serializable
 @SerialName("LifeChangedEvent")
@@ -89,7 +99,10 @@ data class LifeChangedEvent(
     val oldLife: Int,
     val newLife: Int,
     val reason: LifeChangeReason,
-    val firstThisTurn: Boolean = false
+    val firstThisTurn: Boolean = false,
+    val causingSourceId: EntityId? = null,
+    val causingSourceTypeLine: TypeLine? = null,
+    val causingSourceColors: Set<Color> = emptySet(),
 ) : GameEvent
 
 @Serializable

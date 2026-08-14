@@ -3,6 +3,7 @@ package com.wingedsheep.engine.handlers.effects.damage
 import com.wingedsheep.engine.core.EffectResult
 import com.wingedsheep.engine.core.GameEvent as EngineGameEvent
 import com.wingedsheep.engine.handlers.EffectContext
+import com.wingedsheep.engine.handlers.effects.DamageUtils
 import com.wingedsheep.engine.handlers.effects.DamageUtils.dealDamageToTarget
 import com.wingedsheep.engine.handlers.effects.EffectExecutor
 import com.wingedsheep.engine.state.GameState
@@ -48,6 +49,8 @@ class DealDamagePerEntityInZoneExecutor : EffectExecutor<DealDamagePerEntityInZo
             context.sourceId
         }
 
+        val lifeGainCauseId = DamageUtils.resolvingSpellCauseId(state, context.sourceId, context.causingSpellId)
+
         // For PlayerRef targets, resolve to potentially multiple players
         if (effect.target is EffectTarget.PlayerRef) {
             val playerIds = context.resolvePlayerTargets(effect.target, state)
@@ -58,7 +61,10 @@ class DealDamagePerEntityInZoneExecutor : EffectExecutor<DealDamagePerEntityInZo
             var newState = state
             val events = mutableListOf<EngineGameEvent>()
             for (playerId in playerIds) {
-                val result = dealDamageToTarget(newState, playerId, totalDamage, sourceId, cantBePrevented = false)
+                val result = dealDamageToTarget(
+                    newState, playerId, totalDamage, sourceId, cantBePrevented = false,
+                    lifeGainCauseId = lifeGainCauseId
+                )
                 newState = result.newState
                 events.addAll(result.events)
             }
@@ -69,6 +75,9 @@ class DealDamagePerEntityInZoneExecutor : EffectExecutor<DealDamagePerEntityInZo
         val targetId = context.resolveTarget(effect.target, state)
             ?: return EffectResult.error(state, "No valid target for damage")
 
-        return dealDamageToTarget(state, targetId, totalDamage, sourceId, cantBePrevented = false)
+        return dealDamageToTarget(
+            state, targetId, totalDamage, sourceId, cantBePrevented = false,
+            lifeGainCauseId = lifeGainCauseId
+        )
     }
 }

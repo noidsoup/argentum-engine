@@ -5,6 +5,7 @@ import com.wingedsheep.engine.core.EffectResult
 import com.wingedsheep.engine.core.GameEvent
 import com.wingedsheep.engine.handlers.EffectContext
 import com.wingedsheep.engine.handlers.effects.EffectExecutor
+import com.wingedsheep.engine.handlers.effects.DamageUtils
 import com.wingedsheep.engine.handlers.effects.DamageUtils.dealDamageToTarget
 import com.wingedsheep.engine.state.GameState
 import com.wingedsheep.sdk.scripting.effects.FightEffect
@@ -45,8 +46,12 @@ class FightEffectExecutor : EffectExecutor<FightEffect> {
         // Agni Kai). Stays 0 when target1 has no power or deals only lethal/sub-lethal damage.
         var excessToTarget2 = 0
 
+        val lifeGainCauseId = DamageUtils.resolvingSpellCauseId(state, context.sourceId, context.causingSpellId)
+
         if (power1 > 0) {
-            val result1 = dealDamageToTarget(currentState, target2Id, power1, target1Id)
+            val result1 = dealDamageToTarget(
+                currentState, target2Id, power1, target1Id, lifeGainCauseId = lifeGainCauseId
+            )
             currentState = result1.newState
             allEvents.addAll(result1.events)
             excessToTarget2 = result1.events
@@ -57,7 +62,9 @@ class FightEffectExecutor : EffectExecutor<FightEffect> {
 
         // Creature 2 deals damage equal to its power to creature 1
         if (power2 > 0) {
-            val result2 = dealDamageToTarget(currentState, target1Id, power2, target2Id)
+            val result2 = dealDamageToTarget(
+                currentState, target1Id, power2, target2Id, lifeGainCauseId = lifeGainCauseId
+            )
             currentState = result2.newState
             allEvents.addAll(result2.events)
         }

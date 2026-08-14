@@ -31,11 +31,13 @@ import com.wingedsheep.engine.state.components.stack.SpellGrantedKeywordsCompone
 import com.wingedsheep.engine.state.components.stack.SpellOnStackComponent
 import com.wingedsheep.engine.state.components.player.RedNoncombatDamageDealtThisTurnComponent
 import com.wingedsheep.sdk.core.Color
+import com.wingedsheep.sdk.core.TypeLine
 import com.wingedsheep.engine.mechanics.mana.GrantedKeywordResolver
 import com.wingedsheep.engine.state.components.identity.CardComponent
 import com.wingedsheep.engine.state.components.identity.ControllerComponent
 import com.wingedsheep.engine.state.components.identity.FaceDownComponent
 import com.wingedsheep.engine.state.components.identity.LifeTotalComponent
+import com.wingedsheep.engine.state.components.identity.OwnerComponent
 import com.wingedsheep.engine.state.components.battlefield.ClassLevelComponent
 import com.wingedsheep.engine.state.components.player.DamageBonusComponent
 import com.wingedsheep.engine.mechanics.layers.SerializableModification
@@ -128,7 +130,21 @@ object DamageUtils {
          * lethal (CR 120.4a) is dealt to that creature's controller instead (Gandalf's Sanction:
          * "Excess damage is dealt to that creature's controller instead.").
          */
-        excessToController: Boolean = false
+        excessToController: Boolean = false,
+        /**
+         * When non-null, life gain from lifelink on this damage is attributed to this object
+         * (typically the resolving spell whose effect instructed the damage — Firesong rulings:
+         * if a spell instructs a lifelink source to deal damage, the spell causes that life gain).
+         * When null, lifelink life gain is attributed to [sourceId] only if that source is itself
+         * a spell still carrying [SpellOnStackComponent].
+         */
+        lifeGainCauseId: EntityId? = null,
+        /**
+         * Optional LKI for [lifeGainCauseId] when that entity may already be gone (copy left the
+         * stack). Live [CardComponent] characteristics win when the entity still exists.
+         */
+        lifeGainCauseTypeLine: TypeLine? = null,
+        lifeGainCauseColors: Set<Color> = emptySet(),
     ): EffectResult {
         if (amount <= 0) return EffectResult.success(state)
 
@@ -139,12 +155,22 @@ object DamageUtils {
         // Check for damage redirection (Glarecaster, Zealous Inquisitor)
         val (redirectState, redirectTargetId, redirectAmount) = checkDamageRedirection(state, targetId, amount)
         if (redirectTargetId != null) {
-            val redirectResult = dealDamageToTarget(redirectState, redirectTargetId, redirectAmount, sourceId, cantBePrevented, isCombatDamage, appliedRedirects)
+            val redirectResult = dealDamageToTarget(
+                redirectState, redirectTargetId, redirectAmount, sourceId,
+                cantBePrevented, isCombatDamage, appliedRedirects, lifeGainCauseId = lifeGainCauseId,
+                lifeGainCauseTypeLine = lifeGainCauseTypeLine,
+                lifeGainCauseColors = lifeGainCauseColors,
+            )
             val remainingDamage = amount - redirectAmount
             return if (remainingDamage > 0) {
                 // Partial redirection — deal remaining damage to original target
                 val afterRedirect = redirectResult.state
-                val remainingResult = dealDamageToTarget(afterRedirect, targetId, remainingDamage, sourceId, cantBePrevented, isCombatDamage, appliedRedirects)
+                val remainingResult = dealDamageToTarget(
+                    afterRedirect, targetId, remainingDamage, sourceId,
+                    cantBePrevented, isCombatDamage, appliedRedirects, lifeGainCauseId = lifeGainCauseId,
+                    lifeGainCauseTypeLine = lifeGainCauseTypeLine,
+                    lifeGainCauseColors = lifeGainCauseColors,
+                )
                 EffectResult.success(remainingResult.state, redirectResult.events + remainingResult.events)
             } else {
                 redirectResult
@@ -160,7 +186,9 @@ object DamageUtils {
             if (staticRedirectTo != null && staticRedirectSource != null) {
                 return dealDamageToTarget(
                     state, staticRedirectTo, amount, sourceId, cantBePrevented, isCombatDamage,
-                    appliedRedirects + staticRedirectSource
+                    appliedRedirects + staticRedirectSource, lifeGainCauseId = lifeGainCauseId,
+                    lifeGainCauseTypeLine = lifeGainCauseTypeLine,
+                    lifeGainCauseColors = lifeGainCauseColors,
                 )
             }
         }
@@ -419,8 +447,27 @@ object DamageUtils {
                     ?: newState.getEntity(sourceId)?.get<ControllerComponent>()?.playerId
                     // A spell source carries no ControllerComponent; its controller is the caster.
                     ?: newState.getEntity(sourceId)?.get<SpellOnStackComponent>()?.casterId
+                    // After a mid-resolution pause the spell may already be in GY/exile without
+                    // SpellOnStackComponent — fall back to the card's owner (the caster).
+                    ?: newState.getEntity(sourceId)?.get<CardComponent>()?.ownerId
                 if (controllerId != null) {
-                    val (gainedState, gainEvent) = gainLife(newState, controllerId, effectiveAmount)
+                    // Attribute lifelink life gain to the resolving spell when one instructed
+                    // this damage (Firesong); otherwise to the damage source if it is itself a
+                    // spell (spell with lifelink deals damage).
+                    val causingSourceId = lifeGainCauseId
+                        ?: sourceId.takeIf {
+                            val entity = newState.getEntity(it) ?: return@takeIf false
+                            entity.has<SpellOnStackComponent>() ||
+                                entity.get<CardComponent>()?.typeLine?.let { tl ->
+                                    tl.isInstant || tl.isSorcery
+                                } == true
+                        }
+                    val (gainedState, gainEvent) = gainLife(
+                        newState, controllerId, effectiveAmount,
+                        causingSourceId = causingSourceId,
+                        causingSourceTypeLine = lifeGainCauseTypeLine,
+                        causingSourceColors = lifeGainCauseColors,
+                    )
                     newState = gainedState
                     if (gainEvent != null) events.add(gainEvent)
                 }
@@ -434,7 +481,10 @@ object DamageUtils {
             val excessResult = dealDamageToTarget(
                 newState, targetControllerId, creatureExcessDamage, sourceId,
                 cantBePrevented = cantBePrevented, isCombatDamage = isCombatDamage,
-                appliedRedirects = appliedRedirects, excessToController = false
+                appliedRedirects = appliedRedirects, excessToController = false,
+                lifeGainCauseId = lifeGainCauseId,
+                lifeGainCauseTypeLine = lifeGainCauseTypeLine,
+                lifeGainCauseColors = lifeGainCauseColors,
             )
             newState = excessResult.state
             events.addAll(excessResult.events)
@@ -571,20 +621,41 @@ object DamageUtils {
      *
      * Only spells on the stack qualify (gated on [SpellOnStackComponent]); battlefield sources are
      * already covered by projected keywords.
+     *
+     * Exception: after a mid-resolution pause the spell object may already have left the stack
+     * (GY/exile) before damage applies on resume. In that case, printed *or granted* lifelink on an
+     * instant/sorcery still applies as last-known information for that resolving spell (e.g.
+     * Firesong / Lo and Li grants via [GrantKeywordToOwnSpells]).
      */
     private fun sourceHasGrantedLifelink(state: GameState, sourceId: EntityId): Boolean {
         val container = state.getEntity(sourceId) ?: return false
         if (container.get<SpellGrantedKeywordsComponent>()?.keywords?.contains(Keyword.LIFELINK.name) == true) {
             return true
         }
-        // A resolving spell is popped from `state.stack` *before* its effects run, but keeps its
-        // [SpellOnStackComponent] until it leaves the stack zone — so gate on the component, not
-        // stack membership.
-        val spellOnStack = container.get<SpellOnStackComponent>() ?: return false
-        val controllerId = container.get<ControllerComponent>()?.playerId ?: spellOnStack.casterId
-        val cardDef = container.get<CardComponent>()
-            ?.let { cardRegistry.getCard(it.cardDefinitionId) } ?: return false
-        return GrantedKeywordResolver(cardRegistry).hasKeyword(state, controllerId, cardDef, Keyword.LIFELINK)
+        val card = container.get<CardComponent>()
+        val spellOnStack = container.get<SpellOnStackComponent>()
+        if (spellOnStack != null) {
+            val controllerId = container.get<ControllerComponent>()?.playerId ?: spellOnStack.casterId
+            val cardDef = card?.let { cardRegistry.getCard(it.cardDefinitionId) } ?: return false
+            return GrantedKeywordResolver(cardRegistry).hasKeyword(state, controllerId, cardDef, Keyword.LIFELINK)
+        }
+        // Mid-resolution after pause: spell left the stack but is still the damage source.
+        if (card != null && (card.typeLine.isInstant || card.typeLine.isSorcery)) {
+            if (Keyword.LIFELINK in card.baseKeywords) return true
+            val cardDef = cardRegistry.getCard(card.cardDefinitionId) ?: return false
+            val controllerId = container.get<ControllerComponent>()?.playerId
+                ?: container.get<OwnerComponent>()?.playerId
+            if (controllerId != null) {
+                return GrantedKeywordResolver(cardRegistry).hasKeyword(
+                    state,
+                    controllerId,
+                    cardDef,
+                    Keyword.LIFELINK,
+                )
+            }
+            return Keyword.LIFELINK in cardDef.keywords
+        }
+        return false
     }
 
     /**
@@ -607,12 +678,23 @@ object DamageUtils {
      * Returns the updated state paired with the emitted event, or `state to null` when the
      * gain is prevented, modified to ≤ 0, or [playerId] has no life total (no mutation
      * performed) so callers can skip the no-op cleanly.
+     *
+     * [causingSourceId] stamps the object whose cost/effect caused the gain onto the
+     * [LifeChangedEvent] (spell-caused life gain triggers). Leave null for combat/permanent
+     * paths that are not caused by a resolving spell.
+     *
+     * [causingSourceTypeLine] / [causingSourceColors] are optional LKI for that cause when the
+     * entity may already be gone. If the entity still exists, its live [CardComponent]
+     * characteristics are preferred.
      */
     fun gainLife(
         state: GameState,
         playerId: EntityId,
         amount: Int,
         applyLifeGainModification: Boolean = true,
+        causingSourceId: EntityId? = null,
+        causingSourceTypeLine: TypeLine? = null,
+        causingSourceColors: Set<Color> = emptySet(),
     ): Pair<GameState, LifeChangedEvent?> {
         if (isLifeGainPrevented(state, playerId)) return state to null
         val gainAmount = if (applyLifeGainModification) {
@@ -632,7 +714,36 @@ object DamageUtils {
             ?.has<com.wingedsheep.engine.state.components.player.LifeGainedThisTurnComponent>() != true
         var newState = state.withLifeTotal(playerId, newLife)
         newState = markLifeGainedThisTurn(newState, playerId, gainAmount)
-        return newState to LifeChangedEvent(playerId, currentLife, newLife, LifeChangeReason.LIFE_GAIN, firstThisTurn)
+        val causeCard = causingSourceId?.let { newState.getEntity(it)?.get<CardComponent>() }
+        return newState to LifeChangedEvent(
+            playerId = playerId,
+            oldLife = currentLife,
+            newLife = newLife,
+            reason = LifeChangeReason.LIFE_GAIN,
+            firstThisTurn = firstThisTurn,
+            causingSourceId = causingSourceId,
+            causingSourceTypeLine = causeCard?.typeLine ?: causingSourceTypeLine,
+            causingSourceColors = causeCard?.colors ?: causingSourceColors,
+        )
+    }
+
+    /**
+     * The resolving spell that is currently executing effects.
+     *
+     * Prefer [causingSpellId] from the spell-resolution [com.wingedsheep.engine.handlers.EffectContext]
+     * — that stamp survives the spell leaving the stack mid-pause. Fall back to [effectSourceId]
+     * only when it still carries [SpellOnStackComponent]. Do **not** treat every instant/sorcery
+     * card entity as a cause: cycling and other abilities of those cards must not satisfy
+     * Firesong-style "spell causes you to gain life" filters.
+     */
+    fun resolvingSpellCauseId(
+        state: GameState,
+        effectSourceId: EntityId?,
+        causingSpellId: EntityId? = null,
+    ): EntityId? {
+        if (causingSpellId != null) return causingSpellId
+        if (effectSourceId == null) return null
+        return effectSourceId.takeIf { state.getEntity(it)?.has<SpellOnStackComponent>() == true }
     }
 
     /**

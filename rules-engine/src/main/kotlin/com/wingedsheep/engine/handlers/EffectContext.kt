@@ -25,6 +25,14 @@ data class EffectContext(
     val sourceId: EntityId?,
     val controllerId: EntityId,
     /**
+     * When non-null, instructions of this effect are caused by this resolving spell for
+     * Firesong-style "spell causes you to gain life" attribution. Set only on spell-resolution
+     * contexts (not activated/triggered abilities). Survives the spell leaving the stack during
+     * a mid-resolution pause so later instructions still attribute correctly without treating
+     * every instant/sorcery card in GY as a resolving spell (e.g. cycling Renewed Faith).
+     */
+    val causingSpellId: EntityId? = null,
+    /**
      * The controller of the *overall* effect/ability, stable across per-player iteration.
      * `ForEachEffect(IterationSpace.Players)` rebinds [controllerId] to each iterated player so
      * `Player.You` resolves to them, but some sub-effects still need the original activating

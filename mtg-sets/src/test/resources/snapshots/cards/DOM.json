@@ -2047,6 +2047,239 @@
     ]
 }
 
+// Chandra's Outburst
+{
+    "name": "Chandra's Outburst",
+    "manaCost": "{3}{R}{R}",
+    "typeLine": "Sorcery",
+    "oracleText": "Chandra's Outburst deals 4 damage to target player or planeswalker.\nSearch your library and/or graveyard for a card named Chandra, Bold Pyromancer, reveal it, and put it into your hand. If you search your library this way, shuffle.",
+    "script": {
+        "spellEffect": {
+            "type": "Composite",
+            "effects": [
+                {
+                    "type": "DealDamage",
+                    "amount": {
+                        "type": "Fixed",
+                        "amount": 4
+                    },
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "target player or planeswalker"
+                    }
+                },
+                {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "GatherCards",
+                            "source": {
+                                "type": "FromMultipleZones",
+                                "zones": [
+                                    "Library",
+                                    "Graveyard"
+                                ],
+                                "filter": "name:Chandra, Bold Pyromancer"
+                            },
+                            "storeAs": "searchable"
+                        },
+                        {
+                            "type": "SelectFromCollection",
+                            "from": "searchable",
+                            "selection": {
+                                "type": "ChooseUpTo",
+                                "count": {
+                                    "type": "Fixed",
+                                    "amount": 1
+                                }
+                            },
+                            "storeSelected": "found"
+                        },
+                        {
+                            "type": "MoveCollection",
+                            "from": "found",
+                            "destination": {
+                                "type": "ToZone",
+                                "zone": "Hand"
+                            },
+                            "revealed": true
+                        },
+                        "ShuffleLibrary",
+                        "EmitLibrarySearchedEvent"
+                    ]
+                }
+            ]
+        },
+        "targetRequirements": [
+            {
+                "type": "TargetPlayerOrPlaneswalker",
+                "id": "target player or planeswalker"
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "276",
+        "rarity": "RARE",
+        "artist": "Yongjae Choi",
+        "imageUri": "https://cards.scryfall.io/normal/front/f/1/f1e849c3-f357-4e81-a580-be5056bed51b.jpg?1783934936"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
+// Chandra, Bold Pyromancer
+{
+    "name": "Chandra, Bold Pyromancer",
+    "manaCost": "{4}{R}{R}",
+    "typeLine": "Legendary Planeswalker — Chandra",
+    "oracleText": "+1: Add {R}{R}. Chandra deals 2 damage to target player.\n−3: Chandra deals 3 damage to target creature or planeswalker.\n−7: Chandra deals 10 damage to target player and each creature and planeswalker they control.",
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": {
+                    "type": "CostLoyalty",
+                    "change": 1
+                },
+                "effect": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "AddMana",
+                            "color": "RED",
+                            "amount": {
+                                "type": "Fixed",
+                                "amount": 2
+                            }
+                        },
+                        {
+                            "type": "DealDamage",
+                            "amount": {
+                                "type": "Fixed",
+                                "amount": 2
+                            },
+                            "target": {
+                                "type": "BoundVariable",
+                                "name": "target player"
+                            }
+                        }
+                    ]
+                },
+                "targetRequirements": [
+                    {
+                        "type": "TargetPlayer",
+                        "id": "target player"
+                    }
+                ],
+                "timing": "SorcerySpeed",
+                "isPlaneswalkerAbility": true
+            },
+            {
+                "id": "ability_2",
+                "cost": {
+                    "type": "CostLoyalty",
+                    "change": -3
+                },
+                "effect": {
+                    "type": "DealDamage",
+                    "amount": {
+                        "type": "Fixed",
+                        "amount": 3
+                    },
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "target creature or planeswalker"
+                    }
+                },
+                "targetRequirements": [
+                    {
+                        "type": "TargetCreatureOrPlaneswalker",
+                        "id": "target creature or planeswalker"
+                    }
+                ],
+                "timing": "SorcerySpeed",
+                "isPlaneswalkerAbility": true
+            },
+            {
+                "id": "ability_3",
+                "cost": {
+                    "type": "CostLoyalty",
+                    "change": -7
+                },
+                "effect": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "DealDamage",
+                            "amount": {
+                                "type": "Fixed",
+                                "amount": 10
+                            },
+                            "target": {
+                                "type": "BoundVariable",
+                                "name": "target player"
+                            }
+                        },
+                        {
+                            "type": "ForEach",
+                            "space": {
+                                "type": "IterationSpace.Group",
+                                "filter": {
+                                    "baseFilter": {
+                                        "cardPredicates": [
+                                            {
+                                                "type": "Or",
+                                                "predicates": [
+                                                    "IsCreature",
+                                                    "IsPlaneswalker"
+                                                ]
+                                            }
+                                        ],
+                                        "controllerPredicate": {
+                                            "type": "ControlledByReferencedPlayer",
+                                            "target": {
+                                                "type": "BoundVariable",
+                                                "name": "target player"
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            "body": {
+                                "type": "DealDamage",
+                                "amount": {
+                                    "type": "Fixed",
+                                    "amount": 10
+                                },
+                                "target": "Self"
+                            }
+                        }
+                    ]
+                },
+                "targetRequirements": [
+                    {
+                        "type": "TargetPlayer",
+                        "id": "target player"
+                    }
+                ],
+                "timing": "SorcerySpeed",
+                "isPlaneswalkerAbility": true
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "275",
+        "rarity": "MYTHIC",
+        "artist": "Zack Stella",
+        "imageUri": "https://cards.scryfall.io/normal/front/b/a/ba9d2384-5c3f-4eb1-86b4-26ee13f1c767.jpg?1783934935"
+    },
+    "startingLoyalty": 5,
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
 // Charge
 {
     "name": "Charge",
@@ -3957,6 +4190,105 @@
     },
     "colorIdentityOverride": [
         "RED"
+    ]
+}
+
+// Firesong and Sunspeaker
+{
+    "name": "Firesong and Sunspeaker",
+    "manaCost": "{4}{R}{W}",
+    "typeLine": "Legendary Creature — Minotaur Cleric",
+    "oracleText": "Red instant and sorcery spells you control have lifelink.\nWhenever a white instant or sorcery spell causes you to gain life, Firesong and Sunspeaker deals 3 damage to target creature or player.",
+    "creatureStats": {
+        "power": 4,
+        "toughness": 6
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "LifeGainEvent",
+                    "causingSourceFilter": {
+                        "cardPredicates": [
+                            {
+                                "type": "Or",
+                                "predicates": [
+                                    "IsInstant",
+                                    "IsSorcery"
+                                ]
+                            },
+                            {
+                                "type": "HasColor",
+                                "color": "WHITE"
+                            }
+                        ]
+                    }
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "DealDamage",
+                    "amount": {
+                        "type": "Fixed",
+                        "amount": 3
+                    },
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "target creature or player"
+                    }
+                },
+                "targetRequirement": {
+                    "type": "TargetCreatureOrPlayer",
+                    "id": "target creature or player"
+                }
+            }
+        ],
+        "staticAbilities": [
+            {
+                "type": "GrantKeywordToOwnSpells",
+                "keyword": "LIFELINK",
+                "spellFilter": {
+                    "cardPredicates": [
+                        {
+                            "type": "Or",
+                            "predicates": [
+                                "IsInstant",
+                                "IsSorcery"
+                            ]
+                        },
+                        {
+                            "type": "HasColor",
+                            "color": "RED"
+                        }
+                    ]
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "280",
+        "rarity": "RARE",
+        "artist": "Zoltan Boros",
+        "flavorText": "The peaks of Hurloon never fall silent.",
+        "imageUri": "https://cards.scryfall.io/normal/front/3/9/3923708a-60b8-4fb0-beb2-9ab18f5fd381.jpg?1783934934",
+        "rulings": [
+            {
+                "date": "2018-04-27",
+                "text": "A spell causes you to gain life if its cost or effect instructs you to gain life or if an instruction in its cost or effect is modified by a replacement effect and the modified event includes you gaining life. If a spell's cost or effect instructs a source with lifelink you control to deal damage, that spell causes that life gain as well."
+            },
+            {
+                "date": "2018-04-27",
+                "text": "Firesong and Sunspeaker's last ability doesn't trigger if a triggered ability of a white instant or sorcery spell or card causes you to gain life, such as the triggered ability of Renewed Faith when it's cycled."
+            },
+            {
+                "date": "2023-04-14",
+                "text": "The last ability of Firesong and Sunspeaker can't target a planeswalker or battle."
+            }
+        ]
+    },
+    "colorIdentityOverride": [
+        "RED",
+        "WHITE"
     ]
 }
 
@@ -6840,6 +7172,58 @@
     "colorIdentityOverride": []
 }
 
+// Karplusan Hound
+{
+    "name": "Karplusan Hound",
+    "manaCost": "{3}{R}",
+    "typeLine": "Creature — Dog",
+    "oracleText": "Whenever this creature attacks, if you control a Chandra planeswalker, this creature deals 2 damage to any target.",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 3
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": "AttackEvent",
+                "effect": {
+                    "type": "DealDamage",
+                    "amount": {
+                        "type": "Fixed",
+                        "amount": 2
+                    },
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "any target"
+                    }
+                },
+                "targetRequirement": {
+                    "type": "AnyTarget",
+                    "id": "any target"
+                },
+                "triggerCondition": {
+                    "type": "Exists",
+                    "player": "You",
+                    "zone": "Battlefield",
+                    "filter": "planeswalker Chandra"
+                },
+                "descriptionOverride": "Whenever this creature attacks, if you control a Chandra planeswalker, this creature deals 2 damage to any target."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "277",
+        "rarity": "UNCOMMON",
+        "artist": "Viktor Titov",
+        "flavorText": "\"Don't worry, they don't bite. They much prefer setting people on fire.\"",
+        "imageUri": "https://cards.scryfall.io/normal/front/9/5/95179b31-8cb5-4dd9-ad93-782b8774534d.jpg?1783934935"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
 // Kazarov, Sengir Pureblood
 {
     "name": "Kazarov, Sengir Pureblood",
@@ -8676,6 +9060,81 @@
     "colorIdentityOverride": []
 }
 
+// Niambi, Faithful Healer
+{
+    "name": "Niambi, Faithful Healer",
+    "manaCost": "{1}{W}{U}",
+    "typeLine": "Legendary Creature — Human Cleric",
+    "oracleText": "When Niambi enters, you may search your library and/or graveyard for a card named Teferi, Timebender, reveal it, and put it into your hand. If you search your library this way, shuffle.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 2
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "GatherCards",
+                            "source": {
+                                "type": "FromMultipleZones",
+                                "zones": [
+                                    "Library",
+                                    "Graveyard"
+                                ],
+                                "filter": "name:Teferi, Timebender"
+                            },
+                            "storeAs": "searchable"
+                        },
+                        {
+                            "type": "SelectFromCollection",
+                            "from": "searchable",
+                            "selection": {
+                                "type": "ChooseUpTo",
+                                "count": {
+                                    "type": "Fixed",
+                                    "amount": 1
+                                }
+                            },
+                            "storeSelected": "found"
+                        },
+                        {
+                            "type": "MoveCollection",
+                            "from": "found",
+                            "destination": {
+                                "type": "ToZone",
+                                "zone": "Hand"
+                            },
+                            "revealed": true
+                        },
+                        "ShuffleLibrary",
+                        "EmitLibrarySearchedEvent"
+                    ]
+                },
+                "optional": true
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "272",
+        "rarity": "RARE",
+        "artist": "Greg Opalinski",
+        "flavorText": "\"My father will be happy to see you.\"",
+        "imageUri": "https://cards.scryfall.io/normal/front/c/6/c638677c-2b92-4d0c-b61c-598b5a843844.jpg?1783934937"
+    },
+    "colorIdentityOverride": [
+        "WHITE",
+        "BLUE"
+    ]
+}
+
 // Oath of Teferi
 {
     "name": "Oath of Teferi",
@@ -9255,6 +9714,30 @@
     },
     "colorIdentityOverride": [
         "GREEN"
+    ]
+}
+
+// Pyromantic Pilgrim
+{
+    "name": "Pyromantic Pilgrim",
+    "manaCost": "{2}{R}",
+    "typeLine": "Creature — Human Wizard",
+    "oracleText": "Haste (This creature can attack and {T} as soon as it comes under your control.)",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 1
+    },
+    "keywords": [
+        "HASTE"
+    ],
+    "metadata": {
+        "collectorNumber": "278",
+        "artist": "Magali Villeneuve",
+        "flavorText": "\"From the volcanoes of Shiv to the Balduvian steppes, I have sought a worthy teacher. At last, I have found one.\"",
+        "imageUri": "https://cards.scryfall.io/normal/front/f/6/f670d02b-9bfc-4671-97ed-59bfbe633d82.jpg?1783934935"
+    },
+    "colorIdentityOverride": [
+        "RED"
     ]
 }
 
@@ -11634,6 +12117,48 @@
     ]
 }
 
+// Teferi's Sentinel
+{
+    "name": "Teferi's Sentinel",
+    "manaCost": "{5}",
+    "typeLine": "Artifact Creature — Golem",
+    "oracleText": "As long as you control a Teferi planeswalker, this creature gets +4/+0.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 6
+    },
+    "script": {
+        "staticAbilities": [
+            {
+                "type": "ConditionalStaticAbility",
+                "ability": {
+                    "type": "ModifyStats",
+                    "powerBonus": 4,
+                    "toughnessBonus": 0,
+                    "filter": {
+                        "baseFilter": "permanent",
+                        "scope": "Self"
+                    }
+                },
+                "condition": {
+                    "type": "Exists",
+                    "player": "You",
+                    "zone": "Battlefield",
+                    "filter": "planeswalker Teferi"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "273",
+        "rarity": "UNCOMMON",
+        "artist": "Titus Lunter",
+        "flavorText": "\"Long ago, I enchanted an army of statues to guard Zhalfir. My homeland may be gone, but its protectors remain.\"",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/5/058304f4-f08a-4b3a-ae74-c06f4968c99a.jpg?1783934937"
+    },
+    "colorIdentityOverride": []
+}
+
 // Teferi, Hero of Dominaria
 {
     "name": "Teferi, Hero of Dominaria",
@@ -11781,6 +12306,94 @@
     ]
 }
 
+// Teferi, Timebender
+{
+    "name": "Teferi, Timebender",
+    "manaCost": "{4}{W}{U}",
+    "typeLine": "Legendary Planeswalker — Teferi",
+    "oracleText": "+2: Untap up to one target artifact or creature.\n−3: You gain 2 life and draw two cards.\n−9: Take an extra turn after this one.",
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": {
+                    "type": "CostLoyalty",
+                    "change": 2
+                },
+                "effect": {
+                    "type": "TapUntap",
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "up to one target artifact or creature"
+                    },
+                    "tap": false
+                },
+                "targetRequirements": [
+                    {
+                        "type": "TargetObject",
+                        "optional": true,
+                        "filter": {
+                            "baseFilter": "creature|artifact"
+                        },
+                        "id": "up to one target artifact or creature"
+                    }
+                ],
+                "timing": "SorcerySpeed",
+                "isPlaneswalkerAbility": true
+            },
+            {
+                "id": "ability_2",
+                "cost": {
+                    "type": "CostLoyalty",
+                    "change": -3
+                },
+                "effect": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "GainLife",
+                            "amount": {
+                                "type": "Fixed",
+                                "amount": 2
+                            }
+                        },
+                        {
+                            "type": "DrawCards",
+                            "count": {
+                                "type": "Fixed",
+                                "amount": 2
+                            }
+                        }
+                    ]
+                },
+                "timing": "SorcerySpeed",
+                "isPlaneswalkerAbility": true
+            },
+            {
+                "id": "ability_3",
+                "cost": {
+                    "type": "CostLoyalty",
+                    "change": -9
+                },
+                "effect": "TakeExtraTurn",
+                "timing": "SorcerySpeed",
+                "isPlaneswalkerAbility": true
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "270",
+        "rarity": "MYTHIC",
+        "artist": "Zack Stella",
+        "imageUri": "https://cards.scryfall.io/normal/front/e/b/eb2b7388-ac6b-45c0-a5cc-da6450724b59.jpg?1783934938"
+    },
+    "startingLoyalty": 5,
+    "colorIdentityOverride": [
+        "WHITE",
+        "BLUE"
+    ]
+}
+
 // Tempest Djinn
 {
     "name": "Tempest Djinn",
@@ -11820,6 +12433,66 @@
         "artist": "Zezhou Chen",
         "flavorText": "The first to arrive on Dominaria from their distant home, the marids are the oldest tribe of djinn and the most respected by storm and sea.",
         "imageUri": "https://cards.scryfall.io/normal/front/3/a/3acc883b-3aea-4d0b-ae0f-00d4a08c47c1.jpg?1562734234"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
+
+// Temporal Machinations
+{
+    "name": "Temporal Machinations",
+    "manaCost": "{2}{U}",
+    "typeLine": "Sorcery",
+    "oracleText": "Return target creature to its owner's hand. If you control an artifact, draw a card.",
+    "script": {
+        "spellEffect": {
+            "type": "Composite",
+            "effects": [
+                {
+                    "type": "MoveToZone",
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "target creature"
+                    },
+                    "destination": "Hand"
+                },
+                {
+                    "type": "Gated",
+                    "gate": {
+                        "type": "Gate.WhenCondition",
+                        "condition": {
+                            "type": "Exists",
+                            "player": "You",
+                            "zone": "Battlefield",
+                            "filter": "artifact"
+                        }
+                    },
+                    "then": {
+                        "type": "DrawCards",
+                        "count": {
+                            "type": "Fixed",
+                            "amount": 1
+                        }
+                    }
+                }
+            ]
+        },
+        "targetRequirements": [
+            {
+                "type": "TargetObject",
+                "filter": {
+                    "baseFilter": "creature"
+                },
+                "id": "target creature"
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "271",
+        "artist": "Zack Stella",
+        "flavorText": "The Cabal soldier blinked and found day had become night, he had a face full of thistle seeds, and the old man was nowhere to be seen.",
+        "imageUri": "https://cards.scryfall.io/normal/front/9/b/9ba8df17-ab81-4e28-b274-ad38aa2899b3.jpg?1783934938"
     },
     "colorIdentityOverride": [
         "BLUE"
