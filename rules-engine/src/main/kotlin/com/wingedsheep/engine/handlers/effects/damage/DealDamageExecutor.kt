@@ -42,7 +42,14 @@ class DealDamageExecutor(
             // and was dropped by 608.2b validation), the whole damage instruction is skipped
             // per CR 608.2b — we don't fall back to the ability's source permanent. This is a
             // legal no-op fizzle, not an error: the surrounding effect (e.g. Composite) resolves.
+            //
+            // Exception: EffectTarget.Self is the resolving ability/spell's own source. When that
+            // permanent has left the battlefield, resolveTarget(Self) is null, but CR 112.7a /
+            // 608.2h still lets "this creature deals damage equal to its power" use the source id
+            // with last-known characteristics (Predatory Urge, self-sacrifice burn). Fall back to
+            // context.sourceId rather than no-opping.
             context.resolveTarget(damageSourceTarget, state)
+                ?: (context.sourceId.takeIf { damageSourceTarget == EffectTarget.Self })
                 ?: return EffectResult.success(state)
         } else {
             context.sourceId

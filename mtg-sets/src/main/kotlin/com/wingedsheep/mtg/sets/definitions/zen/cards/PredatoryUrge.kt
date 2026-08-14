@@ -35,8 +35,8 @@ import com.wingedsheep.sdk.scripting.targets.TargetCreature
  *    single-target fizzle, which falls out of the target requirement for free.
  *
  * The ability is granted to the enchanted creature ([GrantActivatedAbility]), so its controller —
- * not the Aura's controller — is the one who activates it, and `EffectTarget.Self` /
- * [DynamicAmounts.sourcePower] both resolve to the enchanted creature.
+ * not the Aura's controller — is the one who activates it, and [DynamicAmounts.sourcePower] reads
+ * the enchanted creature (with activation-time LKI if it has left by resolution).
  */
 val PredatoryUrge = card("Predatory Urge") {
     manaCost = "{3}{G}"
@@ -56,7 +56,10 @@ val PredatoryUrge = card("Predatory Urge") {
                 effect = DealDamageEffect(
                     amount = DynamicAmounts.sourcePower(),
                     target = EffectTarget.ContextTarget(0),
-                    damageSource = EffectTarget.Self
+                    // Default damage source is the ability source id. Do **not** set
+                    // damageSource = Self: resolveTarget(Self) returns null once the creature
+                    // has left, and DealDamageExecutor then no-ops the instruction — wrong for
+                    // the "leaves before resolution" ruling, which still deals LKI power.
                 ).then(
                     DealDamageEffect(
                         amount = DynamicAmounts.targetPower(0),

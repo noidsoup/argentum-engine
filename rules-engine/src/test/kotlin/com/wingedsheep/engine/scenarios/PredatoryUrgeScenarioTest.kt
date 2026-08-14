@@ -2,9 +2,11 @@ package com.wingedsheep.engine.scenarios
 
 import com.wingedsheep.engine.core.ActivateAbility
 import com.wingedsheep.engine.state.ZoneKey
+import com.wingedsheep.engine.state.components.battlefield.CountersComponent
 import com.wingedsheep.engine.state.components.battlefield.DamageComponent
 import com.wingedsheep.engine.state.components.stack.ChosenTarget
 import com.wingedsheep.engine.support.ScenarioTestBase
+import com.wingedsheep.sdk.core.CounterType
 import com.wingedsheep.sdk.core.Phase
 import com.wingedsheep.sdk.core.Step
 import com.wingedsheep.sdk.core.Zone
@@ -156,6 +158,56 @@ class PredatoryUrgeScenarioTest : ScenarioTestBase() {
                 withClue("with its only target gone the ability is countered — no damage comes back") {
                     game.findPermanent("Centaur Courser") shouldNotBe null
                     damageOn(game, courser) shouldBe 0
+                }
+            }
+
+            test("source power uses LKI if the enchanted creature leaves before resolution") {
+                // Ruling 2009-10-01: if the enchanted creature leaves before resolution, it still
+                // deals damage equal to the power it last had on the battlefield. Tap-only cost —
+                // no self-sacrifice snapshot — so activation must stamp source LKI unconditionally.
+                val game = scenario()
+                    .withPlayers("Player", "Opponent")
+                    .withCardOnBattlefield(1, "Centaur Courser") // printed 3/3
+                    .withCardAttachedTo(1, "Predatory Urge", "Centaur Courser")
+                    .withCardOnBattlefield(2, "Force of Nature")
+                    .withActivePlayer(1)
+                    .inPhase(Phase.PRECOMBAT_MAIN, Step.PRECOMBAT_MAIN)
+                    .build()
+
+                val courser = game.findPermanent("Centaur Courser")!!
+                val forceOfNature = game.findPermanent("Force of Nature")!!
+
+                // Buff to 4/4 so LKI (4) diverges from printed base power (3) without being
+                // lethal to Force of Nature (5/5 in the test corpus) — a dead recipient would
+                // make damageOn() read 0.
+                game.state = game.state.updateEntity(courser) { c ->
+                    c.with(CountersComponent().withAdded(CounterType.PLUS_ONE_PLUS_ONE, 1))
+                }
+
+                game.execute(
+                    ActivateAbility(
+                        playerId = game.player1Id,
+                        sourceId = courser,
+                        abilityId = grantedAbilityId,
+                        targets = listOf(ChosenTarget.Permanent(forceOfNature))
+                    )
+                ).error shouldBe null
+
+                val onStack = game.state.getEntity(game.state.stack.last())
+                    ?.get<com.wingedsheep.engine.state.components.stack.ActivatedAbilityOnStackComponent>()
+                withClue("activation stamps source LKI including counters") {
+                    onStack?.lastKnownSourceSnapshot?.power shouldBe 4
+                }
+
+                // Source leaves in response (tap paid; creature gone before resolve).
+                game.state = game.state
+                    .removeFromZone(ZoneKey(game.player1Id, Zone.BATTLEFIELD), courser)
+                    .addToZone(ZoneKey(game.player1Id, Zone.GRAVEYARD), courser)
+                game.resolveStack()
+
+                withClue("deals last-known buffed power (4), not printed 3") {
+                    game.findPermanent("Force of Nature") shouldNotBe null
+                    damageOn(game, forceOfNature) shouldBe 4
                 }
             }
         }

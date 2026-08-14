@@ -1058,15 +1058,13 @@ class ActivateAbilityHandler(
                     } ?: emptyMap()
             } else emptyMap()
 
-        // Snapshot the source's projected P/T before a self-exile / self-sacrifice cost moves it
-        // off the battlefield (CR 112.7a / 608.2h), so an effect that reads its own power — e.g.
-        // "Sacrifice this creature: it deals damage equal to its power" (Ghitu Fire-Eater, Cinder
-        // Shade, Blazing Bomb's Blow Up) — sees the pre-sacrifice power rather than zero. Mirrors
-        // lastKnownSourceCounters above.
+        // Always snapshot the source's projected P/T at activation (CR 112.7a / 608.2h). Effects
+        // that read source power — self-sacrifice (Ghitu Fire-Eater) *or* tap-only abilities whose
+        // source leaves in response (Predatory Urge) — must use the power as it last existed on the
+        // battlefield, not printed base characteristics. LIVE_THEN_LKI only consults this when the
+        // source is already off the battlefield, so stamping it unconditionally is safe.
         val lastKnownSourceSnapshot: com.wingedsheep.engine.state.components.stack.EntitySnapshot? =
-            if (costExilesOrSacrificesSelf(effectiveCost)) {
-                captureEntitySnapshots(listOf(action.sourceId), currentState.projectedState).firstOrNull()
-            } else null
+            captureEntitySnapshots(listOf(action.sourceId), currentState.projectedState).firstOrNull()
 
         // Snapshot the entity ids attached to the source before a self-exile / self-sacrifice cost
         // moves it off the battlefield (CR 112.7a). The host's live AttachmentsComponent is gone by
