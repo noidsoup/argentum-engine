@@ -3913,6 +3913,18 @@ object Effects {
     fun UnattachEquipment(target: EffectTarget = EffectTarget.Self): Effect =
         com.wingedsheep.sdk.scripting.effects.UnattachEquipmentEffect(target)
 
+    // =========================================================================
+    // Soulbond Effects (CR 702.95)
+    // =========================================================================
+
+    /**
+     * Pair the source permanent with [target] via Soulbond (CR 702.95). Writes a mutual pair
+     * marker on both creatures when the CR 702.95c/d legality checks pass. Used by the
+     * `soulbond()` DSL; card authors rarely call this directly.
+     */
+    fun PairSoulbond(target: EffectTarget = EffectTarget.ContextTarget(0)): Effect =
+        com.wingedsheep.sdk.scripting.effects.PairWithSoulbondEffect(target)
+
     /**
      * Put a targeted Aura or Equipment card onto the battlefield attached to a permanent the
      * controller chooses at resolution (default: a creature you control). Works for both

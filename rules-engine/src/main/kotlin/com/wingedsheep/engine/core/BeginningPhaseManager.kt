@@ -480,6 +480,7 @@ class BeginningPhaseManager(
         StatePredicate.IsEquipped,
         StatePredicate.IsModified,
         StatePredicate.IsSaddled,
+        StatePredicate.IsPaired,
         StatePredicate.HasLockedDoor,
         StatePredicate.CrewedOrSaddledSourceThisTurn,
         StatePredicate.CrewedOrSaddledBySourceThisTurn,

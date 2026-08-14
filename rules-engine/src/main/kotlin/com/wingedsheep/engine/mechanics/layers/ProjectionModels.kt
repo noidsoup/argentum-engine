@@ -122,6 +122,13 @@ sealed interface AffectsFilter {
     }
 
     /**
+     * The creature this permanent is currently paired with via Soulbond (CR 702.95b).
+     */
+    @Serializable
+    data object SoulbondPartner : AffectsFilter {
+    }
+
+    /**
      * All creatures that have a specific counter type.
      * Used for Aurification: "Each creature with a gold counter on it..."
      */

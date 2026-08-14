@@ -4927,7 +4927,7 @@ Flying, Menace, Intimidate, Fear, Shadow, Horsemanship, all basic landwalks (Pla
 `LandwalkRule` checks `typeLine.isLand && !isBasicLand`; Trailblazer's Boots), First Strike, Double
 Strike, Trample, Deathtouch, Lifelink, Vigilance, Reach, Provoke, Defender, Indestructible, Hexproof, Shroud, Haste,
 Flash, Prowess, Flurry, Changeling, Convoke, Delve, Affinity, Storm, Flashback, Harmonize, Evoke, Sneak, Ninjutsu, Impending, Conspire, Casualty, Miracle, Hideaway, Cascade, Plot,
-Offspring, Persist, Undying, Enduring, Ascend, Wither, Toxic, Eerie, Vivid, Fateful Bite, Exploit, … (display-only — engine effect lives in handlers or
+Offspring, Persist, Undying, Enduring, Ascend, Wither, Toxic, Eerie, Vivid, Fateful Bite, Exploit, Soulbond, … (display-only — engine effect lives in handlers or
 composite abilities).
 
 **Parameterized `KeywordAbility.*`**
@@ -5193,6 +5193,14 @@ composite abilities).
   scan handles the exploiter-still-present case, and a battlefield-presence guard keeps the two from double-firing.
   `EmitExploitedEventEffect` is an internal `data object` (no player-facing text) and should not be used directly — it is
   wired into `exploit()`. See `EventPattern.ExploitedEvent` under Sacrifice triggers for the watcher form.
+- `Soulbond` — "Soulbond (You may pair this creature with another unpaired creature when either enters. …)" (CR 702.95,
+  Avacyn Restored). Display-only keyword; wire with `card { soulbond() }`. Installs **two** optional may-pair triggers
+  (self ETB + other creature you control ETB) whose effect is `Effects.PairSoulbond`. Pairing is stored symmetrically
+  on both creatures (`SoulbondPairComponent`); unpairs on leave, control change, or either stopping being a creature
+  (CR 702.95e). Payoffs gate on `Conditions.SourceIsPaired` and grant to `Filters.Self` / `Filters.SoulbondPartner`
+  (e.g. Spectral Gateguards vigilance via `GrantKeyword`; Tandem Lookout draw via `GrantTriggeredAbility`).
+  Intervening-if: `Conditions.CanSoulbondPair` / `Conditions.SourceAndTriggeringBothUnpairedYouControl`. Target filter:
+  `GameObjectFilter.Creature.youControl().unpaired()`.
 - `Training` — "Training (Whenever this creature and at least one other creature with power greater than this creature's
   power attack, put a +1/+1 counter on this creature.)" (CR 702.149, Innistrad: Midnight Hunt; also WHO, SLD). Display-only
   keyword; wire the behavior with the `card { training() }` builder helper. It adds the keyword plus one attack-triggered

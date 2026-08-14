@@ -1231,6 +1231,10 @@ class PredicateEvaluator {
             // (CR 702.171b). Cleared at end-of-turn cleanup or when the permanent leaves play.
             StatePredicate.IsSaddled -> container.has<SaddledComponent>()
 
+            // Soulbond pair marker (CR 702.95b). Negated via StatePredicate.Not for "unpaired".
+            StatePredicate.IsPaired ->
+                container.has<com.wingedsheep.engine.state.components.battlefield.SoulbondPairComponent>()
+
             // Zone-specific marker — set by WarpExileExecutor when a warped
             // permanent is exiled at end of turn (CR 702.185b).
             StatePredicate.IsWarpExiled ->

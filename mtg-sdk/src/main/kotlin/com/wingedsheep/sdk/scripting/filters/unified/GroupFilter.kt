@@ -26,6 +26,14 @@ sealed interface Scope {
     @Serializable
     data object AttachedTo : Scope
 
+    /**
+     * The creature this permanent is currently paired with via Soulbond (CR 702.95b).
+     * Resolves through the engine's `SoulbondPairComponent.partnerId`.
+     */
+    @SerialName("SoulbondPartner")
+    @Serializable
+    data object SoulbondPartner : Scope
+
     @SerialName("Self")
     @Serializable
     data object Self : Scope
@@ -92,6 +100,7 @@ data class GroupFilter(
     private fun buildDescription(): String = when (scope) {
         is Scope.Self -> "this creature"
         is Scope.AttachedTo -> "enchanted/equipped creature"
+        is Scope.SoulbondPartner -> "the creature this is paired with"
         is Scope.Specific -> "the chosen permanent"
         is Scope.Battlefield -> buildString {
             append("all ")
@@ -191,6 +200,9 @@ data class GroupFilter(
 
         /** "Enchanted/equipped creature" — the creature this Aura/Equipment is attached to. */
         fun attachedCreature() = GroupFilter(GameObjectFilter.Permanent, scope = Scope.AttachedTo)
+
+        /** "The creature this is paired with" — Soulbond partner (CR 702.95b). */
+        fun soulbondPartner() = GroupFilter(GameObjectFilter.Permanent, scope = Scope.SoulbondPartner)
 
         /** A specific pre-bound entity. */
         fun specific(entityId: EntityId) =

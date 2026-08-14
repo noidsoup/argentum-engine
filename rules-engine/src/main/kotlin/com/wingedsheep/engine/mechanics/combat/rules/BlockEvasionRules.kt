@@ -217,6 +217,9 @@ class CantBeBlockedByRule(
             for (ability in statics.filterIsInstance<CantBeBlockedBy>()) {
                 val scopeMatches = when (val scope = ability.filter.scope) {
                     is Scope.AttachedTo -> container.get<AttachedToComponent>()?.targetId == ctx.attackerId
+                    is Scope.SoulbondPartner ->
+                        container.get<com.wingedsheep.engine.state.components.battlefield.SoulbondPairComponent>()
+                            ?.partnerId == ctx.attackerId
                     is Scope.Specific -> scope.entityId == ctx.attackerId
                     is Scope.Battlefield -> true
                     is Scope.Self -> false // already covered by the attacker's own printed read

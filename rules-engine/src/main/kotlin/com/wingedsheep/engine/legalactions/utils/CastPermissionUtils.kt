@@ -766,6 +766,10 @@ class CastPermissionUtils(
             state.getEntity(staticSourceId)
                 ?.get<com.wingedsheep.engine.state.components.battlefield.AttachedToComponent>()
                 ?.targetId == sourceId
+        is com.wingedsheep.sdk.scripting.filters.unified.Scope.SoulbondPartner ->
+            state.getEntity(staticSourceId)
+                ?.get<com.wingedsheep.engine.state.components.battlefield.SoulbondPairComponent>()
+                ?.partnerId == sourceId
         else -> {
             val projected = state.projectedState
             predicateEvaluator.matches(
@@ -1020,6 +1024,9 @@ class CastPermissionUtils(
                         is com.wingedsheep.sdk.scripting.filters.unified.Scope.Specific -> scope.entityId == entityId
                         is com.wingedsheep.sdk.scripting.filters.unified.Scope.AttachedTo ->
                             container.get<com.wingedsheep.engine.state.components.battlefield.AttachedToComponent>()?.targetId == entityId
+                        is com.wingedsheep.sdk.scripting.filters.unified.Scope.SoulbondPartner ->
+                            container.get<com.wingedsheep.engine.state.components.battlefield.SoulbondPairComponent>()
+                                ?.partnerId == entityId
                         is com.wingedsheep.sdk.scripting.filters.unified.Scope.Battlefield -> {
                             if (ability.filter.excludeSelf && permanentId == entityId) false
                             else {
@@ -1070,6 +1077,14 @@ class CastPermissionUtils(
                     is com.wingedsheep.sdk.scripting.filters.unified.Scope.AttachedTo -> {
                         val attachedTo = container.get<com.wingedsheep.engine.state.components.battlefield.AttachedToComponent>()
                         if (attachedTo != null && attachedTo.targetId == entityId) {
+                            result.add(StaticGrantedAbility(ability.ability, permanentId))
+                        }
+                    }
+                    is com.wingedsheep.sdk.scripting.filters.unified.Scope.SoulbondPartner -> {
+                        val partnerId = container
+                            .get<com.wingedsheep.engine.state.components.battlefield.SoulbondPairComponent>()
+                            ?.partnerId
+                        if (partnerId != null && partnerId == entityId) {
                             result.add(StaticGrantedAbility(ability.ability, permanentId))
                         }
                     }
@@ -1142,6 +1157,14 @@ class CastPermissionUtils(
                         result.add(StaticGrantedAbility(grantAbility.ability, granterId))
                     }
                 }
+                is Scope.SoulbondPartner -> {
+                    val partnerId = granter
+                        .get<com.wingedsheep.engine.state.components.battlefield.SoulbondPairComponent>()
+                        ?.partnerId
+                    if (partnerId != null && partnerId == entityId) {
+                        result.add(StaticGrantedAbility(grantAbility.ability, granterId))
+                    }
+                }
                 is Scope.Self -> {
                     if (granterId == entityId) result.add(StaticGrantedAbility(grantAbility.ability, granterId))
                 }
@@ -1184,6 +1207,9 @@ class CastPermissionUtils(
                     is com.wingedsheep.sdk.scripting.filters.unified.Scope.Specific -> scope.entityId == entityId
                     is com.wingedsheep.sdk.scripting.filters.unified.Scope.AttachedTo ->
                         granter.get<com.wingedsheep.engine.state.components.battlefield.AttachedToComponent>()?.targetId == entityId
+                    is com.wingedsheep.sdk.scripting.filters.unified.Scope.SoulbondPartner ->
+                        granter.get<com.wingedsheep.engine.state.components.battlefield.SoulbondPairComponent>()
+                            ?.partnerId == entityId
                     is com.wingedsheep.sdk.scripting.filters.unified.Scope.Battlefield -> {
                         if (gain.grantedTo.excludeSelf && granterId == entityId) false
                         else predicateEvaluator.matches(
@@ -1242,6 +1268,9 @@ class CastPermissionUtils(
                     is com.wingedsheep.sdk.scripting.filters.unified.Scope.Specific -> scope.entityId == sourceId
                     is com.wingedsheep.sdk.scripting.filters.unified.Scope.AttachedTo ->
                         granter.get<com.wingedsheep.engine.state.components.battlefield.AttachedToComponent>()?.targetId == sourceId
+                    is com.wingedsheep.sdk.scripting.filters.unified.Scope.SoulbondPartner ->
+                        granter.get<com.wingedsheep.engine.state.components.battlefield.SoulbondPairComponent>()
+                            ?.partnerId == sourceId
                     is com.wingedsheep.sdk.scripting.filters.unified.Scope.Battlefield -> {
                         if (any.filter.excludeSelf && granterId == sourceId) false
                         else predicateEvaluator.matches(

@@ -992,6 +992,11 @@ internal class BlockPhaseManager(
     ): List<EntityId> {
         val candidates: List<EntityId> = when (val scope = filter.scope) {
             is Scope.AttachedTo -> listOfNotNull(state.getEntity(sourceId)?.get<AttachedToComponent>()?.targetId)
+            is Scope.SoulbondPartner -> listOfNotNull(
+                state.getEntity(sourceId)
+                    ?.get<com.wingedsheep.engine.state.components.battlefield.SoulbondPairComponent>()
+                    ?.partnerId
+            )
             is Scope.Self -> listOf(sourceId)
             is Scope.Specific -> listOf(scope.entityId)
             is Scope.Battlefield -> attackerSet.toList()

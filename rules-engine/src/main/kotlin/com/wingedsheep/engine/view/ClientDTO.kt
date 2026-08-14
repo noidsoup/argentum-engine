@@ -281,6 +281,12 @@ data class ClientCard(
      */
     val isRingBearer: Boolean = false,
 
+    /**
+     * Entity this permanent is currently paired with via Soulbond (CR 702.95b), or null if unpaired.
+     * Battlefield only.
+     */
+    val pairedWith: EntityId? = null,
+
     /** Zone this card is currently in */
     val zone: ZoneKey?,
 

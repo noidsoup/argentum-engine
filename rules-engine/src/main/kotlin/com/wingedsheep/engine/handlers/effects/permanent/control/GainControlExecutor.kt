@@ -94,6 +94,7 @@ class GainControlExecutor : EffectExecutor<GainControlEffect> {
 
         val newState = stateWithSickness
             .let { clearRingBearerOnControlChange(it, targetId, newControllerId) }
+            .let { com.wingedsheep.engine.handlers.effects.permanent.soulbond.clearSoulbondOnControlChange(it, targetId) }
 
         val events = listOf(
             ControlChangedEvent(

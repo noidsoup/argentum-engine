@@ -114,6 +114,17 @@ data object EvokedComponent : Component
 data object SaddledComponent : Component
 
 /**
+ * Mutual Soulbond pairing (CR 702.95b). Stored symmetrically on both creatures: each holds the
+ * other's [partnerId]. Cleared when either leaves the battlefield, changes controller, or stops
+ * being a creature (CR 702.95e). Not an Aura/Equipment attachment — do not reuse
+ * [AttachedToComponent].
+ */
+@Serializable
+data class SoulbondPairComponent(
+    val partnerId: EntityId
+) : Component
+
+/**
  * Records the distinct creatures that have crewed (CR 702.122) or saddled (CR 702.171) this
  * permanent during the current turn — the creatures tapped to pay a Crew or Saddle cost on it.
  * A permanent is only ever a Vehicle (crew) or a Mount (saddle), so one set covers both keywords.

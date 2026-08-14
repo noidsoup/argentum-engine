@@ -915,6 +915,32 @@ data class PermanentUnattachedEvent(
 ) : GameEvent
 
 /**
+ * Two creatures became paired via Soulbond (CR 702.95b). Emitted by
+ * [com.wingedsheep.engine.handlers.effects.permanent.soulbond.PairSoulbondExecutor].
+ */
+@Serializable
+@SerialName("CreaturesPairedEvent")
+data class CreaturesPairedEvent(
+    val firstId: EntityId,
+    val firstName: String,
+    val secondId: EntityId,
+    val secondName: String,
+    val controllerId: EntityId,
+) : GameEvent
+
+/**
+ * Two creatures became unpaired (CR 702.95e) — leave, control change, or stopped being a creature.
+ */
+@Serializable
+@SerialName("CreaturesUnpairedEvent")
+data class CreaturesUnpairedEvent(
+    val firstId: EntityId,
+    val firstName: String,
+    val secondId: EntityId,
+    val secondName: String,
+) : GameEvent
+
+/**
  * A player tapped a land for mana (a land's mana ability resolved).
  *
  * Drives the "Whenever a player taps a land for mana" trigger family

@@ -459,6 +459,17 @@ sealed interface StatePredicate {
     }
 
     /**
+     * Creature currently paired via Soulbond (CR 702.95b). Backed by the engine's
+     * `SoulbondPairComponent`. An "unpaired" creature is one that is not paired — use
+     * [Not] wrapping this predicate, or [com.wingedsheep.sdk.scripting.GameObjectFilter.unpaired].
+     */
+    @SerialName("IsPaired")
+    @Serializable
+    data object IsPaired : Entity {
+        override val description: String = "paired"
+    }
+
+    /**
      * Creature that crewed (CR 702.122) or saddled (CR 702.171) the effect's source permanent this
      * turn — i.e. one of the creatures tapped to pay that permanent's Crew/Saddle cost. Source-
      * relative: resolves against the source entity supplied in the evaluation context (its

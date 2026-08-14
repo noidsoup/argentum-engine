@@ -1062,6 +1062,9 @@ class ClientStateTransformer(
         // on a real control change (see RingBearerComponent), so the presence of the component is
         // enough — a stolen permanent or token copy never falsely carries it.
         val isRingBearer = container.has<com.wingedsheep.engine.state.components.identity.RingBearerComponent>()
+        val pairedWith = container
+            .get<com.wingedsheep.engine.state.components.battlefield.SoulbondPairComponent>()
+            ?.partnerId
 
         // Get targets for spells/abilities on stack (for targeting arrows)
         val targetsComponent = container.get<TargetsComponent>()
@@ -1312,6 +1315,7 @@ class ClientStateTransformer(
             isToken = isToken,
             isCommander = isCommander,
             isRingBearer = isRingBearer,
+            pairedWith = pairedWith,
             zone = zoneKey,
             attachedTo = attachedTo,
             attachments = attachments,

@@ -196,6 +196,8 @@ class PermanentExecutors(
         AttachTargetEquipmentToCreatureExecutor(),
         UnattachEquipmentExecutor(),
         GrantExileOnLeaveExecutor(),
+        // soulbond
+        com.wingedsheep.engine.handlers.effects.permanent.soulbond.PairSoulbondExecutor(),
         // stats
         ModifyStatsExecutor(amountEvaluator),
         SetBaseStatsExecutor(amountEvaluator),

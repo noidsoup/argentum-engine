@@ -348,6 +348,20 @@ enum class Keyword(val displayName: String) {
      */
     TRAINING("Training"),
 
+    /**
+     * Soulbond (CR 702.95, Avacyn Restored). A keyword that represents two triggered abilities:
+     * when this creature enters, and whenever another creature you control enters, you may pair
+     * this creature with an unpaired creature you control for as long as both remain creatures
+     * under your control (CR 702.95a).
+     *
+     * The keyword itself is display-only; the behavior is composed by the `soulbond()` DSL helper
+     * on [com.wingedsheep.sdk.dsl.CardBuilder] — two optional may-pair triggers whose effect is
+     * [com.wingedsheep.sdk.dsl.Effects.PairSoulbond]. Pairing state lives on the engine's
+     * `SoulbondPairComponent`; payoffs gate on [com.wingedsheep.sdk.dsl.Conditions.SourceIsPaired]
+     * and grant to [com.wingedsheep.sdk.dsl.Filters.SoulbondPartner].
+     */
+    SOULBOND("Soulbond"),
+
     // ── Damage modification ──────────────────────────────
     WITHER("Wither"),
     TOXIC("Toxic"),

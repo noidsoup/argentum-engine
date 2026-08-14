@@ -14,6 +14,7 @@ import com.wingedsheep.engine.state.components.battlefield.AbilityActivatedEverC
 import com.wingedsheep.engine.state.components.battlefield.AttachedToComponent
 import com.wingedsheep.engine.state.components.battlefield.AttachmentHostLeftComponent
 import com.wingedsheep.engine.state.components.battlefield.AttachmentsComponent
+import com.wingedsheep.engine.state.components.battlefield.SoulbondPairComponent
 import com.wingedsheep.engine.state.components.battlefield.CountersComponent
 import com.wingedsheep.engine.state.components.battlefield.DamageComponent
 import com.wingedsheep.engine.state.components.battlefield.DamageDealtToCreaturesThisTurnComponent
@@ -369,6 +370,9 @@ object ZoneMovementUtils {
             .without<AbilityActivatedEverComponent>()
             .without<AttachedToComponent>()
             .without<AttachmentsComponent>()
+            // Soulbond pairing ends when either creature leaves (CR 702.95e / 400.7). Mate cleanup
+            // runs at leave-time in ZoneTransitionService; this strip covers the leaving object.
+            .without<SoulbondPairComponent>()
             // A blink returns a new object (CR 400.7); it must not carry a stale "host left" marker
             // from a prior attachment, and an Equipment that itself re-enters starts unmarked.
             .without<AttachmentHostLeftComponent>()

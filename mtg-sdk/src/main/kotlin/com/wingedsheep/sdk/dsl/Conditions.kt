@@ -32,6 +32,9 @@ import com.wingedsheep.sdk.scripting.conditions.EntityMatches
 import com.wingedsheep.sdk.scripting.targets.EffectTarget
 import com.wingedsheep.sdk.scripting.conditions.SourceIsRingBearer as SourceIsRingBearerCondition
 import com.wingedsheep.sdk.scripting.conditions.YouChoseOtherCreatureAsRingBearer as YouChoseOtherCreatureAsRingBearerCondition
+import com.wingedsheep.sdk.scripting.conditions.SourceIsPaired as SourceIsPairedCondition
+import com.wingedsheep.sdk.scripting.conditions.CanSoulbondPair as CanSoulbondPairCondition
+import com.wingedsheep.sdk.scripting.conditions.SourceAndTriggeringBothUnpairedYouControl as SourceAndTriggeringBothUnpairedYouControlCondition
 import com.wingedsheep.sdk.scripting.predicates.StatePredicate
 import com.wingedsheep.sdk.scripting.conditions.IsYourTurn as IsYourTurnCondition
 import com.wingedsheep.sdk.scripting.conditions.IsNotYourTurn as IsNotYourTurnCondition
@@ -71,10 +74,32 @@ object Conditions {
     val SourceIsRingBearer: ConditionInterface = SourceIsRingBearerCondition
 
     /**
-     * If you chose a creature other than this as your Ring-bearer (CR 701.54a). Intervening-if
-     * for `Triggers.RingTemptsYou` payoffs that fire only when the player picked someone else.
+     * If you chose a creature other than this as your Ring-bearer (CR 701.54a).
      */
     val YouChoseOtherCreatureAsRingBearer: ConditionInterface = YouChoseOtherCreatureAsRingBearerCondition
+
+    // =========================================================================
+    // Soulbond (CR 702.95)
+    // =========================================================================
+
+    /**
+     * If this creature is paired with another creature via Soulbond (CR 702.95b).
+     * Gates "as long as this creature is paired…" statics.
+     */
+    val SourceIsPaired: ConditionInterface = SourceIsPairedCondition
+
+    /**
+     * Intervening-if for the self-ETB Soulbond trigger (CR 702.95a): you control this creature
+     * and another creature, and both are unpaired.
+     */
+    val CanSoulbondPair: ConditionInterface = CanSoulbondPairCondition
+
+    /**
+     * Intervening-if for the other-creature-ETB Soulbond trigger (CR 702.95a): you control both
+     * the source and the triggering creature, and both are unpaired.
+     */
+    val SourceAndTriggeringBothUnpairedYouControl: ConditionInterface =
+        SourceAndTriggeringBothUnpairedYouControlCondition
 
     /**
      * If you put a counter on this creature this turn (Secrets of Strixhaven — Fractal

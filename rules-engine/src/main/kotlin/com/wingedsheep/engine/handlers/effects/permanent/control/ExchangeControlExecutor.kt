@@ -101,6 +101,8 @@ class ExchangeControlExecutor : EffectExecutor<ExchangeControlEffect> {
             .updateEntity(target2Id) { it.with(SummoningSicknessComponent) }
             .let { clearRingBearerOnControlChange(it, target1Id, controller2) }
             .let { clearRingBearerOnControlChange(it, target2Id, controller1) }
+            .let { com.wingedsheep.engine.handlers.effects.permanent.soulbond.clearSoulbondOnControlChange(it, target1Id) }
+            .let { com.wingedsheep.engine.handlers.effects.permanent.soulbond.clearSoulbondOnControlChange(it, target2Id) }
 
         val events = listOf(
             ControlChangedEvent(

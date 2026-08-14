@@ -153,6 +153,9 @@ object Filters {
     /** The source permanent itself. */
     val Self: GroupFilter = GroupFilter.source()
 
+    /** The creature this permanent is currently paired with via Soulbond (CR 702.95b). */
+    val SoulbondPartner: GroupFilter = GroupFilter.soulbondPartner()
+
     /** All creatures the controller controls. */
     val AllControlledCreatures: GroupFilter = GroupFilter.AllCreaturesYouControl
 

@@ -1258,6 +1258,10 @@ is PermanentsSacrificedEvent -> {
             // battlefield, so no separate client event.
             is PermanentUnattachedEvent -> null
 
+            // Internal: pairing state is reflected via ClientCard.pairedWith; no separate animation.
+            is CreaturesPairedEvent -> null
+            is CreaturesUnpairedEvent -> null
+
             is TurnHijackedEvent,
             is CommitCrimeEvent,
             is CardPlayedFromPermissionEvent,

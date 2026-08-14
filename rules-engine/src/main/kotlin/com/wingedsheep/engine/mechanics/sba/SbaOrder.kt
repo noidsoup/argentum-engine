@@ -17,6 +17,7 @@ object SbaOrder {
     const val LEGEND_RULE = 600             // 704.5j
     const val COUNTER_ANNIHILATION = 700    // 704.5q
     const val UNATTACHED_AURAS = 800        // 704.5m/n/p
+    const val ILLEGAL_SOULBOND_PAIR = 810   // 702.95e (stops being a creature)
     const val SAGA_SACRIFICE = 900          // 714.4
     const val COMMANDER_ZONE_CHOICE = 950   // 903.9a (Commander format)
     const val TOKENS_IN_WRONG_ZONES = 1000  // 704.5s

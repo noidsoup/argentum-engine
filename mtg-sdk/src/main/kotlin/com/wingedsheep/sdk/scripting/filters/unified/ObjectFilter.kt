@@ -824,6 +824,16 @@ data class GameObjectFilter(
         statePredicates = statePredicates + StatePredicate.IsSaddled
     )
 
+    /** Must currently be paired via Soulbond (CR 702.95b). */
+    fun paired() = copy(
+        statePredicates = statePredicates + StatePredicate.IsPaired
+    )
+
+    /** Must not currently be paired via Soulbond (CR 702.95b — an "unpaired" creature). */
+    fun unpaired() = copy(
+        statePredicates = statePredicates + StatePredicate.Not(StatePredicate.IsPaired)
+    )
+
     /**
      * Must have crewed (CR 702.122) or saddled (CR 702.171) the effect's source permanent this
      * turn. Source-relative — see [StatePredicate.CrewedOrSaddledSourceThisTurn].

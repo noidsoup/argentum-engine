@@ -307,6 +307,11 @@ object ZoneTransitionService {
             // the attachments now: the host's EntityId is reused across a blink (exile→battlefield),
             // so the SBA can't otherwise tell the host left and returned as a new object.
             newState = ZoneMovementUtils.markAttachmentsHostLeft(newState, entityId)
+            // CR 702.95e: leaving the battlefield unpaired the mate that stays behind.
+            val (unpairedState, unpairedEvents) =
+                com.wingedsheep.engine.handlers.effects.permanent.soulbond.clearSoulbondPair(newState, entityId)
+            newState = unpairedState
+            events.addAll(unpairedEvents)
         }
 
         // 5. Strip face-down if leaving exile

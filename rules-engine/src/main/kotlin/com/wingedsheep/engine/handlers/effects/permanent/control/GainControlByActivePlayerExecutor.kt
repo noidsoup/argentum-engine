@@ -69,6 +69,7 @@ class GainControlByActivePlayerExecutor : EffectExecutor<GainControlByActivePlay
             )
             .updateEntity(targetId) { it.with(SummoningSicknessComponent) }
             .let { clearRingBearerOnControlChange(it, targetId, newControllerId) }
+            .let { com.wingedsheep.engine.handlers.effects.permanent.soulbond.clearSoulbondOnControlChange(it, targetId) }
 
         val events = listOf(
             ControlChangedEvent(

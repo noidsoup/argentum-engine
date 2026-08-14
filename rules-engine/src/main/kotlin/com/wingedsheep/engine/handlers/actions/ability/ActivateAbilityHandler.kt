@@ -2638,6 +2638,9 @@ class ActivateAbilityHandler(
                         is Scope.Self -> permanentId == entityId
                         is Scope.Specific -> scope.entityId == entityId
                         is Scope.AttachedTo -> container.get<AttachedToComponent>()?.targetId == entityId
+                        is Scope.SoulbondPartner ->
+                            container.get<com.wingedsheep.engine.state.components.battlefield.SoulbondPairComponent>()
+                                ?.partnerId == entityId
                         is Scope.Battlefield -> {
                             if (ability.filter.excludeSelf && permanentId == entityId) false
                             else {
@@ -2690,6 +2693,14 @@ class ActivateAbilityHandler(
                     is Scope.AttachedTo -> {
                         val attachedTo = container.get<AttachedToComponent>()
                         if (attachedTo != null && attachedTo.targetId == entityId) {
+                            result.add(ability.ability to permanentId)
+                        }
+                    }
+                    is Scope.SoulbondPartner -> {
+                        val partnerId = container
+                            .get<com.wingedsheep.engine.state.components.battlefield.SoulbondPairComponent>()
+                            ?.partnerId
+                        if (partnerId != null && partnerId == entityId) {
                             result.add(ability.ability to permanentId)
                         }
                     }

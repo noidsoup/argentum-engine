@@ -125,6 +125,10 @@ import com.wingedsheep.sdk.scripting.conditions.SneakCostWasPaid
 import com.wingedsheep.sdk.scripting.conditions.WaterbendWasPaid
 import com.wingedsheep.sdk.scripting.conditions.SourceIsRingBearer
 import com.wingedsheep.sdk.scripting.conditions.YouChoseOtherCreatureAsRingBearer
+import com.wingedsheep.sdk.scripting.conditions.SourceIsPaired
+import com.wingedsheep.sdk.scripting.conditions.CanSoulbondPair
+import com.wingedsheep.sdk.scripting.conditions.SourceAndTriggeringBothUnpairedYouControl
+import com.wingedsheep.engine.state.components.battlefield.SoulbondPairComponent
 import com.wingedsheep.sdk.scripting.conditions.YouControlSource
 import com.wingedsheep.sdk.scripting.conditions.PlayerAttackedWithCreaturesThisTurn
 import com.wingedsheep.sdk.scripting.conditions.PermanentLeftBattlefieldThisTurn
@@ -324,6 +328,20 @@ class ConditionEvaluator(
                     bearerId != null && bearerId != sourceId
                 }
             }
+
+            // CR 702.95b — source carries a Soulbond pair marker.
+            is SourceIsPaired -> {
+                val sourceId = ctx.sourceId
+                sourceId != null && state.getEntity(sourceId)?.has<SoulbondPairComponent>() == true
+            }
+
+            // CR 702.95a self-ETB intervening-if: you control source + another unpaired creature,
+            // and source is unpaired.
+            is CanSoulbondPair -> evaluateCanSoulbondPair(state, ctx)
+
+            // CR 702.95a other-ETB intervening-if: you control source + triggering, both unpaired.
+            is SourceAndTriggeringBothUnpairedYouControl ->
+                evaluateSourceAndTriggeringBothUnpairedYouControl(state, ctx)
 
             // Aura-controller-aware modified check (CR 700.4) — distinct enough from the
             // generic StatePredicate.IsModified to warrant its own branch.
@@ -768,6 +786,43 @@ class ConditionEvaluator(
             }
         }
         return if (condition.negate) !found else found
+    }
+
+    private fun evaluateCanSoulbondPair(state: GameState, ctx: ConditionEvaluationContext): Boolean {
+        val sourceId = ctx.sourceId ?: return false
+        val controllerId = ctx.controllerId ?: return false
+        val projected = state.projectedState
+        if (sourceId !in state.getBattlefield()) return false
+        if (projected.getController(sourceId) != controllerId) return false
+        if (!projected.isCreature(sourceId)) return false
+        if (state.getEntity(sourceId)?.has<SoulbondPairComponent>() == true) return false
+
+        return state.getBattlefield().any { id ->
+            if (id == sourceId) return@any false
+            if (projected.getController(id) != controllerId) return@any false
+            if (!projected.isCreature(id)) return@any false
+            state.getEntity(id)?.has<SoulbondPairComponent>() != true
+        }
+    }
+
+    private fun evaluateSourceAndTriggeringBothUnpairedYouControl(
+        state: GameState,
+        ctx: ConditionEvaluationContext,
+    ): Boolean {
+        val sourceId = ctx.sourceId ?: return false
+        val controllerId = ctx.controllerId ?: return false
+        val triggeringId = when (ctx) {
+            is Resolution -> ctx.effectContext.triggeringEntityId
+            is Projection -> null
+        } ?: return false
+        val projected = state.projectedState
+        if (sourceId !in state.getBattlefield() || triggeringId !in state.getBattlefield()) return false
+        if (projected.getController(sourceId) != controllerId) return false
+        if (projected.getController(triggeringId) != controllerId) return false
+        if (!projected.isCreature(sourceId) || !projected.isCreature(triggeringId)) return false
+        if (state.getEntity(sourceId)?.has<SoulbondPairComponent>() == true) return false
+        if (state.getEntity(triggeringId)?.has<SoulbondPairComponent>() == true) return false
+        return true
     }
 
     private fun evaluateSourceIsModifiedCtx(state: GameState, ctx: ConditionEvaluationContext): Boolean {

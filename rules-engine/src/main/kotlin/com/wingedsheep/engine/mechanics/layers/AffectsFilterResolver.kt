@@ -172,6 +172,12 @@ internal class AffectsFilterResolver {
                     ?.get<com.wingedsheep.engine.state.components.battlefield.AttachedToComponent>()
                 if (attachedTo != null) setOf(attachedTo.targetId) else emptySet()
             }
+            is AffectsFilter.SoulbondPartner -> {
+                val partnerId = state.getEntity(sourceId)
+                    ?.get<com.wingedsheep.engine.state.components.battlefield.SoulbondPairComponent>()
+                    ?.partnerId
+                if (partnerId != null) setOf(partnerId) else emptySet()
+            }
             is AffectsFilter.FaceDownCreatures -> {
                 state.getBattlefield().filter { entityId ->
                     state.getEntity(entityId)?.has<FaceDownComponent>() == true
@@ -491,6 +497,8 @@ internal class AffectsFilterResolver {
         }
         StatePredicate.IsSaddled ->
             container.has<com.wingedsheep.engine.state.components.battlefield.SaddledComponent>()
+        StatePredicate.IsPaired ->
+            container.has<com.wingedsheep.engine.state.components.battlefield.SoulbondPairComponent>()
         StatePredicate.IsWarpExiled ->
             container.has<com.wingedsheep.engine.state.components.identity.WarpExiledComponent>()
         StatePredicate.WasCastForWarp ->

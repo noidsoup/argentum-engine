@@ -274,6 +274,12 @@ class CostCalculator(
                         ?.targetId
                     attached != null && targetId == attached
                 }
+                is Scope.SoulbondPartner -> {
+                    val partner = state.getEntity(sourceId)
+                        ?.get<com.wingedsheep.engine.state.components.battlefield.SoulbondPairComponent>()
+                        ?.partnerId
+                    partner != null && targetId == partner
+                }
                 is Scope.Battlefield ->
                     predicateEvaluator.matches(state, projected, targetId, targetFilter.baseFilter, context)
             }

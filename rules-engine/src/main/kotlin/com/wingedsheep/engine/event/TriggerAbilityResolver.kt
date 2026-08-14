@@ -73,6 +73,9 @@ class TriggerAbilityResolver(
         // (e.g., Hunter Sliver granting provoke to all Slivers)
         val staticGrantedAbilities = getStaticGrantedTriggeredAbilities(entityId, state)
         val attachedGrantedAbilities = getAttachedGrantedTriggeredAbilities(entityId, state)
+        val soulbondPartnerGrantedAbilities =
+            if (state.projectedState.hasLostAllAbilities(entityId)) emptyList()
+            else getSoulbondPartnerGrantedTriggeredAbilities(entityId, state)
         // "This creature has '<triggered ability>' [as long as …]" — a Scope.Self GrantTriggeredAbility
         // on the permanent's own definition, optionally gated by a ConditionalStaticAbility.
         val selfGrantedAbilities =
@@ -95,6 +98,7 @@ class TriggerAbilityResolver(
         val paradigmAbilities = getParadigmTriggeredAbilities(entityId, state)
 
         val allGranted = grantedAbilities + staticGrantedAbilities + attachedGrantedAbilities +
+            soulbondPartnerGrantedAbilities +
             selfGrantedAbilities + wardAbilities + flankingAbilities + ringBearerAbilities +
             suspendAbilities + paradigmAbilities
         val combined = if (allGranted.isNotEmpty()) base + allGranted else base
@@ -230,6 +234,8 @@ class TriggerAbilityResolver(
             emptyList()
         }
         val attachedGrantedAbilities = getAttachedGrantedTriggeredAbilities(entityId, state)
+        val soulbondPartnerGrantedAbilities = if (hasLostAbilities) emptyList()
+            else getSoulbondPartnerGrantedTriggeredAbilities(entityId, state)
         // "This creature has '<triggered ability>' [as long as …]" — a Scope.Self
         // GrantTriggeredAbility on the permanent's own definition (Fire Nation Cadets installs
         // firebendingAttackTrigger(2) this way while a Lesson is in the graveyard).
@@ -253,6 +259,7 @@ class TriggerAbilityResolver(
         val paradigmAbilities = getParadigmTriggeredAbilities(entityId, state)
 
         val allGranted = grantedAbilities + staticGrantedAbilities + attachedGrantedAbilities +
+            soulbondPartnerGrantedAbilities +
             selfGrantedAbilities + wardAbilities + flankingAbilities + ringBearerAbilities +
             suspendAbilities + paradigmAbilities
         val combined = if (allGranted.isNotEmpty()) base + allGranted else base
@@ -395,6 +402,60 @@ class TriggerAbilityResolver(
                     is ConditionalStaticAbility -> {
                         val grant = ability.ability as? GrantTriggeredAbility ?: continue
                         if (grant.filter.scope !is Scope.AttachedTo) continue
+                        val controllerId = state.projectedState.getController(permanentId) ?: continue
+                        val context = EffectContext(
+                            sourceId = permanentId,
+                            controllerId = controllerId,
+                        )
+                        if (ConditionEvaluator().evaluate(state, ability.condition, context)) {
+                            result.add(grant.ability)
+                        }
+                    }
+
+                    else -> {}
+                }
+            }
+        }
+
+        return result
+    }
+
+    /**
+     * Triggered abilities granted to [entityId] by its Soulbond partner via
+     * [Scope.SoulbondPartner] [GrantTriggeredAbility] (optionally wrapped in
+     * [ConditionalStaticAbility]). Evaluated with the soulbond source as context so
+     * [com.wingedsheep.sdk.scripting.conditions.SourceIsPaired] gates correctly.
+     */
+    private fun getSoulbondPartnerGrantedTriggeredAbilities(
+        entityId: EntityId,
+        state: GameState,
+    ): List<TriggeredAbility> {
+        val result = mutableListOf<TriggeredAbility>()
+
+        for (permanentId in state.getBattlefield()) {
+            val container = state.getEntity(permanentId) ?: continue
+            val partnerId = container.get<com.wingedsheep.engine.state.components.battlefield.SoulbondPairComponent>()
+                ?.partnerId ?: continue
+            if (partnerId != entityId) continue
+
+            val card = container.get<CardComponent>() ?: continue
+            if (container.has<FaceDownComponent>()) continue
+            // Granter lost all abilities → its ConditionalStaticAbility / GrantTriggeredAbility
+            // statics do not apply (Dress Down on Tandem Lookout).
+            if (state.projectedState.hasLostAllAbilities(permanentId)) continue
+
+            val sourceDef = cardRegistry.getCard(card.cardDefinitionId) ?: continue
+            val classLevel = container.get<ClassLevelComponent>()?.currentLevel
+            val allStaticAbilities = sourceDef.script.effectiveStaticAbilities(classLevel)
+
+            for (ability in allStaticAbilities) {
+                when (ability) {
+                    is GrantTriggeredAbility ->
+                        if (ability.filter.scope is Scope.SoulbondPartner) result.add(ability.ability)
+
+                    is ConditionalStaticAbility -> {
+                        val grant = ability.ability as? GrantTriggeredAbility ?: continue
+                        if (grant.filter.scope !is Scope.SoulbondPartner) continue
                         val controllerId = state.projectedState.getController(permanentId) ?: continue
                         val context = EffectContext(
                             sourceId = permanentId,
