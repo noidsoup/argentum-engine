@@ -998,6 +998,16 @@ internal class CombatDamageManager(
         if (targetId !in state.getBattlefield()) return state
         var newState = state
 
+        // Phantom / Unbreathing Horde: prevent all combat damage and remove a +1/+1 counter.
+        val phantomResult = DamageUtils.applyPreventDamageAndRemoveCounter(
+            newState, targetId, amplifiedAmount, sourceId, isCombatDamage = true
+        )
+        if (phantomResult != null) {
+            newState = phantomResult.state
+            events.addAll(phantomResult.events)
+            return newState
+        }
+
         // Prevention shields
         val (shieldState, effectiveAmount) = DamageUtils.applyDamagePreventionShields(
             newState, targetId, amplifiedAmount, isCombatDamage = true, sourceId = sourceId

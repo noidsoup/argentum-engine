@@ -458,6 +458,12 @@ data class EntersWithCounters(
     val count: Int,
     val selfOnly: Boolean = false,
     val condition: Condition? = null,
+    /**
+     * Zones where this replacement remains an active continuous source. Default is battlefield
+     * only (Master Biomancer). Set to include [Zone.GRAVEYARD] for cards like Dearly Departed
+     * ("As long as this creature is in your graveyard, each Human … enters with …").
+     */
+    val activeFromZones: Set<Zone> = setOf(Zone.BATTLEFIELD),
     override val appliesTo: EventPattern = EventPattern.ZoneChangeEvent(
         filter = GameObjectFilter.Creature.youControl(),
         to = Zone.BATTLEFIELD
@@ -466,6 +472,9 @@ data class EntersWithCounters(
     override val description: String = buildString {
         append("If ${appliesTo.description}, it enters with $count ${counterType.description} counters")
         if (condition != null) append(" if ${condition.description}")
+        if (activeFromZones != setOf(Zone.BATTLEFIELD)) {
+            append(" (active from ${activeFromZones.joinToString { it.name.lowercase() }})")
+        }
     }
 
     override fun applyTextReplacement(replacer: TextReplacer): ReplacementEffect {
@@ -1670,6 +1679,34 @@ data class ReplaceDamageWithMill(
 ) : ReplacementEffect {
     override val description: String =
         "If ${appliesTo.description}, prevent that damage and each opponent mills that many cards instead"
+
+    override fun applyTextReplacement(replacer: TextReplacer): ReplacementEffect {
+        val newAppliesTo = appliesTo.applyTextReplacement(replacer)
+        return if (newAppliesTo !== appliesTo) copy(appliesTo = newAppliesTo) else this
+    }
+}
+
+/**
+ * Prevent matched damage and remove one counter of [counterType] from the replacement source.
+ *
+ * Models Unbreathing Horde / Phantom creatures / Undergrowth Champion: "If this creature would be
+ * dealt damage, prevent that damage and remove a +1/+1 counter from it." All damage from the
+ * instance is prevented and only one counter is removed (Earthquake ruling). When the source has
+ * no counters of [counterType], the replacement does not apply — damage is dealt normally
+ * (Phantom-cycle / Undergrowth Champion ruling).
+ *
+ * [appliesTo] is typically `DamageEvent(recipient = RecipientFilter.Self)`.
+ */
+@SerialName("PreventDamageAndRemoveCounter")
+@Serializable
+data class PreventDamageAndRemoveCounter(
+    val counterType: String = com.wingedsheep.sdk.core.Counters.PLUS_ONE_PLUS_ONE,
+    override val appliesTo: EventPattern = EventPattern.DamageEvent(
+        recipient = RecipientFilter.Self
+    )
+) : ReplacementEffect {
+    override val description: String =
+        "If ${appliesTo.description}, prevent that damage and remove a $counterType counter from it"
 
     override fun applyTextReplacement(replacer: TextReplacer): ReplacementEffect {
         val newAppliesTo = appliesTo.applyTextReplacement(replacer)

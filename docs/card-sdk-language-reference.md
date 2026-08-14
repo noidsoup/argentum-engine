@@ -4879,6 +4879,16 @@ copy of it (CR 707.10e). The activated-ability analogue of the spell-level `cant
 > zero and suppressed on tokens (704.5s). The synthesized effect is `MoveToZoneEffect(Self, BATTLEFIELD)`
 > then `AddCountersEffect(+1/+1, 1, Self)`.
 
+> **PreventDamageAndRemoveCounter** — "If this creature would be dealt damage, prevent that damage and
+> remove a +1/+1 counter from it" (Unbreathing Horde / Phantom cycle / Undergrowth Champion). All damage
+> from the instance is prevented and only one counter is removed. If the permanent has no counters of
+> the stated type, the replacement does not apply. Wired in `DamageUtils.applyPreventDamageAndRemoveCounter`
+> (noncombat) and `CombatDamageManager.applyDamageToCreature` (combat).
+
+> **EntersWithCounters.activeFromZones** — default `{BATTLEFIELD}`. Include `Zone.GRAVEYARD` for
+> Dearly Departed-style continuous sources that grant "enters with…" while the card sits in a graveyard
+> (`EntersWithReplacements.applyGlobal` scans GY definitions).
+
 > **Enduring** (Duskmourn Glimmer cycle). `card { enduring() }` wires the full mechanic: "When this
 > permanent dies, if it was a creature, return it to the battlefield under its owner's control. It's an
 > enchantment. (It's not a creature.)" Modeled like **Persist** — a synthesized SELF dies-trigger detected

@@ -76,7 +76,7 @@ object EntersWithReplacements {
         events.addAll(ownEvents)
 
         val (globalState, globalEvents) = applyGlobal(
-            newState, enteringEntityId, enteringControllerId
+            newState, enteringEntityId, enteringControllerId, cardRegistry
         )
         newState = globalState
         events.addAll(globalEvents)
@@ -104,6 +104,10 @@ object EntersWithReplacements {
         for (effect in cardDef.script.replacementEffects) {
             when (effect) {
                 is EntersWithCounters -> {
+                    // GY-only continuous sources (Dearly Departed) never apply to the entering
+                    // permanent from its own definition — they are consulted from the graveyard
+                    // in applyGlobal.
+                    if (Zone.BATTLEFIELD !in effect.activeFromZones) continue
                     if (effect.condition != null) {
                         val condContext = EffectContext(
                             sourceId = entityId,
@@ -177,6 +181,7 @@ object EntersWithReplacements {
         state: GameState,
         enteringEntityId: EntityId,
         enteringControllerId: EntityId,
+        cardRegistry: CardRegistry? = null,
     ): Pair<GameState, List<GameEvent>> {
         var newState = state
         val events = mutableListOf<GameEvent>()
@@ -192,6 +197,7 @@ object EntersWithReplacements {
                 when (effect) {
                     is EntersWithCounters -> {
                         if (effect.selfOnly) continue
+                        if (Zone.BATTLEFIELD !in effect.activeFromZones) continue
                         if (!matchesEnterFilter(effect.appliesTo, enteringEntityId, sourceControllerId, newState)) continue
                         if (effect.condition != null) {
                             // A non-self "enters with counters" condition describes the ENTERING
@@ -276,6 +282,54 @@ object EntersWithReplacements {
                 }
             }
         }
+
+        // Graveyard-sourced continuous "enters with" (Dearly Departed). GY cards have no
+        // ReplacementEffectSourceComponent — read printed replacements from the card definition.
+        val registry = cardRegistry ?: runCatching { DamageUtils.cardRegistry }.getOrNull()
+        if (registry != null) {
+            for (playerId in newState.turnOrder) {
+                for (sourceId in newState.getGraveyard(playerId)) {
+                    val container = newState.getEntity(sourceId) ?: continue
+                    val cardId = container.get<CardComponent>()?.cardDefinitionId ?: continue
+                    val def = registry.getCard(cardId) ?: continue
+                    for (effect in def.script.replacementEffects) {
+                        if (effect !is EntersWithCounters) continue
+                        if (effect.selfOnly) continue
+                        if (Zone.GRAVEYARD !in effect.activeFromZones) continue
+                        if (!matchesEnterFilter(effect.appliesTo, enteringEntityId, playerId, newState)) continue
+                        if (effect.condition != null) {
+                            val condContext = EffectContext(
+                                sourceId = enteringEntityId,
+                                controllerId = playerId,
+                                affectedEntityId = enteringEntityId,
+                            )
+                            if (!conditionEvaluator.evaluate(newState, effect.condition!!, condContext)) continue
+                        }
+                        val counterType = resolveCounterType(effect.counterType)
+                        val modifiedCount = ReplacementEffectUtils.applyCounterPlacementModifiers(
+                            newState, enteringEntityId, counterType, effect.count, placerId = enteringControllerId
+                        )
+                        val current = newState.getEntity(enteringEntityId)?.get<CountersComponent>() ?: CountersComponent()
+                        newState = newState.updateEntity(enteringEntityId) { c ->
+                            c.with(current.withAdded(counterType, modifiedCount))
+                        }
+                        val (afterMark, firstThisTurn) = DamageUtils.recordCounterPlacement(newState, enteringEntityId)
+                        newState = afterMark
+                        events.add(
+                            CountersAddedEvent(
+                                enteringEntityId,
+                                effect.counterType.description,
+                                modifiedCount,
+                                entityName,
+                                firstThisTurn,
+                                placedBy = enteringControllerId,
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
         return newState to events
     }
 

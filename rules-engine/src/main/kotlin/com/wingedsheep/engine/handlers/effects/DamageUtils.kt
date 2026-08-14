@@ -56,9 +56,11 @@ import com.wingedsheep.sdk.scripting.PreventDamage
 import com.wingedsheep.sdk.scripting.PreventLifeGain
 import com.wingedsheep.sdk.scripting.RedirectDamage
 import com.wingedsheep.sdk.scripting.effects.RedirectScope
+import com.wingedsheep.sdk.scripting.PreventDamageAndRemoveCounter
 import com.wingedsheep.sdk.scripting.ReplaceDamageWithCounters
 import com.wingedsheep.sdk.scripting.ReplaceDamageWithMill
 import com.wingedsheep.sdk.scripting.ReplacementEffect
+import com.wingedsheep.engine.core.CountersRemovedEvent
 import com.wingedsheep.sdk.scripting.conditions.Condition
 import com.wingedsheep.sdk.scripting.events.DamageType
 import com.wingedsheep.sdk.scripting.events.RecipientFilter
@@ -224,6 +226,14 @@ object DamageUtils {
             // Damage-to-an-opponent → prevent + each opponent mills that many (The Mindskinner).
             val millResult = applyReplaceDamageWithMill(newState, targetId, effectiveAmount, sourceId)
             if (millResult != null) return millResult
+        }
+
+        // Phantom / Unbreathing Horde: prevent all damage to this creature and remove a +1/+1.
+        if (!cantBePrevented && !isPlayer) {
+            val phantomResult = applyPreventDamageAndRemoveCounter(
+                newState, targetId, effectiveAmount, sourceId, isCombatDamage
+            )
+            if (phantomResult != null) return phantomResult
         }
 
         // Events from a reflect shield (Eye for an Eye) that fired but let the damage proceed.
@@ -1920,6 +1930,90 @@ object DamageUtils {
             }
         }
 
+        return null
+    }
+
+    /**
+     * Check for [PreventDamageAndRemoveCounter] (Unbreathing Horde / Phantom cycle).
+     *
+     * When the damage recipient matches the replacement's recipient filter (typically Self —
+     * the permanent that owns the effect) and that permanent has at least one counter of the
+     * stated type, prevent all of this damage instance and remove one counter. If the permanent
+     * has no such counters, the replacement does not apply.
+     */
+    fun applyPreventDamageAndRemoveCounter(
+        state: GameState,
+        targetId: EntityId,
+        amount: Int,
+        sourceId: EntityId?,
+        isCombatDamage: Boolean = false
+    ): EffectResult? {
+        if (amount <= 0) return null
+        val projected = state.projectedState
+
+        for (entityId in state.getBattlefield()) {
+            val container = state.getEntity(entityId) ?: continue
+            val replacementComponent = container.get<ReplacementEffectSourceComponent>() ?: continue
+            val sourceControllerId = replacementHostController(state, entityId) ?: continue
+
+            for (effect in replacementComponent.replacementEffects) {
+                if (effect !is PreventDamageAndRemoveCounter) continue
+
+                val damageEvent = effect.appliesTo
+                if (damageEvent !is EventPattern.DamageEvent) continue
+
+                val damageTypeMatches = when (damageEvent.damageType) {
+                    is DamageType.Any -> true
+                    is DamageType.Combat -> isCombatDamage
+                    is DamageType.NonCombat -> !isCombatDamage
+                }
+                if (!damageTypeMatches) continue
+                if (!damageEvent.amount.matches(amount)) continue
+
+                val sourceMatches = when (val source = damageEvent.source) {
+                    is SourceFilter.Any -> true
+                    is SourceFilter.Self -> sourceId != null && sourceId == entityId
+                    is SourceFilter.Matching -> {
+                        if (sourceId == null) false
+                        else {
+                            val context = PredicateContext(
+                                controllerId = sourceControllerId,
+                                sourceId = entityId,
+                                recipientId = targetId
+                            )
+                            predicateEvaluator.matches(state, projected, sourceId, source.filter, context)
+                        }
+                    }
+                    else -> false
+                }
+                if (!sourceMatches) continue
+
+                val recipientMatches = when (val recipient = damageEvent.recipient) {
+                    is RecipientFilter.Self -> targetId == entityId
+                    is RecipientFilter.Matching -> {
+                        val context = PredicateContext(controllerId = sourceControllerId, sourceId = entityId)
+                        predicateEvaluator.matches(state, projected, targetId, recipient.filter, context)
+                    }
+                    else -> false
+                }
+                if (!recipientMatches) continue
+
+                val counterType = CounterType.fromName(effect.counterType)
+                    ?: CounterType.PLUS_ONE_PLUS_ONE
+                val counters = container.get<CountersComponent>() ?: CountersComponent()
+                if (counters.getCount(counterType) <= 0) continue
+
+                val newState = state.updateEntity(entityId) { c ->
+                    val current = c.get<CountersComponent>() ?: CountersComponent()
+                    c.with(current.withRemoved(counterType, 1))
+                }
+                val entityName = container.get<CardComponent>()?.name ?: ""
+                return EffectResult.success(
+                    newState,
+                    listOf(CountersRemovedEvent(entityId, effect.counterType, 1, entityName))
+                )
+            }
+        }
         return null
     }
 
