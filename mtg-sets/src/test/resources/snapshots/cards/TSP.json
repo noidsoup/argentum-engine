@@ -371,6 +371,57 @@
     ]
 }
 
+// Penumbra Spider
+{
+    "name": "Penumbra Spider",
+    "manaCost": "{2}{G}{G}",
+    "typeLine": "Creature — Spider",
+    "oracleText": "Reach\nWhen this creature dies, create a 2/4 black Spider creature token with reach.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 4
+    },
+    "keywords": [
+        "REACH"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "from": "Battlefield",
+                    "to": "Graveyard"
+                },
+                "effect": {
+                    "type": "CreateToken",
+                    "power": 2,
+                    "toughness": 4,
+                    "colors": [
+                        "BLACK"
+                    ],
+                    "creatureTypes": [
+                        "Spider"
+                    ],
+                    "keywords": [
+                        "REACH"
+                    ],
+                    "imageUri": "https://cards.scryfall.io/normal/front/9/6/96e8f429-5a66-4bcd-8a1f-69f9b79c0f5b.jpg?1783927696"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "210",
+        "artist": "Jeff Easley",
+        "flavorText": "When it snared a passing cockatrice, its own soul darkly doubled.",
+        "imageUri": "https://cards.scryfall.io/normal/front/6/a/6a989ac1-df69-45e7-98bf-564cc7c38973.jpg?1783943208"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
 // Terramorphic Expanse
 {
     "name": "Terramorphic Expanse",

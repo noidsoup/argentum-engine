@@ -54,6 +54,58 @@
     ]
 }
 
+// Cadaver Imp
+{
+    "name": "Cadaver Imp",
+    "manaCost": "{1}{B}{B}",
+    "typeLine": "Creature — Imp",
+    "oracleText": "Flying\nWhen this creature enters, you may return target creature card from your graveyard to your hand.",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 1
+    },
+    "keywords": [
+        "FLYING"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "MoveToZone",
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "target creature card in your graveyard"
+                    },
+                    "destination": "Hand"
+                },
+                "optional": true,
+                "targetRequirement": {
+                    "type": "TargetObject",
+                    "filter": {
+                        "baseFilter": "creature own:you",
+                        "zone": "Graveyard"
+                    },
+                    "id": "target creature card in your graveyard"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "99",
+        "artist": "Dave Kendall",
+        "flavorText": "The mouth must be pried open before rigor mortis sets in. Otherwise the returning soul can find no ingress.",
+        "imageUri": "https://cards.scryfall.io/normal/front/1/b/1b2f83d5-9269-4297-b507-558c2bdec32b.jpg?1783941988"
+    },
+    "colorIdentityOverride": [
+        "BLACK"
+    ]
+}
+
 // Dreamstone Hedron
 {
     "name": "Dreamstone Hedron",
@@ -229,6 +281,171 @@
     },
     "colorIdentityOverride": [
         "BLUE"
+    ]
+}
+
+// Guard Gomazoa
+{
+    "name": "Guard Gomazoa",
+    "manaCost": "{2}{U}",
+    "typeLine": "Creature — Jellyfish",
+    "oracleText": "Defender, flying\nPrevent all combat damage that would be dealt to this creature.",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 3
+    },
+    "keywords": [
+        "DEFENDER",
+        "FLYING"
+    ],
+    "script": {
+        "replacementEffects": [
+            {
+                "type": "PreventDamage",
+                "appliesTo": {
+                    "type": "DamageEvent",
+                    "recipient": "RecipientSelf",
+                    "damageType": "DamageCombat"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "70",
+        "rarity": "UNCOMMON",
+        "artist": "Rob Alexander",
+        "flavorText": "It lingers near the outposts of the Makindi Trenches, inadvertently granting another layer of defense.",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/5/0523e59a-91f7-4893-a4fe-8814a745b422.jpg?1783941996"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
+
+// Nest Invader
+{
+    "name": "Nest Invader",
+    "manaCost": "{1}{G}",
+    "typeLine": "Creature — Eldrazi Drone",
+    "oracleText": "When this creature enters, create a 0/1 colorless Eldrazi Spawn creature token. It has \"Sacrifice this token: Add {C}.\"",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 2
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "CreateToken",
+                    "power": 0,
+                    "toughness": 1,
+                    "colors": [],
+                    "creatureTypes": [
+                        "Eldrazi",
+                        "Spawn"
+                    ],
+                    "activatedAbilities": [
+                        {
+                            "id": "ability_2",
+                            "cost": "CostSacrificeSelf",
+                            "effect": {
+                                "type": "AddColorlessMana",
+                                "amount": {
+                                    "type": "Fixed",
+                                    "amount": 1
+                                }
+                            },
+                            "timing": "ManaAbility",
+                            "isManaAbility": true
+                        }
+                    ]
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "201",
+        "artist": "Trevor Claxton",
+        "flavorText": "It nurtures its masters' glorious future.",
+        "imageUri": "https://cards.scryfall.io/normal/front/2/4/24517d9c-6cde-41e8-9e82-ee73f069379a.jpg?1783941961"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
+// Ondu Giant
+{
+    "name": "Ondu Giant",
+    "manaCost": "{3}{G}",
+    "typeLine": "Creature — Giant Druid",
+    "oracleText": "When this creature enters, you may search your library for a basic land card, put it onto the battlefield tapped, then shuffle.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 4
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "GatherCards",
+                            "source": {
+                                "type": "FromZone",
+                                "zone": "Library",
+                                "filter": "basicland"
+                            },
+                            "storeAs": "searchable"
+                        },
+                        {
+                            "type": "SelectFromCollection",
+                            "from": "searchable",
+                            "selection": {
+                                "type": "ChooseUpTo",
+                                "count": {
+                                    "type": "Fixed",
+                                    "amount": 1
+                                }
+                            },
+                            "storeSelected": "found"
+                        },
+                        {
+                            "type": "MoveCollection",
+                            "from": "found",
+                            "destination": {
+                                "type": "ToZone",
+                                "zone": "Battlefield",
+                                "placement": "Tapped"
+                            }
+                        },
+                        "ShuffleLibrary",
+                        "EmitLibrarySearchedEvent"
+                    ]
+                },
+                "optional": true
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "202",
+        "artist": "Igor Kieryluk",
+        "flavorText": "Some druids nurture gardens. Others nurture continents.",
+        "imageUri": "https://cards.scryfall.io/normal/front/d/a/daf8b1e5-418f-4e64-a2ac-0e03b387ed33.jpg?1783941961"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
     ]
 }
 

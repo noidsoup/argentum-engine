@@ -637,6 +637,46 @@
     ]
 }
 
+// Silhana Ledgewalker
+{
+    "name": "Silhana Ledgewalker",
+    "manaCost": "{1}{G}",
+    "typeLine": "Creature — Elf Rogue",
+    "oracleText": "Hexproof (This creature can't be the target of spells or abilities your opponents control.)\nThis creature can't be blocked except by creatures with flying.",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 1
+    },
+    "keywords": [
+        "HEXPROOF"
+    ],
+    "script": {
+        "staticAbilities": [
+            {
+                "type": "CantBeBlockedExceptBy",
+                "blockerFilter": {
+                    "cardPredicates": [
+                        "IsCreature",
+                        {
+                            "type": "HasKeyword",
+                            "keyword": "FLYING"
+                        }
+                    ]
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "94",
+        "artist": "James Wong",
+        "flavorText": "Street folk call them \"spire mice,\" but behind the mockery is an unspoken envy of the ledgewalkers' skill at avoiding harm.",
+        "imageUri": "https://cards.scryfall.io/normal/front/c/9/c921343a-4496-4e21-a0ff-e04a1fb407bf.jpg?1783943490"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
 // Streetbreaker Wurm
 {
     "name": "Streetbreaker Wurm",

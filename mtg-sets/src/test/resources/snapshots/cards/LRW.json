@@ -386,6 +386,54 @@
     ]
 }
 
+// Mudbutton Torchrunner
+{
+    "name": "Mudbutton Torchrunner",
+    "manaCost": "{2}{R}",
+    "typeLine": "Creature — Goblin Warrior",
+    "oracleText": "When this creature dies, it deals 3 damage to any target.",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 1
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "from": "Battlefield",
+                    "to": "Graveyard"
+                },
+                "effect": {
+                    "type": "DealDamage",
+                    "amount": {
+                        "type": "Fixed",
+                        "amount": 3
+                    },
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "any target"
+                    }
+                },
+                "targetRequirement": {
+                    "type": "AnyTarget",
+                    "id": "any target"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "185",
+        "artist": "Steve Ellis",
+        "flavorText": "The oil sloshes against his skull as he nears his destination: the Frogtosser Games and the lighting of the Flaming Boggart.",
+        "imageUri": "https://cards.scryfall.io/normal/front/5/0/50575eab-6c23-4f63-9667-458416c5caa5.jpg?1783942871"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
 // Nameless Inversion
 {
     "name": "Nameless Inversion",

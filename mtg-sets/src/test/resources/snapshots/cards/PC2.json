@@ -1,3 +1,94 @@
+// Baleful Strix
+{
+    "name": "Baleful Strix",
+    "manaCost": "{U}{B}",
+    "typeLine": "Artifact Creature — Bird",
+    "oracleText": "Flying, deathtouch\nWhen this creature enters, draw a card.",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 1
+    },
+    "keywords": [
+        "FLYING",
+        "DEATHTOUCH"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "DrawCards",
+                    "count": {
+                        "type": "Fixed",
+                        "amount": 1
+                    }
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "82",
+        "rarity": "UNCOMMON",
+        "artist": "Nils Hamm",
+        "flavorText": "Its beak rends flesh and bone, exposing the tender marrow of dream.",
+        "imageUri": "https://cards.scryfall.io/normal/front/6/2/62090c97-7e3e-4854-bc44-c4a900133ec5.jpg?1783940604"
+    },
+    "colorIdentityOverride": [
+        "BLUE",
+        "BLACK"
+    ]
+}
+
+// Brindle Shoat
+{
+    "name": "Brindle Shoat",
+    "manaCost": "{1}{G}",
+    "typeLine": "Creature — Boar",
+    "oracleText": "When this creature dies, create a 3/3 green Boar creature token.",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 1
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "from": "Battlefield",
+                    "to": "Graveyard"
+                },
+                "effect": {
+                    "type": "CreateToken",
+                    "power": 3,
+                    "toughness": 3,
+                    "colors": [
+                        "GREEN"
+                    ],
+                    "creatureTypes": [
+                        "Boar"
+                    ],
+                    "imageUri": "https://cards.scryfall.io/normal/front/8/a/8a911fad-7af3-4bc4-bafc-cac2d5f18f22.jpg?1783921674"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "60",
+        "rarity": "UNCOMMON",
+        "artist": "Steven Belledin",
+        "flavorText": "Hunters lure the stripling boar into the open, hoping to trap greater prey.",
+        "imageUri": "https://cards.scryfall.io/normal/front/2/e/2e40569c-640b-4a1a-a586-bde37de5591f.jpg?1783940614"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
 // Etherium-Horn Sorcerer
 {
     "name": "Etherium-Horn Sorcerer",

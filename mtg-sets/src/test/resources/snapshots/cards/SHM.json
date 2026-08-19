@@ -122,6 +122,75 @@
     ]
 }
 
+// Inkfathom Witch
+{
+    "name": "Inkfathom Witch",
+    "manaCost": "{1}{U/B}",
+    "typeLine": "Creature — Merfolk Wizard",
+    "oracleText": "Fear (This creature can't be blocked except by artifact creatures and/or black creatures.)\n{2}{U}{B}: Each unblocked creature has base power and toughness 4/1 until end of turn.",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 1
+    },
+    "keywords": [
+        "FEAR"
+    ],
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": {
+                    "type": "CostAtomWrapper",
+                    "atom": {
+                        "type": "AtomMana",
+                        "cost": "{2}{U}{B}"
+                    }
+                },
+                "effect": {
+                    "type": "ForEach",
+                    "space": {
+                        "type": "IterationSpace.Group",
+                        "filter": {
+                            "baseFilter": {
+                                "cardPredicates": [
+                                    "IsCreature"
+                                ],
+                                "statePredicates": [
+                                    "IsUnblocked"
+                                ]
+                            }
+                        }
+                    },
+                    "body": {
+                        "type": "SetBaseStats",
+                        "target": "Self",
+                        "power": {
+                            "type": "Fixed",
+                            "amount": 4
+                        },
+                        "toughness": {
+                            "type": "Fixed",
+                            "amount": 1
+                        },
+                        "duration": "EndOfTurn"
+                    }
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "168",
+        "rarity": "UNCOMMON",
+        "artist": "Larry MacDougall",
+        "flavorText": "The murk of the Wanderbrine concealed unseemly rituals designed to bring out the worst in merrowkind.",
+        "imageUri": "https://cards.scryfall.io/normal/front/2/a/2a48062c-faac-4183-830f-919ab255b907.jpg?1783942731"
+    },
+    "colorIdentityOverride": [
+        "BLUE",
+        "BLACK"
+    ]
+}
+
 // Wilt-Leaf Liege
 {
     "name": "Wilt-Leaf Liege",
