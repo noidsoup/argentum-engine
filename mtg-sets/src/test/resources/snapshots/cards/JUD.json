@@ -1201,6 +1201,84 @@
     ]
 }
 
+// Nullmage Advocate
+{
+    "name": "Nullmage Advocate",
+    "manaCost": "{2}{G}",
+    "typeLine": "Creature — Insect Druid",
+    "oracleText": "{T}: Return two target cards from an opponent's graveyard to their hand. Destroy target artifact or enchantment.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 3
+    },
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": "CostTap",
+                "effect": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "MoveToZone",
+                            "target": {
+                                "type": "ContextTarget",
+                                "index": 0
+                            },
+                            "destination": "Hand"
+                        },
+                        {
+                            "type": "MoveToZone",
+                            "target": {
+                                "type": "ContextTarget",
+                                "index": 1
+                            },
+                            "destination": "Hand"
+                        },
+                        {
+                            "type": "MoveToZone",
+                            "target": {
+                                "type": "BoundVariable",
+                                "name": "target artifact or enchantment"
+                            },
+                            "destination": "Graveyard",
+                            "byDestruction": true
+                        }
+                    ]
+                },
+                "targetRequirements": [
+                    {
+                        "type": "TargetObject",
+                        "count": 2,
+                        "filter": {
+                            "baseFilter": "own:opponent",
+                            "zone": "Graveyard"
+                        },
+                        "id": "two target cards from an opponent's graveyard",
+                        "sameOwner": true
+                    },
+                    {
+                        "type": "TargetObject",
+                        "filter": {
+                            "baseFilter": "artifact|enchantment"
+                        },
+                        "id": "target artifact or enchantment"
+                    }
+                ]
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "126",
+        "artist": "Darrell Riche",
+        "flavorText": "\"Our unity unmasks your deceit.\"",
+        "imageUri": "https://cards.scryfall.io/normal/front/1/c/1c29991d-82f2-479d-95ca-5c88e9f3f219.jpg?1783945109"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
 // Ray of Revelation
 {
     "name": "Ray of Revelation",
