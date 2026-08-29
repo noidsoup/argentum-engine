@@ -235,6 +235,43 @@
     ]
 }
 
+// Spirit Mantle
+{
+    "name": "Spirit Mantle",
+    "manaCost": "{1}{W}",
+    "typeLine": "Enchantment — Aura",
+    "oracleText": "Enchant creature\nEnchanted creature gets +1/+1 and has protection from creatures.",
+    "script": {
+        "staticAbilities": [
+            {
+                "type": "ModifyStats",
+                "powerBonus": 1,
+                "toughnessBonus": 1
+            },
+            {
+                "type": "GrantProtectionFromCardType",
+                "cardType": "CREATURE"
+            }
+        ],
+        "auraTarget": {
+            "type": "TargetObject",
+            "filter": {
+                "baseFilter": "creature"
+            }
+        }
+    },
+    "metadata": {
+        "collectorNumber": "35",
+        "rarity": "UNCOMMON",
+        "artist": "Izzy",
+        "flavorText": "The shield of unimpeachable purity is as strong as any wrought on the anvil.",
+        "imageUri": "https://cards.scryfall.io/normal/front/9/3/930c8444-ccce-411e-bc4f-e5abca749608.jpg?1783941097"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
 // Stingerfling Spider
 {
     "name": "Stingerfling Spider",

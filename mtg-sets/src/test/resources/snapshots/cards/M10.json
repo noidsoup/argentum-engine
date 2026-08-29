@@ -204,3 +204,49 @@
         "GREEN"
     ]
 }
+
+// Wall of Frost
+{
+    "name": "Wall of Frost",
+    "manaCost": "{1}{U}{U}",
+    "typeLine": "Creature — Wall",
+    "oracleText": "Defender\nWhenever this creature blocks a creature, that creature doesn't untap during its controller's next untap step.",
+    "creatureStats": {
+        "power": 0,
+        "toughness": 7
+    },
+    "keywords": [
+        "DEFENDER"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "BlockEvent",
+                    "attackerFilter": {
+                        "cardPredicates": [
+                            "IsCreature"
+                        ]
+                    }
+                },
+                "effect": {
+                    "type": "GrantKeyword",
+                    "keyword": "DOESNT_UNTAP",
+                    "target": "TriggeringEntity",
+                    "duration": "UntilAfterAffectedControllersNextUntap"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "80",
+        "rarity": "UNCOMMON",
+        "artist": "Mike Bierek",
+        "flavorText": "\"I welcome it. The pasture is cleared of weeds and the wolves are frozen solid.\"\n—Lumi, goatherd",
+        "imageUri": "https://cards.scryfall.io/normal/front/1/7/17bc35a7-e38b-4c15-889a-d58c8b360315.jpg?1783942386"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
