@@ -28,11 +28,11 @@ Suggested layout:
 ~/Projects/argentum-tandem-coverage
 ```
 
-Open **argentum-tandem-coverage** in Cursor or Claude Code. Say:
+Open **argentum-tandem-coverage** in **Claude Code, Cursor, or any chat IDE**. Say:
 
 > **set up and grind**
 
-The agent runs setup — you should not need a manual checklist. Full worker instructions: [`argentum-tandem-coverage/docs/ONBOARD-WORKER.md`](https://github.com/noidsoup/argentum-tandem-coverage/blob/main/docs/ONBOARD-WORKER.md).
+No Cursor API key required for that path. (Overnight `just shift` is Cursor-only — see below.)
 
 ---
 
@@ -198,6 +198,9 @@ Index lands in `uncommitted/lancedb_project_knowledge/` (gitignored).
 | Card needs new effect type | Skip; log in campaign `docs/queue/FEATURES.md` |
 | Claim conflict | `just worker-list`; pick unclaimed cards via `just suggest` |
 | Set already has another worker | Normal for compose sets — stay apart via card claims |
+| Asked for Cursor API key | **Ignore if grinding in chat.** Only needed for `just shift` overnight on a machine with Cursor CLI |
+
+**Optional overnight (Cursor only):** `python3 scripts/setup-cursor-api-key.py` in the campaign repo after creating a key at [cursor.com/dashboard](https://cursor.com/dashboard).
 
 **Captain:** Nicholas — Discord/playtesting context optional; campaign board + GitHub issues are enough for factory work.
 
