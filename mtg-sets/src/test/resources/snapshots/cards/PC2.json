@@ -309,6 +309,71 @@
     ]
 }
 
+// Preyseizer Dragon
+{
+    "name": "Preyseizer Dragon",
+    "manaCost": "{4}{R}{R}",
+    "typeLine": "Creature — Dragon",
+    "oracleText": "Flying\nDevour 2 (As this creature enters, you may sacrifice any number of creatures. It enters with twice that many +1/+1 counters on it.)\nWhenever this creature attacks, it deals damage to any target equal to the number of +1/+1 counters on this creature.",
+    "creatureStats": {
+        "power": 4,
+        "toughness": 4
+    },
+    "keywords": [
+        "FLYING",
+        "DEVOUR"
+    ],
+    "keywordAbilities": [
+        {
+            "type": "Devour",
+            "multiplier": 2
+        }
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": "AttackEvent",
+                "effect": {
+                    "type": "DealDamage",
+                    "amount": {
+                        "type": "EntityProperty",
+                        "entity": "Source",
+                        "numericProperty": {
+                            "type": "CounterCount",
+                            "counterType": "PlusOnePlusOne"
+                        }
+                    },
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "any target"
+                    }
+                },
+                "targetRequirement": {
+                    "type": "AnyTarget",
+                    "id": "any target"
+                },
+                "descriptionOverride": "Whenever this creature attacks, it deals damage to any target equal to the number of +1/+1 counters on this creature."
+            }
+        ],
+        "replacementEffects": [
+            {
+                "type": "EntersWithDevour",
+                "multiplier": 2
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "50",
+        "rarity": "RARE",
+        "artist": "Daarken",
+        "imageUri": "https://cards.scryfall.io/normal/front/a/1/a1c0caa9-f124-4859-881b-72ecaf8084bb.jpg?1783940617"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
 // Vela the Night-Clad
 {
     "name": "Vela the Night-Clad",

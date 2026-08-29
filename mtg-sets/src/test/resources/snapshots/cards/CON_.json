@@ -198,6 +198,70 @@
     ]
 }
 
+// Hellkite Hatchling
+{
+    "name": "Hellkite Hatchling",
+    "manaCost": "{2}{R}{G}",
+    "typeLine": "Creature — Dragon",
+    "oracleText": "Devour 1 (As this creature enters, you may sacrifice any number of creatures. It enters with that many +1/+1 counters on it.)\nThis creature has flying and trample if it devoured a creature.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 2
+    },
+    "keywords": [
+        "DEVOUR"
+    ],
+    "keywordAbilities": [
+        {
+            "type": "Devour",
+            "multiplier": 1
+        }
+    ],
+    "script": {
+        "replacementEffects": [
+            {
+                "type": "EntersWithDevour",
+                "multiplier": 1
+            },
+            {
+                "type": "EntersWithKeywords",
+                "keywords": [
+                    "FLYING",
+                    "TRAMPLE"
+                ],
+                "condition": {
+                    "type": "Compare",
+                    "left": {
+                        "type": "EntityProperty",
+                        "entity": "Source",
+                        "numericProperty": {
+                            "type": "CounterCount",
+                            "counterType": "PlusOnePlusOne"
+                        }
+                    },
+                    "operator": "GTE",
+                    "right": {
+                        "type": "Fixed",
+                        "amount": 1
+                    }
+                },
+                "selfOnly": true
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "111",
+        "rarity": "UNCOMMON",
+        "artist": "Daarken",
+        "flavorText": "A killing machine from birth.",
+        "imageUri": "https://cards.scryfall.io/normal/front/d/0/d09a3b69-1214-420d-984f-0b2a043a9dc2.jpg?1783942468"
+    },
+    "colorIdentityOverride": [
+        "RED",
+        "GREEN"
+    ]
+}
+
 // Progenitus
 {
     "name": "Progenitus",
