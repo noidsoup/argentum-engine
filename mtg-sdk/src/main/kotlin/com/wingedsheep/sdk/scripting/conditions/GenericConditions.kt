@@ -3,6 +3,7 @@ package com.wingedsheep.sdk.scripting.conditions
 import com.wingedsheep.sdk.core.Zone
 import com.wingedsheep.sdk.scripting.GameObjectFilter
 import com.wingedsheep.sdk.scripting.references.Player
+import com.wingedsheep.sdk.scripting.targets.EffectTarget
 import com.wingedsheep.sdk.scripting.text.TextReplacer
 import com.wingedsheep.sdk.scripting.values.DynamicAmount
 import kotlinx.serialization.SerialName
@@ -287,6 +288,29 @@ data class NumberMatches(
 @Serializable
 data class APlayerLifeAtMost(val threshold: Int) : Condition {
     override val description: String = "a player has $threshold or less life"
+}
+
+/**
+ * True when [entity] is currently in [zone] (e.g. source still on the battlefield at resolution).
+ * Resolution-only; uses base zone membership, not projected characteristics.
+ */
+@SerialName("EntityInZone")
+@Serializable
+data class EntityInZone(
+    val entity: EffectTarget = EffectTarget.Self,
+    val zone: Zone,
+) : Condition {
+    override val description: String = "${entity.description} is in ${zone.displayName}"
+    override fun applyTextReplacement(replacer: TextReplacer): Condition {
+        val newEntity = when (entity) {
+            is EffectTarget.Self -> entity
+            is EffectTarget.ContextTarget -> entity
+            is EffectTarget.BoundVariable -> entity
+            is EffectTarget.SpecificEntity -> entity
+            else -> entity
+        }
+        return if (newEntity !== entity) copy(entity = newEntity) else this
+    }
 }
 
 @SerialName("Exists")

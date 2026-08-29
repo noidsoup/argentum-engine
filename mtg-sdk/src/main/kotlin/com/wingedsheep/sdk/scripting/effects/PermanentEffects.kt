@@ -414,6 +414,25 @@ data class PutOntoBattlefieldAttachedToChosenEffect(
 }
 
 /**
+ * Put the first card in a pipeline collection onto the battlefield attached to a fixed [host]
+ * permanent (no host choice). The card must be an Aura legally attachable to [host]; otherwise
+ * it stays in its current zone (Rule 303.4g). Models "put that Aura onto the battlefield
+ * attached to this creature" after a library search (Auratouched Mage).
+ *
+ * @property host The permanent to enchant (typically [EffectTarget.Self]).
+ * @property from Pipeline collection holding the Aura card (first card is used).
+ */
+@SerialName("PutOntoBattlefieldAttachedTo")
+@Serializable
+data class PutOntoBattlefieldAttachedToEffect(
+    val host: EffectTarget = EffectTarget.Self,
+    val from: String,
+) : Effect {
+    override val description: String =
+        "Put the Aura from $from onto the battlefield attached to ${host.description}"
+}
+
+/**
  * Mark a permanent so that if it would leave the battlefield, it is exiled instead.
  * Used by Kheru Lich Lord, Whip of Erebos, Sneak Attack, and similar reanimation effects.
  *

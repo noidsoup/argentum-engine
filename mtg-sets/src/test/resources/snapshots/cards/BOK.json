@@ -1,3 +1,128 @@
+// Higure, the Still Wind
+{
+    "name": "Higure, the Still Wind",
+    "manaCost": "{3}{U}{U}",
+    "typeLine": "Legendary Creature — Human Ninja",
+    "oracleText": "Ninjutsu {2}{U}{U} ({2}{U}{U}, Return an unblocked attacker you control to hand: Put this card onto the battlefield from your hand tapped and attacking.)\nWhenever Higure deals combat damage to a player, you may search your library for a Ninja card, reveal it, put it into your hand, then shuffle.\n{2}: Target Ninja creature can't be blocked this turn.",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 4
+    },
+    "keywords": [
+        "NINJUTSU"
+    ],
+    "keywordAbilities": [
+        {
+            "type": "Ninjutsu",
+            "cost": "{2}{U}{U}"
+        }
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "DealsDamageEvent",
+                    "damageType": "DamageCombat",
+                    "recipient": "AnyPlayer"
+                },
+                "effect": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "GatherCards",
+                            "source": {
+                                "type": "FromZone",
+                                "zone": "Library",
+                                "filter": "Ninja"
+                            },
+                            "storeAs": "searchable"
+                        },
+                        {
+                            "type": "SelectFromCollection",
+                            "from": "searchable",
+                            "selection": {
+                                "type": "ChooseUpTo",
+                                "count": {
+                                    "type": "Fixed",
+                                    "amount": 1
+                                }
+                            },
+                            "storeSelected": "found"
+                        },
+                        {
+                            "type": "MoveCollection",
+                            "from": "found",
+                            "destination": {
+                                "type": "ToZone",
+                                "zone": "Hand"
+                            },
+                            "revealed": true
+                        },
+                        "ShuffleLibrary",
+                        "EmitLibrarySearchedEvent"
+                    ]
+                },
+                "optional": true,
+                "descriptionOverride": "Whenever Higure deals combat damage to a player, you may search your library for a Ninja card, reveal it, put it into your hand, then shuffle."
+            }
+        ],
+        "activatedAbilities": [
+            {
+                "id": "ability_2",
+                "cost": {
+                    "type": "CostAtomWrapper",
+                    "atom": {
+                        "type": "AtomMana",
+                        "cost": "{2}"
+                    }
+                },
+                "effect": {
+                    "type": "GrantKeyword",
+                    "keyword": "CANT_BE_BLOCKED",
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "target Ninja creature"
+                    }
+                },
+                "targetRequirements": [
+                    {
+                        "type": "TargetObject",
+                        "filter": {
+                            "baseFilter": "creature Ninja"
+                        },
+                        "id": "target Ninja creature"
+                    }
+                ],
+                "descriptionOverride": "{2}: Target Ninja creature can't be blocked this turn."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "37",
+        "rarity": "RARE",
+        "artist": "Christopher Moeller",
+        "imageUri": "https://cards.scryfall.io/normal/front/7/4/743f3cf5-f8aa-49d4-947d-76b91799547a.jpg?1783944207",
+        "rulings": [
+            {
+                "date": "2021-03-19",
+                "text": "The ninjutsu ability can be activated only after blockers have been declared. Before then, attacking creatures are neither blocked nor unblocked."
+            },
+            {
+                "date": "2021-03-19",
+                "text": "As you activate a ninjutsu ability, you reveal the Ninja card in your hand and return the attacking creature. The Ninja isn't put onto the battlefield until the ability resolves. If it leaves your hand before then, it won't enter the battlefield at all."
+            },
+            {
+                "date": "2021-03-19",
+                "text": "The ninjutsu ability can be activated during the declare blockers step, combat damage step, or end of combat step."
+            }
+        ]
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
+
 // Mistblade Shinobi
 {
     "name": "Mistblade Shinobi",

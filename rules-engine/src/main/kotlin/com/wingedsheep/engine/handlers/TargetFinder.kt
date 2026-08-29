@@ -1,5 +1,6 @@
 package com.wingedsheep.engine.handlers
 
+import com.wingedsheep.engine.registry.CardRegistry
 import com.wingedsheep.engine.state.GameState
 import com.wingedsheep.engine.state.ZoneKey
 import com.wingedsheep.engine.state.components.battlefield.AttachedToComponent
@@ -14,6 +15,7 @@ import com.wingedsheep.engine.mechanics.layers.ProjectedState
 import com.wingedsheep.engine.mechanics.targeting.PlayerTargetRestriction
 import com.wingedsheep.sdk.core.Keyword
 import com.wingedsheep.sdk.core.Zone
+import com.wingedsheep.sdk.core.CardType
 import com.wingedsheep.sdk.model.EntityId
 import com.wingedsheep.sdk.scripting.GameObjectFilter
 import com.wingedsheep.sdk.scripting.filters.unified.TargetFilter
@@ -83,6 +85,49 @@ class TargetFinder(
      *   like hexproof and shroud do not apply.
      * @return List of valid target EntityIds
      */
+    /**
+     * True when [auraEntityId] could enchant [hostEntityId] per the Aura's enchant clause.
+     *
+     * Library-search filters (Auratouched Mage) may evaluate this while [hostEntityId] is no
+     * longer on the battlefield — the host's characteristics are still compared (creature vs
+     * land Aura, etc.). Targeting restrictions (hexproof, shroud) are ignored when
+     * [ignoreTargetingRestrictions] is true (Rule 303.4f).
+     */
+    fun couldEnchant(
+        state: GameState,
+        cardRegistry: CardRegistry,
+        auraEntityId: EntityId,
+        hostEntityId: EntityId,
+        controllerId: EntityId,
+        ignoreTargetingRestrictions: Boolean = true,
+        pipelineContext: PredicateContext? = null,
+    ): Boolean {
+        val auraCard = state.getEntity(auraEntityId)?.get<CardComponent>() ?: return false
+        if (!auraCard.typeLine.isAura) return false
+        val auraTarget = cardRegistry.getCard(auraCard.cardDefinitionId)?.script?.auraTarget ?: return false
+        if (state.getEntity(hostEntityId)?.get<CardComponent>() == null) return false
+
+        if (state.getBattlefield().contains(hostEntityId)) {
+            return findLegalTargets(
+                state = state,
+                requirement = auraTarget,
+                controllerId = controllerId,
+                sourceId = auraEntityId,
+                ignoreTargetingRestrictions = ignoreTargetingRestrictions,
+                pipelineContext = pipelineContext,
+            ).contains(hostEntityId)
+        }
+
+        return couldEnchantOffBattlefield(
+            state = state,
+            requirement = auraTarget,
+            hostEntityId = hostEntityId,
+            auraEntityId = auraEntityId,
+            controllerId = controllerId,
+            pipelineContext = pipelineContext,
+        )
+    }
+
     fun findLegalTargets(
         state: GameState,
         requirement: TargetRequirement,
@@ -669,5 +714,90 @@ class TargetFinder(
         }
 
         return targets
+    }
+
+    /**
+     * Host is not on the battlefield — compare the Aura's enchant clause against the host's
+     * characteristics (printed / last-known), not current legal-target scan.
+     */
+    private fun couldEnchantOffBattlefield(
+        state: GameState,
+        requirement: TargetRequirement,
+        hostEntityId: EntityId,
+        auraEntityId: EntityId,
+        controllerId: EntityId,
+        pipelineContext: PredicateContext?,
+    ): Boolean {
+        return when (requirement) {
+            is TargetObject -> {
+                val filter = requirement.filter
+                if (filter.isUnion) {
+                    return filter.clauses().any { clause ->
+                        couldEnchantOffBattlefield(
+                            state,
+                            requirement.copy(filter = clause),
+                            hostEntityId,
+                            auraEntityId,
+                            controllerId,
+                            pipelineContext,
+                        )
+                    }
+                }
+                if (filter.zone != Zone.BATTLEFIELD) return false
+                if (filter.excludeSelf && hostEntityId == auraEntityId) return false
+                if (filter.excludeTriggeringEntity && pipelineContext?.triggeringEntityId == hostEntityId) {
+                    return false
+                }
+                val predicateContext = targetingContext(
+                    controllerId = controllerId,
+                    sourceId = auraEntityId,
+                    pipelineContext = pipelineContext,
+                )
+                predicateEvaluator.matches(
+                    state,
+                    state.projectedState,
+                    hostEntityId,
+                    filter.baseFilter,
+                    predicateContext,
+                )
+            }
+            is TargetOther -> {
+                val excludeId = requirement.excludeSourceId
+                    ?: if (requirement.excludeAttachedCreature) {
+                        state.getEntity(auraEntityId)?.get<AttachedToComponent>()?.targetId
+                    } else {
+                        auraEntityId
+                    }
+                if (excludeId == hostEntityId) return false
+                couldEnchantOffBattlefield(
+                    state,
+                    requirement.baseRequirement,
+                    hostEntityId,
+                    auraEntityId,
+                    controllerId,
+                    pipelineContext,
+                )
+            }
+            is TargetCreatureOrPlaneswalker -> hostIsCreatureOrPlaneswalker(state, hostEntityId)
+            is TargetCreatureOrPlayer -> hostIsCreature(state, hostEntityId)
+            is AnyTarget -> hostIsCreatureOrPlaneswalker(state, hostEntityId)
+            else -> false
+        }
+    }
+
+    private fun hostIsCreature(state: GameState, hostEntityId: EntityId): Boolean {
+        if (state.getBattlefield().contains(hostEntityId)) {
+            return state.projectedState.isCreature(hostEntityId)
+        }
+        return state.getEntity(hostEntityId)?.get<CardComponent>()?.typeLine?.isCreature == true
+    }
+
+    private fun hostIsCreatureOrPlaneswalker(state: GameState, hostEntityId: EntityId): Boolean {
+        if (state.getBattlefield().contains(hostEntityId)) {
+            val projected = state.projectedState
+            return projected.isCreature(hostEntityId) || projected.isPlaneswalker(hostEntityId)
+        }
+        val typeLine = state.getEntity(hostEntityId)?.get<CardComponent>()?.typeLine ?: return false
+        return typeLine.isCreature || CardType.PLANESWALKER in typeLine.cardTypes
     }
 }

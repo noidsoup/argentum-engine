@@ -28,6 +28,7 @@ class ZonesExecutors(
         ReturnSameNamedFromGraveyardExecutor(),
         ReturnSelfToBattlefieldAttachedExecutor(cardRegistry),
         PutOntoBattlefieldAttachedToChosenExecutor(cardRegistry, targetFinder),
+        PutOntoBattlefieldAttachedToExecutor(cardRegistry, targetFinder),
         ExileOpponentsGraveyardsExecutor(),
         DestroyAllEquipmentOnTargetExecutor()
     )

@@ -6,6 +6,8 @@ import com.wingedsheep.engine.state.components.battlefield.CastChoicesComponent
 import com.wingedsheep.engine.state.components.battlefield.ChoiceValue
 import com.wingedsheep.engine.mechanics.layers.ProjectedState
 import com.wingedsheep.engine.mechanics.layers.ProjectedValues
+import com.wingedsheep.engine.handlers.effects.TargetResolutionUtils
+import com.wingedsheep.engine.registry.CardRegistry
 import com.wingedsheep.engine.state.GameState
 import com.wingedsheep.engine.state.components.battlefield.AttachedToComponent
 import com.wingedsheep.engine.state.components.battlefield.AttachmentsComponent
@@ -40,9 +42,9 @@ import com.wingedsheep.engine.state.components.stack.TriggeredAbilityOnStackComp
 import com.wingedsheep.sdk.core.Keyword
 import com.wingedsheep.sdk.core.Subtype
 import com.wingedsheep.sdk.model.EntityId
+import com.wingedsheep.sdk.scripting.GameObjectFilter
 import com.wingedsheep.sdk.scripting.predicates.CardPredicate
 import com.wingedsheep.sdk.scripting.predicates.ControllerPredicate
-import com.wingedsheep.sdk.scripting.GameObjectFilter
 import com.wingedsheep.sdk.scripting.predicates.StatePredicate
 import com.wingedsheep.sdk.scripting.references.Player
 import com.wingedsheep.sdk.scripting.targets.EffectTarget
@@ -61,7 +63,19 @@ import com.wingedsheep.engine.state.components.stack.TargetsComponent
  * - ControllerPredicate (youControl, opponentControls)
  * - GameObjectFilter (composed from the above predicates)
  */
-class PredicateEvaluator {
+class PredicateEvaluator(
+    private val cardRegistry: CardRegistry? = null,
+    private val targetFinder: TargetFinder? = null,
+) {
+
+    private fun resolveHostReference(ref: EntityReference, context: PredicateContext): EntityId? =
+        when (ref) {
+            EntityReference.Source -> context.sourceId
+            is EntityReference.Target -> context.targets.getOrNull(ref.index)
+                ?.let { TargetResolutionUtils.run { it.toEntityId() } }
+            is EntityReference.AffectedEntity -> context.affectedEntityId
+            else -> null
+        }
 
     /**
      * Evaluate a GameObjectFilter against an entity using projected state.
@@ -225,6 +239,24 @@ class PredicateEvaluator {
         }
 
         val card = container.get<CardComponent>() ?: return false
+
+        if (predicate is CardPredicate.CanEnchant) {
+            val registry = cardRegistry ?: return false
+            val finder = targetFinder ?: return false
+            val ctx = context ?: return false
+            if (!card.typeLine.isAura) return false
+            val hostId = resolveHostReference(predicate.host, ctx) ?: return false
+            return finder.couldEnchant(
+                state = state,
+                cardRegistry = registry,
+                auraEntityId = entityId,
+                hostEntityId = hostId,
+                controllerId = ctx.controllerId,
+                ignoreTargetingRestrictions = true,
+                pipelineContext = ctx,
+            )
+        }
+
         val projectedValues = projected.getProjectedValues(entityId)
 
         // Use projected types/colors/keywords if available, otherwise fall back to base.
@@ -715,6 +747,7 @@ class PredicateEvaluator {
             CardPredicate.IsTriggeredAbility -> false
             CardPredicate.IsActivatedAbility -> false
             is CardPredicate.TargetsMatching -> false
+            is CardPredicate.CanEnchant -> false
         }
     }
 
@@ -1444,6 +1477,7 @@ class PredicateEvaluator {
             // Stack-relative targeting predicate — historical cast records have no
             // chosen-target snapshot, so this always returns false here.
             is CardPredicate.TargetsMatching -> false
+            is CardPredicate.CanEnchant -> false
 
             // Composite predicates
             is CardPredicate.And -> predicate.predicates.all { matchesRecordPredicate(record, it) }

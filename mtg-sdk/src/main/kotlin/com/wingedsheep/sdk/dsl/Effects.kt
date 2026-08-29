@@ -3938,6 +3938,15 @@ object Effects {
         target, hostFilter
     )
 
+    /**
+     * Put the first card in pipeline collection [from] onto the battlefield attached to [host].
+     * Aura-only; fizzles if not legally attachable (Rule 303.4g).
+     */
+    fun PutOntoBattlefieldAttachedTo(
+        host: EffectTarget = EffectTarget.Self,
+        from: String,
+    ): Effect = com.wingedsheep.sdk.scripting.effects.PutOntoBattlefieldAttachedToEffect(host, from)
+
     // =========================================================================
     // Animate Effects
     // =========================================================================

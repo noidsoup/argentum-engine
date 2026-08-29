@@ -6,6 +6,8 @@ import com.wingedsheep.engine.handlers.DynamicAmountEvaluator
 import com.wingedsheep.engine.handlers.EffectContext
 import com.wingedsheep.engine.handlers.PredicateContext
 import com.wingedsheep.engine.handlers.PredicateEvaluator
+import com.wingedsheep.engine.handlers.TargetFinder
+import com.wingedsheep.engine.registry.CardRegistry
 import com.wingedsheep.engine.handlers.effects.EffectExecutor
 import com.wingedsheep.engine.handlers.effects.TargetResolutionUtils
 import com.wingedsheep.engine.handlers.effects.BattlefieldFilterUtils
@@ -35,12 +37,15 @@ import kotlin.reflect.KClass
  * from their current zone — they are only referenced for subsequent
  * pipeline steps (SelectFromCollection, MoveCollection).
  */
-class GatherCardsExecutor : EffectExecutor<GatherCardsEffect> {
+class GatherCardsExecutor(
+    private val cardRegistry: CardRegistry? = null,
+    private val targetFinder: TargetFinder? = null,
+) : EffectExecutor<GatherCardsEffect> {
 
     override val effectType: KClass<GatherCardsEffect> = GatherCardsEffect::class
 
     private val amountEvaluator = DynamicAmountEvaluator()
-    private val predicateEvaluator = PredicateEvaluator()
+    private val predicateEvaluator = PredicateEvaluator(cardRegistry, targetFinder)
 
     override fun execute(
         state: GameState,

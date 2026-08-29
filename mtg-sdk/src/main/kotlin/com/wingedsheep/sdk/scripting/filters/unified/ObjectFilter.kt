@@ -177,6 +177,10 @@ data class GameObjectFilter(
                 CardPredicate.Or(listOf(CardPredicate.IsCreature, CardPredicate.HasSubtype(Subtype.VEHICLE)))
             )
         )
+
+        /** Enchantment Aura cards that could enchant [host] (library search / tutor filter). */
+        fun auraThatCouldEnchant(host: EntityReference = EntityReference.Source) =
+            Enchantment.withSubtype(Subtype.AURA).canEnchant(host)
         val ArtifactOrLand = GameObjectFilter(
             cardPredicates = listOf(
                 CardPredicate.Or(listOf(CardPredicate.IsArtifact, CardPredicate.IsLand))
@@ -242,6 +246,11 @@ data class GameObjectFilter(
     /** Add a subtype requirement */
     fun withSubtype(subtype: Subtype) = copy(
         cardPredicates = cardPredicates + CardPredicate.HasSubtype(subtype)
+    )
+
+    /** Restrict to Auras (or other enchantments) that could legally enchant [host]. */
+    fun canEnchant(host: EntityReference) = copy(
+        cardPredicates = cardPredicates + CardPredicate.CanEnchant(host)
     )
 
     /** Add a subtype requirement by string */

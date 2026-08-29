@@ -662,6 +662,10 @@ Atomic effect factories. For library/zone manipulation, prefer the pipelines in 
   battlefield attached to a permanent the controller chooses at resolution (default host filter: a creature
   you control). Works for both Auras and Equipment; the host is chosen, not targeted. If no legal host exists,
   an Equipment enters unattached while an Aura can't enter (Rule 303.4g). (One Last Job.)
+- `PutOntoBattlefieldAttachedTo(host, from)` — put the first card in pipeline collection [from] onto the
+  battlefield attached to fixed [host] (typically `EffectTarget.Self`). Aura-only; if [host] is gone or the
+  Aura can't legally enchant it, the Aura stays in its current zone (Rule 303.4g). Pair with
+  `Patterns.Library.searchAuraThatCouldEnchant` for Auratouched Mage-style search-then-attach.
 - `ReturnSelfToBattlefieldAttached(target)` — return source attached to target (Aura recursion).
 - `ReturnSelfFromExileTransformed` — Craft resolution (CR 702.167a). Returns the source from exile to the
   battlefield as its back face, under its owner's control, and re-attaches the source's
@@ -1719,6 +1723,11 @@ one-off pipeline belongs inline in the card file via `Effects.Pipeline { }` (§5
 **Library search & reveal**
 
 - `searchLibrary(filter, destination?, tapped?, shuffle?)` — search library, pick matching, move, shuffle.
+- `searchAuraThatCouldEnchant(host?, storeSelected?, searchableCollection?)` — search your library for an
+  Aura that could enchant [host] (default: `EntityReference.Source`), optionally attach it if [host] is still
+  on the battlefield (`EntityInZone` + `PutOntoBattlefieldAttachedTo`), otherwise reveal it to hand, then
+  shuffle. Uses `GameObjectFilter.auraThatCouldEnchant` / `CardPredicate.CanEnchant` (targeting restrictions
+  ignored per Rule 303.4f).
 - `searchMultipleZones(zones, filter, count?, destination?, tapped?, reveal?)` — search several zones (e.g. library and/or graveyard) in one effect; shuffles automatically if `LIBRARY` is among the zones. Pass `reveal = true` for "reveal it" tutors (Delivery Moogle).
 
 **Sideboard / wish (`Patterns.Sideboard.*`)**

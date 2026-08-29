@@ -877,6 +877,18 @@ sealed interface CardPredicate : TextReplaceable<CardPredicate> {
     }
 
     /**
+     * Aura (or other enchantment with an [auraTarget]) that could legally enchant [host] at
+     * evaluation time. Used when searching a library for "an Aura card that could enchant it"
+     * (Auratouched Mage). Targeting restrictions (hexproof, shroud) are ignored per Rule 303.4f.
+     */
+    @SerialName("CanEnchant")
+    @Serializable
+    data class CanEnchant(val host: EntityReference) : CardPredicate {
+        override val description: String = "an Aura that could enchant ${host.description}"
+        override fun applyTextReplacement(replacer: TextReplacer): CardPredicate = this
+    }
+
+    /**
      * Matches a spell or ability on the stack at least one of whose chosen targets
      * matches [subfilter]. Player targets are skipped (they aren't card-like and have
      * no game-object filter to match against). Used by cards like Teferi's Response

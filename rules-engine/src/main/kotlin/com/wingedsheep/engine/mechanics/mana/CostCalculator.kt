@@ -1073,6 +1073,7 @@ class CostCalculator(
             CardPredicate.IsTriggeredAbility -> false
             CardPredicate.IsActivatedAbility -> false
             is CardPredicate.TargetsMatching -> false
+            is CardPredicate.CanEnchant -> false
         }
     }
 

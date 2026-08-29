@@ -170,3 +170,303 @@
         "GREEN"
     ]
 }
+
+// Hissing Iguanar
+{
+    "name": "Hissing Iguanar",
+    "manaCost": "{2}{R}",
+    "typeLine": "Creature — Lizard",
+    "oracleText": "Whenever another creature dies, you may have this creature deal 1 damage to target player or planeswalker.",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 1
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "filter": "creature",
+                    "from": "Battlefield",
+                    "to": "Graveyard"
+                },
+                "binding": "OTHER",
+                "effect": {
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "DealDamage",
+                        "amount": {
+                            "type": "Fixed",
+                            "amount": 1
+                        },
+                        "target": {
+                            "type": "BoundVariable",
+                            "name": "target player or planeswalker"
+                        },
+                        "damageSource": "Self"
+                    }
+                },
+                "targetRequirement": {
+                    "type": "TargetPlayerOrPlaneswalker",
+                    "id": "target player or planeswalker"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "104",
+        "artist": "Brandon Kitkouski",
+        "flavorText": "Viashino thrashes keep iguanars as hunting companions, giving them wounded captives as playthings.",
+        "imageUri": "https://cards.scryfall.io/normal/front/4/b/4b8b8b90-cb6e-4910-bc40-d96b78b0d70c.jpg?1783942560"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
+// Mycoloth
+{
+    "name": "Mycoloth",
+    "manaCost": "{3}{G}{G}",
+    "typeLine": "Creature — Fungus",
+    "oracleText": "Devour 2 (As this creature enters, you may sacrifice any number of creatures. It enters with twice that many +1/+1 counters on it.)\nAt the beginning of your upkeep, create a 1/1 green Saproling creature token for each +1/+1 counter on this creature.",
+    "creatureStats": {
+        "power": 4,
+        "toughness": 4
+    },
+    "keywords": [
+        "DEVOUR"
+    ],
+    "keywordAbilities": [
+        {
+            "type": "Devour",
+            "multiplier": 2
+        }
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "StepEvent",
+                    "step": "UPKEEP"
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "CreateToken",
+                    "count": {
+                        "type": "EntityProperty",
+                        "entity": "Source",
+                        "numericProperty": {
+                            "type": "CounterCount",
+                            "counterType": "PlusOnePlusOne"
+                        }
+                    },
+                    "power": 1,
+                    "toughness": 1,
+                    "colors": [
+                        "GREEN"
+                    ],
+                    "creatureTypes": [
+                        "Saproling"
+                    ],
+                    "imageUri": "https://cards.scryfall.io/normal/front/6/2/622759a9-e68b-48c1-8e03-beaab0a52556.jpg?1783942552"
+                }
+            }
+        ],
+        "replacementEffects": [
+            {
+                "type": "EntersWithDevour",
+                "multiplier": 2
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "140",
+        "rarity": "RARE",
+        "artist": "Raymond Swanland",
+        "imageUri": "https://cards.scryfall.io/normal/front/1/5/15360a16-b785-4ffe-bfa8-6c7f6a37455d.jpg?1783942552"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
+// Quietus Spike
+{
+    "name": "Quietus Spike",
+    "manaCost": "{3}",
+    "typeLine": "Artifact — Equipment",
+    "oracleText": "Equipped creature has deathtouch.\nWhenever equipped creature deals combat damage to a player, that player loses half their life, rounded up.\nEquip {3}",
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "DealsDamageEvent",
+                    "damageType": "DamageCombat",
+                    "recipient": "AnyPlayer"
+                },
+                "binding": "ATTACHED",
+                "effect": {
+                    "type": "LoseLife",
+                    "amount": {
+                        "type": "Divide",
+                        "numerator": {
+                            "type": "LifeTotal",
+                            "player": "TriggeringPlayer"
+                        },
+                        "denominator": {
+                            "type": "Fixed",
+                            "amount": 2
+                        }
+                    },
+                    "target": {
+                        "type": "PlayerRef",
+                        "player": "TriggeringPlayer"
+                    }
+                }
+            }
+        ],
+        "activatedAbilities": [
+            {
+                "id": "ability_2",
+                "cost": {
+                    "type": "CostAtomWrapper",
+                    "atom": {
+                        "type": "AtomMana",
+                        "cost": "{3}"
+                    }
+                },
+                "effect": {
+                    "type": "AttachEquipment",
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "creature you control"
+                    }
+                },
+                "targetRequirements": [
+                    {
+                        "type": "TargetObject",
+                        "filter": {
+                            "baseFilter": "creature ctrl:you"
+                        },
+                        "id": "creature you control"
+                    }
+                ],
+                "timing": "SorcerySpeed",
+                "isEquipAbility": true
+            }
+        ],
+        "staticAbilities": [
+            {
+                "type": "GrantKeyword",
+                "keyword": "DEATHTOUCH"
+            }
+        ]
+    },
+    "equipCost": "{3}",
+    "metadata": {
+        "collectorNumber": "217",
+        "rarity": "RARE",
+        "artist": "Mark Brill",
+        "imageUri": "https://cards.scryfall.io/normal/front/e/9/e90d1b27-fb90-4649-a905-f8e90d4a1852.jpg?1783942533"
+    },
+    "colorIdentityOverride": []
+}
+
+// Thorn-Thrash Viashino
+{
+    "name": "Thorn-Thrash Viashino",
+    "manaCost": "{3}{R}",
+    "typeLine": "Creature — Lizard Warrior",
+    "oracleText": "Devour 2 (As this creature enters, you may sacrifice any number of creatures. It enters with twice that many +1/+1 counters on it.)\n{G}: This creature gains trample until end of turn.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 2
+    },
+    "keywords": [
+        "DEVOUR"
+    ],
+    "keywordAbilities": [
+        {
+            "type": "Devour",
+            "multiplier": 2
+        }
+    ],
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": {
+                    "type": "CostAtomWrapper",
+                    "atom": {
+                        "type": "AtomMana",
+                        "cost": "{G}"
+                    }
+                },
+                "effect": {
+                    "type": "GrantKeyword",
+                    "keyword": "TRAMPLE",
+                    "target": "Self"
+                }
+            }
+        ],
+        "replacementEffects": [
+            {
+                "type": "EntersWithDevour",
+                "multiplier": 2
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "116",
+        "artist": "Jon Foster",
+        "imageUri": "https://cards.scryfall.io/normal/front/e/7/e7987de9-d812-4615-845a-3a90572d9b44.jpg?1783942557"
+    },
+    "colorIdentityOverride": [
+        "RED",
+        "GREEN"
+    ]
+}
+
+// Thunder-Thrash Elder
+{
+    "name": "Thunder-Thrash Elder",
+    "manaCost": "{2}{R}",
+    "typeLine": "Creature — Lizard Warrior",
+    "oracleText": "Devour 3 (As this creature enters, you may sacrifice any number of creatures. It enters with three times that many +1/+1 counters on it.)",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 1
+    },
+    "keywords": [
+        "DEVOUR"
+    ],
+    "keywordAbilities": [
+        {
+            "type": "Devour",
+            "multiplier": 3
+        }
+    ],
+    "script": {
+        "replacementEffects": [
+            {
+                "type": "EntersWithDevour",
+                "multiplier": 3
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "117",
+        "rarity": "UNCOMMON",
+        "artist": "Brandon Kitkouski",
+        "flavorText": "Viashino thrashes are led by elders who have survived countless challenges.",
+        "imageUri": "https://cards.scryfall.io/normal/front/5/5/5552da28-01a3-4277-9e69-b297c3874ea4.jpg?1783942558"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}

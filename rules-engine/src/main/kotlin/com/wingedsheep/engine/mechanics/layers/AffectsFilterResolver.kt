@@ -736,6 +736,7 @@ internal class AffectsFilterResolver {
         CardPredicate.IsTriggeredAbility,
         CardPredicate.IsActivatedAbility -> false
         is CardPredicate.TargetsMatching -> false
+        is CardPredicate.CanEnchant -> false
     }
 
     /**

@@ -63,6 +63,7 @@ import com.wingedsheep.sdk.scripting.conditions.Condition
 import com.wingedsheep.sdk.scripting.conditions.EnchantedCreatureHasSubtype
 import com.wingedsheep.sdk.scripting.conditions.SourceIsBlockingOrBlockedBySubtype
 import com.wingedsheep.sdk.scripting.conditions.EnchantedCreatureIsLegendary
+import com.wingedsheep.sdk.scripting.conditions.EntityInZone
 import com.wingedsheep.sdk.scripting.conditions.EntityMatches
 import com.wingedsheep.sdk.scripting.targets.EffectTarget
 import com.wingedsheep.sdk.scripting.GameObjectFilter
@@ -104,6 +105,7 @@ import com.wingedsheep.sdk.scripting.conditions.TargetIsTapped
 import com.wingedsheep.sdk.scripting.conditions.TargetIsSource
 import com.wingedsheep.sdk.scripting.conditions.TargetSharesMostCommonColor
 import com.wingedsheep.sdk.scripting.conditions.ColorIsMostCommon
+import com.wingedsheep.engine.handlers.effects.TargetResolutionUtils
 import com.wingedsheep.engine.mechanics.layers.ProjectedState
 import com.wingedsheep.sdk.scripting.conditions.TriggeringEntityEnteredOrWasCastFromGraveyard
 import com.wingedsheep.sdk.scripting.conditions.TriggeringEntityHadCounters
@@ -296,6 +298,19 @@ class ConditionEvaluator(
             // Self / enchanted-or-equipped are dual-mode (resolution + projection); a chosen target
             // or the triggering spell are resolution-only.
             is EntityMatches -> evaluateEntityMatches(state, condition, ctx)
+
+            // Resolution-only: whether a referenced entity is currently in a zone (e.g. source
+            // still on the battlefield when a search-then-attach effect resolves).
+            is EntityInZone -> ifResolution { effectCtx ->
+                val entityId = TargetResolutionUtils.resolveTarget(condition.entity, effectCtx, state)
+                    ?: return@ifResolution false
+                when (condition.zone) {
+                    Zone.BATTLEFIELD -> state.getBattlefield().contains(entityId)
+                    else -> state.zones.any { (key, entities) ->
+                        key.zoneType == condition.zone && entityId in entities
+                    }
+                }
+            } ?: false
 
             // CR 701.54e: the source is your Ring-bearer — it carries your Ring-bearer designation
             // and you still control it. The control half reads the projected controller so a

@@ -86,7 +86,7 @@ class LibraryExecutors(
         ChooseCreatureTypePipelineExecutor(),
         ChooseOptionPipelineExecutor(cardRegistry = cardRegistry),
         NoteCreatureTypePipelineExecutor(),
-        GatherCardsExecutor(),
+        GatherCardsExecutor(cardRegistry, targetFinder),
         CopyCardIntoCollectionExecutor(),
         CopyCollectionIntoCollectionExecutor(),
         GrantSuspendExecutor(),

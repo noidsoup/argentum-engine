@@ -7,6 +7,7 @@ import com.wingedsheep.sdk.scripting.effects.CardOrder
 import com.wingedsheep.sdk.scripting.effects.CardSource
 import com.wingedsheep.sdk.scripting.effects.ChoosePileEffect
 import com.wingedsheep.sdk.scripting.effects.Chooser
+import com.wingedsheep.sdk.scripting.effects.ConditionalEffect
 import com.wingedsheep.sdk.scripting.effects.CompositeEffect
 import com.wingedsheep.sdk.scripting.effects.DealDamageEffect
 import com.wingedsheep.sdk.scripting.effects.CollectionFilter
@@ -34,6 +35,7 @@ import com.wingedsheep.sdk.scripting.effects.ZonePlacement
 import com.wingedsheep.sdk.scripting.references.Player
 import com.wingedsheep.sdk.scripting.targets.EffectTarget
 import com.wingedsheep.sdk.scripting.values.DynamicAmount
+import com.wingedsheep.sdk.scripting.values.EntityReference
 
 /**
  * Effect patterns for library manipulation: search, scry, surveil, mill,
@@ -490,6 +492,49 @@ object LibraryPatterns {
         effects.add(EmitLibrarySearchedEventEffect)
 
         return CompositeEffect(effects)
+    }
+
+    /**
+     * Search your library for an Aura that could enchant [host], optionally put it onto the
+     * battlefield attached if [host] is still on the battlefield, otherwise reveal it to hand,
+     * then shuffle. Models Auratouched Mage ETB.
+     */
+    fun searchAuraThatCouldEnchant(
+        host: EntityReference = EntityReference.Source,
+        storeSelected: String = "found",
+        searchableCollection: String = "searchable",
+    ): CompositeEffect {
+        val auraFilter = GameObjectFilter.auraThatCouldEnchant(host)
+        return CompositeEffect(
+            listOf(
+                GatherCardsEffect(
+                    source = CardSource.FromZone(Zone.LIBRARY, Player.You, auraFilter),
+                    storeAs = searchableCollection,
+                ),
+                SelectFromCollectionEffect(
+                    from = searchableCollection,
+                    selection = SelectionMode.ChooseUpTo(DynamicAmount.Fixed(1)),
+                    storeSelected = storeSelected,
+                ),
+                ConditionalEffect(
+                    condition = com.wingedsheep.sdk.scripting.conditions.EntityInZone(
+                        EffectTarget.TriggeringEntity,
+                        Zone.BATTLEFIELD,
+                    ),
+                    effect = com.wingedsheep.sdk.scripting.effects.PutOntoBattlefieldAttachedToEffect(
+                        host = EffectTarget.TriggeringEntity,
+                        from = storeSelected,
+                    ),
+                    elseEffect = MoveCollectionEffect(
+                        from = storeSelected,
+                        destination = CardDestination.ToZone(Zone.HAND),
+                        revealed = true,
+                    ),
+                ),
+                ShuffleLibraryEffect(),
+                EmitLibrarySearchedEventEffect,
+            )
+        )
     }
 
     fun searchMultipleZones(

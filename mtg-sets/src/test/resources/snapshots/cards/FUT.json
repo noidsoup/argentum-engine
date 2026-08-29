@@ -17,6 +17,65 @@
     ]
 }
 
+// Quiet Disrepair
+{
+    "name": "Quiet Disrepair",
+    "manaCost": "{1}{G}",
+    "typeLine": "Enchantment — Aura",
+    "oracleText": "Enchant artifact or enchantment\nAt the beginning of your upkeep, choose one —\n• Destroy enchanted permanent.\n• You gain 2 life.",
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "StepEvent",
+                    "step": "UPKEEP"
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "Modal",
+                    "modes": [
+                        {
+                            "effect": {
+                                "type": "MoveToZone",
+                                "target": "EnchantedPermanent",
+                                "destination": "Graveyard",
+                                "byDestruction": true
+                            },
+                            "description": "Destroy enchanted permanent."
+                        },
+                        {
+                            "effect": {
+                                "type": "GainLife",
+                                "amount": {
+                                    "type": "Fixed",
+                                    "amount": 2
+                                }
+                            },
+                            "description": "You gain 2 life."
+                        }
+                    ]
+                }
+            }
+        ],
+        "auraTarget": {
+            "type": "TargetObject",
+            "filter": {
+                "baseFilter": "artifact|enchantment"
+            }
+        }
+    },
+    "metadata": {
+        "collectorNumber": "134",
+        "artist": "Glen Angus",
+        "flavorText": "\"Artifice has always stood upon nature's shoulders. Let us watch nature take a turn.\"\n—Freyalise",
+        "imageUri": "https://cards.scryfall.io/normal/front/5/4/541ce95e-5102-44fb-b74d-7469331ca9cc.jpg?1783943097"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
 // Thornweald Archer
 {
     "name": "Thornweald Archer",

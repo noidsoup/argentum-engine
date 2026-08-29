@@ -1,3 +1,46 @@
+// Aura Gnarlid
+{
+    "name": "Aura Gnarlid",
+    "manaCost": "{2}{G}",
+    "typeLine": "Creature — Beast",
+    "oracleText": "Creatures with power less than this creature's power can't block it.\nThis creature gets +1/+1 for each Aura on the battlefield.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 2
+    },
+    "script": {
+        "staticAbilities": [
+            "CantBeBlockedByCreaturesWithLessPower",
+            {
+                "type": "GrantDynamicStats",
+                "filter": {
+                    "baseFilter": "permanent",
+                    "scope": "Self"
+                },
+                "powerBonus": {
+                    "type": "AggregateBattlefield",
+                    "player": "Each",
+                    "filter": "enchantment Aura"
+                },
+                "toughnessBonus": {
+                    "type": "AggregateBattlefield",
+                    "player": "Each",
+                    "filter": "enchantment Aura"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "175",
+        "artist": "Lars Grant-West",
+        "flavorText": "Kill a gnarlid with your first blow, or it'll cheerfully show you how it's done.",
+        "imageUri": "https://cards.scryfall.io/normal/front/8/f/8f8dbb4f-4b01-4666-b62f-a2323dac7a19.jpg?1783941968"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
 // Battle-Rattle Shaman
 {
     "name": "Battle-Rattle Shaman",
@@ -706,6 +749,72 @@
         "imageUri": "https://cards.scryfall.io/normal/front/c/f/cfb90d44-8cb1-4b83-b2f2-92c19d6304fb.jpg"
     },
     "colorIdentityOverride": []
+}
+
+// See Beyond
+{
+    "name": "See Beyond",
+    "manaCost": "{1}{U}",
+    "typeLine": "Sorcery",
+    "oracleText": "Draw two cards, then shuffle a card from your hand into your library.",
+    "script": {
+        "spellEffect": {
+            "type": "Composite",
+            "effects": [
+                {
+                    "type": "DrawCards",
+                    "count": {
+                        "type": "Fixed",
+                        "amount": 2
+                    }
+                },
+                {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "GatherCards",
+                            "source": {
+                                "type": "FromZone",
+                                "zone": "Hand"
+                            },
+                            "storeAs": "hand"
+                        },
+                        {
+                            "type": "SelectFromCollection",
+                            "from": "hand",
+                            "selection": {
+                                "type": "ChooseExactly",
+                                "count": {
+                                    "type": "Fixed",
+                                    "amount": 1
+                                }
+                            },
+                            "storeSelected": "shuffled",
+                            "prompt": "Choose a card to shuffle into your library"
+                        },
+                        {
+                            "type": "MoveCollection",
+                            "from": "shuffled",
+                            "destination": {
+                                "type": "ToZone",
+                                "zone": "Library",
+                                "placement": "Shuffled"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    },
+    "metadata": {
+        "collectorNumber": "86",
+        "artist": "Andrew Robinson",
+        "flavorText": "Ancient lore locked in a mind driven mad is just as safe as when it was locked deep underground.",
+        "imageUri": "https://cards.scryfall.io/normal/front/a/7/a7242e6e-b2e6-42f5-b611-3e8e0dfc0b6b.jpg?1783941991"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
 }
 
 // Wildheart Invoker

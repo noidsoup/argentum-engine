@@ -198,6 +198,7 @@ object CardLinter {
             "StoreCardName", "CastFromCollectionWithoutPayingCost",
             "CastAnyNumberFromCollectionWithoutPayingCost", "ExileFromStorage",
             "CopyCollectionIntoCollection", "RecordChosenLinkedExile",
+            "PutOntoBattlefieldAttachedTo",
         )) put(type to "from", read(Space.COLLECTION))
         put("ChoosePile" to "pileA", read(Space.COLLECTION))
         put("ChoosePile" to "pileB", read(Space.COLLECTION))

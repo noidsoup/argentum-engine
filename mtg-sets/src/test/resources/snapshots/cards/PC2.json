@@ -675,6 +675,107 @@
     "colorIdentityOverride": []
 }
 
+// Sakashima's Student
+{
+    "name": "Sakashima's Student",
+    "manaCost": "{2}{U}{U}",
+    "typeLine": "Creature — Human Ninja",
+    "oracleText": "Ninjutsu {1}{U} ({1}{U}, Return an unblocked attacker you control to hand: Put this card onto the battlefield from your hand tapped and attacking.)\nYou may have this creature enter as a copy of any creature on the battlefield, except it's a Ninja in addition to its other creature types.",
+    "creatureStats": {
+        "power": 0,
+        "toughness": 0
+    },
+    "keywords": [
+        "NINJUTSU"
+    ],
+    "keywordAbilities": [
+        {
+            "type": "Ninjutsu",
+            "cost": "{1}{U}"
+        }
+    ],
+    "script": {
+        "replacementEffects": [
+            {
+                "type": "EntersAsCopy",
+                "additionalSubtypes": [
+                    "Ninja"
+                ]
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "24",
+        "rarity": "RARE",
+        "artist": "Brian Snõddy",
+        "imageUri": "https://cards.scryfall.io/normal/front/8/c/8c3d4d71-c750-4146-80fb-7cfd2427c62f.jpg?1783940629"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
+
+// Shardless Agent
+{
+    "name": "Shardless Agent",
+    "manaCost": "{1}{G}{U}",
+    "typeLine": "Artifact Creature — Human Rogue",
+    "oracleText": "Cascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 2
+    },
+    "keywords": [
+        "CASCADE"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": "CastThisSpellEvent",
+                "effect": "Cascade",
+                "descriptionOverride": "Cascade"
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "104",
+        "rarity": "UNCOMMON",
+        "artist": "Izzy",
+        "imageUri": "https://cards.scryfall.io/normal/front/c/e/ceb4df89-a97e-4479-b7f0-7083417a9565.jpg?1783940595",
+        "rulings": [
+            {
+                "date": "2021-06-18",
+                "text": "A spell's mana value is determined only by its mana cost. Ignore any alternative costs, additional costs, cost increases, or cost reductions."
+            },
+            {
+                "date": "2021-06-18",
+                "text": "Cascade triggers when you cast the spell, meaning that it resolves before that spell. If you end up casting the exiled card, it will go on the stack above the spell with cascade."
+            },
+            {
+                "date": "2021-06-18",
+                "text": "When the cascade ability resolves, you must exile cards. The only optional part of the ability is whether or not you cast the last card exiled."
+            },
+            {
+                "date": "2021-06-18",
+                "text": "If a spell with cascade is countered, the cascade ability will still resolve normally."
+            },
+            {
+                "date": "2021-06-18",
+                "text": "If the card has {X} in its mana cost, you must choose 0 as the value of X when casting it without paying its mana cost."
+            },
+            {
+                "date": "2021-06-18",
+                "text": "Due to a 2021 rules change to cascade, not only do you stop exiling cards if you exile a nonland card with lesser mana value than the spell with cascade, but the resulting spell you cast must also have lesser mana value."
+            }
+        ]
+    },
+    "colorIdentityOverride": [
+        "GREEN",
+        "BLUE"
+    ]
+}
+
 // Silent-Blade Oni
 {
     "name": "Silent-Blade Oni",
