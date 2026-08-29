@@ -679,6 +679,7 @@ internal class AffectsFilterResolver {
         is CardPredicate.ManaValueAtLeast -> card.manaValue >= predicate.min
         // Entity-relative — layer-projection has no trigger/source context for filter purposes here.
         is CardPredicate.ManaValueAtMostEntity -> false
+        is CardPredicate.ManaValueEqualsEntity -> false
         is CardPredicate.ManaValueAtMostEntityManaSpent -> false
         is CardPredicate.ManaValueAtMostColorsSpent -> false
         is CardPredicate.ManaValueAtMostDynamic -> false

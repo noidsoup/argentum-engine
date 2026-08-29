@@ -1076,6 +1076,7 @@ class TriggerMatcher(
             com.wingedsheep.sdk.scripting.predicates.CardPredicate.ManaValueEqualsX -> false
             // Entity-relative — TriggerMatcher has no entity context; predicate doesn't apply here.
             is com.wingedsheep.sdk.scripting.predicates.CardPredicate.ManaValueAtMostEntity -> false
+            is com.wingedsheep.sdk.scripting.predicates.CardPredicate.ManaValueEqualsEntity -> false
             is com.wingedsheep.sdk.scripting.predicates.CardPredicate.ManaValueAtMostEntityManaSpent -> false
             is com.wingedsheep.sdk.scripting.predicates.CardPredicate.PowerGreaterThanEntity -> false
             is com.wingedsheep.sdk.scripting.predicates.CardPredicate.PowerAtMostEntity -> false

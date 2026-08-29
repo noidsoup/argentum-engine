@@ -10,7 +10,9 @@ This doc is the fast on-ramp for grinding missing Magic cards into Argentum. You
 
 Argentum Engine is an open-source MTG rules engine ([upstream](https://github.com/wingedsheep/argentum-engine)). Nicholas's fork is the working copy for a **card catalog campaign**: implement missing cards in small batches, verify them, open small PRs upstream when ready.
 
-**Your lane:** compose/print cards only — no new engine features, no AUTOGEN dumps. If a card needs a new SDK primitive, flag it in the campaign `FEATURES.md` and pick a different card.
+**Your lane:** compose/print cards — **but if a claimed card needs a small SDK/engine primitive, build it
+inline** (`add-feature`) and ship the card in the same session. Only skip when the gap is genuinely too
+large for the grind window; don't mark FEATURES-blocked and walk away when you can implement the gap.
 
 ---
 
@@ -96,6 +98,9 @@ just shift 8                # unattended 8-hour grind (needs Cursor agent auth)
 4. In **engine**: branch `cards/pc2-extra-<your-worker>`, use `add-card` skill
 5. `just hygiene` + `just build` / scenario test in engine
 6. `just claim-done …` when batch lands
+7. **Closeout (mandatory for chat grinds):** commit on your branch → fast-forward merge to `origin/main` →
+   `git push origin main`. Do not ask Nicholas whether to ship — that is the default end state.
+8. **Engine gap on a claimed card?** `add-feature` in-session, then finish the card — don't skip as blocked.
 
 **Rules:**
 

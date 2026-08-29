@@ -405,6 +405,12 @@ class PredicateEvaluator(
                 val cmc = if (projectedValues?.isFaceDown == true) 0 else card.manaValue
                 cmc <= refManaValue
             }
+            is CardPredicate.ManaValueEqualsEntity -> {
+                val refEntityId = resolveEntityReference(predicate.reference, context) ?: return false
+                val refManaValue = state.getEntity(refEntityId)?.get<CardComponent>()?.manaValue ?: return false
+                val cmc = if (projectedValues?.isFaceDown == true) 0 else card.manaValue
+                cmc == refManaValue
+            }
             is CardPredicate.ManaValueAtMostEntityManaSpent -> {
                 val refEntityId = resolveEntityReference(predicate.reference, context) ?: return false
                 val manaSpent = ManaSpentReader.totalSpent(state, refEntityId)
@@ -1416,6 +1422,7 @@ class PredicateEvaluator(
             is CardPredicate.ManaValueAtLeast -> record.manaValue >= predicate.min
             // Entity-relative — no entity context for cast records
             is CardPredicate.ManaValueAtMostEntity -> false
+            is CardPredicate.ManaValueEqualsEntity -> false
             is CardPredicate.ManaValueAtMostEntityManaSpent -> false
             is CardPredicate.ManaValueAtMostColorsSpent -> false
             is CardPredicate.ManaValueAtMostDynamic -> false

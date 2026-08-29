@@ -403,6 +403,16 @@ sealed interface CardPredicate : TextReplaceable<CardPredicate> {
     }
 
     /**
+     * Mana value exactly equal to that of a referenced entity (e.g. [EntityReference.Source] for
+     * Ravnica transmute: "search for a card with the same mana value as this card").
+     */
+    @SerialName("ManaValueEqualsEntity")
+    @Serializable
+    data class ManaValueEqualsEntity(val reference: EntityReference) : CardPredicate {
+        override val description: String = "with the same mana value as ${reference.description}"
+    }
+
+    /**
      * Mana value at most the amount of mana actually spent to cast a referenced entity.
      *
      * Resolves the reference (typically [EntityReference.Source]) and reads its mana-spent

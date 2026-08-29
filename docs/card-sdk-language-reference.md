@@ -1895,6 +1895,10 @@ one-off pipeline belongs inline in the card file via `Effects.Pipeline { }` (§5
 - `impulse(count?, expiry?)` — impulse draw: exile the top N of your library, may play those cards until `expiry` (default end of turn); played cards still pay their mana. For the play-free variant compose with `GrantPlayWithoutPayingCostEffect` (cf. `shuffleAndExileTopPlayFree`). Irascible Wolverine (1), Annie Flash, the Veteran (2).
 - `returnLinkedExile(underOwnersControl?)` — bring back linked exile pile.
 - `takeFromLinkedExile()` — pull one card from linked exile.
+- `transmuteSearch(reference?)` — Ravnica transmute search leg: search your library for a card with the same
+  mana value as [reference] (default `EntityReference.Source`), reveal it, put it into your hand, shuffle.
+  Pair on an activated ability from hand with the printed transmute mana cost, `Costs.DiscardSelf`, and
+  `TimingRule.SorcerySpeed` (Dimir Infiltrator, Dimir Machinations, …).
 - `shuffleGraveyardIntoLibrary(target?)` — Elixir of Immortality shape.
 - `reflexiveTrigger(action, whenYouDo, optional?)` — optional action; if taken, queue a reflexive trigger.
 
@@ -2555,6 +2559,8 @@ This is the player-arm prerequisite for the planned composable mixed `TargetUnio
   Available on both the object-filter builders and on `TargetFilter` (mirrors `.manaValueAtMostX()`). Used by Void
   (`Effects.ChooseNumberThen`) and Repeal (`{X}{U}` — return target nonland permanent with mana value X).
 - `.manaValueAtMostEntity(ref)` — mana value ≤ a referenced entity's mana value (e.g. Kodama of the East Tree).
+- `.manaValueEqualsEntity(ref)` — mana value exactly equal to a referenced entity's mana value (Ravnica transmute:
+  "search for a card with the same mana value as this card"; default reference is `EntityReference.Source`).
 - `.powerEqualsX()` — **projected power exactly equal** to the X chosen for the source spell/ability — the power
   analogue of `.manaValueEqualsX()`. Available on both the object-filter builders and on `TargetFilter`. Used by an
   X-cost activated ability that targets "a creature with power X" (Ent-Draught Basin: `{X}, {T}: Put a +1/+1

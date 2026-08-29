@@ -28,11 +28,13 @@ import com.wingedsheep.sdk.scripting.effects.ModalEffect
 import com.wingedsheep.sdk.scripting.effects.Mode
 import com.wingedsheep.sdk.scripting.effects.MoveCollectionEffect
 import com.wingedsheep.sdk.scripting.effects.SacrificeEffect
+import com.wingedsheep.sdk.scripting.effects.SearchDestination
 import com.wingedsheep.sdk.scripting.effects.SelectFromCollectionEffect
 import com.wingedsheep.sdk.scripting.effects.SelectionMode
 import com.wingedsheep.sdk.scripting.references.Player
 import com.wingedsheep.sdk.scripting.targets.EffectTarget
 import com.wingedsheep.sdk.scripting.values.DynamicAmount
+import com.wingedsheep.sdk.scripting.values.EntityReference
 
 /**
  * Named MTG keyword-mechanic recipes (Blight, Bolster, Explore, Forage, Gift, Incubate).
@@ -342,4 +344,19 @@ object MechanicPatterns {
             )
         )
     )
+
+    /**
+     * Ravnica transmute search leg: search your library for a card with the same mana value as
+     * [reference] (default [EntityReference.Source]), reveal it, put it into your hand, shuffle.
+     *
+     * Wire on an activated ability from hand with [com.wingedsheep.sdk.dsl.Costs.DiscardSelf],
+     * [com.wingedsheep.sdk.scripting.TimingRule.SorcerySpeed], and the printed transmute mana cost.
+     */
+    fun transmuteSearch(reference: EntityReference = EntityReference.Source): CompositeEffect =
+        LibraryPatterns.searchLibrary(
+            filter = GameObjectFilter.Any.manaValueEqualsEntity(reference),
+            count = 1,
+            destination = SearchDestination.HAND,
+            reveal = true,
+        )
 }

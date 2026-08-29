@@ -371,6 +371,11 @@ data class GameObjectFilter(
         cardPredicates = cardPredicates + CardPredicate.ManaValueAtMostEntity(reference)
     )
 
+    /** Mana value exactly equal to that of a referenced entity (Ravnica transmute, etc.) */
+    fun manaValueEqualsEntity(reference: EntityReference) = copy(
+        cardPredicates = cardPredicates + CardPredicate.ManaValueEqualsEntity(reference)
+    )
+
     /** Mana value at most the mana actually spent to cast a referenced entity (source, etc.) */
     fun manaValueAtMostEntityManaSpent(reference: EntityReference) = copy(
         cardPredicates = cardPredicates + CardPredicate.ManaValueAtMostEntityManaSpent(reference)

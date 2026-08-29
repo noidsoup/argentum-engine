@@ -1,0 +1,34 @@
+---
+description: Grind sessions must close out with commit + merge; build missing engine primitives inline (add-feature)
+alwaysApply: true
+---
+
+# Grind closeout (mandatory)
+
+When Nicholas says **grind for** *N hours/minutes*, **grind PC2**, **compose grind**, or similar card-coverage
+factory work — treat the session as **incomplete until landed on `origin/main`**. Do not end with "want me to
+commit?" — shipping is part of the job.
+
+## During the grind
+
+- Branch: `cards/<set>-extra-<worker>` (from `ARGENTUM_WORKER` / campaign slot).
+- Claim cards via campaign (`just claim` / `claim-batch.py`) before implementing.
+- Per card: canonical + reprint, scenario test, snapshot bless, `check-card-printing.py`.
+- **Blocked on SDK/engine? Build it.** If a claimed card needs a primitive the engine lacks, run
+  **`add-feature`** in the same session (small, card-driven scope) — then finish the card. Do **not**
+  mark it FEATURES-blocked and skip unless Nicholas explicitly parked that mechanic for later.
+- Only defer when the gap is genuinely large (multi-day architecture) *and* you've shipped everything
+  else in the batch — still land the feature branch with docs + a failing scenario test stub if needed.
+
+## Closeout (always — even if time runs out mid-batch)
+
+1. **Verify** — scenario tests for touched cards; `./.verify.sh` or `just build` when practical. Paste real exit.
+2. **Commit** on the feature branch (conventional message; one batch commit is fine).
+3. **Land on fork main** — `git fetch origin` → checkout `main` → `git pull --rebase origin main` →
+   `git merge --ff-only <feature-branch>` → `git push origin main`. Never push to `upstream`.
+4. **Campaign hygiene** — `just claim-done` for shipped cards; push FEATURES.md only for mechanics
+   intentionally deferred (not ones you just built).
+5. **Report** — commit SHA, set progress (`scripts/card-status --set …`), cards shipped vs deferred.
+
+Only skip merge when `origin` is someone else's canonical org (shared repo rule) or the tree is dirty with
+another agent's uncommitted work — then commit locally and say what's blocked.

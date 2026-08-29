@@ -74,6 +74,24 @@ recipes route through `scripts/gradle-locked`, a machine-global lock (`~/.cache/
 serializes heavy Gradle runs across all worktrees — others queue (with a 30m timeout, `GRADLE_LOCK_TIMEOUT`)
 instead of competing.
 
+## Grind sessions (card coverage)
+
+When Nicholas says **grind for** *time*, **grind PC2**, or similar compose work, **closeout is mandatory** —
+do not ask whether to commit or merge.
+
+1. Work on `cards/<set>-extra-<worker>`; claim via `argentum-tandem-coverage` (`just claim`, `claim-batch.py`).
+2. Per card: canonical + PC2 reprint, scenario test, snapshot bless (`CardDefinitionSnapshotTest -DupdateSnapshots=true`),
+   `python3 scripts/check-card-printing.py "<Name>"`.
+3. **Missing SDK/engine primitive?** Run **`add-feature`** in the same grind — implement the smallest reusable
+   piece, then ship the card. Do not skip claimed cards as "FEATURES-blocked" when you can build the gap.
+4. **Always end by landing on fork `main`:** commit on the feature branch → `git merge --ff-only` into `main` →
+   `git push origin main`. Never push to `upstream`.
+5. Campaign: `just claim-done` for shipped cards; FEATURES.md only for mechanics intentionally deferred.
+6. Report commit SHA + `scripts/card-status --set <SET>` progress.
+
+See [`.claude/rules/grind-closeout.mdc`](.claude/rules/grind-closeout.mdc) and
+[`docs/HANDOFF-CHANCE.md`](docs/HANDOFF-CHANCE.md) for the full worker loop.
+
 ## Load-bearing rules
 
 - **Immutability:** never mutate components in place — always return new state.
