@@ -722,6 +722,48 @@
     ]
 }
 
+// Farsight Mask
+{
+    "name": "Farsight Mask",
+    "manaCost": "{5}",
+    "typeLine": "Artifact",
+    "oracleText": "Whenever a source an opponent controls deals damage to you, if this artifact is untapped, you may draw a card.",
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "DealsDamageEvent",
+                    "recipient": "You",
+                    "sourceFilter": "ctrl:opponent"
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "DrawCards",
+                    "count": {
+                        "type": "Fixed",
+                        "amount": 1
+                    }
+                },
+                "optional": true,
+                "triggerCondition": {
+                    "type": "EntityMatches",
+                    "entity": "Self",
+                    "filter": "untapped"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "170",
+        "rarity": "UNCOMMON",
+        "artist": "Ben Thompson",
+        "flavorText": "It turns the adversity of the moment into the knowledge of a lifetime.",
+        "imageUri": "https://cards.scryfall.io/normal/front/9/8/98312bc3-9d2a-480c-bcf0-db8d70d632b9.jpg?1783944521"
+    },
+    "colorIdentityOverride": []
+}
+
 // Fireshrieker
 {
     "name": "Fireshrieker",

@@ -1331,7 +1331,13 @@ class TriggerMatcher(
                     state.projectedState.isPlaneswalker(event.targetId)
             }
             RecipientFilter.AnyCreature -> event.targetId !in state.turnOrder
-            RecipientFilter.You -> false // handled separately in detectDamageToControllerTriggers
+            RecipientFilter.You -> {
+                // Null-sourceFilter observers are indexed in damageToYouObservers and handled in
+                // detectDamageToControllerTriggers (creature sources only). Non-null sourceFilter
+                // observers (e.g. Farsight Mask) live in damageObservers and need recipient
+                // matching here.
+                controllerId != null && event.targetId == controllerId
+            }
             RecipientFilter.Opponent -> {
                 event.targetId in state.turnOrder && event.targetId != controllerId
             }

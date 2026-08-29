@@ -199,6 +199,73 @@
     ]
 }
 
+// Krond the Dawn-Clad
+{
+    "name": "Krond the Dawn-Clad",
+    "manaCost": "{G}{G}{G}{W}{W}{W}",
+    "typeLine": "Legendary Creature — Archon",
+    "oracleText": "Flying, vigilance\nWhenever Krond attacks, if it's enchanted, exile target permanent.",
+    "creatureStats": {
+        "power": 6,
+        "toughness": 6
+    },
+    "keywords": [
+        "FLYING",
+        "VIGILANCE"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": "AttackEvent",
+                "effect": {
+                    "type": "MoveToZone",
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "permanent"
+                    },
+                    "destination": "Exile"
+                },
+                "targetRequirement": {
+                    "type": "TargetObject",
+                    "filter": {
+                        "baseFilter": "permanent"
+                    },
+                    "id": "permanent"
+                },
+                "triggerCondition": {
+                    "type": "Compare",
+                    "left": {
+                        "type": "EntityProperty",
+                        "entity": "Source",
+                        "numericProperty": {
+                            "type": "AttachmentCount",
+                            "kind": "AURA"
+                        }
+                    },
+                    "operator": "GTE",
+                    "right": {
+                        "type": "Fixed",
+                        "amount": 1
+                    }
+                },
+                "descriptionOverride": "Whenever Krond attacks, if it's enchanted, exile target permanent."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "99",
+        "rarity": "MYTHIC",
+        "artist": "Zoltan Boros",
+        "flavorText": "Krond, the personification of the dawn's light, lives to exact justice on his nemesis Vela.",
+        "imageUri": "https://cards.scryfall.io/normal/front/6/3/63d25986-2d71-43b8-b660-502acef9a70c.jpg?1783940595"
+    },
+    "colorIdentityOverride": [
+        "GREEN",
+        "WHITE"
+    ]
+}
+
 // Maelstrom Wanderer
 {
     "name": "Maelstrom Wanderer",
