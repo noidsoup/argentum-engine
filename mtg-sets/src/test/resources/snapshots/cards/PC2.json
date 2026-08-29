@@ -89,6 +89,119 @@
     ]
 }
 
+// Dragonlair Spider
+{
+    "name": "Dragonlair Spider",
+    "manaCost": "{2}{R}{R}{G}{G}",
+    "typeLine": "Creature — Spider",
+    "oracleText": "Reach\nWhenever an opponent casts a spell, create a 1/1 green Insect creature token.",
+    "creatureStats": {
+        "power": 5,
+        "toughness": 6
+    },
+    "keywords": [
+        "REACH"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "SpellCastEvent",
+                    "player": "EachOpponent"
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "CreateToken",
+                    "power": 1,
+                    "toughness": 1,
+                    "colors": [
+                        "GREEN"
+                    ],
+                    "creatureTypes": [
+                        "Insect"
+                    ],
+                    "imageUri": "https://cards.scryfall.io/normal/front/a/a/aa47df37-f246-4f80-a944-008cdf347dad.jpg?1561757793"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "87",
+        "rarity": "RARE",
+        "artist": "Carl Critchlow",
+        "flavorText": "Swarms thrive in its nest, feeding on leathery bits of discarded wing.",
+        "imageUri": "https://cards.scryfall.io/normal/front/5/6/56a23047-04c8-4f37-8296-f489370859aa.jpg?1783940602"
+    },
+    "colorIdentityOverride": [
+        "RED",
+        "GREEN"
+    ]
+}
+
+// Dreampod Druid
+{
+    "name": "Dreampod Druid",
+    "manaCost": "{1}{G}",
+    "typeLine": "Creature — Human Druid",
+    "oracleText": "At the beginning of each upkeep, if this creature is enchanted, create a 1/1 green Saproling creature token.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 2
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "StepEvent",
+                    "step": "UPKEEP",
+                    "player": "Each"
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "CreateToken",
+                    "power": 1,
+                    "toughness": 1,
+                    "colors": [
+                        "GREEN"
+                    ],
+                    "creatureTypes": [
+                        "Saproling"
+                    ],
+                    "imageUri": "https://cards.scryfall.io/normal/front/2/4/248ade83-ac57-42d6-985c-1e4cc3639f36.jpg?1783903570"
+                },
+                "triggerCondition": {
+                    "type": "Compare",
+                    "left": {
+                        "type": "EntityProperty",
+                        "entity": "Source",
+                        "numericProperty": {
+                            "type": "AttachmentCount",
+                            "kind": "AURA"
+                        }
+                    },
+                    "operator": "GTE",
+                    "right": {
+                        "type": "Fixed",
+                        "amount": 1
+                    }
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "64",
+        "rarity": "UNCOMMON",
+        "artist": "Wayne Reynolds",
+        "flavorText": "\"Don't mistake my creations for mere vegetation. They are my children, loyal and fierce.\"",
+        "imageUri": "https://cards.scryfall.io/normal/front/2/9/2908c551-6798-4f05-826b-714b4ef131f7.jpg?1783940610"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
 // Etherium-Horn Sorcerer
 {
     "name": "Etherium-Horn Sorcerer",
@@ -439,6 +552,78 @@
     "colorIdentityOverride": [
         "RED"
     ]
+}
+
+// Sai of the Shinobi
+{
+    "name": "Sai of the Shinobi",
+    "manaCost": "{1}",
+    "typeLine": "Artifact — Equipment",
+    "oracleText": "Equipped creature gets +1/+1.\nWhenever a creature you control enters, you may attach this Equipment to it.\nEquip {2}",
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "filter": "creature ctrl:you",
+                    "to": "Battlefield"
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "AttachEquipment",
+                    "target": "TriggeringEntity"
+                },
+                "optional": true
+            }
+        ],
+        "activatedAbilities": [
+            {
+                "id": "ability_2",
+                "cost": {
+                    "type": "CostAtomWrapper",
+                    "atom": {
+                        "type": "AtomMana",
+                        "cost": "{2}"
+                    }
+                },
+                "effect": {
+                    "type": "AttachEquipment",
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "creature you control"
+                    }
+                },
+                "targetRequirements": [
+                    {
+                        "type": "TargetObject",
+                        "filter": {
+                            "baseFilter": "creature ctrl:you"
+                        },
+                        "id": "creature you control"
+                    }
+                ],
+                "timing": "SorcerySpeed",
+                "isEquipAbility": true
+            }
+        ],
+        "staticAbilities": [
+            {
+                "type": "ModifyStats",
+                "powerBonus": 1,
+                "toughnessBonus": 1
+            }
+        ]
+    },
+    "equipCost": "{2}",
+    "metadata": {
+        "collectorNumber": "113",
+        "rarity": "UNCOMMON",
+        "artist": "Brian Snõddy",
+        "flavorText": "The passing of the sai presages the end of the old clan and the ascent of the new.",
+        "imageUri": "https://cards.scryfall.io/normal/front/6/f/6f11deb8-aca1-4cdf-b443-2aecb054fb10.jpg?1783940589"
+    },
+    "colorIdentityOverride": []
 }
 
 // Silent-Blade Oni
