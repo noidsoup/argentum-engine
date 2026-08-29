@@ -322,6 +322,94 @@
     ]
 }
 
+// Kor Spiritdancer
+{
+    "name": "Kor Spiritdancer",
+    "manaCost": "{1}{W}",
+    "typeLine": "Creature — Kor Wizard",
+    "oracleText": "This creature gets +2/+2 for each Aura attached to it.\nWhenever you cast an Aura spell, you may draw a card.",
+    "creatureStats": {
+        "power": 0,
+        "toughness": 2
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "SpellCastEvent",
+                    "spellFilter": {
+                        "cardPredicates": [
+                            {
+                                "type": "HasSubtype",
+                                "subtype": "Aura"
+                            }
+                        ]
+                    }
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "DrawCards",
+                    "count": {
+                        "type": "Fixed",
+                        "amount": 1
+                    }
+                },
+                "optional": true
+            }
+        ],
+        "staticAbilities": [
+            {
+                "type": "GrantDynamicStats",
+                "filter": {
+                    "baseFilter": "permanent",
+                    "scope": "Self"
+                },
+                "powerBonus": {
+                    "type": "Multiply",
+                    "amount": {
+                        "type": "EntityProperty",
+                        "entity": "Source",
+                        "numericProperty": {
+                            "type": "AttachmentCount",
+                            "kind": "AURA"
+                        }
+                    },
+                    "multiplier": 2
+                },
+                "toughnessBonus": {
+                    "type": "Multiply",
+                    "amount": {
+                        "type": "EntityProperty",
+                        "entity": "Source",
+                        "numericProperty": {
+                            "type": "AttachmentCount",
+                            "kind": "AURA"
+                        }
+                    },
+                    "multiplier": 2
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "31",
+        "rarity": "RARE",
+        "artist": "Scott Chou",
+        "flavorText": "She reaches beyond the physical realm, touching the ideals from which all creatures draw their power.",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/3/03066fa1-ea16-4a87-9218-120efa976909.jpg?1783942006",
+        "rulings": [
+            {
+                "date": "2021-03-19",
+                "text": "An ability that triggers when a player casts a spell resolves before the spell that caused it to trigger. It resolves even if that spell is countered."
+            }
+        ]
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
 // Nest Invader
 {
     "name": "Nest Invader",

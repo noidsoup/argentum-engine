@@ -1459,6 +1459,74 @@
     ]
 }
 
+// Sunken Hope
+{
+    "name": "Sunken Hope",
+    "manaCost": "{3}{U}{U}",
+    "typeLine": "Enchantment",
+    "oracleText": "At the beginning of each player's upkeep, that player returns a creature they control to its owner's hand.",
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "StepEvent",
+                    "step": "UPKEEP",
+                    "player": "Each"
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "GatherCards",
+                            "source": {
+                                "type": "BattlefieldMatching",
+                                "filter": "creature",
+                                "player": "TriggeringPlayer"
+                            },
+                            "storeAs": "bounceCandidates"
+                        },
+                        {
+                            "type": "SelectFromCollection",
+                            "from": "bounceCandidates",
+                            "selection": {
+                                "type": "ChooseExactly",
+                                "count": {
+                                    "type": "Fixed",
+                                    "amount": 1
+                                }
+                            },
+                            "chooser": "TriggeringPlayer",
+                            "storeSelected": "bounced",
+                            "prompt": "Return a creature you control to its owner's hand",
+                            "useTargetingUI": true
+                        },
+                        {
+                            "type": "MoveCollection",
+                            "from": "bounced",
+                            "destination": {
+                                "type": "ToZone",
+                                "zone": "Hand"
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "37",
+        "rarity": "RARE",
+        "artist": "Greg Staples",
+        "flavorText": "While Dominarians fought for their world, Rath stole it from under their feet.",
+        "imageUri": "https://cards.scryfall.io/normal/front/5/f/5f12ac0c-cfe6-4f08-b6df-20be4ce83e8c.jpg?1783945623"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
+
 // Terminal Moraine
 {
     "name": "Terminal Moraine",
