@@ -16,3 +16,10 @@ Format per entry:
 ---
 
 <!-- newest entries on top -->
+
+## 2026-08-29 — Chance handoff prep
+- **Shipped:** `docs/HANDOFF-CHANCE.md`, working `.verify.sh` (build + test-rules), updated `MEMORY.md`
+- **Decisions:** Chance grinds PC2/DOM extras (compose only); GS1 stays captain-owned on dao-desk
+- **State:** Engine `main` synced to origin; campaign exports refreshed (GS1 21/41, PC2 62/136)
+- **Blocked / next:** Invite Chance as GitHub collaborator on both forks; install JDK 21 on this Mac (`brew install openjdk@21`)
+

@@ -167,3 +167,4 @@ card is pure authoring vs needs `add-feature`; a blank-page head-start on simple
 | [`e2e-test-patterns.md`](docs/e2e-test-patterns.md) | Playwright fixtures, GamePage helpers, scenario config |
 | [`gym-deckbuild-env.md`](docs/gym-deckbuild-env.md) | Sealed deckbuild gym env (build → play pipeline) + custom win-rate reward |
 | [`gym-self-play-testing.md`](docs/gym-self-play-testing.md) | Driving the gym server over HTTP to manually self-play and surface broken cards |
+| [`HANDOFF-CHANCE.md`](docs/HANDOFF-CHANCE.md) | Onboarding for card-coverage workers (compose/print grind) |
