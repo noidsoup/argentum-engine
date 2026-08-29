@@ -3058,7 +3058,13 @@ class StackResolver(
         cardId: EntityId,
         playerId: EntityId
     ): Zone? {
-        val zones = listOf(Zone.HAND, Zone.GRAVEYARD, Zone.LIBRARY, Zone.COMMAND)
+        // Hand — any player (Silent-Blade Oni may cast from the damaged player's hand).
+        for (pid in state.turnOrder) {
+            if (cardId in state.getZone(ZoneKey(pid, Zone.HAND))) {
+                return Zone.HAND
+            }
+        }
+        val zones = listOf(Zone.GRAVEYARD, Zone.LIBRARY, Zone.COMMAND)
         for (zone in zones) {
             if (cardId in state.getZone(ZoneKey(playerId, zone))) {
                 return zone
@@ -3082,10 +3088,12 @@ class StackResolver(
         cardId: EntityId,
         playerId: EntityId
     ): GameState {
-        // Try removing from hand first
-        val handZone = ZoneKey(playerId, Zone.HAND)
-        if (cardId in state.getZone(handZone)) {
-            return state.removeFromZone(handZone, cardId)
+        // Remove from whichever player's hand holds the card (may be an opponent's — Silent-Blade Oni).
+        for (pid in state.turnOrder) {
+            val handZone = ZoneKey(pid, Zone.HAND)
+            if (cardId in state.getZone(handZone)) {
+                return state.removeFromZone(handZone, cardId)
+            }
         }
 
         // Also check graveyard (for flashback etc.)

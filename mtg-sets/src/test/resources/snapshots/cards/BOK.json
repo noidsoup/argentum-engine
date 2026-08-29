@@ -198,6 +198,83 @@
     ]
 }
 
+// Throat Slitter
+{
+    "name": "Throat Slitter",
+    "manaCost": "{4}{B}",
+    "typeLine": "Creature — Rat Ninja",
+    "oracleText": "Ninjutsu {2}{B} ({2}{B}, Return an unblocked attacker you control to hand: Put this card onto the battlefield from your hand tapped and attacking.)\nWhenever this creature deals combat damage to a player, destroy target nonblack creature that player controls.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 2
+    },
+    "keywords": [
+        "NINJUTSU"
+    ],
+    "keywordAbilities": [
+        {
+            "type": "Ninjutsu",
+            "cost": "{2}{B}"
+        }
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "DealsDamageEvent",
+                    "damageType": "DamageCombat",
+                    "recipient": "AnyPlayer"
+                },
+                "effect": {
+                    "type": "MoveToZone",
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "target nonblack creature that player controls"
+                    },
+                    "destination": "Graveyard",
+                    "byDestruction": true
+                },
+                "targetRequirement": {
+                    "type": "TargetObject",
+                    "filter": {
+                        "baseFilter": {
+                            "cardPredicates": [
+                                "IsCreature",
+                                {
+                                    "type": "NotColor",
+                                    "color": "BLACK"
+                                }
+                            ],
+                            "controllerPredicate": "ControlledByTriggeringPlayer"
+                        }
+                    },
+                    "id": "target nonblack creature that player controls"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "88",
+        "rarity": "UNCOMMON",
+        "artist": "Paolo Parente",
+        "imageUri": "https://cards.scryfall.io/normal/front/c/4/c4dcfdb4-c2ff-4fc5-aa2a-0c6e311d2910.jpg?1783944194",
+        "rulings": [
+            {
+                "date": "2021-03-19",
+                "text": "The ninjutsu ability can be activated only after blockers have been declared."
+            },
+            {
+                "date": "2021-03-19",
+                "text": "As you activate a ninjutsu ability, you reveal the Ninja card in your hand and return the attacking creature. The Ninja isn't put onto the battlefield until the ability resolves."
+            }
+        ]
+    },
+    "colorIdentityOverride": [
+        "BLACK"
+    ]
+}
+
 // Walker of Secret Ways
 {
     "name": "Walker of Secret Ways",

@@ -187,36 +187,38 @@ class CastSpellHandler(
         val inHand = action.cardId in state.getZone(handZone)
         val onTopOfLibrary = !inHand && zoneResolver.isOnTopOfLibraryWithPermission(state, action.playerId, action.cardId)
         val mayPlayFromExile = !inHand && !onTopOfLibrary && zoneResolver.isInExileWithPlayPermission(state, action.playerId, action.cardId)
-        val mayCastFromZone = !inHand && !onTopOfLibrary && !mayPlayFromExile &&
+        val mayPlayFromHandWithPermission = !inHand && !onTopOfLibrary && !mayPlayFromExile &&
+            zoneResolver.isInHandWithPlayPermission(state, action.playerId, action.cardId)
+        val mayCastFromZone = !inHand && !onTopOfLibrary && !mayPlayFromExile && !mayPlayFromHandWithPermission &&
             zoneResolver.hasMayCastSelfFromZonePermission(state, action.playerId, action.cardId)
-        val mayCastFromGraveyard = !inHand && !onTopOfLibrary && !mayPlayFromExile && !mayCastFromZone &&
+        val mayCastFromGraveyard = !inHand && !onTopOfLibrary && !mayPlayFromExile && !mayPlayFromHandWithPermission && !mayCastFromZone &&
             zoneResolver.hasMayPlayPermanentFromGraveyardPermission(state, action.playerId, action.cardId, cardComponent)
-        val hasFlashback = !inHand && !onTopOfLibrary && !mayPlayFromExile && !mayCastFromZone && !mayCastFromGraveyard &&
+        val hasFlashback = !inHand && !onTopOfLibrary && !mayPlayFromExile && !mayPlayFromHandWithPermission && !mayCastFromZone && !mayCastFromGraveyard &&
             zoneResolver.hasFlashbackPermission(state, action.playerId, action.cardId)
         // Harmonize (e.g., Channeled Dragonfire) — cast from graveyard for its harmonize
         // cost; `hasHarmonizePermission` checks the graveyard zone + Harmonize keyword.
-        val hasHarmonize = !inHand && !onTopOfLibrary && !mayPlayFromExile && !mayCastFromZone && !mayCastFromGraveyard && !hasFlashback &&
+        val hasHarmonize = !inHand && !onTopOfLibrary && !mayPlayFromExile && !mayPlayFromHandWithPermission && !mayCastFromZone && !mayCastFromGraveyard && !hasFlashback &&
             zoneResolver.hasHarmonizePermission(state, action.playerId, action.cardId)
-        val hasGraveyardCast = !inHand && !onTopOfLibrary && !mayPlayFromExile && !mayCastFromZone && !mayCastFromGraveyard && !hasFlashback && !hasHarmonize &&
+        val hasGraveyardCast = !inHand && !onTopOfLibrary && !mayPlayFromExile && !mayPlayFromHandWithPermission && !mayCastFromZone && !mayCastFromGraveyard && !hasFlashback && !hasHarmonize &&
             zoneResolver.hasMayCastFromGraveyardPermission(state, action.playerId, action.cardId, cardComponent)
-        val hasForageFromGraveyard = !inHand && !onTopOfLibrary && !mayPlayFromExile && !mayCastFromZone && !mayCastFromGraveyard && !hasFlashback && !hasHarmonize && !hasGraveyardCast &&
+        val hasForageFromGraveyard = !inHand && !onTopOfLibrary && !mayPlayFromExile && !mayPlayFromHandWithPermission && !mayCastFromZone && !mayCastFromGraveyard && !hasFlashback && !hasHarmonize && !hasGraveyardCast &&
             zoneResolver.hasMayCastCreaturesFromGraveyardWithForage(state, action.playerId, action.cardId, cardComponent)
         // Warp from graveyard (e.g., Timeline Culler) — `hasWarpPermission` already
         // checks both hand and graveyard; this branch covers the graveyard case
         // when `inHand` is false.
-        val hasWarpFromGraveyard = !inHand && !onTopOfLibrary && !mayPlayFromExile && !mayCastFromZone && !mayCastFromGraveyard && !hasFlashback && !hasHarmonize && !hasGraveyardCast && !hasForageFromGraveyard &&
+        val hasWarpFromGraveyard = !inHand && !onTopOfLibrary && !mayPlayFromExile && !mayPlayFromHandWithPermission && !mayCastFromZone && !mayCastFromGraveyard && !hasFlashback && !hasHarmonize && !hasGraveyardCast && !hasForageFromGraveyard &&
             action.useAlternativeCost &&
             zoneResolver.hasWarpPermission(state, action.playerId, action.cardId)
-        val hasCommanderCast = !inHand && !onTopOfLibrary && !mayPlayFromExile && !mayCastFromZone && !mayCastFromGraveyard && !hasFlashback && !hasHarmonize && !hasGraveyardCast && !hasForageFromGraveyard && !hasWarpFromGraveyard &&
+        val hasCommanderCast = !inHand && !onTopOfLibrary && !mayPlayFromExile && !mayPlayFromHandWithPermission && !mayCastFromZone && !mayCastFromGraveyard && !hasFlashback && !hasHarmonize && !hasGraveyardCast && !hasForageFromGraveyard && !hasWarpFromGraveyard &&
             zoneResolver.hasCommanderCastPermission(state, action.playerId, action.cardId)
         // Granted graveyard sneak (Ninja Teen): a creature card in the player's graveyard while they
         // control an active "creature cards in your graveyard have sneak {cost}" grant.
-        val hasGraveyardSneak = !inHand && !onTopOfLibrary && !mayPlayFromExile && !mayCastFromZone && !mayCastFromGraveyard && !hasFlashback && !hasHarmonize && !hasGraveyardCast && !hasForageFromGraveyard && !hasWarpFromGraveyard && !hasCommanderCast &&
+        val hasGraveyardSneak = !inHand && !onTopOfLibrary && !mayPlayFromExile && !mayPlayFromHandWithPermission && !mayCastFromZone && !mayCastFromGraveyard && !hasFlashback && !hasHarmonize && !hasGraveyardCast && !hasForageFromGraveyard && !hasWarpFromGraveyard && !hasCommanderCast &&
             action.useAlternativeCost && action.altAllows(AlternativeCostType.SNEAK) &&
             cardComponent.typeLine.isCreature &&
             action.cardId in state.getGraveyard(action.playerId) &&
             SneakWindow.graveyardSneakGrantCost(state, action.playerId, cardRegistry) != null
-        if (!inHand && !onTopOfLibrary && !mayPlayFromExile && !mayCastFromZone && !mayCastFromGraveyard && !hasFlashback && !hasHarmonize && !hasGraveyardCast && !hasForageFromGraveyard && !hasWarpFromGraveyard && !hasCommanderCast && !hasGraveyardSneak) {
+        if (!inHand && !onTopOfLibrary && !mayPlayFromExile && !mayPlayFromHandWithPermission && !mayCastFromZone && !mayCastFromGraveyard && !hasFlashback && !hasHarmonize && !hasGraveyardCast && !hasForageFromGraveyard && !hasWarpFromGraveyard && !hasCommanderCast && !hasGraveyardSneak) {
             return "Card is not in your hand"
         }
 

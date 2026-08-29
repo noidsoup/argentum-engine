@@ -109,6 +109,24 @@ class CastZoneResolver(
     }
 
     /**
+     * True when [cardId] is in any player's hand and [playerId] holds an active
+     * [com.wingedsheep.engine.state.permissions.MayPlayPermission] for it — e.g. Silent-Blade Oni's
+     * "you may cast a spell from among those cards" after looking at the damaged player's hand.
+     * The card may be in an opponent's hand; ownership does not need to match the caster.
+     */
+    fun isInHandWithPlayPermission(
+        state: GameState,
+        playerId: EntityId,
+        cardId: EntityId,
+    ): Boolean {
+        val inSomeHand = state.turnOrder.any { pid ->
+            cardId in state.getZone(ZoneKey(pid, Zone.HAND))
+        }
+        if (!inSomeHand) return false
+        return state.hasMayPlayFor(cardId, playerId, conditionEvaluator)
+    }
+
+    /**
      * Check if a card has an intrinsic MayCastSelfFromZones static ability
      * that permits casting from its current zone (e.g., Squee, the Immortal).
      */

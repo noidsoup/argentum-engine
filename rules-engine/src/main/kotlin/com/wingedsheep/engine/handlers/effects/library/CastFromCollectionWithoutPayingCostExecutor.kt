@@ -192,6 +192,9 @@ class CastFromCollectionWithoutPayingCostExecutor(
                     cardIds = setOf(cardId),
                     controllerId = controllerId,
                     sourceId = sourceId,
+                    // Synthesized casts happen during the resolving effect's resolution; ignore
+                    // sorcery-speed timing (Etali, Silent-Blade Oni, Kellan, …).
+                    asThoughFlash = true,
                     timestamp = stateWithPerm.timestamp,
                 )
             )

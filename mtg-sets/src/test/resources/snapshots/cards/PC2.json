@@ -374,6 +374,106 @@
     ]
 }
 
+// Silent-Blade Oni
+{
+    "name": "Silent-Blade Oni",
+    "manaCost": "{3}{U}{U}{B}{B}",
+    "typeLine": "Creature — Demon Ninja",
+    "oracleText": "Ninjutsu {4}{U}{B} ({4}{U}{B}, Return an unblocked attacker you control to hand: Put this card onto the battlefield from your hand tapped and attacking.)\nWhenever this creature deals combat damage to a player, look at that player's hand. You may cast a spell from among those cards without paying its mana cost.",
+    "creatureStats": {
+        "power": 6,
+        "toughness": 5
+    },
+    "keywords": [
+        "NINJUTSU"
+    ],
+    "keywordAbilities": [
+        {
+            "type": "Ninjutsu",
+            "cost": "{4}{U}{B}"
+        }
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "DealsDamageEvent",
+                    "damageType": "DamageCombat",
+                    "recipient": "AnyPlayer"
+                },
+                "effect": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "LookAtTargetHand",
+                            "target": {
+                                "type": "PlayerRef",
+                                "player": "TriggeringPlayer"
+                            }
+                        },
+                        {
+                            "type": "GatherCards",
+                            "source": {
+                                "type": "FromZone",
+                                "zone": "Hand",
+                                "player": "TriggeringPlayer",
+                                "filter": "nonland"
+                            },
+                            "storeAs": "handSpells"
+                        },
+                        {
+                            "type": "SelectFromCollection",
+                            "from": "handSpells",
+                            "selection": {
+                                "type": "ChooseUpTo",
+                                "count": {
+                                    "type": "Fixed",
+                                    "amount": 1
+                                }
+                            },
+                            "storeSelected": "chosenSpell",
+                            "selectedLabel": "Cast without paying its mana cost"
+                        },
+                        {
+                            "type": "CastFromCollectionWithoutPayingCost",
+                            "from": "chosenSpell"
+                        }
+                    ]
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "105",
+        "rarity": "RARE",
+        "artist": "Steve Prescott",
+        "imageUri": "https://cards.scryfall.io/normal/front/6/3/63fb057c-a70f-49e4-ba39-f5ce17b09c7f.jpg?1783940593",
+        "rulings": [
+            {
+                "date": "2012-06-01",
+                "text": "If you cast a permanent spell this way, it will enter under your control when it resolves. If you cast an instant or sorcery spell this way, you are the controller of that spell."
+            },
+            {
+                "date": "2012-06-01",
+                "text": "The spell you cast via the triggered ability is cast as part of the resolution of that ability. Timing restrictions based on the card's type are ignored."
+            },
+            {
+                "date": "2012-06-01",
+                "text": "If you cast a card without paying its mana cost, you can't choose to cast it for any alternative costs, such as evoke or morph costs."
+            },
+            {
+                "date": "2021-03-19",
+                "text": "The ninjutsu ability can be activated only after blockers have been declared."
+            }
+        ]
+    },
+    "colorIdentityOverride": [
+        "BLUE",
+        "BLACK"
+    ]
+}
+
 // Vela the Night-Clad
 {
     "name": "Vela the Night-Clad",
