@@ -194,3 +194,5 @@ CLAUDE.local.md
 __pycache__/
 *.py[cod]
 /uncommitted/
+uncommitted/
+.loops
