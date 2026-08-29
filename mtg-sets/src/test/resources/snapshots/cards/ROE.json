@@ -322,6 +322,65 @@
     ]
 }
 
+// Hellion Eruption
+{
+    "name": "Hellion Eruption",
+    "manaCost": "{5}{R}",
+    "typeLine": "Sorcery",
+    "oracleText": "Sacrifice all creatures you control, then create that many 4/4 red Hellion creature tokens.",
+    "script": {
+        "spellEffect": {
+            "type": "Composite",
+            "effects": [
+                {
+                    "type": "GatherCards",
+                    "source": {
+                        "type": "BattlefieldMatching",
+                        "filter": "creature ctrl:you"
+                    },
+                    "storeAs": "hellionSacrifice_gathered"
+                },
+                {
+                    "type": "MoveCollection",
+                    "from": "hellionSacrifice_gathered",
+                    "destination": {
+                        "type": "ToZone",
+                        "zone": "Graveyard"
+                    },
+                    "moveType": "Sacrifice",
+                    "storeMovedAs": "sacrificed"
+                },
+                {
+                    "type": "CreateToken",
+                    "count": {
+                        "type": "VariableReference",
+                        "variableName": "sacrificed_count"
+                    },
+                    "power": 4,
+                    "toughness": 4,
+                    "colors": [
+                        "RED"
+                    ],
+                    "creatureTypes": [
+                        "Hellion"
+                    ],
+                    "imageUri": "https://cards.scryfall.io/normal/front/0/0/00a1209e-c4c3-4250-ad36-ef451f5e34cd.jpg?1783936802"
+                }
+            ]
+        }
+    },
+    "metadata": {
+        "collectorNumber": "151",
+        "rarity": "RARE",
+        "artist": "Anthony Francisco",
+        "flavorText": "Just when you thought you'd be safe, in the middle of an open field with no Eldrazi around for miles.",
+        "imageUri": "https://cards.scryfall.io/normal/front/6/5/6529c92e-c79b-4953-8bd0-50ceae2ce261.jpg?1783941974"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
 // Kor Spiritdancer
 {
     "name": "Kor Spiritdancer",

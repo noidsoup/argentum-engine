@@ -249,3 +249,62 @@
         "GREEN"
     ]
 }
+
+// Mass Mutiny
+{
+    "name": "Mass Mutiny",
+    "manaCost": "{3}{R}{R}",
+    "typeLine": "Sorcery",
+    "oracleText": "For each opponent, gain control of up to one target creature that player controls until end of turn. Untap those creatures. They gain haste until end of turn.",
+    "script": {
+        "spellEffect": {
+            "type": "Composite",
+            "effects": [
+                {
+                    "type": "GainControl",
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "target creature"
+                    },
+                    "duration": "EndOfTurn"
+                },
+                {
+                    "type": "TapUntap",
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "target creature"
+                    },
+                    "tap": false
+                },
+                {
+                    "type": "GrantKeyword",
+                    "keyword": "HASTE",
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "target creature"
+                    }
+                }
+            ]
+        },
+        "targetRequirements": [
+            {
+                "type": "TargetObject",
+                "optional": true,
+                "filter": {
+                    "baseFilter": "creature ctrl:opponent"
+                },
+                "id": "target creature"
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "48",
+        "rarity": "RARE",
+        "artist": "Carl Critchlow",
+        "flavorText": "\"What say you, my most trusted advisors? . . . Advisors?\"\n—Edra, merfolk sovereign",
+        "imageUri": "https://cards.scryfall.io/normal/front/6/d/6d18e6fb-e4ae-4ff4-9412-f16edb2e56c6.jpg?1783940618"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
