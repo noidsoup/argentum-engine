@@ -177,7 +177,7 @@ class TargetValidator {
             // subtypes so granted/changed types count. No-op for single-target requirements; a
             // target with no creature types (or one off the battlefield) can never share, so the
             // set is rejected.
-            if (requirement is TargetObject && requirement.sameCreatureType && targetsForReq.size > 1) {
+            if (requirement is TargetObject && targetsForReq.size > 1) {
                 val projected = state.projectedState
                 val subtypeSets = targetsForReq.map { target ->
                     (target as? ChosenTarget.Permanent)
@@ -185,9 +185,20 @@ class TargetValidator {
                         ?.let { projected.getSubtypes(it.entityId) }
                         ?: emptySet()
                 }
-                val shared = subtypeSets.reduce { acc, next -> acc intersect next }
-                if (shared.isEmpty()) {
-                    return "Targets must share a creature type"
+                if (requirement.sameCreatureType) {
+                    val shared = subtypeSets.reduce { acc, next -> acc intersect next }
+                    if (shared.isEmpty()) {
+                        return "Targets must share a creature type"
+                    }
+                }
+                if (requirement.noSharedCreatureType) {
+                    for (i in subtypeSets.indices) {
+                        for (j in i + 1 until subtypeSets.size) {
+                            if ((subtypeSets[i] intersect subtypeSets[j]).isNotEmpty()) {
+                                return "Targets must share no creature types"
+                            }
+                        }
+                    }
                 }
             }
 

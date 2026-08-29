@@ -2296,6 +2296,12 @@ Every `TargetRequirement` carries count semantics (defaults shown):
   the battlefield — can never share, so the set is rejected. A no-op for single-target requirements and for
   non-permanent targets. E.g. `TargetCreature(count = 2, filter = TargetFilter.CreatureYouControl,
   sameCreatureType = true)` (Secret Tunnel).
+- `noSharedCreatureType = false` — on `TargetObject` / `TargetCreature(...)`; when `true` and the
+  requirement picks more than one target, the chosen **permanent** targets must **not** share any
+  creature type ("**two target creatures that share no creature types**"). Enforced cross-target by
+  `TargetValidator` as pairwise empty intersections of each target's *projected* creature subtypes.
+  A no-op for single-target requirements and for non-permanent targets. E.g.
+  `TargetCreature(count = 2, filter = TargetFilter.Creature, noSharedCreatureType = true)` (Rivals' Duel).
 - `totalManaValueAtMost = null` — on `TargetObject`; when set to a `DynamicAmount`, the **combined
   mana value** of the chosen **card** targets may not exceed the resolved amount ("**any number of
   target creature cards with total mana value X or less**"). The amount is resolved once the ability

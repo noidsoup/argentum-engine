@@ -1,3 +1,102 @@
+// Brutalizer Exarch
+{
+    "name": "Brutalizer Exarch",
+    "manaCost": "{5}{G}",
+    "typeLine": "Creature — Phyrexian Cleric",
+    "oracleText": "When this creature enters, choose one —\n• Search your library for a creature card, reveal it, then shuffle and put that card on top.\n• Put target noncreature permanent on the bottom of its owner's library.",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 3
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "Modal",
+                    "modes": [
+                        {
+                            "effect": {
+                                "type": "Composite",
+                                "effects": [
+                                    {
+                                        "type": "GatherCards",
+                                        "source": {
+                                            "type": "FromZone",
+                                            "zone": "Library",
+                                            "filter": "creature"
+                                        },
+                                        "storeAs": "searchable"
+                                    },
+                                    {
+                                        "type": "SelectFromCollection",
+                                        "from": "searchable",
+                                        "selection": {
+                                            "type": "ChooseUpTo",
+                                            "count": {
+                                                "type": "Fixed",
+                                                "amount": 1
+                                            }
+                                        },
+                                        "storeSelected": "found"
+                                    },
+                                    "ShuffleLibrary",
+                                    {
+                                        "type": "MoveCollection",
+                                        "from": "found",
+                                        "destination": {
+                                            "type": "ToZone",
+                                            "zone": "Library",
+                                            "placement": "Top"
+                                        },
+                                        "revealed": true
+                                    },
+                                    "EmitLibrarySearchedEvent"
+                                ]
+                            },
+                            "description": "Search your library for a creature card, reveal it, then shuffle and put that card on top."
+                        },
+                        {
+                            "effect": {
+                                "type": "MoveToZone",
+                                "target": {
+                                    "type": "ContextTarget",
+                                    "index": 0
+                                },
+                                "destination": "Library",
+                                "placement": "Bottom"
+                            },
+                            "targetRequirements": [
+                                {
+                                    "type": "TargetObject",
+                                    "filter": {
+                                        "baseFilter": "noncreature permanent"
+                                    }
+                                }
+                            ],
+                            "description": "Put target noncreature permanent on the bottom of its owner's library."
+                        }
+                    ]
+                },
+                "descriptionOverride": "When this creature enters, choose one."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "105",
+        "rarity": "UNCOMMON",
+        "artist": "Mark Zug",
+        "imageUri": "https://cards.scryfall.io/normal/front/9/d/9ddfa4ed-70fb-4e25-875d-df0f973f7294.jpg?1783941304"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
 // Torpor Orb
 {
     "name": "Torpor Orb",

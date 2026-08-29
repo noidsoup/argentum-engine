@@ -120,6 +120,48 @@
     ]
 }
 
+// Rivals' Duel
+{
+    "name": "Rivals' Duel",
+    "manaCost": "{3}{R}",
+    "typeLine": "Sorcery",
+    "oracleText": "Choose two target creatures that share no creature types. Those creatures fight each other. (Each deals damage equal to its power to the other.)",
+    "script": {
+        "spellEffect": {
+            "type": "Fight",
+            "target1": {
+                "type": "ContextTarget",
+                "index": 0
+            },
+            "target2": {
+                "type": "ContextTarget",
+                "index": 1
+            }
+        },
+        "targetRequirements": [
+            {
+                "type": "TargetObject",
+                "count": 2,
+                "filter": {
+                    "baseFilter": "creature"
+                },
+                "id": "two target creatures that share no creature types",
+                "noSharedCreatureType": true
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "99",
+        "rarity": "UNCOMMON",
+        "artist": "Zoltan Boros & Gabor Szikszai",
+        "flavorText": "They could agree on one thing only: one of them must die.",
+        "imageUri": "https://cards.scryfall.io/normal/front/2/d/2d2eee8b-cc55-4a65-983f-0a91d7e4494a.jpg?1783942785"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
 // Taurean Mauler
 {
     "name": "Taurean Mauler",

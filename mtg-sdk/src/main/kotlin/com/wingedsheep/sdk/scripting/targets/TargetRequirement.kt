@@ -162,7 +162,8 @@ fun TargetCreature(
     id: String? = null,
     dynamicMaxCount: DynamicAmount? = null,
     sameController: Boolean = false,
-    sameCreatureType: Boolean = false
+    sameCreatureType: Boolean = false,
+    noSharedCreatureType: Boolean = false,
 ): TargetObject = TargetObject(
     count = count,
     minCount = minCount,
@@ -172,7 +173,8 @@ fun TargetCreature(
     id = id,
     dynamicMaxCount = dynamicMaxCount,
     sameController = sameController,
-    sameCreatureType = sameCreatureType
+    sameCreatureType = sameCreatureType,
+    noSharedCreatureType = noSharedCreatureType,
 )
 
 // =============================================================================
@@ -385,6 +387,14 @@ data class TargetObject(
      */
     val sameCreatureType: Boolean = false,
     /**
+     * When true and more than one target is chosen for this requirement, the chosen permanent
+     * targets must **not** share any creature type with one another — "two target creatures that
+     * share no creature types" (Rivals' Duel). Enforced cross-target by `TargetValidator` using
+     * each permanent's *projected* creature subtypes: the intersection of every target's subtype
+     * set must be empty. A no-op for single-target requirements and for non-permanent targets.
+     */
+    val noSharedCreatureType: Boolean = false,
+    /**
      * When non-null, the chosen card targets for this requirement must have a **combined mana
      * value no greater than this amount** — "any number of target creature cards with total mana
      * value X or less" (Fire Lord Sozin). The [DynamicAmount] is resolved once the ability is
@@ -429,6 +439,7 @@ data class TargetObject(
             sameController -> "$base controlled by the same player"
             sameOwner -> "$base from a single graveyard"
             sameCreatureType -> "$base that share a creature type"
+            noSharedCreatureType -> "$base that share no creature types"
             else -> base
         }
         if (totalManaValueAtMost != null) {
