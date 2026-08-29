@@ -43,6 +43,55 @@
     ]
 }
 
+// Beetleback Chief
+{
+    "name": "Beetleback Chief",
+    "manaCost": "{2}{R}{R}",
+    "typeLine": "Creature — Goblin Warrior",
+    "oracleText": "When this creature enters, create two 1/1 red Goblin creature tokens.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 2
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "CreateToken",
+                    "count": {
+                        "type": "Fixed",
+                        "amount": 2
+                    },
+                    "power": 1,
+                    "toughness": 1,
+                    "colors": [
+                        "RED"
+                    ],
+                    "creatureTypes": [
+                        "Goblin"
+                    ],
+                    "imageUri": "https://cards.scryfall.io/normal/front/0/9/09faad62-42ff-4e37-b8a5-d8e8a0f6d096.jpg?1783903425"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "40",
+        "rarity": "UNCOMMON",
+        "artist": "Wayne England",
+        "flavorText": "Whether trained, ridden, or eaten, few goblin military innovations have rivaled the bug.",
+        "imageUri": "https://cards.scryfall.io/normal/front/1/e/1e3ccf3d-583c-46b4-b51e-ae1b0628d506.jpg?1783940621"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
 // Brindle Shoat
 {
     "name": "Brindle Shoat",

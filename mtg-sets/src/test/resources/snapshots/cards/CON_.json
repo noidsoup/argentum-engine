@@ -198,6 +198,46 @@
     ]
 }
 
+// Gluttonous Slime
+{
+    "name": "Gluttonous Slime",
+    "manaCost": "{2}{G}",
+    "typeLine": "Creature — Ooze",
+    "oracleText": "Flash\nDevour 1 (As this creature enters, you may sacrifice any number of creatures. It enters with that many +1/+1 counters on it.)",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 2
+    },
+    "keywords": [
+        "FLASH",
+        "DEVOUR"
+    ],
+    "keywordAbilities": [
+        {
+            "type": "Devour",
+            "multiplier": 1
+        }
+    ],
+    "script": {
+        "replacementEffects": [
+            {
+                "type": "EntersWithDevour",
+                "multiplier": 1
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "83",
+        "rarity": "UNCOMMON",
+        "artist": "Trevor Claxton",
+        "flavorText": "On Jund, everything eventually ends up in something else's stomach.",
+        "imageUri": "https://cards.scryfall.io/normal/front/2/5/258c7201-02b0-4e16-9fa6-0a79631e7724.jpg?1783942475"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
 // Hellkite Hatchling
 {
     "name": "Hellkite Hatchling",

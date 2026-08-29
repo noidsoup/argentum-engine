@@ -129,6 +129,71 @@
     ]
 }
 
+// Deny Reality
+{
+    "name": "Deny Reality",
+    "manaCost": "{3}{U}{B}",
+    "typeLine": "Sorcery",
+    "oracleText": "Cascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)\nReturn target permanent to its owner's hand.",
+    "keywords": [
+        "CASCADE"
+    ],
+    "script": {
+        "spellEffect": {
+            "type": "MoveToZone",
+            "target": {
+                "type": "BoundVariable",
+                "name": "target permanent"
+            },
+            "destination": "Hand"
+        },
+        "targetRequirements": [
+            {
+                "type": "TargetObject",
+                "filter": {
+                    "baseFilter": "permanent"
+                },
+                "id": "target permanent"
+            }
+        ],
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": "CastThisSpellEvent",
+                "effect": "Cascade",
+                "descriptionOverride": "Cascade"
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "19",
+        "artist": "Jean-Sébastien Rossbach",
+        "imageUri": "https://cards.scryfall.io/normal/front/f/1/f138fe9f-3cb9-4f16-adc4-76fcb0c7e064.jpg?1783942438",
+        "rulings": [
+            {
+                "date": "2021-06-18",
+                "text": "A spell's mana value is determined only by its mana cost. Ignore any alternative costs, additional costs, cost increases, or cost reductions."
+            },
+            {
+                "date": "2021-06-18",
+                "text": "Cascade triggers when you cast the spell, meaning that it resolves before that spell. If you end up casting the exiled card, it will go on the stack above the spell with cascade."
+            },
+            {
+                "date": "2021-06-18",
+                "text": "When the cascade ability resolves, you must exile cards. The only optional part of the ability is whether or not you cast the last card exiled."
+            },
+            {
+                "date": "2021-06-18",
+                "text": "If a spell with cascade is countered, the cascade ability will still resolve normally."
+            }
+        ]
+    },
+    "colorIdentityOverride": [
+        "BLUE",
+        "BLACK"
+    ]
+}
+
 // Maelstrom Pulse
 {
     "name": "Maelstrom Pulse",
