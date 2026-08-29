@@ -1,3 +1,59 @@
+// Celestial Ancient
+{
+    "name": "Celestial Ancient",
+    "manaCost": "{3}{W}{W}",
+    "typeLine": "Creature — Elemental",
+    "oracleText": "Flying\nWhenever you cast an enchantment spell, put a +1/+1 counter on each creature you control.",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 3
+    },
+    "keywords": [
+        "FLYING"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "SpellCastEvent",
+                    "spellFilter": {
+                        "cardPredicates": [
+                            "IsEnchantment"
+                        ]
+                    }
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "ForEach",
+                    "space": {
+                        "type": "IterationSpace.Group",
+                        "filter": {
+                            "baseFilter": "creature ctrl:you"
+                        }
+                    },
+                    "body": {
+                        "type": "AddCounters",
+                        "counterType": "+1/+1",
+                        "count": 1,
+                        "target": "Self"
+                    }
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "7",
+        "rarity": "RARE",
+        "artist": "Mark Tedin",
+        "flavorText": "\"We thought the clouds had moved from the night sky. Then the night sky moved, and the horizon grew wings.\"\n—Josuri",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/1/012fb3a6-99ff-4b5e-96e3-0a2eeca36bdb.jpg"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
 // Macabre Waltz
 {
     "name": "Macabre Waltz",

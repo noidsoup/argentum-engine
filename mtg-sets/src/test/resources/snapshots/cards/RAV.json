@@ -519,6 +519,70 @@
     ]
 }
 
+// Bramble Elemental
+{
+    "name": "Bramble Elemental",
+    "manaCost": "{3}{G}{G}",
+    "typeLine": "Creature — Elemental",
+    "oracleText": "Whenever an Aura becomes attached to this creature, create two 1/1 green Saproling creature tokens.",
+    "creatureStats": {
+        "power": 4,
+        "toughness": 4
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "BecomesAttachedEvent",
+                    "attachmentFilter": {
+                        "cardPredicates": [
+                            "IsEnchantment",
+                            {
+                                "type": "HasSubtype",
+                                "subtype": "Aura"
+                            }
+                        ]
+                    },
+                    "attachedToFilter": {
+                        "cardPredicates": [
+                            "IsPermanent"
+                        ],
+                        "statePredicates": [
+                            "IsSource"
+                        ]
+                    }
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "CreateToken",
+                    "count": {
+                        "type": "Fixed",
+                        "amount": 2
+                    },
+                    "power": 1,
+                    "toughness": 1,
+                    "colors": [
+                        "GREEN"
+                    ],
+                    "creatureTypes": [
+                        "Saproling"
+                    ]
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "154",
+        "artist": "Tomas Giorello",
+        "flavorText": "Ravnica is a seamless urban tapestry, each city bleeding into the next. In abandoned corners, however, nature has begun to reclaim what it once owned.",
+        "imageUri": "https://cards.scryfall.io/normal/front/4/7/470665e5-fa48-4772-ba71-5d4008d042f3.jpg"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
 // Carrion Howler
 {
     "name": "Carrion Howler",
