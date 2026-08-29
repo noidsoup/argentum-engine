@@ -578,3 +578,66 @@
     },
     "colorIdentityOverride": []
 }
+
+// Vivid Creek
+{
+    "name": "Vivid Creek",
+    "manaCost": "",
+    "typeLine": "Land",
+    "oracleText": "This land enters tapped with two charge counters on it.\n{T}: Add {U}.\n{T}, Remove a charge counter from this land: Add one mana of any color.",
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": "CostTap",
+                "effect": {
+                    "type": "AddMana",
+                    "color": "BLUE"
+                },
+                "timing": "ManaAbility",
+                "isManaAbility": true
+            },
+            {
+                "id": "ability_2",
+                "cost": {
+                    "type": "CostComposite",
+                    "costs": [
+                        "CostTap",
+                        {
+                            "type": "CostAtomWrapper",
+                            "atom": {
+                                "type": "AtomRemoveCounters",
+                                "counterType": "charge",
+                                "self": true
+                            }
+                        }
+                    ]
+                },
+                "effect": "AddManaOfChoice",
+                "timing": "ManaAbility",
+                "isManaAbility": true
+            }
+        ],
+        "replacementEffects": [
+            "EntersTapped",
+            {
+                "type": "EntersWithCounters",
+                "counterType": {
+                    "type": "Named",
+                    "name": "charge"
+                },
+                "count": 2,
+                "selfOnly": true
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "276",
+        "rarity": "UNCOMMON",
+        "artist": "Fred Fields",
+        "imageUri": "https://cards.scryfall.io/normal/front/2/e/2e3c2935-84ee-446d-b247-2f574ea84a8f.jpg?1783942846"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}

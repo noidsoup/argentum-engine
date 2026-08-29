@@ -21,6 +21,9 @@ import com.wingedsheep.engine.state.components.player.PlayerCantPlayFromHandComp
 import com.wingedsheep.sdk.core.Zone
 import com.wingedsheep.sdk.model.EntityId
 import com.wingedsheep.engine.handlers.ConditionEvaluator
+import com.wingedsheep.engine.handlers.effects.EntersWithReplacements
+import com.wingedsheep.engine.core.GameEvent
+import com.wingedsheep.sdk.model.CardDefinition
 import com.wingedsheep.engine.handlers.EffectContext
 import com.wingedsheep.engine.state.components.battlefield.GraveyardPlayPermissionUsedComponent
 import com.wingedsheep.sdk.core.CardType
@@ -471,6 +474,18 @@ class PlayLandHandler(
             c.with(landDrops.use())
         }
 
+        var entersWithEvents = emptyList<GameEvent>()
+        if (cardDef != null) {
+            val (afterReplacements, replacementEvents) = applyEntersWithReplacements(
+                state = newState,
+                entityId = action.cardId,
+                controllerId = action.playerId,
+                cardDef = cardDef,
+            )
+            newState = afterReplacements
+            entersWithEvents = replacementEvents
+        }
+
         val zoneChangeEvent = ZoneChangeEvent(
             action.cardId,
             cardComponent.name,
@@ -479,7 +494,7 @@ class PlayLandHandler(
             action.playerId
         )
 
-        val events = listOf(zoneChangeEvent) + listOfNotNull(riderPlayEvent)
+        val events = listOf(zoneChangeEvent) + entersWithEvents + listOfNotNull(riderPlayEvent)
         newState = newState.tick()
 
         // Detect and process any triggers from the land entering (e.g., landfall)
@@ -659,6 +674,30 @@ class PlayLandHandler(
             val tracker = c.get<GraveyardPlayPermissionUsedComponent>() ?: GraveyardPlayPermissionUsedComponent()
             c.with(tracker.withUsedType(typeName))
         }
+    }
+
+    private fun applyEntersWithReplacements(
+        state: GameState,
+        entityId: EntityId,
+        controllerId: EntityId,
+        cardDef: CardDefinition,
+    ): Pair<GameState, List<GameEvent>> {
+        var newState = state
+        val events = mutableListOf<GameEvent>()
+
+        val (ownState, ownEvents) = EntersWithReplacements.applyFromDefinition(
+            newState, entityId, cardDef, controllerId
+        )
+        newState = ownState
+        events.addAll(ownEvents)
+
+        val (globalState, globalEvents) = EntersWithReplacements.applyGlobal(
+            newState, entityId, controllerId, cardRegistry
+        )
+        newState = globalState
+        events.addAll(globalEvents)
+
+        return newState to events
     }
 
     companion object {
