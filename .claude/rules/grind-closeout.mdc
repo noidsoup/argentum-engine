@@ -1,5 +1,5 @@
 ---
-description: Grind sessions must close out with commit + merge; build missing engine primitives inline (add-feature)
+description: Grind sessions must close out with verify + quality gate + commit + merge; build missing engine primitives inline (add-feature)
 alwaysApply: true
 ---
 
@@ -20,15 +20,54 @@ commit?" — shipping is part of the job.
 - Only defer when the gap is genuinely large (multi-day architecture) *and* you've shipped everything
   else in the batch — still land the feature branch with docs + a failing scenario test stub if needed.
 
+## Pre-merge quality gate (mandatory — run before merge, not after)
+
+**Do not merge to `main` until this checklist is complete and green.** Fixing failures is part of closeout,
+not a follow-up for the user.
+
+### 1. Verify (hard gate)
+
+```bash
+./.verify.sh          # just build + just test-rules — paste real exit + tail
+```
+
+- All failures must be fixed before merge. A red verify gate blocks landing.
+- For touched cards, also run targeted scenario tests:
+  `just test-class <CardName>ScenarioTest`
+
+### 2. Card hygiene (spot-check every card in the batch)
+
+| Check | How |
+|-------|-----|
+| Scenario test exercises real behavior | Not just "cast and pass" — cover the printed ability line(s). Combat-damage triggers must wait for **trigger resolution**, not stop at first life change. |
+| Cascade / optional branches | Do not `answerYesNo(false)` to skip the mechanic unless the test is explicitly about something else. |
+| Flavor text | Match Scryfall for the printing you implemented — no fabricated quotes. |
+| `ruling()` blocks | No copy-paste from unrelated cards (e.g. Bloodbraid Elf text on a different cascade card). |
+| Reprint integrity | `just check-card-printing "<Name>"` — canonical in earliest set, PC2 gets `Printing(...)` only. |
+| Snapshots | After intentional card-def changes: `./gradlew :mtg-sets:test --tests "*CardDefinitionSnapshotTest" -DupdateSnapshots=true` |
+
+### 3. Slop smell (fix before merge when found)
+
+- Wrong player refs on combat-damage halving (`DefendingPlayer` / `TriggeringPlayer` vs controller).
+- Tests that register cards only via `TestCards.all` when the card is new — prefer explicit
+  `registerCard(...)` like `LostJitteScenarioTest` / `VisageBanditScenarioTest`.
+- `ScenarioTestBase` when `GameTestDriver` is the better fit (EntersAsCopy, equipment attach, combat).
+- 0/0 creatures: declining EntersAsCopy leaves a 0/0 that dies to SBAs — use an anthem in the test or
+  assert graveyard, not a bare battlefield assertion.
+
+### 4. Campaign + docs
+
+- `just claim-done` for shipped cards.
+- `FEATURES.md` only for mechanics intentionally deferred (not ones you just built).
+- SDK changes → `docs/card-sdk-language-reference.md` in the same change.
+
 ## Closeout (always — even if time runs out mid-batch)
 
-1. **Verify** — scenario tests for touched cards; `./.verify.sh` or `just build` when practical. Paste real exit.
+1. **Pre-merge quality gate** — complete §1–§3 above; paste verify output.
 2. **Commit** on the feature branch (conventional message; one batch commit is fine).
 3. **Land on fork main** — `git fetch origin` → checkout `main` → `git pull --rebase origin main` →
    `git merge --ff-only <feature-branch>` → `git push origin main`. Never push to `upstream`.
-4. **Campaign hygiene** — `just claim-done` for shipped cards; push FEATURES.md only for mechanics
-   intentionally deferred (not ones you just built).
-5. **Report** — commit SHA, set progress (`scripts/card-status --set …`), cards shipped vs deferred.
+4. **Report** — commit SHA, set progress (`scripts/card-status --set …`), cards shipped vs deferred.
 
 Only skip merge when `origin` is someone else's canonical org (shared repo rule) or the tree is dirty with
 another agent's uncommitted work — then commit locally and say what's blocked.

@@ -172,11 +172,23 @@ When a batch is green: open a small PR to wingedsheep from the fork. See campaig
 
 ```bash
 cd ~/Projects/argentum-engine
-./.verify.sh        # just build + just test-rules
+./.verify.sh        # just build + just test-rules — required before merge
 just test           # full suite before upstream PR
 ```
 
 Requires JDK 21 and network for first Gradle toolchain resolve.
+
+### Pre-merge quality gate (mandatory before landing on `origin/main`)
+
+Complete **before** merge, not after. Full checklist:
+[`.claude/rules/grind-closeout.mdc`](../.claude/rules/grind-closeout.mdc) § Pre-merge quality gate.
+
+1. **`./.verify.sh` green** — fix all failures; paste real exit output in the session report.
+2. **Scenario tests** for every touched card (`just test-class <Name>ScenarioTest`).
+3. **Spot-check** flavor vs Scryfall, no copy-paste `ruling()` blocks, cascade tests that actually exercise cascade.
+4. **`just check-card-printing`** + snapshot bless when card defs changed.
+
+Do not merge while verify is red.
 
 ---
 

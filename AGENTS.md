@@ -84,10 +84,13 @@ do not ask whether to commit or merge.
    `python3 scripts/check-card-printing.py "<Name>"`.
 3. **Missing SDK/engine primitive?** Run **`add-feature`** in the same grind — implement the smallest reusable
    piece, then ship the card. Do not skip claimed cards as "FEATURES-blocked" when you can build the gap.
-4. **Always end by landing on fork `main`:** commit on the feature branch → `git merge --ff-only` into `main` →
+4. **Pre-merge quality gate** — `./.verify.sh` green; scenario tests for touched cards; spot-check flavor,
+   rulings, cascade coverage, and test patterns (see [`.claude/rules/grind-closeout.mdc`](.claude/rules/grind-closeout.mdc)
+   § Pre-merge quality gate). **Do not merge while verify is red.**
+5. **Always end by landing on fork `main`:** commit on the feature branch → `git merge --ff-only` into `main` →
    `git push origin main`. Never push to `upstream`.
-5. Campaign: `just claim-done` for shipped cards; FEATURES.md only for mechanics intentionally deferred.
-6. Report commit SHA + `scripts/card-status --set <SET>` progress.
+6. Campaign: `just claim-done` for shipped cards; FEATURES.md only for mechanics intentionally deferred.
+7. Report commit SHA + `scripts/card-status --set <SET>` progress.
 
 See [`.claude/rules/grind-closeout.mdc`](.claude/rules/grind-closeout.mdc) and
 [`docs/HANDOFF-CHANCE.md`](docs/HANDOFF-CHANCE.md) for the full worker loop.

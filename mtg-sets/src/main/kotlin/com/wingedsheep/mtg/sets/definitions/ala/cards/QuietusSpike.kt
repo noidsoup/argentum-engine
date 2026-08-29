@@ -44,8 +44,8 @@ val QuietusSpike = card("Quietus Spike") {
         )
         effect = Effects.LoseHalfLife(
             roundUp = true,
-            target = EffectTarget.PlayerRef(Player.TriggeringPlayer),
-            lifePlayer = Player.TriggeringPlayer,
+            target = EffectTarget.PlayerRef(Player.DefendingPlayer),
+            lifePlayer = Player.DefendingPlayer,
         )
     }
 

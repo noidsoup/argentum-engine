@@ -7,7 +7,6 @@ import com.wingedsheep.sdk.model.Rarity
 import com.wingedsheep.sdk.scripting.effects.CardDestination
 import com.wingedsheep.sdk.scripting.effects.CardSource
 import com.wingedsheep.sdk.scripting.effects.Chooser
-import com.wingedsheep.sdk.scripting.effects.CompositeEffect
 import com.wingedsheep.sdk.scripting.effects.GatherCardsEffect
 import com.wingedsheep.sdk.scripting.effects.MoveCollectionEffect
 import com.wingedsheep.sdk.scripting.effects.SelectFromCollectionEffect
@@ -31,7 +30,7 @@ val SeeBeyond = card("See Beyond") {
 
     spell {
         effect = Effects.DrawCards(2).then(
-            CompositeEffect(
+            Effects.Composite(
                 listOf(
                     GatherCardsEffect(
                         source = CardSource.FromZone(Zone.HAND, Player.You),

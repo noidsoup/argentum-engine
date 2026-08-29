@@ -316,7 +316,7 @@
                         "type": "Divide",
                         "numerator": {
                             "type": "LifeTotal",
-                            "player": "TriggeringPlayer"
+                            "player": "DefendingPlayer"
                         },
                         "denominator": {
                             "type": "Fixed",
@@ -325,7 +325,7 @@
                     },
                     "target": {
                         "type": "PlayerRef",
-                        "player": "TriggeringPlayer"
+                        "player": "DefendingPlayer"
                     }
                 }
             }

@@ -4,6 +4,7 @@ import com.wingedsheep.engine.state.components.battlefield.AttachedToComponent
 import com.wingedsheep.engine.state.components.battlefield.AttachmentsComponent
 import com.wingedsheep.engine.support.GameTestDriver
 import com.wingedsheep.engine.support.TestCards
+import com.wingedsheep.mtg.sets.definitions.ala.cards.QuietusSpike
 import com.wingedsheep.sdk.core.Step
 import com.wingedsheep.sdk.model.Deck
 import com.wingedsheep.sdk.model.EntityId
@@ -36,7 +37,7 @@ class QuietusSpikeScenarioTest : FunSpec({
 
     fun createDriver(): GameTestDriver {
         val driver = GameTestDriver()
-        driver.registerCards(TestCards.all)
+        driver.registerCards(TestCards.all + listOf(QuietusSpike))
         return driver
     }
 
@@ -55,13 +56,14 @@ class QuietusSpikeScenarioTest : FunSpec({
         driver.declareAttackers(attacker, listOf(equipped), defender)
         driver.passPriorityUntil(Step.DECLARE_BLOCKERS)
 
+        // Combat damage (2) then the halving trigger must both resolve — don't stop at 17.
         var safety = 0
-        while (driver.getLifeTotal(defender) == 19 && safety++ < 20) {
+        while (driver.getLifeTotal(defender) > 8 && safety++ < 30) {
             driver.bothPass()
         }
 
-        withClue("19 life halved rounded up is 10") {
-            driver.getLifeTotal(defender) shouldBe 10
+        withClue("19 → 17 from combat, then lose half of 17 rounded up (9) → 8") {
+            driver.getLifeTotal(defender) shouldBe 8
         }
     }
 })
