@@ -44,8 +44,9 @@ The engine uses Gradle toolchains for **JDK 21**. JDK 17 is not enough.
 
 ```bash
 brew install openjdk@21
-export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
-# Add JAVA_HOME to your shell profile if needed
+export JAVA_HOME="/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home"
+# Or: export JAVA_HOME="$(/usr/libexec/java_home -v 21)"  when macOS registers the JDK
+echo 'export JAVA_HOME="/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home"' >> ~/.zshrc
 java -version   # should show 21
 ```
 
@@ -106,16 +107,25 @@ just shift 8                # unattended 8-hour grind (needs Cursor agent auth)
 
 ---
 
-## Where to work right now (2026-08-29)
+## Where to work (assigned lane)
 
-| Set | Extra progress | Good for Chance? | Notes |
-|-----|----------------|----------------|-------|
-| **PC2** Planechase 2012 | **62 / 136** done | **Yes** — best compose lane | Nicholas has two PC2 branches on `main`; plenty of printing-only left |
-| **DOM** Dominaria | **11 / 11** extras remain | Yes | Small finishable drain |
-| **GS1** Global Series | **21 / 41** done | **No** (captain) | Nicholas owns `cards/gs1-extra-01` — features + hard cards |
-| **DDQ** Duel Decks | 0 / 71 | Blocked | Set folder not scaffolded in engine yet — skip until captain adds it |
+**You are pinned to PC2 (Planechase 2012) extras** — compose/print only on branch `cards/pc2-extra-chance-gpu`.
 
-Refresh counts anytime:
+```bash
+cd ~/Projects/argentum-tandem-coverage
+export ARGENTUM_WORKER=chance-gpu
+just worker-join PC2 compose
+# or: just shift PC2 8
+```
+
+| Set | Extra progress | Your lane? | Notes |
+|-----|----------------|------------|-------|
+| **PC2** | **62 / 136** done | **Yes — primary** | Skip FEATURES-blocked cards (umbra, living weapon, planar die, …) |
+| **DOM** | 11 left | Backup | Small finishable drain if PC2 pool is blocked |
+| **GS1** | 21 / 41 | **No** | Captain lane (`dao-desk`) — features + hard cards |
+| **DDQ** | **71 / 71** | N/A | **Complete** — no work left |
+
+Refresh counts:
 
 ```bash
 cd ~/Projects/argentum-engine && scripts/card-status --set PC2
@@ -130,12 +140,12 @@ Tier queue: `docs/queue/SET-PRIORITY.md` in the campaign repo.
 
 | Remote | URL | Who merges |
 |--------|-----|------------|
-| `origin` | `noidsoup/argentum-engine` | Nicholas / you (feature branches) |
+| `origin` | `noidsoup/argentum-engine` | Nicholas / Chance (`chance-nelson`, write access) |
 | `upstream` | `wingedsheep/argentum-engine` | **Humans only** — open PRs from the fork |
 
 Never push to `upstream`. Never force-push `main`.
 
-When a batch is green: Nicholas (or you, once invited as collaborator) opens a small PR to wingedsheep. See campaign `docs/UPSTREAM-NOTES.md`.
+When a batch is green: open a small PR to wingedsheep from the fork. See campaign `docs/UPSTREAM-NOTES.md`.
 
 ---
 
@@ -197,4 +207,4 @@ Index lands in `uncommitted/lancedb_project_knowledge/` (gitignored).
 
 - Engine `main` @ `origin/main` (synced 2026-08-29)
 - Recent work: PC2 Extra batches, GS1 Extra partial, agent hygiene (LanceDB index, `.verify.sh`, Claude rules)
-- Stale local branches (`cards/gs1-extra-01`, old PC2 branches) may be behind `main` — **branch fresh from `main`** for new work
+- Stale local branches (`cards/gs1-extra-01`, old PC2 branches) were pruned 2026-08-29 — **branch fresh from `main`** for new work

@@ -24,13 +24,23 @@ if ! command -v just >/dev/null 2>&1; then
 fi
 
 # JDK 21 required (Gradle toolchain). Hint early if missing.
-if ! /usr/libexec/java_home -v 21 >/dev/null 2>&1; then
+_jdk21_home() {
+  if /usr/libexec/java_home -v 21 >/dev/null 2>&1; then
+    /usr/libexec/java_home -v 21
+  elif [ -d "/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home" ]; then
+    echo "/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home"
+  else
+    return 1
+  fi
+}
+
+if ! _jdk21_home >/dev/null; then
   echo "JDK 21 not found. Install: brew install openjdk@21"
-  echo "Then: export JAVA_HOME=\"\$(/usr/libexec/java_home -v 21)\""
+  echo 'Then: export JAVA_HOME="/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home"'
   exit 1
 fi
 
-export JAVA_HOME="${JAVA_HOME:-$(/usr/libexec/java_home -v 21)}"
+export JAVA_HOME="${JAVA_HOME:-$(_jdk21_home)}"
 
 run_step "just build" just build
 run_step "just test-rules" just test-rules
