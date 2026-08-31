@@ -15,6 +15,7 @@ import com.wingedsheep.sdk.core.ManaCost
 import com.wingedsheep.sdk.core.Zone
 import com.wingedsheep.sdk.core.ManaSymbol
 import com.wingedsheep.sdk.model.CardDefinition
+import com.wingedsheep.sdk.model.CardScript
 import com.wingedsheep.sdk.model.CharacteristicValue
 import com.wingedsheep.sdk.scripting.values.EntityNumericProperty
 import com.wingedsheep.sdk.model.EntityId
@@ -40,6 +41,9 @@ import com.wingedsheep.engine.handlers.TargetFinder
 import com.wingedsheep.engine.handlers.TargetingSourceType
 import com.wingedsheep.engine.state.components.stack.ChosenTarget
 import com.wingedsheep.sdk.scripting.predicates.CardPredicate
+import com.wingedsheep.sdk.scripting.effects.CompositeEffect
+import com.wingedsheep.sdk.scripting.effects.ModalEffect
+import com.wingedsheep.sdk.scripting.targets.TargetRequirement
 
 /**
  * Calculates effective spell costs after applying cost reductions.
@@ -623,14 +627,32 @@ class CostCalculator(
                 targetingSourceType = TargetingSourceType.SPELL,
             ).contains(candidate)
         }
-        if (script.targetRequirements.isEmpty()) return false
-        return script.targetRequirements.any { requirement ->
+        val requirements = allSpellTargetRequirements(script)
+        if (requirements.isEmpty()) return false
+        return requirements.any { requirement ->
             targetFinder.findLegalTargets(
                 state = state,
                 requirement = requirement,
                 controllerId = casterId,
                 targetingSourceType = TargetingSourceType.SPELL,
             ).contains(candidate)
+        }
+    }
+
+    private fun allSpellTargetRequirements(script: CardScript): List<TargetRequirement> {
+        val requirements = mutableListOf<TargetRequirement>()
+        requirements.addAll(script.targetRequirements)
+        requirements.addAll(script.kickerTargetRequirements)
+        requirements.addAll(script.cleaveTargetRequirements)
+        collectEffectTargetRequirements(script.spellEffect, requirements)
+        return requirements
+    }
+
+    private fun collectEffectTargetRequirements(effect: com.wingedsheep.sdk.scripting.effects.Effect?, sink: MutableList<TargetRequirement>) {
+        when (effect) {
+            is ModalEffect -> effect.modes.forEach { mode -> sink.addAll(mode.targetRequirements) }
+            is CompositeEffect -> effect.effects.forEach { collectEffectTargetRequirements(it, sink) }
+            else -> Unit
         }
     }
 

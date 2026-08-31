@@ -20,7 +20,17 @@ import com.wingedsheep.sdk.core.ManaCost
 import com.wingedsheep.sdk.core.CounterType
 import com.wingedsheep.sdk.core.Phase
 import com.wingedsheep.sdk.core.Step
+import com.wingedsheep.sdk.core.TypeLine
+import com.wingedsheep.sdk.dsl.Targets
+import com.wingedsheep.sdk.model.CardDefinition
+import com.wingedsheep.sdk.model.CardScript
+import com.wingedsheep.sdk.scripting.effects.DealDamageEffect
+import com.wingedsheep.sdk.scripting.effects.DrawCardsEffect
+import com.wingedsheep.sdk.scripting.effects.Mode
+import com.wingedsheep.sdk.scripting.effects.ModalEffect
 import com.wingedsheep.sdk.scripting.effects.RollPlanarDieEffect
+import com.wingedsheep.sdk.scripting.targets.EffectTarget
+import com.wingedsheep.sdk.scripting.values.DynamicAmount
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
@@ -29,7 +39,29 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 /** Elderwood Scion (PC2 #88) — you-cast / opponents-cast targeting taxes. */
 class ElderwoodScionScenarioTest : ScenarioTestBase() {
 
+    private val modalCharm = CardDefinition(
+        name = "Test Modal Charm",
+        manaCost = ManaCost.parse("{2}{R}"),
+        typeLine = TypeLine.instant(),
+        oracleText = "Choose one —\n• Draw a card.\n• Test Modal Charm deals 3 damage to any target.",
+        script = CardScript.spell(
+            effect = ModalEffect.chooseOne(
+                Mode.noTarget(
+                    DrawCardsEffect(DynamicAmount.Fixed(1), EffectTarget.Controller),
+                    "Draw a card",
+                ),
+                Mode.withTarget(
+                    DealDamageEffect(DynamicAmount.Fixed(3), EffectTarget.BoundVariable("target")),
+                    Targets.Any,
+                    "Test Modal Charm deals 3 damage to any target",
+                ),
+            ),
+        ),
+    )
+
     init {
+        cardRegistry.register(modalCharm)
+
         context("Elderwood Scion — spell cost taxes") {
             test("your spells targeting it cost {2} less; opponents' cost {2} more") {
                 val game = scenario()
@@ -74,6 +106,11 @@ class ElderwoodScionScenarioTest : ScenarioTestBase() {
                 val counterMin = calculator.calculateMinPossibleCost(game.state, counterspell, game.player1Id)
                 withClue("spells that cannot target Elderwood do not get its optimistic discount") {
                     counterMin.toString() shouldBe ManaCost.parse("{U}{U}").toString()
+                }
+
+                val modalMin = calculator.calculateMinPossibleCost(game.state, modalCharm, game.player1Id)
+                withClue("modal spells include per-mode targets when computing min possible cost") {
+                    modalMin.genericAmount shouldBe 0
                 }
             }
         }
