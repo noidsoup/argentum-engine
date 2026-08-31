@@ -16,6 +16,7 @@ import com.wingedsheep.engine.state.components.identity.CardComponent
 import com.wingedsheep.engine.state.components.identity.TokenComponent
 import com.wingedsheep.engine.support.ScenarioTestBase
 import com.wingedsheep.sdk.core.Color
+import com.wingedsheep.sdk.core.ManaCost
 import com.wingedsheep.sdk.core.CounterType
 import com.wingedsheep.sdk.core.Phase
 import com.wingedsheep.sdk.core.Step
@@ -67,6 +68,12 @@ class ElderwoodScionScenarioTest : ScenarioTestBase() {
                 )
                 withClue("min possible cost assumes targeting Elderwood for the discount") {
                     minCost.genericAmount shouldBe 0
+                }
+
+                val counterspell = cardRegistry.requireCard("Counterspell")
+                val counterMin = calculator.calculateMinPossibleCost(game.state, counterspell, game.player1Id)
+                withClue("spells that cannot target Elderwood do not get its optimistic discount") {
+                    counterMin.toString() shouldBe ManaCost.parse("{U}{U}").toString()
                 }
             }
         }

@@ -35,8 +35,10 @@ import com.wingedsheep.sdk.scripting.filters.unified.Scope
 import com.wingedsheep.engine.handlers.ConditionEvaluator
 import com.wingedsheep.engine.handlers.EffectContext
 import com.wingedsheep.engine.handlers.PredicateEvaluator
-import com.wingedsheep.engine.state.components.stack.ChosenTarget
 import com.wingedsheep.engine.handlers.PredicateContext
+import com.wingedsheep.engine.handlers.TargetFinder
+import com.wingedsheep.engine.handlers.TargetingSourceType
+import com.wingedsheep.engine.state.components.stack.ChosenTarget
 import com.wingedsheep.sdk.scripting.predicates.CardPredicate
 
 /**
@@ -54,7 +56,8 @@ import com.wingedsheep.sdk.scripting.predicates.CardPredicate
 class CostCalculator(
     private val cardRegistry: CardRegistry,
     private val predicateEvaluator: PredicateEvaluator = PredicateEvaluator(),
-    private val conditionEvaluator: ConditionEvaluator = ConditionEvaluator()
+    private val conditionEvaluator: ConditionEvaluator = ConditionEvaluator(),
+    private val targetFinder: TargetFinder = TargetFinder(),
 ) {
 
     /**
@@ -598,9 +601,37 @@ class CostCalculator(
                 sourceId,
                 youCastTargeting.targetFilter,
             )
-            if (match != null) optimisticTargets += match
+            if (match != null && spellCanLegallyTarget(state, cardDef, casterId, match)) {
+                optimisticTargets += match
+            }
         }
         return calculateEffectiveCost(state, cardDef, casterId, optimisticTargets)
+    }
+
+    private fun spellCanLegallyTarget(
+        state: GameState,
+        cardDef: CardDefinition,
+        casterId: EntityId,
+        candidate: EntityId,
+    ): Boolean {
+        val script = cardDef.script
+        script.auraTarget?.let { auraTarget ->
+            return targetFinder.findLegalTargets(
+                state = state,
+                requirement = auraTarget,
+                controllerId = casterId,
+                targetingSourceType = TargetingSourceType.SPELL,
+            ).contains(candidate)
+        }
+        if (script.targetRequirements.isEmpty()) return false
+        return script.targetRequirements.any { requirement ->
+            targetFinder.findLegalTargets(
+                state = state,
+                requirement = requirement,
+                controllerId = casterId,
+                targetingSourceType = TargetingSourceType.SPELL,
+            ).contains(candidate)
+        }
     }
 
     private fun isCostReduction(modification: CostModification): Boolean = when (modification) {
