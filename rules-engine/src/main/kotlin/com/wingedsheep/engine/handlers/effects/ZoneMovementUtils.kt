@@ -455,11 +455,12 @@ object ZoneMovementUtils {
         val projected = state.projectedState
         for (auraId in attachments) {
             if (!projected.hasKeyword(auraId, Keyword.UMBRA_ARMOR)) continue
+            if (projected.hasKeyword(auraId, Keyword.INDESTRUCTIBLE)) continue
             val damageResult = applyRemoveDamageReplacement(state, hostId)
-            val auraResult = ZoneTransitionService.moveToZone(damageResult.state, auraId, Zone.GRAVEYARD)
+            val auraDestroy = destroyPermanent(damageResult.state, auraId)
             return EffectResult.success(
-                auraResult.state,
-                damageResult.events + auraResult.events,
+                auraDestroy.state,
+                damageResult.events + auraDestroy.events,
             )
         }
         return null
