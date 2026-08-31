@@ -16,7 +16,7 @@ val ColorfulFeiyiSparrow = card("Colorful Feiyi Sparrow") {
     typeLine = "Creature — Bird"
     power = 1
     toughness = 3
-    oracleText = "Flying"
+    oracleText = "Flying (This creature can't be blocked except by creatures with flying or reach.)"
 
     keywords(Keyword.FLYING)
 

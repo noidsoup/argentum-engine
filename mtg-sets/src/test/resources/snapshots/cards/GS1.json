@@ -191,7 +191,7 @@
     "name": "Colorful Feiyi Sparrow",
     "manaCost": "{1}{W}",
     "typeLine": "Creature — Bird",
-    "oracleText": "Flying",
+    "oracleText": "Flying (This creature can't be blocked except by creatures with flying or reach.)",
     "creatureStats": {
         "power": 1,
         "toughness": 3
@@ -606,6 +606,245 @@
     ]
 }
 
+// Jiang Yanggu
+{
+    "name": "Jiang Yanggu",
+    "manaCost": "{4}{G}",
+    "typeLine": "Legendary Planeswalker — Yanggu",
+    "oracleText": "+1: Target creature gets +2/+2 until end of turn.\n−1: If you don't control a creature named Mowu, create Mowu, a legendary 3/3 green Dog creature token.\n−5: Until end of turn, target creature gains trample and gets +X/+X, where X is the number of lands you control.",
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": {
+                    "type": "CostLoyalty",
+                    "change": 1
+                },
+                "effect": {
+                    "type": "ModifyStats",
+                    "powerModifier": {
+                        "type": "Fixed",
+                        "amount": 2
+                    },
+                    "toughnessModifier": {
+                        "type": "Fixed",
+                        "amount": 2
+                    },
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "target creature"
+                    }
+                },
+                "targetRequirements": [
+                    {
+                        "type": "TargetObject",
+                        "filter": {
+                            "baseFilter": "creature"
+                        },
+                        "id": "target creature"
+                    }
+                ],
+                "timing": "SorcerySpeed",
+                "isPlaneswalkerAbility": true
+            },
+            {
+                "id": "ability_2",
+                "cost": {
+                    "type": "CostLoyalty",
+                    "change": -1
+                },
+                "effect": {
+                    "type": "Gated",
+                    "gate": {
+                        "type": "Gate.WhenCondition",
+                        "condition": {
+                            "type": "Exists",
+                            "player": "You",
+                            "zone": "Battlefield",
+                            "filter": "creature name:Mowu",
+                            "negate": true
+                        }
+                    },
+                    "then": {
+                        "type": "CreateToken",
+                        "power": 3,
+                        "toughness": 3,
+                        "colors": [
+                            "GREEN"
+                        ],
+                        "creatureTypes": [
+                            "Dog"
+                        ],
+                        "name": "Mowu",
+                        "imageUri": "https://cards.scryfall.io/normal/front/b/1/b10441dd-9029-4f95-9566-d3771ebd36bd.jpg?1783934643",
+                        "legendary": true
+                    }
+                },
+                "timing": "SorcerySpeed",
+                "isPlaneswalkerAbility": true
+            },
+            {
+                "id": "ability_3",
+                "cost": {
+                    "type": "CostLoyalty",
+                    "change": -5
+                },
+                "effect": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "GrantKeyword",
+                            "keyword": "TRAMPLE",
+                            "target": {
+                                "type": "BoundVariable",
+                                "name": "target creature"
+                            }
+                        },
+                        {
+                            "type": "ModifyStats",
+                            "powerModifier": {
+                                "type": "AggregateBattlefield",
+                                "player": "You",
+                                "filter": "land"
+                            },
+                            "toughnessModifier": {
+                                "type": "AggregateBattlefield",
+                                "player": "You",
+                                "filter": "land"
+                            },
+                            "target": {
+                                "type": "BoundVariable",
+                                "name": "target creature"
+                            }
+                        }
+                    ]
+                },
+                "targetRequirements": [
+                    {
+                        "type": "TargetObject",
+                        "filter": {
+                            "baseFilter": "creature"
+                        },
+                        "id": "target creature"
+                    }
+                ],
+                "timing": "SorcerySpeed",
+                "isPlaneswalkerAbility": true
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "22",
+        "rarity": "MYTHIC",
+        "artist": "Tingting Yeh",
+        "imageUri": "https://cards.scryfall.io/normal/front/e/b/eb8dae9a-dac2-4b80-b546-852b989bd8c1.jpg?1783934627"
+    },
+    "startingLoyalty": 4,
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
+// Journey for the Elixir
+{
+    "name": "Journey for the Elixir",
+    "manaCost": "{2}{G}",
+    "typeLine": "Sorcery",
+    "oracleText": "Search your library and graveyard for a basic land card and a card named Jiang Yanggu, reveal them, put them into your hand, then shuffle.",
+    "script": {
+        "spellEffect": {
+            "type": "Composite",
+            "effects": [
+                {
+                    "type": "GatherCards",
+                    "source": {
+                        "type": "FromMultipleZones",
+                        "zones": [
+                            "Library",
+                            "Graveyard"
+                        ],
+                        "filter": "basicland"
+                    },
+                    "storeAs": "searchable"
+                },
+                {
+                    "type": "SelectFromCollection",
+                    "from": "searchable",
+                    "selection": {
+                        "type": "ChooseUpTo",
+                        "count": {
+                            "type": "Fixed",
+                            "amount": 1
+                        }
+                    },
+                    "storeSelected": "found"
+                },
+                {
+                    "type": "MoveCollection",
+                    "from": "found",
+                    "destination": {
+                        "type": "ToZone",
+                        "zone": "Hand"
+                    },
+                    "revealed": true
+                },
+                "ShuffleLibrary",
+                "EmitLibrarySearchedEvent",
+                {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "GatherCards",
+                            "source": {
+                                "type": "FromMultipleZones",
+                                "zones": [
+                                    "Library",
+                                    "Graveyard"
+                                ],
+                                "filter": "name:Jiang Yanggu"
+                            },
+                            "storeAs": "searchable"
+                        },
+                        {
+                            "type": "SelectFromCollection",
+                            "from": "searchable",
+                            "selection": {
+                                "type": "ChooseUpTo",
+                                "count": {
+                                    "type": "Fixed",
+                                    "amount": 1
+                                }
+                            },
+                            "storeSelected": "found"
+                        },
+                        {
+                            "type": "MoveCollection",
+                            "from": "found",
+                            "destination": {
+                                "type": "ToZone",
+                                "zone": "Hand"
+                            },
+                            "revealed": true
+                        },
+                        "ShuffleLibrary",
+                        "EmitLibrarySearchedEvent"
+                    ]
+                }
+            ]
+        }
+    },
+    "metadata": {
+        "collectorNumber": "36",
+        "rarity": "RARE",
+        "artist": "Qiu De En",
+        "flavorText": "\"As my hands touched it, I realized that I had not found it—it had been leading me here.\"",
+        "imageUri": "https://cards.scryfall.io/normal/front/3/d/3da5b115-84b5-4eb3-bbef-e5024601ebc8.jpg?1783934623"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
 // Leopard-Spotted Jiao
 {
     "name": "Leopard-Spotted Jiao",
@@ -623,5 +862,577 @@
     },
     "colorIdentityOverride": [
         "RED"
+    ]
+}
+
+// Moon-Eating Dog
+{
+    "name": "Moon-Eating Dog",
+    "manaCost": "{3}{U}",
+    "typeLine": "Creature — Dog",
+    "oracleText": "As long as you control a Yanling planeswalker, this creature has flying. (It can't be blocked except by creatures with flying or reach.)",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 3
+    },
+    "script": {
+        "staticAbilities": [
+            {
+                "type": "ConditionalStaticAbility",
+                "ability": {
+                    "type": "GrantKeyword",
+                    "keyword": "FLYING",
+                    "filter": {
+                        "baseFilter": "permanent",
+                        "scope": "Self"
+                    }
+                },
+                "condition": {
+                    "type": "Exists",
+                    "player": "You",
+                    "zone": "Battlefield",
+                    "filter": "planeswalker Yanling"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "10",
+        "rarity": "UNCOMMON",
+        "artist": "Tingting Yeh",
+        "flavorText": "The most nimble of creatures, it chases the most sacred luminence.",
+        "imageUri": "https://cards.scryfall.io/normal/front/a/8/a85747dd-84c0-4e31-964e-c455c96f87bf.jpg?1783934633"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
+
+// Mu Yanling
+{
+    "name": "Mu Yanling",
+    "manaCost": "{4}{U}{U}",
+    "typeLine": "Legendary Planeswalker — Yanling",
+    "oracleText": "+2: Target creature can't be blocked this turn.\n−3: Draw two cards.\n−10: Tap all creatures your opponents control. You take an extra turn after this one.",
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": {
+                    "type": "CostLoyalty",
+                    "change": 2
+                },
+                "effect": {
+                    "type": "GrantKeyword",
+                    "keyword": "CANT_BE_BLOCKED",
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "target creature"
+                    }
+                },
+                "targetRequirements": [
+                    {
+                        "type": "TargetObject",
+                        "filter": {
+                            "baseFilter": "creature"
+                        },
+                        "id": "target creature"
+                    }
+                ],
+                "timing": "SorcerySpeed",
+                "isPlaneswalkerAbility": true
+            },
+            {
+                "id": "ability_2",
+                "cost": {
+                    "type": "CostLoyalty",
+                    "change": -3
+                },
+                "effect": {
+                    "type": "DrawCards",
+                    "count": {
+                        "type": "Fixed",
+                        "amount": 2
+                    }
+                },
+                "timing": "SorcerySpeed",
+                "isPlaneswalkerAbility": true
+            },
+            {
+                "id": "ability_3",
+                "cost": {
+                    "type": "CostLoyalty",
+                    "change": -10
+                },
+                "effect": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "ForEach",
+                            "space": {
+                                "type": "IterationSpace.Group",
+                                "filter": {
+                                    "baseFilter": "creature ctrl:opponent"
+                                }
+                            },
+                            "body": {
+                                "type": "TapUntap",
+                                "target": "Self"
+                            }
+                        },
+                        "TakeExtraTurn"
+                    ]
+                },
+                "timing": "SorcerySpeed",
+                "isPlaneswalkerAbility": true
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "1",
+        "rarity": "MYTHIC",
+        "artist": "林玄泰",
+        "imageUri": "https://cards.scryfall.io/normal/front/a/2/a2ee3c3c-768b-434b-a121-6d897b2ae345.jpg?1783934637"
+    },
+    "startingLoyalty": 5,
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
+
+// Nine-Tail White Fox
+{
+    "name": "Nine-Tail White Fox",
+    "manaCost": "{2}{U}",
+    "typeLine": "Creature — Fox Spirit",
+    "oracleText": "Whenever this creature deals combat damage to a player, draw a card.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 2
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "DealsDamageEvent",
+                    "damageType": "DamageCombat",
+                    "recipient": "AnyPlayer"
+                },
+                "effect": {
+                    "type": "DrawCards",
+                    "count": {
+                        "type": "Fixed",
+                        "amount": 1
+                    }
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "8",
+        "artist": "林玄泰",
+        "flavorText": "It has waited a millennium just for you, and for a millennium will it watch over your descendants.",
+        "imageUri": "https://cards.scryfall.io/normal/front/a/1/a120de1b-cfc2-4a21-9eb0-ddabb3d90896.jpg?1783934633"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
+
+// Purple-Crystal Crab
+{
+    "name": "Purple-Crystal Crab",
+    "manaCost": "{1}{U}",
+    "typeLine": "Creature — Crab",
+    "oracleText": "When this creature dies, draw a card.",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 1
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "from": "Battlefield",
+                    "to": "Graveyard"
+                },
+                "effect": {
+                    "type": "DrawCards",
+                    "count": {
+                        "type": "Fixed",
+                        "amount": 1
+                    }
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "3",
+        "artist": "Tan Yan Yao",
+        "flavorText": "A precious shell without, a delicious taste within.",
+        "imageUri": "https://cards.scryfall.io/normal/front/e/2/e26c576d-94c8-4f63-9f54-732fb1eade12.jpg?1783934637"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
+
+// Qilin's Blessing
+{
+    "name": "Qilin's Blessing",
+    "manaCost": "{W}",
+    "typeLine": "Instant",
+    "oracleText": "Target creature gets +2/+2 until end of turn.",
+    "script": {
+        "spellEffect": {
+            "type": "ModifyStats",
+            "powerModifier": {
+                "type": "Fixed",
+                "amount": 2
+            },
+            "toughnessModifier": {
+                "type": "Fixed",
+                "amount": 2
+            },
+            "target": {
+                "type": "BoundVariable",
+                "name": "target creature"
+            }
+        },
+        "targetRequirements": [
+            {
+                "type": "TargetObject",
+                "filter": {
+                    "baseFilter": "creature"
+                },
+                "id": "target creature"
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "14",
+        "artist": "Wolk Sheep",
+        "flavorText": "\"Interesting . . . This mortal being seems to have been blessed with Qilin's essence.\"\n—Mu Yanling's journal",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/2/028ad74f-8366-4c14-b532-63fa892f5784.jpg?1783934633"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
+// Reckless Pangolin
+{
+    "name": "Reckless Pangolin",
+    "manaCost": "{2}{G}",
+    "typeLine": "Creature — Pangolin",
+    "oracleText": "Whenever this creature attacks, it gets +1/+1 until end of turn.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 2
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": "AttackEvent",
+                "effect": {
+                    "type": "ModifyStats",
+                    "powerModifier": {
+                        "type": "Fixed",
+                        "amount": 1
+                    },
+                    "toughnessModifier": {
+                        "type": "Fixed",
+                        "amount": 1
+                    },
+                    "target": "Self"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "26",
+        "artist": "Wolk Sheep",
+        "flavorText": "\"A pangolin's power grows with its speed. Strike when you have the chance!\"\n—Jiang Yanggu's travelogue",
+        "imageUri": "https://cards.scryfall.io/normal/front/4/6/4662c681-fcc9-4fc8-a598-b068208132fd.jpg?1783934626"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
+// Rhythmic Water Vortex
+{
+    "name": "Rhythmic Water Vortex",
+    "manaCost": "{3}{U}{U}",
+    "typeLine": "Sorcery",
+    "oracleText": "Return up to two target creatures to their owner's hand.\nSearch your library and/or graveyard for a card named Mu Yanling, reveal it, and put it into your hand. If you searched your library this way, shuffle.",
+    "script": {
+        "spellEffect": {
+            "type": "Composite",
+            "effects": [
+                {
+                    "type": "ForEach",
+                    "space": "IterationSpace.Targets",
+                    "body": {
+                        "type": "MoveToZone",
+                        "target": {
+                            "type": "ContextTarget",
+                            "index": 0
+                        },
+                        "destination": "Hand"
+                    }
+                },
+                {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "GatherCards",
+                            "source": {
+                                "type": "FromMultipleZones",
+                                "zones": [
+                                    "Library",
+                                    "Graveyard"
+                                ],
+                                "filter": "name:Mu Yanling"
+                            },
+                            "storeAs": "searchable"
+                        },
+                        {
+                            "type": "SelectFromCollection",
+                            "from": "searchable",
+                            "selection": {
+                                "type": "ChooseUpTo",
+                                "count": {
+                                    "type": "Fixed",
+                                    "amount": 1
+                                }
+                            },
+                            "storeSelected": "found"
+                        },
+                        {
+                            "type": "MoveCollection",
+                            "from": "found",
+                            "destination": {
+                                "type": "ToZone",
+                                "zone": "Hand"
+                            },
+                            "revealed": true
+                        },
+                        "ShuffleLibrary",
+                        "EmitLibrarySearchedEvent"
+                    ]
+                }
+            ]
+        },
+        "targetRequirements": [
+            {
+                "type": "TargetObject",
+                "count": 2,
+                "optional": true,
+                "filter": {
+                    "baseFilter": "creature"
+                },
+                "id": "up to two target creatures"
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "18",
+        "rarity": "RARE",
+        "artist": "Xin-Yu Liu",
+        "imageUri": "https://cards.scryfall.io/normal/front/b/e/be82ea29-66d4-471d-bef7-c6524207b96d.jpg?1783934631"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
+
+// Sacred White Deer
+{
+    "name": "Sacred White Deer",
+    "manaCost": "{1}{G}",
+    "typeLine": "Creature — Elk",
+    "oracleText": "{3}{G}, {T}: You gain 4 life. Activate only if you control a Yanggu planeswalker.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 2
+    },
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": {
+                    "type": "CostComposite",
+                    "costs": [
+                        {
+                            "type": "CostAtomWrapper",
+                            "atom": {
+                                "type": "AtomMana",
+                                "cost": "{3}{G}"
+                            }
+                        },
+                        "CostTap"
+                    ]
+                },
+                "effect": {
+                    "type": "GainLife",
+                    "amount": {
+                        "type": "Fixed",
+                        "amount": 4
+                    }
+                },
+                "restrictions": [
+                    {
+                        "type": "ActivationOnlyIfCondition",
+                        "condition": {
+                            "type": "Exists",
+                            "player": "You",
+                            "zone": "Battlefield",
+                            "filter": "planeswalker Yanggu"
+                        }
+                    }
+                ]
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "25",
+        "rarity": "UNCOMMON",
+        "artist": "G-host Lee",
+        "flavorText": "The pale deer are believed to have lived a thousand years, the pure white five hundred more. Those who seek them would gladly wander the wilds forever for the merest glimpse of these sacred beings.",
+        "imageUri": "https://cards.scryfall.io/normal/front/1/a/1a864ae8-18fc-4c70-8564-65b745aded9a.jpg?1783934627"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
+// Screeching Phoenix
+{
+    "name": "Screeching Phoenix",
+    "manaCost": "{4}{R}{R}",
+    "typeLine": "Creature — Phoenix",
+    "oracleText": "Flying\n{2}{R}: Creatures you control get +1/+0 until end of turn.",
+    "creatureStats": {
+        "power": 4,
+        "toughness": 4
+    },
+    "keywords": [
+        "FLYING"
+    ],
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": {
+                    "type": "CostAtomWrapper",
+                    "atom": {
+                        "type": "AtomMana",
+                        "cost": "{2}{R}"
+                    }
+                },
+                "effect": {
+                    "type": "ForEach",
+                    "space": {
+                        "type": "IterationSpace.Group",
+                        "filter": {
+                            "baseFilter": "creature ctrl:you"
+                        }
+                    },
+                    "body": {
+                        "type": "ModifyStats",
+                        "powerModifier": {
+                            "type": "Fixed",
+                            "amount": 1
+                        },
+                        "toughnessModifier": {
+                            "type": "Fixed",
+                            "amount": 0
+                        },
+                        "target": "Self"
+                    }
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "30",
+        "rarity": "RARE",
+        "artist": "Tingting Yeh",
+        "flavorText": "Its wings are a heavenly inferno that sets the world ablaze.",
+        "imageUri": "https://cards.scryfall.io/normal/front/4/b/4b9477ba-e198-4085-8733-fd392a5648e7.jpg?1783934626"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
+// Stormcloud Spirit
+{
+    "name": "Stormcloud Spirit",
+    "manaCost": "{3}{U}{U}",
+    "typeLine": "Creature — Spirit",
+    "oracleText": "Flying (This creature can't be blocked except by creatures with flying or reach.)",
+    "creatureStats": {
+        "power": 4,
+        "toughness": 4
+    },
+    "keywords": [
+        "FLYING"
+    ],
+    "metadata": {
+        "collectorNumber": "11",
+        "rarity": "UNCOMMON",
+        "artist": "Kee Lo",
+        "flavorText": "The spirits of all the rivers and oceans came together as an unstoppable force, unleashing their fury as lightning and thunder.",
+        "imageUri": "https://cards.scryfall.io/normal/front/b/3/b371bba8-08b1-468b-924b-c1f3d64bb096.jpg?1783934632"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
+
+// Vivid Flying Fish
+{
+    "name": "Vivid Flying Fish",
+    "manaCost": "{1}{U}",
+    "typeLine": "Creature — Fish Lizard",
+    "oracleText": "This creature has flying as long as it's attacking. (It can't be blocked except by creatures with flying or reach.)",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 1
+    },
+    "script": {
+        "staticAbilities": [
+            {
+                "type": "ConditionalStaticAbility",
+                "ability": {
+                    "type": "GrantKeyword",
+                    "keyword": "FLYING",
+                    "filter": {
+                        "baseFilter": "permanent",
+                        "scope": "Self"
+                    }
+                },
+                "condition": {
+                    "type": "EntityMatches",
+                    "entity": "Self",
+                    "filter": "attacking"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "4",
+        "artist": "Tingting Yeh",
+        "flavorText": "The rainbow seen above the Great Lake of Cloud Dream just after the rain is nothing but the vivid-colored flying fishes' ritual dance.",
+        "imageUri": "https://cards.scryfall.io/normal/front/c/6/c6783b19-4d23-445c-9c4c-bb485a1e4149.jpg?1783934635"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
     ]
 }
