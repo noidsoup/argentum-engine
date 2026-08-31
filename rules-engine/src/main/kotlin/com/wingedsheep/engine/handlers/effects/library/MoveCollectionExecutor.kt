@@ -640,6 +640,17 @@ class MoveCollectionExecutor(
                         continue
                     }
                 }
+                val (damageShieldState, wasShielded) = ZoneMovementUtils.applyRemoveDamageShields(newState, cardId)
+                if (wasShielded) {
+                    newState = ZoneMovementUtils.applyRemoveDamageReplacement(damageShieldState, cardId).state
+                    continue
+                }
+                val umbraResult = ZoneMovementUtils.tryUmbraArmorReplacement(newState, cardId)
+                if (umbraResult != null) {
+                    newState = umbraResult.state
+                    events.addAll(umbraResult.events)
+                    continue
+                }
             }
 
             // Find current zone for controller override logic

@@ -275,6 +275,58 @@
     ]
 }
 
+// Indrik Umbra
+{
+    "name": "Indrik Umbra",
+    "manaCost": "{4}{G}{W}",
+    "typeLine": "Enchantment — Aura",
+    "oracleText": "Enchant creature\nEnchanted creature gets +4/+4 and has first strike, and all creatures able to block it do so.\nUmbra armor (If enchanted creature would be destroyed, instead remove all damage from it and destroy this Aura.)",
+    "keywords": [
+        "UMBRA_ARMOR"
+    ],
+    "script": {
+        "staticAbilities": [
+            {
+                "type": "ModifyStats",
+                "powerBonus": 4,
+                "toughnessBonus": 4
+            },
+            {
+                "type": "GrantKeyword",
+                "keyword": "FIRST_STRIKE"
+            },
+            {
+                "type": "GrantTriggeredAbility",
+                "ability": {
+                    "id": "ability_1",
+                    "trigger": "AttackEvent",
+                    "effect": {
+                        "type": "MustBeBlocked",
+                        "target": "Self"
+                    }
+                }
+            }
+        ],
+        "auraTarget": {
+            "type": "TargetObject",
+            "filter": {
+                "baseFilter": "creature"
+            }
+        }
+    },
+    "metadata": {
+        "collectorNumber": "96",
+        "rarity": "RARE",
+        "artist": "Christopher Moeller",
+        "flavorText": "\"The indrik's shadow is a shield that no weapon can pierce.\"",
+        "imageUri": "https://cards.scryfall.io/normal/front/f/c/fc8b5e68-1938-4775-a015-bdfcb85c0593.jpg"
+    },
+    "colorIdentityOverride": [
+        "GREEN",
+        "WHITE"
+    ]
+}
+
 // Kathari Remnant
 {
     "name": "Kathari Remnant",

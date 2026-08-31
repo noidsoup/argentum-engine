@@ -75,6 +75,13 @@ class LethalDamageCheck : StateBasedActionCheck {
                     continue
                 }
 
+                val umbraResult = ZoneMovementUtils.tryUmbraArmorReplacement(newState, entityId)
+                if (umbraResult != null) {
+                    newState = umbraResult.newState
+                    events.addAll(umbraResult.events)
+                    continue
+                }
+
                 val result = SbaZoneMovementHelper.putCreatureInGraveyard(
                     newState, entityId, cardComponent, "lethal damage"
                 )

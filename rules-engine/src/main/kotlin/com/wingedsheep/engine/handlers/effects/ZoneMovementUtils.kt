@@ -439,9 +439,30 @@ object ZoneMovementUtils {
             return applyRemoveDamageReplacement(damageShieldState, entityId)
         }
 
+        tryUmbraArmorReplacement(state, entityId)?.let { return it }
+
         // Delegate to ZoneTransitionService
         val result = ZoneTransitionService.moveToZone(state, entityId, Zone.GRAVEYARD)
         return EffectResult.success(result.state, result.events)
+    }
+
+    /**
+     * Umbra armor (CR 702.118): if [hostId] would be destroyed, an attached Aura with umbra armor
+     * is destroyed instead and all damage is removed from the host.
+     */
+    fun tryUmbraArmorReplacement(state: GameState, hostId: EntityId): EffectResult? {
+        val attachments = state.getEntity(hostId)?.get<AttachmentsComponent>()?.attachedIds ?: return null
+        val projected = state.projectedState
+        for (auraId in attachments) {
+            if (!projected.hasKeyword(auraId, Keyword.UMBRA_ARMOR)) continue
+            val damageResult = applyRemoveDamageReplacement(state, hostId)
+            val auraResult = ZoneTransitionService.moveToZone(damageResult.state, auraId, Zone.GRAVEYARD)
+            return EffectResult.success(
+                auraResult.state,
+                damageResult.events + auraResult.events,
+            )
+        }
+        return null
     }
 
     /**

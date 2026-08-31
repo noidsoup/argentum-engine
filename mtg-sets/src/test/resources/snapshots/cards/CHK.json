@@ -767,6 +767,35 @@
     ]
 }
 
+// Ghostly Prison
+{
+    "name": "Ghostly Prison",
+    "manaCost": "{2}{W}",
+    "typeLine": "Enchantment",
+    "oracleText": "Creatures can't attack you unless their controller pays {2} for each creature they control that's attacking you.",
+    "script": {
+        "staticAbilities": [
+            {
+                "type": "AttackTax",
+                "amountPerAttacker": {
+                    "type": "Fixed",
+                    "amount": 2
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "10",
+        "rarity": "UNCOMMON",
+        "artist": "Wayne England",
+        "flavorText": "\"May the memory of our fallen heroes ensnare the violent hearts of lesser men.\"\n—Great Threshold of Monserkat inscription",
+        "imageUri": "https://cards.scryfall.io/normal/front/8/2/82d7de2b-c909-48dc-9ab7-c4a8328e37bb.jpg"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
 // Hold the Line
 {
     "name": "Hold the Line",

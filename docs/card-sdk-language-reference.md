@@ -4882,6 +4882,7 @@ copy of it (CR 707.10e). The activated-ability analogue of the spell-level `cant
 
 > **Where set-mechanic helpers live.** The `card { … }` keyword helpers below for *set-specific*
 > mechanics — `mayBeginGameOnBattlefield()`, `flurry { }`, `mobilize(…)`, `firebending(n)`, `sneak(cost)`, `decayed()`,
+> `umbraArmor()`,
 > `vividEtb { }` / `vividCostReduction()`, `convergeEntersWithCounters(counterType?)`,
 > `impending(time, cost)`, `renew(cost) { }`, `enduring()`,
 > `craft(filter, cost)`, `station()`, `jobSelect()` — are `CardBuilder` **extension functions** in
@@ -5198,6 +5199,10 @@ composite abilities).
   counter directly: `StateProjector` projects the `DECAYED` keyword + `cantBlock = true`, and `TriggerDetector`
   schedules the end-of-combat self-sacrifice when a decayed-countered creature is declared as an attacker — no
   per-card static/trigger needed for the counter form.
+- `Umbra armor` — "If enchanted creature would be destroyed, instead remove all damage from it and destroy this Aura"
+  (CR 702.118, Rise of the Eldrazi umbra cycle). Display-only keyword; wire with `card { umbraArmor() }` on Aura
+  definitions. The engine replacement runs in `ZoneMovementUtils.tryUmbraArmorReplacement` (destroy effects) and
+  `LethalDamageCheck` (lethal-damage SBA) before the host would be put into a graveyard.
 - `Exploit` — "Exploit (When this creature enters, you may sacrifice a creature.)" (CR 702.110, Dragons of Tarkir;
   reprinted MH1/MH2/VOW/PIP/MH3). Display-only keyword; wire the behavior with the `card { exploit(onExploit, onExploitTargets) }`
   builder helper. It adds the keyword plus one `EntersBattlefield` triggered ability whose effect is a

@@ -153,6 +153,42 @@
     ]
 }
 
+// Boar Umbra
+{
+    "name": "Boar Umbra",
+    "manaCost": "{2}{G}",
+    "typeLine": "Enchantment — Aura",
+    "oracleText": "Enchant creature\nEnchanted creature gets +3/+3.\nUmbra armor (If enchanted creature would be destroyed, instead remove all damage from it and destroy this Aura.)",
+    "keywords": [
+        "UMBRA_ARMOR"
+    ],
+    "script": {
+        "staticAbilities": [
+            {
+                "type": "ModifyStats",
+                "powerBonus": 3,
+                "toughnessBonus": 3
+            }
+        ],
+        "auraTarget": {
+            "type": "TargetObject",
+            "filter": {
+                "baseFilter": "creature"
+            }
+        }
+    },
+    "metadata": {
+        "collectorNumber": "179",
+        "rarity": "UNCOMMON",
+        "artist": "Christopher Moeller",
+        "flavorText": "\"From in here, everything looks like dinner.\"",
+        "imageUri": "https://cards.scryfall.io/normal/front/8/d/8dfdec4f-e66a-48f8-ba6d-13459e80b52c.jpg"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
 // Cadaver Imp
 {
     "name": "Cadaver Imp",
@@ -480,6 +516,45 @@
     ]
 }
 
+// Hyena Umbra
+{
+    "name": "Hyena Umbra",
+    "manaCost": "{W}",
+    "typeLine": "Enchantment — Aura",
+    "oracleText": "Enchant creature\nEnchanted creature gets +1/+1 and has first strike.\nUmbra armor (If enchanted creature would be destroyed, instead remove all damage from it and destroy this Aura.)",
+    "keywords": [
+        "UMBRA_ARMOR"
+    ],
+    "script": {
+        "staticAbilities": [
+            {
+                "type": "ModifyStats",
+                "powerBonus": 1,
+                "toughnessBonus": 1
+            },
+            {
+                "type": "GrantKeyword",
+                "keyword": "FIRST_STRIKE"
+            }
+        ],
+        "auraTarget": {
+            "type": "TargetObject",
+            "filter": {
+                "baseFilter": "creature"
+            }
+        }
+    },
+    "metadata": {
+        "collectorNumber": "26",
+        "artist": "Christopher Moeller",
+        "flavorText": "\"I am bound to all my children. We share one hide, one heart, one hunger.\"",
+        "imageUri": "https://cards.scryfall.io/normal/front/f/1/f1461e2f-fb1d-4092-9935-4cee092f27e7.jpg"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
 // Kor Spiritdancer
 {
     "name": "Kor Spiritdancer",
@@ -562,6 +637,46 @@
                 "text": "An ability that triggers when a player casts a spell resolves before the spell that caused it to trigger. It resolves even if that spell is countered."
             }
         ]
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
+// Mammoth Umbra
+{
+    "name": "Mammoth Umbra",
+    "manaCost": "{4}{W}",
+    "typeLine": "Enchantment — Aura",
+    "oracleText": "Enchant creature\nEnchanted creature gets +3/+3 and has vigilance.\nUmbra armor (If enchanted creature would be destroyed, instead remove all damage from it and destroy this Aura.)",
+    "keywords": [
+        "UMBRA_ARMOR"
+    ],
+    "script": {
+        "staticAbilities": [
+            {
+                "type": "ModifyStats",
+                "powerBonus": 3,
+                "toughnessBonus": 3
+            },
+            {
+                "type": "GrantKeyword",
+                "keyword": "VIGILANCE"
+            }
+        ],
+        "auraTarget": {
+            "type": "TargetObject",
+            "filter": {
+                "baseFilter": "creature"
+            }
+        }
+    },
+    "metadata": {
+        "collectorNumber": "37",
+        "rarity": "UNCOMMON",
+        "artist": "Christopher Moeller",
+        "flavorText": "\"The mammoth's hide is a canvas for the shamans, its soul a dwelling for ancestral spirits.\"",
+        "imageUri": "https://cards.scryfall.io/normal/front/7/6/76f1abef-385d-4202-8a45-835c37c4e242.jpg"
     },
     "colorIdentityOverride": [
         "WHITE"
@@ -870,6 +985,62 @@
     },
     "colorIdentityOverride": [
         "BLUE"
+    ]
+}
+
+// Snake Umbra
+{
+    "name": "Snake Umbra",
+    "manaCost": "{2}{G}",
+    "typeLine": "Enchantment — Aura",
+    "oracleText": "Enchant creature\nEnchanted creature gets +1/+1 and has \"Whenever this creature deals damage to an opponent, you may draw a card.\"\nUmbra armor (If enchanted creature would be destroyed, instead remove all damage from it and destroy this Aura.)",
+    "keywords": [
+        "UMBRA_ARMOR"
+    ],
+    "script": {
+        "staticAbilities": [
+            {
+                "type": "ModifyStats",
+                "powerBonus": 1,
+                "toughnessBonus": 1
+            },
+            {
+                "type": "GrantTriggeredAbility",
+                "ability": {
+                    "id": "ability_1",
+                    "trigger": {
+                        "type": "DealsDamageEvent",
+                        "recipient": "RecipientOpponent"
+                    },
+                    "effect": {
+                        "type": "Gated",
+                        "gate": "Gate.MayDecide",
+                        "then": {
+                            "type": "DrawCards",
+                            "count": {
+                                "type": "Fixed",
+                                "amount": 1
+                            }
+                        }
+                    }
+                }
+            }
+        ],
+        "auraTarget": {
+            "type": "TargetObject",
+            "filter": {
+                "baseFilter": "creature"
+            }
+        }
+    },
+    "metadata": {
+        "collectorNumber": "207",
+        "artist": "Christopher Moeller",
+        "flavorText": "\"The snake's venom is a gift to the strong. It has no sting for the meek.\"",
+        "imageUri": "https://cards.scryfall.io/normal/front/4/a/4a011820-80c6-484f-84be-f07f0e45f1a8.jpg"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
     ]
 }
 

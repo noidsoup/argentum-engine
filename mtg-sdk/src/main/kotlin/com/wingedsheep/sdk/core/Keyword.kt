@@ -257,6 +257,12 @@ enum class Keyword(val displayName: String) {
     PERSIST("Persist"),
 
     /**
+     * Umbra armor (CR 702.118). Display-only marker on Aura cards; the replacement is wired by
+     * [com.wingedsheep.sdk.dsl.umbraArmor] and enforced in [ZoneMovementUtils.tryUmbraArmorReplacement].
+     */
+    UMBRA_ARMOR("Umbra armor"),
+
+    /**
      * Undying (CR 702.92).
      * "When this creature dies, if it had no +1/+1 counters on it, return it to the battlefield
      * under its owner's control with a +1/+1 counter on it."
