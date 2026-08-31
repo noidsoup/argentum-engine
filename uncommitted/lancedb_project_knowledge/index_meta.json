@@ -1,0 +1,6 @@
+{
+  "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+  "embedding_dim": 384,
+  "normalize_embeddings": true,
+  "table": "knowledge_chunks"
+}

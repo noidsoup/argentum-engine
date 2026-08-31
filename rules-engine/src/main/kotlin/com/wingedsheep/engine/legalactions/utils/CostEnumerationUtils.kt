@@ -4,25 +4,28 @@ import com.wingedsheep.engine.handlers.PredicateContext
 import com.wingedsheep.engine.handlers.PredicateEvaluator
 import com.wingedsheep.engine.handlers.effects.permanent.counters.counterTypeToString
 import com.wingedsheep.engine.legalactions.*
+import com.wingedsheep.engine.mechanics.SummoningSicknessRules
 import com.wingedsheep.engine.mechanics.mana.CostCalculator
 import com.wingedsheep.engine.mechanics.mana.ManaSolver
 import com.wingedsheep.engine.mechanics.mana.ManaSource
+import com.wingedsheep.engine.mechanics.mana.SpellPaymentContext
+import com.wingedsheep.engine.mechanics.mana.TapForGeneric
+import com.wingedsheep.engine.mechanics.mana.projectedColorsOf
 import com.wingedsheep.engine.registry.CardRegistry
 import com.wingedsheep.engine.state.GameState
 import com.wingedsheep.engine.state.ZoneKey
 import com.wingedsheep.engine.state.components.battlefield.AttachedToComponent
 import com.wingedsheep.engine.state.components.battlefield.CountersComponent
-import com.wingedsheep.engine.state.components.battlefield.SummoningSicknessComponent
 import com.wingedsheep.engine.state.components.battlefield.TappedComponent
 import com.wingedsheep.engine.state.components.identity.CardComponent
 import com.wingedsheep.sdk.core.Color
-import com.wingedsheep.sdk.core.Keyword
 import com.wingedsheep.sdk.core.ManaCost
 import com.wingedsheep.sdk.core.Zone
 import com.wingedsheep.sdk.model.EntityId
 import com.wingedsheep.sdk.scripting.AbilityCost
 import com.wingedsheep.sdk.scripting.GameObjectFilter
 import com.wingedsheep.sdk.scripting.costs.CostAtom
+import com.wingedsheep.sdk.scripting.values.DynamicAmount
 
 /**
  * Extracted cost-checking helpers from LegalActionsCalculator.
@@ -64,13 +67,30 @@ class CostEnumerationUtils(
         }
     }
 
+    /**
+     * Battlefield permanents [playerId] controls that match a sacrifice cost's [filter].
+     *
+     * [sourceId] is the permanent whose ability carries the cost. It goes into the
+     * [PredicateContext] so a **source-relative** cost filter resolves against the ability's own
+     * source instead of being source-blind — "Sacrifice an Equipment attached to Ronin" /
+     * "Sacrifice an Aura attached to this creature" is `…attachedToSource()`, i.e.
+     * `StatePredicate.IsAttachedToSource`, which is unconditionally false without a source.
+     *
+     * That direction is not universal: a *negated* source-relative predicate
+     * (`notAttachedToSource()`, `CardPredicate.NotOfSourceChosenType`) matches everything when no
+     * source is present, so supplying one makes the candidate pool *smaller*, not larger. Either
+     * way the enumerated pool must match what payment will accept, so pass it from every
+     * activated-ability enumeration site; null is only correct where the cost genuinely has no
+     * source permanent.
+     */
     fun findAbilitySacrificeTargets(
         state: GameState,
         playerId: EntityId,
         filter: GameObjectFilter,
-        excludeEntityId: EntityId? = null
+        excludeEntityId: EntityId? = null,
+        sourceId: EntityId? = null
     ): List<EntityId> {
-        val predicateContext = PredicateContext(controllerId = playerId)
+        val predicateContext = PredicateContext(controllerId = playerId, sourceId = sourceId)
         val projected = state.projectedState
         return projected.getBattlefieldControlledBy(playerId).filter { entityId ->
             if (entityId == excludeEntityId) return@filter false
@@ -82,14 +102,25 @@ class CostEnumerationUtils(
 
     // --- Tap targets ---
 
+    /**
+     * Untapped battlefield permanents [playerId] controls that match a tap cost's [filter].
+     *
+     * [excludeEntityId] is the cost's own source when
+     * [CostAtom.TapPermanents.excludeSelf][com.wingedsheep.sdk.scripting.costs.CostAtom.TapPermanents.excludeSelf]
+     * is set — "tap another untapped …". Pass `if (atom.excludeSelf) sourceId else null` from every
+     * enumeration site so the offered pool matches what payment validation will accept; a plain
+     * "tap two untapped …" may tap the source itself, so null is correct there.
+     */
     fun findAbilityTapTargets(
         state: GameState,
         playerId: EntityId,
-        filter: GameObjectFilter
+        filter: GameObjectFilter,
+        excludeEntityId: EntityId? = null
     ): List<EntityId> {
         val predicateContext = PredicateContext(controllerId = playerId)
         val projected = state.projectedState
         return projected.getBattlefieldControlledBy(playerId).filter { entityId ->
+            if (entityId == excludeEntityId) return@filter false
             val container = state.getEntity(entityId) ?: return@filter false
             container.get<CardComponent>() ?: return@filter false
             if (container.has<TappedComponent>()) return@filter false
@@ -115,16 +146,37 @@ class CostEnumerationUtils(
 
     // --- Exile targets ---
 
+    /**
+     * The cards an exile cost may be paid with.
+     *
+     * [anyPlayersZone] widens the pool from the payer's copy of [zone] to every player's — Night
+     * Soil exiles "two creature cards from a single graveyard", and an opponent's graveyard is
+     * fair game. [singleZone] then adds that cost's other half: all [count] cards must come out of
+     * the *same* copy, so a graveyard holding fewer than [count] matches can never contribute to a
+     * legal payment and is dropped here. Dropping it is what keeps a naive "take the first
+     * [count]" consumer — the AI's strategist, the auto-payment path — from assembling a
+     * cross-graveyard selection the payment handler would reject.
+     */
     fun findExileTargets(
         state: GameState,
         playerId: EntityId,
         filter: GameObjectFilter,
-        zone: Zone
+        zone: Zone,
+        anyPlayersZone: Boolean = false,
+        singleZone: Boolean = false,
+        count: Int = 1,
     ): List<EntityId> {
-        val zoneKey = ZoneKey(playerId, zone)
         val predicateContext = PredicateContext(controllerId = playerId)
-        return state.getZone(zoneKey).filter { entityId ->
-            predicateEvaluator.matches(state, state.projectedState, entityId, filter, predicateContext)
+        val owners = if (anyPlayersZone) state.turnOrder else listOf(playerId)
+        val matchesByOwner = owners.map { owner ->
+            state.getZone(ZoneKey(owner, zone)).filter { entityId ->
+                predicateEvaluator.matches(state, state.projectedState, entityId, filter, predicateContext)
+            }
+        }
+        return if (singleZone) {
+            matchesByOwner.filter { it.size >= count }.flatten()
+        } else {
+            matchesByOwner.flatten()
         }
     }
 
@@ -196,26 +248,47 @@ class CostEnumerationUtils(
             val cardComponent = container.get<CardComponent>() ?: return@mapNotNull null
             if (!projected.isCreature(entityId)) return@mapNotNull null
             if (container.has<TappedComponent>()) return@mapNotNull null
-            ConvokeCreatureData(entityId, cardComponent.name, cardComponent.colors)
+            // Projected colours, so the list offered here is the list `AlternativePaymentHandler`
+            // will accept — a creature turned another colour convokes for that colour.
+            ConvokeCreatureData(entityId, cardComponent.name, projectedColorsOf(projected, entityId))
         }
     }
 
+    /**
+     * Whether [manaCost] is payable with the help of convoke taps. [spellContext] describes the
+     * spell being cast (or ability being activated) so conditional floating mana — "spend this
+     * mana only to cast spells with mana value 4 or greater" (Ashling, Rimebound) — counts toward
+     * affordability when it is eligible for *this* payment. Passing null ignores restricted mana
+     * entirely, which under-reports affordability and hides the cast from the client.
+     *
+     * [tapForGenericPermanents] lets a *second* payment help on the same spell — improvise
+     * (CR 702.126) is grantable over a whole card type (Ironheart, Clever Champion), so it lands
+     * on convoke spells that never printed it. Each such tap pays {1} generic on top of convoke's
+     * own reduction, exactly as `CastSpellHandler` applies them in sequence.
+     */
     fun canAffordWithConvoke(
         state: GameState,
         playerId: EntityId,
         manaCost: ManaCost,
         convokeCreatures: List<ConvokeCreatureData>,
-        precomputedSources: List<ManaSource>? = null
+        precomputedSources: List<ManaSource>? = null,
+        spellContext: SpellPaymentContext? = null,
+        tapForGenericPermanents: List<TapForGenericPermanentData> = emptyList()
     ): Boolean {
         // Convoke creatures with their own mana abilities (e.g. Llanowar Elves) appear in
         // both lists — but tapping the creature can pay either a convoke pip or a mana
         // ability, never both. Exclude them from the mana-source count so the totals
         // don't double-up.
         val convokeIds = convokeCreatures.mapTo(mutableSetOf()) { it.entityId }
+        // An artifact *creature* qualifies for both convoke and improvise, but one tap pays one
+        // of them — `applyTapForGeneric` skips anything convoke already tapped. Drop the overlap
+        // so it isn't counted twice here either.
+        val tapPermanents = tapForGenericPermanents.filter { it.entityId !in convokeIds }
+        val tapIds = tapPermanents.mapTo(mutableSetOf()) { it.entityId }
         val sourcesForMana = (precomputedSources ?: manaSolver.findAvailableManaSources(state, playerId))
-            .filter { it.entityId !in convokeIds }
-        val availableMana = manaSolver.getAvailableManaCount(state, playerId, sourcesForMana)
-        val totalResources = availableMana + convokeCreatures.size
+            .filter { it.entityId !in convokeIds && it.entityId !in tapIds }
+        val availableMana = manaSolver.getAvailableManaCount(state, playerId, sourcesForMana, spellContext)
+        val totalResources = availableMana + convokeCreatures.size + tapPermanents.size
         if (totalResources < manaCost.cmc) return false
 
         val coloredRequirements = manaCost.colorCount
@@ -232,55 +305,62 @@ class CostEnumerationUtils(
         }
         val genericRequired = manaCost.genericAmount
         val creaturesForGeneric = convokeCreatures.size - creaturesUsedForColors
-        val resourcesForGeneric = availableMana + creaturesForGeneric
+        // Tap-for-generic is generic-only, so it joins the generic pool and never the colored one.
+        val resourcesForGeneric = availableMana + creaturesForGeneric + tapPermanents.size
         return resourcesForGeneric >= genericRequired
     }
 
-    // --- Waterbend ---
+    // --- Tap-for-generic (Improvise CR 702.126 / Waterbend) ---
 
     /**
-     * Untapped artifacts/creatures the player controls that may be tapped for a Waterbend cost.
-     * Projected types are used so animated lands / type-changed permanents are honored.
+     * Untapped permanents the player controls that may be tapped for a tap-for-generic payment —
+     * artifacts only for [TapForGeneric.IMPROVISE], artifacts or creatures for
+     * [TapForGeneric.WATERBEND]. Projected types are used so animated lands / type-changed
+     * permanents are honored.
      */
-    fun findWaterbendPermanents(state: GameState, playerId: EntityId): List<WaterbendPermanentData> {
+    fun findTapForGenericPermanents(
+        state: GameState,
+        playerId: EntityId,
+        eligibility: TapForGeneric
+    ): List<TapForGenericPermanentData> {
         val projected = state.projectedState
         return projected.getBattlefieldControlledBy(playerId).mapNotNull { entityId ->
             val container = state.getEntity(entityId) ?: return@mapNotNull null
             val cardComponent = container.get<CardComponent>() ?: return@mapNotNull null
-            val isCreature = projected.isCreature(entityId)
-            val isArtifact = projected.hasType(entityId, "ARTIFACT")
-            if (!isCreature && !isArtifact) return@mapNotNull null
+            if (!eligibility.matches(projected, entityId)) return@mapNotNull null
             if (container.has<TappedComponent>()) return@mapNotNull null
-            WaterbendPermanentData(entityId, cardComponent.name, isCreature)
+            TapForGenericPermanentData(entityId, cardComponent.name, projected.isCreature(entityId))
         }
     }
 
     /**
-     * Whether [manaCost] is payable with the help of waterbend taps. Each tapped permanent pays
-     * exactly {1} generic, so colored pips must come from mana sources; the generic portion may
-     * be covered by mana sources and/or waterbend permanents. A permanent tapped for waterbend
-     * can't also be a mana source, so any that double as mana sources are excluded from the mana
-     * count.
+     * Whether [manaCost] is payable with the help of tap-for-generic taps (improvise/waterbend).
+     * Each tapped permanent pays exactly {1} generic, so colored pips must come from mana sources;
+     * the generic portion may be covered by mana sources and/or tapped permanents. A permanent
+     * tapped this way can't also be a mana source, so any that double as mana sources are excluded
+     * from the mana count. [spellContext] lets eligible conditional floating mana count — see
+     * [canAffordWithConvoke].
      */
-    fun canAffordWithWaterbend(
+    fun canAffordWithTapForGeneric(
         state: GameState,
         playerId: EntityId,
         manaCost: ManaCost,
-        waterbendPermanents: List<WaterbendPermanentData>,
-        precomputedSources: List<ManaSource>? = null
+        tapPermanents: List<TapForGenericPermanentData>,
+        precomputedSources: List<ManaSource>? = null,
+        spellContext: SpellPaymentContext? = null
     ): Boolean {
-        val waterbendIds = waterbendPermanents.mapTo(mutableSetOf()) { it.entityId }
+        val tapIds = tapPermanents.mapTo(mutableSetOf()) { it.entityId }
         val sourcesForMana = (precomputedSources ?: manaSolver.findAvailableManaSources(state, playerId))
-            .filter { it.entityId !in waterbendIds }
-        val availableMana = manaSolver.getAvailableManaCount(state, playerId, sourcesForMana)
+            .filter { it.entityId !in tapIds }
+        val availableMana = manaSolver.getAvailableManaCount(state, playerId, sourcesForMana, spellContext)
 
-        // Colored pips can only be paid by mana — waterbend is generic-only.
+        // Colored pips can only be paid by mana — these payments are generic-only.
         val coloredRequired = manaCost.colorCount.values.sum()
         if (availableMana < coloredRequired) return false
 
         val genericRequired = manaCost.genericAmount
         val manaLeftForGeneric = availableMana - coloredRequired
-        val resourcesForGeneric = manaLeftForGeneric + waterbendPermanents.size
+        val resourcesForGeneric = manaLeftForGeneric + tapPermanents.size
         return resourcesForGeneric >= genericRequired
     }
 
@@ -306,15 +386,21 @@ class CostEnumerationUtils(
      * Can the player pay [manaCost] either as-is or after tapping a single Harmonize creature
      * (reducing the generic portion by its power)? A creature tapped for Harmonize can't also
      * tap for mana, so it is excluded from the mana sources when evaluating its reduction.
+     * [spellContext] lets eligible conditional floating mana count — see [canAffordWithConvoke].
      */
     fun canAffordWithHarmonize(
         state: GameState,
         playerId: EntityId,
         manaCost: ManaCost,
         harmonizeCreatures: List<HarmonizeCreatureData>,
-        precomputedSources: List<ManaSource>? = null
+        precomputedSources: List<ManaSource>? = null,
+        spellContext: SpellPaymentContext? = null
     ): Boolean {
-        if (manaSolver.canPay(state, playerId, manaCost, precomputedSources = precomputedSources)) return true
+        if (manaSolver.canPay(
+                state, playerId, manaCost,
+                precomputedSources = precomputedSources, spellContext = spellContext
+            )
+        ) return true
         val generic = manaCost.genericAmount
         for (creature in harmonizeCreatures) {
             val reduction = minOf(creature.power, generic)
@@ -322,7 +408,11 @@ class CostEnumerationUtils(
             val reducedCost = manaCost.reduceGeneric(reduction)
             val sourcesForMana = (precomputedSources ?: manaSolver.findAvailableManaSources(state, playerId))
                 .filter { it.entityId != creature.entityId }
-            if (manaSolver.canPay(state, playerId, reducedCost, precomputedSources = sourcesForMana)) return true
+            if (manaSolver.canPay(
+                    state, playerId, reducedCost,
+                    precomputedSources = sourcesForMana, spellContext = spellContext
+                )
+            ) return true
         }
         return false
     }
@@ -341,7 +431,8 @@ class CostEnumerationUtils(
         playerId: EntityId,
         manaCost: ManaCost,
         harmonizeCreatures: List<HarmonizeCreatureData>,
-        precomputedSources: List<ManaSource>? = null
+        precomputedSources: List<ManaSource>? = null,
+        spellContext: SpellPaymentContext? = null
     ): Int {
         if (!manaCost.hasX) return 0
         val xCount = manaCost.xCount.coerceAtLeast(1)
@@ -350,7 +441,7 @@ class CostEnumerationUtils(
 
         fun maxXFor(reduction: Int, excludeId: EntityId?): Int {
             val usable = if (excludeId == null) sources else sources.filter { it.entityId != excludeId }
-            val available = manaSolver.getAvailableManaCount(state, playerId, usable)
+            val available = manaSolver.getAvailableManaCount(state, playerId, usable, spellContext)
             return ((available - fixedCost + reduction) / xCount).coerceAtLeast(0)
         }
 
@@ -374,29 +465,58 @@ class CostEnumerationUtils(
         }
     }
 
+    /**
+     * [spellContext] lets eligible conditional floating mana count — see [canAffordWithConvoke].
+     *
+     * [tapForGenericPermanents] lets improvise (CR 702.126) help pay what delve leaves behind —
+     * delve spells are noncreature, so Ironheart, Clever Champion grants improvise to every one of
+     * them. Delve exiles first, then each tap pays {1} of the remaining generic, matching the order
+     * `CastSpellHandler` applies them in.
+     */
     fun canAffordWithDelve(
         state: GameState,
         playerId: EntityId,
         manaCost: ManaCost,
         delveCards: List<DelveCardData>,
-        precomputedSources: List<ManaSource>? = null
+        precomputedSources: List<ManaSource>? = null,
+        spellContext: SpellPaymentContext? = null,
+        tapForGenericPermanents: List<TapForGenericPermanentData> = emptyList()
     ): Boolean {
         val maxDelve = minOf(delveCards.size, manaCost.genericAmount)
         val reducedCost = manaCost.reduceGeneric(maxDelve)
-        return manaSolver.canPay(state, playerId, reducedCost, precomputedSources = precomputedSources)
+        if (tapForGenericPermanents.isNotEmpty()) {
+            return canAffordWithTapForGeneric(
+                state, playerId, reducedCost, tapForGenericPermanents,
+                precomputedSources = precomputedSources, spellContext = spellContext
+            )
+        }
+        return manaSolver.canPay(
+            state, playerId, reducedCost,
+            precomputedSources = precomputedSources, spellContext = spellContext
+        )
     }
 
+    /** [spellContext] lets eligible conditional floating mana count — see [canAffordWithConvoke]. */
     fun calculateMinDelveNeeded(
         state: GameState,
         playerId: EntityId,
         manaCost: ManaCost,
         delveCards: List<DelveCardData>,
-        precomputedSources: List<ManaSource>? = null
+        precomputedSources: List<ManaSource>? = null,
+        spellContext: SpellPaymentContext? = null
     ): Int {
-        if (manaSolver.canPay(state, playerId, manaCost, precomputedSources = precomputedSources)) return 0
+        if (manaSolver.canPay(
+                state, playerId, manaCost,
+                precomputedSources = precomputedSources, spellContext = spellContext
+            )
+        ) return 0
         val maxDelve = minOf(delveCards.size, manaCost.genericAmount)
         for (delveCount in 1..maxDelve) {
-            if (manaSolver.canPay(state, playerId, manaCost.reduceGeneric(delveCount), precomputedSources = precomputedSources)) {
+            if (manaSolver.canPay(
+                    state, playerId, manaCost.reduceGeneric(delveCount),
+                    precomputedSources = precomputedSources, spellContext = spellContext
+                )
+            ) {
                 return delveCount
             }
         }
@@ -412,15 +532,15 @@ class CostEnumerationUtils(
     fun canPayTapCost(state: GameState, entityId: EntityId): Boolean {
         val container = state.getEntity(entityId) ?: return false
         if (container.has<TappedComponent>()) return false
-        val cardComponent = container.get<CardComponent>() ?: return false
         // Read creature-ness / haste from projected state so a Vehicle or animated permanent
-        // that is currently a creature is gated. Lands keep the carve-out (basic-land mana
-        // abilities are not restricted by summoning sickness).
-        if (!cardComponent.typeLine.isLand && state.projectedState.isCreature(entityId)) {
-            val hasSummoningSickness = container.has<SummoningSicknessComponent>()
-            val hasHaste = state.projectedState.hasKeyword(entityId, Keyword.HASTE)
-            if (hasSummoningSickness && !hasHaste) return false
-        }
+        // that is currently a creature is gated. Gating on `isCreature` alone (no `isLand`
+        // carve-out) is already correct for plain lands — a land that isn't also a creature
+        // never satisfies `isCreature` — and it's the only way to catch a land that *is* also a
+        // creature (Dryad Arbor: "This land ... is affected by summoning sickness"), which a
+        // land-wide carve-out would silently exempt.
+        if (state.projectedState.isCreature(entityId) &&
+            SummoningSicknessRules.blocksTapOrUntapCost(entityId, container, state.projectedState)
+        ) return false
         return true
     }
 
@@ -435,11 +555,9 @@ class CostEnumerationUtils(
         if (attachedEntity.has<TappedComponent>()) return false
         // Read creature-ness / haste from projected state so a Vehicle or animated permanent
         // currently being a creature is gated.
-        if (state.projectedState.isCreature(attachedId)) {
-            val hasSummoningSickness = attachedEntity.has<SummoningSicknessComponent>()
-            val hasHaste = state.projectedState.hasKeyword(attachedId, Keyword.HASTE)
-            if (hasSummoningSickness && !hasHaste) return false
-        }
+        if (state.projectedState.isCreature(attachedId) &&
+            SummoningSicknessRules.blocksTapOrUntapCost(attachedId, attachedEntity, state.projectedState)
+        ) return false
         return true
     }
 
@@ -493,12 +611,42 @@ class CostEnumerationUtils(
     /**
      * Calculate max affordable X for activated abilities, considering various X cost types.
      */
+    /**
+     * Does this cost make the player choose an X that is *not* paid in mana — "remove any number
+     * of counters from ~" ([CostAtom.RemoveCounters] with an [DynamicAmount.XValue] count) or
+     * "tap X permanents"?
+     *
+     * Shared by every enumerator that builds a `LegalAction`, because the answer decides whether
+     * the client opens its X picker at all. An enumerator that forgets to ask hands the player an
+     * activation with no choice, which then pays X = 0 — the storage lands (Bottomless Vault and
+     * its cycle) removing zero counters for zero mana was exactly that.
+     */
+    fun hasPlayerChosenNonManaX(abilityCost: AbilityCost): Boolean {
+        fun isXCounterRemoval(cost: AbilityCost): Boolean =
+            cost is AbilityCost.Atom &&
+                (cost.atom as? CostAtom.RemoveCounters)?.count is DynamicAmount.XValue
+        return when (abilityCost) {
+            is AbilityCost.TapXPermanents -> true
+            is AbilityCost.Atom -> isXCounterRemoval(abilityCost)
+            is AbilityCost.Composite -> abilityCost.costs.any {
+                it is AbilityCost.TapXPermanents || isXCounterRemoval(it)
+            }
+            else -> false
+        }
+    }
+
     fun calculateMaxAffordableX(
         state: GameState,
         playerId: EntityId,
         abilityCost: AbilityCost,
         manaCost: ManaCost?,
-        precomputedSources: List<ManaSource>? = null
+        precomputedSources: List<ManaSource>? = null,
+        /**
+         * The permanent whose ability this is. Cost filters routinely scope to it — a
+         * "remove any number of +1/+1 counters from ~" cost filters with `sourceItself()`
+         * (`StatePredicate.IsSource`), which can never match without this, capping X at 0.
+         */
+        sourceId: EntityId? = null
     ): Int {
         var maxX = if (manaCost != null && manaCost.hasX) {
             val availableSources = manaSolver.getAvailableManaCount(state, playerId, precomputedSources)
@@ -512,14 +660,27 @@ class CostEnumerationUtils(
             Int.MAX_VALUE
         }
 
-        // Cap by graveyard size if ExileXFromGraveyard
-        val hasExileXCost = when (abilityCost) {
-            is AbilityCost.Composite -> abilityCost.costs.any { it is AbilityCost.ExileXFromGraveyard }
-            else -> false
+        // Cap by the graveyard cards an ExileXFromGraveyard cost could actually exile. The cap must
+        // honor the cost's own filter, not just the graveyard size: Winter, Cursed Rider exiles X
+        // *artifact* cards, so a graveyard of five with two artifacts affords X = 2, not X = 5.
+        // Offering the larger X would let the player pick an activation whose payment then fails in
+        // CostHandler (which does apply the filter). A filter-less cost (Necropolis Fiend) matches
+        // every card, so this stays the plain graveyard size there.
+        val exileXCosts = when (abilityCost) {
+            is AbilityCost.Composite -> abilityCost.costs.filterIsInstance<AbilityCost.ExileXFromGraveyard>()
+            is AbilityCost.ExileXFromGraveyard -> listOf(abilityCost)
+            else -> emptyList()
         }
-        if (hasExileXCost) {
-            val graveyardZone = ZoneKey(playerId, Zone.GRAVEYARD)
-            maxX = minOf(maxX, state.getZone(graveyardZone).size)
+        if (exileXCosts.isNotEmpty()) {
+            val graveyard = state.getZone(ZoneKey(playerId, Zone.GRAVEYARD))
+            val projected = state.projectedState
+            val context = PredicateContext(controllerId = playerId, sourceId = sourceId)
+            exileXCosts.forEach { cost ->
+                val matching = graveyard.count { cardId ->
+                    predicateEvaluator.matches(state, projected, cardId, cost.filter, context)
+                }
+                maxX = minOf(maxX, matching)
+            }
         }
 
         // Cap by the counters available for any X-valued counter-removal cost. Use projected
@@ -539,13 +700,23 @@ class CostEnumerationUtils(
         if (removeXAtoms.isNotEmpty()) {
             val projected = state.projectedState
             val counterCaps = removeXAtoms.map { atom ->
+                    // A self-scoped removal ("remove any number of counters from ~") comes off the
+                    // source alone; counting every matching permanent would overstate the cap.
+                    if (atom.self) {
+                        val type = atom.counterType?.let {
+                            com.wingedsheep.engine.handlers.effects.permanent.counters.resolveCounterType(it)
+                        }
+                        val counters = sourceId?.let { state.getEntity(it)?.get<CountersComponent>() }
+                        return@map if (type != null) counters?.getCount(type) ?: 0
+                        else counters?.counters?.values?.sum() ?: 0
+                    }
                     val type = atom.counterType?.let {
                         com.wingedsheep.engine.handlers.effects.permanent.counters.resolveCounterType(it)
                     }
                     projected.getBattlefieldControlledBy(playerId).sumOf { entityId ->
                         if (!predicateEvaluator.matches(
                                 state, projected, entityId, atom.filter,
-                                PredicateContext(controllerId = playerId)
+                                PredicateContext(controllerId = playerId, sourceId = sourceId)
                             )
                         ) 0
                         else {

@@ -29,6 +29,9 @@ const ScenarioBuilderPage = lazy(() =>
 const LlmTournamentPage = lazy(() =>
   import('./components/llmTournament/LlmTournamentPage').then(({ LlmTournamentPage }) => ({ default: LlmTournamentPage }))
 )
+const AiSandboxPage = lazy(() =>
+  import('./components/aiSandbox/AiSandboxPage').then(({ AiSandboxPage }) => ({ default: AiSandboxPage }))
+)
 const SetCompletionPage = lazy(() =>
   import('./components/setCompletion/SetCompletionPage').then(({ SetCompletionPage }) => ({ default: SetCompletionPage }))
 )
@@ -43,6 +46,12 @@ const FriendsPage = lazy(() =>
 )
 const StatsPage = lazy(() =>
   import('./pages/StatsPage').then(({ StatsPage }) => ({ default: StatsPage }))
+)
+const LearnPage = lazy(() =>
+  import('./pages/LearnPage').then(({ LearnPage }) => ({ default: LearnPage }))
+)
+const HelpPage = lazy(() =>
+  import('./pages/HelpPage').then(({ HelpPage }) => ({ default: HelpPage }))
 )
 const PublicProfilePage = lazy(() =>
   import('./pages/PublicProfilePage').then(({ PublicProfilePage }) => ({ default: PublicProfilePage }))
@@ -73,8 +82,14 @@ createRoot(rootElement).render(
           <Route path="/stats" element={<StatsPage />} />
           <Route path="/u/:userId" element={<PublicProfilePage />} />
           <Route path="/friends" element={<FriendsPage />} />
+          <Route path="/help" element={<HelpPage />} />
+          <Route path="/help/:section" element={<HelpPage />} />
+          <Route path="/learn" element={<LearnPage />} />
+          <Route path="/learn/:missionId" element={<LearnPage />} />
           <Route path="/llm-tournament" element={<LlmTournamentPage />} />
           <Route path="/llm-tournament/:id" element={<LlmTournamentPage />} />
+          <Route path="/ai-sandbox" element={<AiSandboxPage />} />
+          <Route path="/ai-sandbox/:lobbyId" element={<AiSandboxPage />} />
           <Route path="*" element={<App />} />
         </Routes>
       </Suspense>

@@ -5,8 +5,8 @@ import com.wingedsheep.engine.core.GameEvent as EngineGameEvent
 import com.wingedsheep.engine.handlers.DynamicAmountEvaluator
 import com.wingedsheep.engine.handlers.EffectContext
 import com.wingedsheep.engine.handlers.effects.EffectExecutor
-import com.wingedsheep.engine.handlers.effects.DamageUtils
 import com.wingedsheep.engine.handlers.effects.DamageUtils.dealDamageToTarget
+import com.wingedsheep.engine.handlers.effects.DamageUtils
 import com.wingedsheep.engine.state.GameState
 import com.wingedsheep.sdk.scripting.effects.DealDamageEffect
 import com.wingedsheep.sdk.scripting.targets.EffectTarget
@@ -42,14 +42,7 @@ class DealDamageExecutor(
             // and was dropped by 608.2b validation), the whole damage instruction is skipped
             // per CR 608.2b — we don't fall back to the ability's source permanent. This is a
             // legal no-op fizzle, not an error: the surrounding effect (e.g. Composite) resolves.
-            //
-            // Exception: EffectTarget.Self is the resolving ability/spell's own source. When that
-            // permanent has left the battlefield, resolveTarget(Self) is null, but CR 112.7a /
-            // 608.2h still lets "this creature deals damage equal to its power" use the source id
-            // with last-known characteristics (Predatory Urge, self-sacrifice burn). Fall back to
-            // context.sourceId rather than no-opping.
             context.resolveTarget(damageSourceTarget, state)
-                ?: (context.sourceId.takeIf { damageSourceTarget == EffectTarget.Self })
                 ?: return EffectResult.success(state)
         } else {
             context.sourceId
@@ -58,6 +51,33 @@ class DealDamageExecutor(
         val (lifeGainCauseId, lifeGainCauseTypeLine, lifeGainCauseColors) =
             DamageUtils.resolvingSpellCauseLki(state, context)
 
+        // "Each opponent and planeswalker it has dealt damage to this game" (The Fallen): a set
+        // that mixes players and permanents, read off the damage source's accumulated memory.
+        // Empty is a legal no-op, not an error — a Fallen that has damaged nobody yet does nothing.
+        if (effect.target is EffectTarget.EachDamagedBySourceThisGame) {
+            val recipients = resolveDamagedThisGame(state, sourceId, context)
+            val (readyState, pause) = OptionalDamageRedirect.beforeDealing(
+                state,
+                recipients.map { OptionalDamageRedirect.Instance(sourceId, it, amount) },
+                effect,
+                context
+            )
+            if (pause != null) return pause
+            var newState = readyState
+            val events = mutableListOf<EngineGameEvent>()
+            for (recipientId in recipients) {
+                val result = dealDamageToTarget(
+                    newState, recipientId, amount, sourceId, effect.cantBePrevented,
+                    lifeGainCauseId = lifeGainCauseId,
+                    lifeGainCauseTypeLine = lifeGainCauseTypeLine,
+                    lifeGainCauseColors = lifeGainCauseColors,
+                )
+                newState = result.newState
+                events.addAll(result.events)
+            }
+            return EffectResult.success(newState, events)
+        }
+
         // For PlayerRef targets, resolve to potentially multiple players
         if (effect.target is EffectTarget.PlayerRef) {
             val playerIds = context.resolvePlayerTargets(effect.target, state)
@@ -65,7 +85,14 @@ class DealDamageExecutor(
                 return EffectResult.error(state, "No valid target for damage")
             }
 
-            var newState = state
+            val (readyState, pause) = OptionalDamageRedirect.beforeDealing(
+                state,
+                playerIds.map { OptionalDamageRedirect.Instance(sourceId, it, amount) },
+                effect,
+                context
+            )
+            if (pause != null) return pause
+            var newState = readyState
             val events = mutableListOf<EngineGameEvent>()
             for (playerId in playerIds) {
                 val result = dealDamageToTarget(
@@ -84,12 +111,43 @@ class DealDamageExecutor(
         val targetId = context.resolveTarget(effect.target, state)
             ?: return EffectResult.error(state, "No valid target for damage")
 
+        // "You may have that damage dealt to you instead" (Blood of the Martyr) — ask before dealing.
+        val (readyState, pause) = OptionalDamageRedirect.beforeDealing(
+            state,
+            listOf(OptionalDamageRedirect.Instance(sourceId, targetId, amount)),
+            effect,
+            context
+        )
+        if (pause != null) return pause
+
         return dealDamageToTarget(
-            state, targetId, amount, sourceId, effect.cantBePrevented,
+            readyState, targetId, amount, sourceId, effect.cantBePrevented,
             excessToController = effect.excessToController,
             lifeGainCauseId = lifeGainCauseId,
             lifeGainCauseTypeLine = lifeGainCauseTypeLine,
             lifeGainCauseColors = lifeGainCauseColors,
         )
+    }
+
+    /**
+     * The recipients still eligible to be hit again: opponents of the source's controller, plus
+     * planeswalkers still on the battlefield. A recorded player who has since left the game, and a
+     * planeswalker that has since died, are dropped — the memory identifies them, it doesn't
+     * resurrect them. Ordered deterministically by the recorded set's iteration order.
+     */
+    private fun resolveDamagedThisGame(
+        state: GameState,
+        sourceId: com.wingedsheep.sdk.model.EntityId?,
+        context: EffectContext
+    ): List<com.wingedsheep.sdk.model.EntityId> {
+        val sourceEntity = sourceId?.let(state::getEntity) ?: return emptyList()
+        val recorded = sourceEntity
+            .get<com.wingedsheep.engine.state.components.battlefield.DealtDamageToThisGameComponent>()
+            ?.recipientIds
+            ?: return emptyList()
+        val opponents = state.getOpponents(context.controllerId).toSet()
+        val battlefield = state.getBattlefield().toSet()
+        val projected = state.projectedState
+        return recorded.filter { it in opponents || (it in battlefield && projected.isPlaneswalker(it)) }
     }
 }

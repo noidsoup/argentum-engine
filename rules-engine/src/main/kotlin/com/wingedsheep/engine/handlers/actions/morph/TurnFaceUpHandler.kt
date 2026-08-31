@@ -26,11 +26,13 @@ import com.wingedsheep.engine.state.components.battlefield.TappedComponent
 import com.wingedsheep.engine.state.components.identity.CardComponent
 import com.wingedsheep.engine.state.components.identity.ControllerComponent
 import com.wingedsheep.engine.state.components.identity.FaceDownComponent
-import com.wingedsheep.engine.state.components.identity.ManifestedComponent
+import com.wingedsheep.engine.state.components.identity.FaceDownModeComponent
 import com.wingedsheep.engine.state.components.identity.MorphDataComponent
 import com.wingedsheep.engine.state.components.player.ManaPoolComponent
 import com.wingedsheep.engine.state.components.player.TurnedPermanentFaceUpThisTurnComponent
 import com.wingedsheep.sdk.core.Color
+import com.wingedsheep.sdk.core.ManaCost
+import com.wingedsheep.sdk.core.ManaSymbol
 import com.wingedsheep.sdk.dsl.Effects
 import com.wingedsheep.sdk.scripting.costs.CostAtom
 import com.wingedsheep.sdk.scripting.costs.PayCost
@@ -64,8 +66,25 @@ class TurnFaceUpHandler(
     // Creeping Peeper) be recognized when paying a turn-face-up cost from the pool.
     private val faceUpContext = SpellPaymentContext(isTurnFaceUpAction = true)
 
+    /**
+     * The turn-up cost as a *concrete* amount of mana, with the chosen X folded in.
+     *
+     * A `{X}` symbol has no mana of its own (CR 107.3 — X is 0 until a value is announced), so a
+     * cost like Aurelia's Vindicator's `Disguise {X}{3}{W}` reads as `{3}{W}` to anything that just
+     * pays a [ManaCost]. The [ManaSolver] paths take `xValue` as a separate argument and charge it
+     * themselves; [ManaPool.pay] has no such argument, so the pool paths must resolve X into
+     * generic mana up front or the player flips for free. `xCount` is the number of `{X}` symbols
+     * (`{X}{X}{R}` charges X twice).
+     */
+    private fun withXResolved(cost: ManaCost, xValue: Int): ManaCost {
+        if (!cost.hasX) return cost
+        val xMana = xValue * cost.xCount.coerceAtLeast(1)
+        val withoutX = ManaCost(cost.symbols.filterNot { it is ManaSymbol.X })
+        return if (xMana > 0) withoutX + ManaCost(listOf(ManaSymbol.generic(xMana))) else withoutX
+    }
+
     override fun validate(state: GameState, action: TurnFaceUp): String? {
-        if (state.priorityPlayerId != action.playerId) {
+        if (!state.hasPriority(action.playerId)) {
             return "You don't have priority"
         }
 
@@ -93,17 +112,25 @@ class TurnFaceUpHandler(
         val morphData = container.get<MorphDataComponent>()
             ?: return "This creature cannot be turned face up (no morph cost)"
 
+        // Which turn-up procedure the player picked. Only a manifested/cloaked card that also
+        // prints morph or disguise offers more than one (CR 701.40c/d, 701.58c/d); the index is
+        // client-supplied, so bounds-check it here rather than trusting it.
+        val procedure = morphData.procedures.getOrNull(action.procedureIndex)
+            ?: return "No such turn-up procedure: ${action.procedureIndex}"
+
         // Validate cost payment based on morph cost type.
-        // Apply morph cost increases from permanents like Exiled Doomsayer.
-        val morphCostIncrease = costCalculator.calculateMorphCostIncrease(state)
-        val morphCost = morphData.morphCost
+        val morphCost = procedure.cost
         val manaMorph = (morphCost as? PayCost.Atom)?.atom as? CostAtom.Mana
         when {
             manaMorph != null -> {
                 // Mana morph payment stays in this handler: it carries the rich up-front UX
                 // (explicit mana-source selection, X, auto-tap preview) that the shared
                 // CostPaymentService's yes/no mana path deliberately doesn't model.
-                val manaCost = costCalculator.increaseGenericCost(manaMorph.cost, morphCostIncrease)
+                // Increases (Exiled Doomsayer) then the procedure's own reduction (Fugitive
+                // Codebreaker) — the same pricing the enumerator quoted.
+                val manaCost = costCalculator.calculateTurnFaceUpCost(
+                    state, manaMorph.cost, procedure.costReduction, action.playerId, action.sourceId
+                )
                 val xValue = action.xValue ?: 0
                 when (action.paymentStrategy) {
                     is PaymentStrategy.AutoPay -> {
@@ -123,7 +150,7 @@ class TurnFaceUpHandler(
                             colorless = poolComponent.colorless,
                             restrictedMana = poolComponent.restrictedMana
                         )
-                        if (!costHandler.canPayManaCost(pool, manaCost, faceUpContext)) {
+                        if (!costHandler.canPayManaCost(pool, withXResolved(manaCost, xValue), faceUpContext)) {
                             return "Insufficient mana in pool to turn this creature face up"
                         }
                     }
@@ -173,18 +200,26 @@ class TurnFaceUpHandler(
         val morphData = container.get<MorphDataComponent>()
             ?: return ExecutionResult.error(state, "No morph data found")
 
+        val procedure = morphData.procedures.getOrNull(action.procedureIndex)
+            ?: return ExecutionResult.error(state, "No such turn-up procedure: ${action.procedureIndex}")
+
         val cardComponent = container.get<CardComponent>()
         val cardDef = cardRegistry.getCard(morphData.originalCardDefinitionId)
         val cardName = cardDef?.name ?: cardComponent?.name ?: "Unknown"
 
-        // Pay the morph cost (including any morph cost increases)
-        val morphCostIncrease = costCalculator.calculateMorphCostIncrease(currentState)
+        // Pay the morph cost (including any morph cost increases and self-scoped reductions)
         val xValue = action.xValue ?: 0
-        val morphCost = morphData.morphCost
+        val morphCost = procedure.cost
+        // CR 702.37b ties megamorph's +1/+1 counter to the megamorph cost specifically, so the
+        // face-up effect rides the procedure: a cloaked megamorph creature turned face up for its
+        // mana cost instead gets no counter.
+        val faceUpEffect = procedure.faceUpEffect
         val manaMorph = (morphCost as? PayCost.Atom)?.atom as? CostAtom.Mana
         when {
             manaMorph != null -> {
-                val manaCost = costCalculator.increaseGenericCost(manaMorph.cost, morphCostIncrease)
+                val manaCost = costCalculator.calculateTurnFaceUpCost(
+                    currentState, manaMorph.cost, procedure.costReduction, action.playerId, action.sourceId
+                )
                 when (action.paymentStrategy) {
                     is PaymentStrategy.FromPool -> {
                         val poolComponent = currentState.getEntity(action.playerId)?.get<ManaPoolComponent>()
@@ -199,7 +234,7 @@ class TurnFaceUpHandler(
                             restrictedMana = poolComponent.restrictedMana
                         )
 
-                        val newPool = costHandler.payManaCost(pool, manaCost, faceUpContext)
+                        val newPool = costHandler.payManaCost(pool, withXResolved(manaCost, xValue), faceUpContext)
                             ?: return ExecutionResult.error(currentState, "Insufficient mana in pool")
 
                         currentState = currentState.updateEntity(action.playerId) { c ->
@@ -354,7 +389,7 @@ class TurnFaceUpHandler(
             // face down — equivalent to never having taken the action.
             else -> {
                 val flip: com.wingedsheep.sdk.scripting.effects.Effect =
-                    morphData.faceUpEffect
+                    faceUpEffect
                         ?.let { Effects.Composite(TurnFaceUpEffect(EffectTarget.Self), it) }
                         ?: TurnFaceUpEffect(EffectTarget.Self)
                 return when (
@@ -377,22 +412,23 @@ class TurnFaceUpHandler(
             }
         }
 
-        // Turn the creature face up and add static ability components. A manifested permanent
-        // stops being manifested once it's face up (CR 701.40a), so drop the marker too.
+        // Turn the creature face up and add static ability components. The face-down mode marker
+        // goes with it: the characteristic-defining effect (and with it disguise's/cloak's ward
+        // {2}) ends when the permanent is turned face up — CR 701.40a / 701.58a / 702.168a.
         currentState = currentState.updateEntity(action.sourceId) { c ->
-            var updated = c.without<FaceDownComponent>().without<ManifestedComponent>()
+            var updated = c.without<FaceDownComponent>().without<FaceDownModeComponent>()
             updated = staticAbilityHandler.addContinuousEffectComponent(updated)
             updated = staticAbilityHandler.addReplacementEffectComponent(updated)
             updated
         }
 
         // Execute face-up replacement effect (e.g., "put five +1/+1 counters on it")
-        if (morphData.faceUpEffect != null) {
+        if (faceUpEffect != null) {
             val effectContext = com.wingedsheep.engine.handlers.EffectContext(
                 sourceId = action.sourceId,
                 controllerId = action.playerId,
             )
-            val effectResult = effectExecutorRegistry.execute(currentState, morphData.faceUpEffect, effectContext)
+            val effectResult = effectExecutorRegistry.execute(currentState, faceUpEffect, effectContext)
             if (effectResult.error == null) {
                 currentState = effectResult.state
                 events.addAll(effectResult.events)

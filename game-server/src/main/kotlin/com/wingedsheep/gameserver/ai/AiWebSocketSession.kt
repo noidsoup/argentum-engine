@@ -50,7 +50,13 @@ class AiWebSocketSession(
     private val onActionReady: (EntityId, GameAction) -> Unit,
     private val onMulliganKeep: (EntityId) -> Unit,
     private val onMulliganTake: (EntityId) -> Unit,
-    private val onBottomCards: (EntityId, List<EntityId>) -> Unit
+    private val onBottomCards: (EntityId, List<EntityId>) -> Unit,
+    /**
+     * Local testing mode: the last word on what this seat submits. Given the move the AI chose, it
+     * may hold the decision until a human approves it and may hand back a different move entirely
+     * (see [AiInsightService]). Null in normal play, where the AI's own pick goes straight through.
+     */
+    private val actionGate: AiActionGate? = null,
 ) : WebSocketSession {
 
     // =========================================================================
@@ -273,6 +279,19 @@ class AiWebSocketSession(
             return
         }
 
+        // Team priority (CR 805.5) offers a bot its own actions while its human partner holds the
+        // baton. The bot takes its window in baton order instead — GameState.hasPriority's KDoc:
+        // widening permission never took a window away, and a bot racing its partner for every
+        // response would spend windows the human never got to see. So outside a decision addressed
+        // to us, act only when the seat these actions belong to is the baton holder (a hijacked
+        // seat we drive still qualifies: its actions carry that seat's id, which IS the baton).
+        // `priorityPlayerId` is kept current by applyDelta, so it is safe to read here.
+        val actingSeat = legalActions.firstOrNull()?.action?.playerId
+        if (!isOurDecision && actingSeat != null && actingSeat != state.priorityPlayerId) {
+            logger.info("AI skipping — team priority window belongs to the baton holder {}", state.priorityPlayerId)
+            return
+        }
+
         if (legalActions.isNotEmpty()) {
             logger.info("AI has {} legal actions: {}", legalActions.size,
                 legalActions.joinToString(", ") { "${it.actionType}${if (it.description.isNotBlank()) "(${it.description})" else ""}" })
@@ -294,7 +313,14 @@ class AiWebSocketSession(
             delay(thinkingDelayMs * 4)
         }
 
-        submitResponse(response)
+        // The gate runs *after* the AI has chosen and therefore after the decision was recorded, so
+        // a human holding the game is looking at the finished ranking rather than a blank panel.
+        val gated = if (response is ActionResponse.SubmitAction && actionGate != null) {
+            ActionResponse.SubmitAction(actionGate.approve(aiPlayerId, response.action))
+        } else {
+            response
+        }
+        submitResponse(gated)
     }
 
     /**
@@ -523,6 +549,7 @@ class AiWebSocketSession(
             turnNumber = delta.turnNumber ?: previous.turnNumber,
             isGameOver = delta.isGameOver ?: previous.isGameOver,
             winnerId = if (delta.winnerId != null) delta.winnerId else previous.winnerId,
+            dayNight = delta.dayNight ?: previous.dayNight,
             combat = combat,
             gameLog = gameLog,
         )

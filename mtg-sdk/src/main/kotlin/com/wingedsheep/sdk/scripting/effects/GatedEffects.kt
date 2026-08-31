@@ -1,11 +1,50 @@
 package com.wingedsheep.sdk.scripting.effects
 
 import com.wingedsheep.sdk.core.Zone
+import com.wingedsheep.sdk.scripting.AbilityId
 import com.wingedsheep.sdk.scripting.conditions.Condition
 import com.wingedsheep.sdk.scripting.targets.EffectTarget
 import com.wingedsheep.sdk.scripting.text.TextReplacer
+import com.wingedsheep.sdk.scripting.values.DynamicAmount
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+
+/**
+ * Reminder text under a yes/no prompt whose number is only known at resolution.
+ *
+ * A printed "you may … *that much* damage / *that many* cards" renders the same sentence on every
+ * instance, so when several instances of one ability are on the stack at once the prompts are
+ * indistinguishable and the player is choosing blind. [template]'s `{n}` placeholder is replaced
+ * with [amount] evaluated against the resolving context, turning "you may have it deal that much
+ * damage" into a prompt that says *which* number this instance carries.
+ *
+ * The oracle text in the prompt itself is left alone — this is a line underneath it.
+ *
+ * ```
+ * MayEffect(
+ *     Effects.DealDamage(DynamicAmount.ContextProperty(ContextPropertyKey.TRIGGER_DAMAGE_AMOUNT), victim),
+ *     dynamicHint = DynamicHint(
+ *         "This instance would deal {n} damage.",
+ *         DynamicAmount.ContextProperty(ContextPropertyKey.TRIGGER_DAMAGE_AMOUNT),
+ *     ),
+ * )
+ * ```
+ *
+ * @property template Hint text containing `{n}` where the number belongs. Text without `{n}` is
+ *   shown unchanged, which is simply a static hint.
+ * @property amount Evaluated at resolution against the same context the gated effect resolves in,
+ *   so it sees the triggering event's values.
+ */
+@Serializable
+data class DynamicHint(
+    val template: String,
+    val amount: DynamicAmount
+) {
+    companion object {
+        /** The placeholder [template] substitutes. */
+        const val PLACEHOLDER: String = "{n}"
+    }
+}
 
 // =============================================================================
 // Gated effects — one resolution frame for the optional / gated-effect cluster
@@ -22,7 +61,7 @@ import kotlinx.serialization.Serializable
  *
  *  1. Targets for [then] / [otherwise] are locked when the ability is put on the stack
  *     (trigger time, CR 603.3d) — independent of the gate, before the gate is resolved.
- *  2. The gate is resolved at resolution time (CR 117.3a) via [decisionMaker].
+ *  2. The gate is resolved at resolution time (CR 608.2c) via [decisionMaker].
  *  3. On success → [then]; on failure → [otherwise].
  *
  * This is the "composition over enumeration" replacement for the wrapper-per-concern
@@ -85,6 +124,10 @@ data class GatedEffect(
                 append(". Otherwise, ${otherwise.description.replaceFirstChar { it.lowercase() }}")
             }
         }
+        // The budget gate is invisible in prompt text — the "Do this only once each turn" rider is
+        // rendered once, on the owning TriggeredAbility. Rendering it here too would double it up
+        // inside the enclosing "You may …" prompt.
+        is Gate.OnceEachTurn -> then.description
     }
 
     override fun applyTextReplacement(replacer: TextReplacer): Effect {
@@ -119,6 +162,9 @@ sealed interface Gate {
      *
      * @property prompt Optional override for the yes/no prompt text.
      * @property hint Optional reminder text shown under the prompt.
+     * @property dynamicHint Reminder text whose number is resolved at resolution ([DynamicHint]).
+     *   Takes precedence over [hint] when set — use it when several instances of one ability can be
+     *   on the stack at once carrying different numbers, so the prompts can be told apart.
      * @property sourceRequiredZone If set, the gate is skipped silently (no prompt, nothing
      *   happens) when the source has left this zone by resolution — e.g. a "when this dies, you
      *   may ..." ability whose source is no longer where the may-action needs it.
@@ -136,6 +182,7 @@ sealed interface Gate {
     data class MayDecide(
         val prompt: String? = null,
         val hint: String? = null,
+        val dynamicHint: DynamicHint? = null,
         val sourceRequiredZone: Zone? = null,
         val inlineOnTrigger: Boolean = false,
         val feasibility: FeasibilityCheck? = null
@@ -227,6 +274,49 @@ sealed interface Gate {
     data object MayPayX : Gate {
         override fun applyTextReplacement(replacer: TextReplacer): Gate = this
     }
+
+    /**
+     * Not a decision — a **per-turn action budget**. Models the printed rider "*Do this only once
+     * each turn*" (Jennifer Walters // The Sensational She-Hulk, Baron Strucker, HYDRA Overlord).
+     *
+     * The gate succeeds iff the source permanent's controller has not yet taken this ability's
+     * indicated action this turn; succeeding *spends* the budget when [spend] is true, so at most
+     * one resolution per turn runs the real payoff. Check and spend are one atomic step in the
+     * executor — there is no window where two simultaneous instances both see an unspent budget.
+     *
+     * **This is not the trigger cap — the two printed templates are different and must not be
+     * swapped.** Per CR 603.2h an ability carrying "Do this only once each turn" *triggers only if
+     * its source's controller has not yet taken the indicated action that turn*: while the action
+     * is untaken every matching event triggers a fresh instance, and once it is taken the ability
+     * stops triggering for the rest of the turn and instances already on the stack do nothing as
+     * they resolve. The other wording, "*This ability triggers only once each turn*", stops after
+     * the *first trigger* whether or not the action happened, and is
+     * [com.wingedsheep.sdk.scripting.TriggeredAbility.oncePerTurn] instead.
+     *
+     * Cards never author this gate directly: set
+     * [com.wingedsheep.sdk.scripting.TriggeredAbility.effectOncePerTurn] and the engine lowers it
+     * into this gate at trigger-processing time. For an optional ability the lowering emits *two*
+     * of these: a [spend]`= false` check outside the consent gate, so an instance whose budget is
+     * already gone resolves silently instead of raising a yes/no that cannot matter, and the
+     * spending one inside it, so declining costs nothing.
+     *
+     * @property abilityId The ability whose budget this gate reads. Budgets are tracked per
+     *   (source permanent, ability) — CR 603.2h scopes the rider to "*its source's controller*" for
+     *   *that* ability, and the Nykthos Paragon ruling spells it out: two copies of the permanent
+     *   each get their own use. The id is carried explicitly rather than read off `EffectContext`
+     *   because `EffectContext.abilityIdentity` is definition-scoped and null for synthesized
+     *   sources (spell copies), which would silently merge or lose budgets.
+     * @property spend Whether succeeding also marks the action taken. `false` is a read-only
+     *   pre-check used by the lowering above; exactly one gate per ability may spend.
+     */
+    @SerialName("Gate.OnceEachTurn")
+    @Serializable
+    data class OnceEachTurn(
+        val abilityId: AbilityId,
+        val spend: Boolean = true
+    ) : Gate {
+        override fun applyTextReplacement(replacer: TextReplacer): Gate = this
+    }
 }
 
 /**
@@ -252,6 +342,30 @@ fun OptionalCostEffect(
 )
 
 /**
+ * Gates that are the printed **"you may"** — the controller's own consent to the effect, as opposed
+ * to a state test ([Gate.WhenCondition]) or a bookkeeping cap ([Gate.OnceEachTurn]).
+ *
+ * One list, in the SDK, because three layers ask the same question about the same value: the DSL
+ * refuses to lower `optional = true` onto an effect that already asks, the engine's
+ * `effectOncePerTurn` lowering has to place its budget gate *inside* this gate, and the trigger
+ * processor decides where a "you may" is answered by whether the effect owns one.
+ */
+val Gate.isConsentGate: Boolean
+    get() = this is Gate.MayDecide || this is Gate.MayPay || this is Gate.MayPayX
+
+/**
+ * Does this effect already ask its controller for consent before doing anything?
+ *
+ * Looks through a [Gate.OnceEachTurn] because the `effectOncePerTurn` lowering sandwiches a capped
+ * optional ability as `OnceEachTurn(spend = false) → May… → OnceEachTurn() → effect`; the consent
+ * gate is still there, one level down.
+ */
+fun Effect.ownsConsentGate(): Boolean {
+    val gated = this as? GatedEffect ?: return false
+    return gated.gate.isConsentGate || (gated.gate is Gate.OnceEachTurn && gated.then.ownsConsentGate())
+}
+
+/**
  * "You may [effect]." — the player may choose to perform or skip [effect].
  *
  * Backwards-compatible facade preserved for the cards that authored against the former
@@ -264,10 +378,16 @@ fun OptionalCostEffect(
  * @param sourceRequiredZone Skip silently if the source has left this zone by resolution.
  * @param inlineOnTrigger Render the yes/no inline on the triggering permanent.
  * @param hint Optional reminder text shown under the prompt.
+ * @param dynamicHint Reminder text whose `{n}` is filled in at resolution ([DynamicHint]); use it
+ *   when several instances of one ability can be on the stack carrying different numbers.
  * @param decisionMaker Who answers the yes/no. Defaults to the controller; only the prompt is
  *   delegated (e.g. [EffectTarget.TargetController] for "that creature's controller may …",
  *   or [EffectTarget.PlayerRef] of `TargetOpponent` for "target opponent may …").
  * @param otherwise Effect that runs iff the chooser declines ("If that player doesn't, …").
+ * @param feasibility Precondition for the may-action being possible at all. Unmet at resolution ⇒ the
+ *   prompt is skipped and [otherwise] runs directly, so a recurring trigger ("whenever this creature
+ *   attacks, you may sacrifice a Food") stops asking an unanswerable question every combat. Only for
+ *   preconditions the *engine* can decide — never to pre-empt a genuine player choice.
  */
 @Suppress("FunctionName")
 fun MayEffect(
@@ -276,13 +396,17 @@ fun MayEffect(
     sourceRequiredZone: Zone? = null,
     inlineOnTrigger: Boolean = false,
     hint: String? = null,
+    dynamicHint: DynamicHint? = null,
     decisionMaker: EffectTarget? = null,
-    otherwise: Effect? = null
+    otherwise: Effect? = null,
+    feasibility: FeasibilityCheck? = null
 ): GatedEffect = GatedEffect(
     gate = Gate.MayDecide(
         hint = hint,
+        dynamicHint = dynamicHint,
         sourceRequiredZone = sourceRequiredZone,
-        inlineOnTrigger = inlineOnTrigger
+        inlineOnTrigger = inlineOnTrigger,
+        feasibility = feasibility
     ),
     then = effect,
     otherwise = otherwise,

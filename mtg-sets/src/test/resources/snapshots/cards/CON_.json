@@ -1,3 +1,58 @@
+// Aerie Mystics
+{
+    "name": "Aerie Mystics",
+    "manaCost": "{4}{W}",
+    "typeLine": "Creature — Bird Wizard",
+    "oracleText": "Flying\n{1}{G}{U}: Creatures you control gain shroud until end of turn. (They can't be the targets of spells or abilities.)",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 3
+    },
+    "keywords": [
+        "FLYING"
+    ],
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": {
+                    "type": "CostAtomWrapper",
+                    "atom": {
+                        "type": "AtomMana",
+                        "cost": "{1}{G}{U}"
+                    }
+                },
+                "effect": {
+                    "type": "ForEach",
+                    "space": {
+                        "type": "IterationSpace.Group",
+                        "filter": {
+                            "baseFilter": "creature ctrl:you"
+                        }
+                    },
+                    "body": {
+                        "type": "GrantKeyword",
+                        "keyword": "SHROUD",
+                        "target": "Self"
+                    }
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "1",
+        "rarity": "UNCOMMON",
+        "artist": "Mark Zug",
+        "flavorText": "They are cautious with their body language and facial expressions. Any stray movement could betray the positions of the troops they protect and cost many lives.",
+        "imageUri": "https://cards.scryfall.io/normal/front/5/8/58e86a42-cc53-4731-819a-e76f203a742a.jpg"
+    },
+    "colorIdentityOverride": [
+        "WHITE",
+        "BLUE",
+        "GREEN"
+    ]
+}
+
 // Armillary Sphere
 {
     "name": "Armillary Sphere",
@@ -69,6 +124,26 @@
         "imageUri": "https://cards.scryfall.io/normal/front/b/0/b06cdd3b-3f8d-4b5e-882b-130b1db750a0.jpg"
     },
     "colorIdentityOverride": []
+}
+
+// Canyon Minotaur
+{
+    "name": "Canyon Minotaur",
+    "manaCost": "{3}{R}",
+    "typeLine": "Creature — Minotaur Warrior",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 3
+    },
+    "metadata": {
+        "collectorNumber": "60",
+        "artist": "Steve Prescott",
+        "flavorText": "On Jund, the deep canyons were the best places to hide. When the goblins wandered into Naya, they found that was not so true.",
+        "imageUri": "https://cards.scryfall.io/normal/front/9/b/9b200790-43c7-42ae-9edf-89c8198a385b.jpg?1783942480"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
 }
 
 // Exotic Orchard
@@ -302,6 +377,46 @@
     ]
 }
 
+// Infectious Horror
+{
+    "name": "Infectious Horror",
+    "manaCost": "{3}{B}",
+    "typeLine": "Creature — Zombie Horror",
+    "oracleText": "Whenever this creature attacks, each opponent loses 2 life.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 2
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": "AttackEvent",
+                "effect": {
+                    "type": "LoseLife",
+                    "amount": {
+                        "type": "Fixed",
+                        "amount": 2
+                    },
+                    "target": {
+                        "type": "PlayerRef",
+                        "player": "EachOpponent"
+                    }
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "47",
+        "artist": "Pete Venters",
+        "flavorText": "Not once in the history of Grixis has anyone died of old age.",
+        "imageUri": "https://cards.scryfall.io/normal/front/b/b/bb460855-f09d-4460-9d3f-1bfcc7f3e626.jpg"
+    },
+    "colorIdentityOverride": [
+        "BLACK"
+    ]
+}
+
 // Progenitus
 {
     "name": "Progenitus",
@@ -411,7 +526,13 @@
                 },
                 "effect": {
                     "type": "PayOrSuffer",
-                    "cost": "OwnManaCost",
+                    "cost": {
+                        "type": "PayAtom",
+                        "atom": {
+                            "type": "AtomMana",
+                            "cost": "{1}"
+                        }
+                    },
                     "suffer": "SacrificeSelf"
                 }
             }
@@ -435,6 +556,50 @@
         "imageUri": "https://cards.scryfall.io/normal/front/5/6/568df642-3ad7-401c-a133-edb56970c3a1.jpg"
     },
     "colorIdentityOverride": []
+}
+
+// Scarland Thrinax
+{
+    "name": "Scarland Thrinax",
+    "manaCost": "{B}{R}{G}",
+    "typeLine": "Creature — Lizard",
+    "oracleText": "Sacrifice a creature: Put a +1/+1 counter on this creature.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 2
+    },
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": {
+                    "type": "CostAtomWrapper",
+                    "atom": {
+                        "type": "AtomSacrifice",
+                        "filter": "creature"
+                    }
+                },
+                "effect": {
+                    "type": "AddCounters",
+                    "counterType": "+1/+1",
+                    "count": 1,
+                    "target": "Self"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "123",
+        "rarity": "UNCOMMON",
+        "artist": "Daarken",
+        "flavorText": "\"There is only one way of life in Jund: feed on the weak until you are cut down by something stronger.\"\n—Jorshu of Clan Nel Toth",
+        "imageUri": "https://cards.scryfall.io/normal/front/e/2/e2a179b9-e962-49a4-ad92-8cd0291296c1.jpg"
+    },
+    "colorIdentityOverride": [
+        "BLACK",
+        "RED",
+        "GREEN"
+    ]
 }
 
 // Sigil of the Empty Throne
@@ -468,9 +633,9 @@
                     ],
                     "keywords": [
                         "FLYING"
-                    ],
-                    "imageUri": "https://cards.scryfall.io/normal/front/d/9/d902520e-b4ed-4805-9f64-096acf7c5f31.jpg?1783942460"
-                }
+                    ]
+                },
+                "descriptionOverride": "Whenever you cast an enchantment spell, create a 4/4 white Angel creature token with flying."
             }
         ]
     },
@@ -537,5 +702,83 @@
     },
     "colorIdentityOverride": [
         "GREEN"
+    ]
+}
+
+// Valiant Guard
+{
+    "name": "Valiant Guard",
+    "manaCost": "{W}",
+    "typeLine": "Creature — Human Soldier",
+    "creatureStats": {
+        "power": 0,
+        "toughness": 3
+    },
+    "metadata": {
+        "collectorNumber": "19",
+        "artist": "Chris Rahn",
+        "flavorText": "As the outsiders invaded Bant, soldiers who once saw sigils as the highest marks of glory began to see the scars of battle as tokens of equal worth.",
+        "imageUri": "https://cards.scryfall.io/normal/front/8/3/83ec1486-900b-4763-9b5b-390cb00aff02.jpg?1783942490"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
+// Volcanic Fallout
+{
+    "name": "Volcanic Fallout",
+    "manaCost": "{1}{R}{R}",
+    "typeLine": "Instant",
+    "oracleText": "This spell can't be countered.\nVolcanic Fallout deals 2 damage to each creature and each player.",
+    "script": {
+        "spellEffect": {
+            "type": "Composite",
+            "effects": [
+                {
+                    "type": "ForEach",
+                    "space": {
+                        "type": "IterationSpace.Group",
+                        "filter": {
+                            "baseFilter": "creature"
+                        }
+                    },
+                    "body": {
+                        "type": "DealDamage",
+                        "amount": {
+                            "type": "Fixed",
+                            "amount": 2
+                        },
+                        "target": "Self"
+                    }
+                },
+                {
+                    "type": "ForEach",
+                    "space": {
+                        "type": "IterationSpace.Players",
+                        "players": "Each"
+                    },
+                    "body": {
+                        "type": "DealDamage",
+                        "amount": {
+                            "type": "Fixed",
+                            "amount": 2
+                        },
+                        "target": "Controller"
+                    }
+                }
+            ]
+        },
+        "cantBeCountered": true
+    },
+    "metadata": {
+        "collectorNumber": "74",
+        "rarity": "UNCOMMON",
+        "artist": "Zoltan Boros & Gabor Szikszai",
+        "flavorText": "\"How can we outrun the sky?\"\n—Hadran, sunseeder of Naya",
+        "imageUri": "https://cards.scryfall.io/normal/front/6/5/65536d12-e75c-42b5-b592-a3ad4f550a71.jpg?1783942477"
+    },
+    "colorIdentityOverride": [
+        "RED"
     ]
 }

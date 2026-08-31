@@ -8,7 +8,8 @@ import com.wingedsheep.engine.handlers.effects.ExecutorModule
  * Module providing all combat-related effect executors.
  */
 class CombatExecutors(
-    private val amountEvaluator: DynamicAmountEvaluator = DynamicAmountEvaluator()
+    private val amountEvaluator: DynamicAmountEvaluator = DynamicAmountEvaluator(),
+    private val cardRegistry: com.wingedsheep.engine.registry.CardRegistry,
 ) : ExecutorModule {
     override fun executors(): List<EffectExecutor<*>> = listOf(
         MustBeBlockedExecutor(),
@@ -24,14 +25,18 @@ class CombatExecutors(
         CantAttackExecutor(),
         CantBlockExecutor(),
         RemoveFromCombatExecutor(),
+        SwapBlockingAssignmentsExecutor(cardRegistry),
         OpponentGuessesTopCardKindExecutor(),
+        PlayerGuessesConditionExecutor(),
         MarkMustAttackThisTurnExecutor(),
+        MarkMustBlockThisTurnExecutor(),
         GoadExecutor(),
         CanAttackDespiteDefenderThisTurnExecutor(),
         RedirectNextDamageExecutor(),
         RedirectCombatDamageToControllerExecutor(),
         GrantAttackBlockTaxPerCreatureTypeExecutor(),
         GrantKeywordToAttackersBlockedByExecutor(),
-        SetSuspectedExecutor()
+        SuspectExecutor(),
+        RemoveSuspectedExecutor()
     )
 }

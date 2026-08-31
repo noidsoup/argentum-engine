@@ -32,6 +32,62 @@ All game logic lives on the server:
 - Legal actions list comes from server, not computed locally
 - Animation events come from server event stream
 
+#### Estimates are readouts, never gates
+
+The client does do some cost arithmetic — `utils/manaCost.ts` parses `manaCostString`, applies
+a convoke/delve/improvise selection to it, subtracts floating mana, and sums the server's
+`availableManaSources`. Every number it produces is a **readout**: the remaining-cost pips in a
+payment HUD, the "may be N short" hint, the pre-selected lands. None of it decides whether a
+submission happens. The rules that keep it honest:
+
+- **A HUD button is never disabled on a client estimate.** `ConvokeSelector`,
+  `TapForGenericSelector` and `HarmonizeSelector` keep Cast live and show the estimate beside it.
+  The estimate is colour-blind and can't see a Phyrexian pip payable with life, so gating on it
+  would both suppress casts the server accepts and pass ones it rejects. The server's answer —
+  the cast, or an error toast naming the problem — is the verdict.
+- **The server validates every alternative-payment choice, not just the total.**
+  `AlternativePaymentHandler.validateForSpell` / `validateForAbility` reject a convoke creature
+  that is tapped, not a creature, not yours, or claimed to be a colour it isn't; a delve card
+  that isn't in your graveyard; an improvise/waterbend permanent that doesn't qualify — before
+  anything is tapped or exiled, with a message that names the permanent. Before this, validation
+  priced whatever the action *claimed* while execution silently skipped the illegal part, so a
+  stale selection either failed as "Cannot pay mana cost" or was quietly covered by auto-tapping
+  lands the player never chose. Which colour a convoked creature pays is a client *preference*
+  (`pickConvokeColor`); whether it *may* pay that colour is the server's.
+- **Server lists are trusted as-is.** `validCreatures` for attackers and blockers already
+  excludes tapped creatures (the engine's `MustBeUntappedAttackRule`, `getValidBlockers`), so
+  `GameCard` no longer re-checks `isTapped` on top of it; the default attack defender is the first
+  living seat in `validAttackTargets`, not the first living opponent in seat order.
+- **A client-side pre-check reads the same data the server reads.** Banding (CR 702.22c, at most
+  one member without banding) is checked in the `linkBand` reducer against `ClientCard.keywords`
+  — the projected keyword set `validateBands` reads — so the client only refuses a band the
+  server would refuse. It used to read a `data-banding` DOM attribute, which counted any member
+  without a rendered element as "no banding".
+- **The payment prompt carries `ManaSourceOption.manaAmount`**, the same field the cast path's
+  `ManaSourceInfo` has, so `manaCoverage.ts` credits a Gilded Lotus with three mana toward a
+  ward — up to three pips of one colour it makes, the rest toward generic. Without it the Pay
+  button stayed dead on a payment the server would have accepted. That prompt
+  (`ManaSourceSelectionUI`) is the one place a button still waits on a client read: the coverage
+  is colour-aware and pip-exact rather than a total, and a short submission is a server error
+  the prompt survives, so the gate costs nothing when it is right. If it is ever found to
+  disagree with the server, drop the gate rather than patch the arithmetic.
+
+Still client-derived, and the shape of the fix for each:
+
+- The **residual cost and affordability of a partial selection** (`pipelineSlice` rewrites
+  `manaCostString` between phases; the HUD shortfall). The server owns the function —
+  `CastSpellHandler.computeTotalCastCost` + `validatePayment` on a draft action — but nothing
+  carries a *cost-given-a-partial-payment* to the client. A read-only `previewCast` request
+  answered from the session lock would replace every copy of the arithmetic with the engine's.
+- **Blocker↔attacker pairing** (menace, evasion, "can't block unless", lure/provoke) is only
+  checked on Confirm. The client submits and the server rejects — the right direction of
+  failure, but a per-attacker `validBlockersFor` on the `DeclareBlockers` legal action would let
+  the drop highlight say so first.
+- The **per-extra-target mana tax** is summed client-side from `manaCostPerExtraTarget`; the
+  **delve / tap caps** (`maxDelve`, improvise `maxTaps` with an X in the cost) are derived from
+  the cost string; the harmonize reduction is applied in a different order than the engine's.
+  All display-only today, all trivially server-sendable.
+
 ### 3. Optimistic UI (Future)
 
 For responsiveness, we may later add:
@@ -194,6 +250,102 @@ decide what to hide. See `data-contracts.md` §B3 for the payload and its two ma
 particular that `remaining` means "copies you haven't seen", which is not always the same as
 "copies in your library".
 
+### Face-up top card
+
+The Deck pile itself renders its top card face up — with an amber ring, an 👁 badge and the normal
+hover preview — whenever the server sent details for entry **0** of that library's `cardIds`. The
+library zone is always transmitted in full (opaque ids for unknown cards), so position is all the
+client needs; the decision about *which* cards carry details is entirely the server's, and it makes
+it for a public reveal (Future Sight, Goblin Spy), a private peek ("you may look at the top card of
+your library any time"), and a scry/surveil the viewer just performed alike. `ZonePiles.tsx` never
+asks why. `TopOfLibraryClientViewTest` pins both halves of the contract: position 0 is the top, and
+the private peek stays out of an opponent's view.
+
+## What a card costs (one card, several prices)
+
+Three surfaces answer "what does this cost?" and they all read the same list, built by
+`utils/actionOptions.ts`'s `buildActionOptions(card, legalActions)`:
+
+- **`ActionMenu`** — one clickable button per option. The full ladder, since this is where the player
+  commits.
+- **`CardPreview`** — the same ladder, read-only, under the hovered card ("Ways to play"), plus the
+  cost badge on the image. Unaffordable rows stay listed and dimmed.
+- **`GameCard`** — the badge on the card in hand. Card-sized, so it shows only the two ends of the
+  span via `playCostRange`.
+
+Sharing the builder is load-bearing. A card usually has several prices — each face of a split or
+adventure card is its own `CastSpell` action, kicker/morph/impending are their own action types, and
+convoke, delve, waterbend, harmonize and emerge all sit above a floor the server sends separately
+(`minimumManaCostString`, or `additionalCostInfo.costAfterSacrifice` for emerge). Each surface used to
+pick a "normal" cast out of `legalActions` with its own hand-maintained list of `actionType` strings to
+exclude, so the three disagreed, and a card whose only cast was an adventure face or a kicker showed
+its printed cost with no sign that the printed cost wasn't the price.
+
+**Keyword alternative costs never come off the legal actions alone.** Impending (CR 702.176) and
+evoke (CR 702.74) both mean "you may cast this for [cost] rather than its mana cost", so the card has
+two live prices — but the enumerator emits only the casts the player can currently *afford*. The cost
+therefore rides on `ClientCard` (`impending`, `evoke`), and `keywordAlternativeCostFor(card)` turns it
+into the pair of buttons `buildActionOptions` always draws, graying out whichever side the server
+didn't enumerate. `shouldShowCastModal` reads the same helper, so drag-to-play opens the menu instead
+of firing the lone affordable cast: a Mulldrifter you can only afford to evoke must not evoke itself —
+and sacrifice itself — because you dragged it out of hand.
+
+Two rules for `playCostRange`: the **low** end applies each option's reduction floor, the **high** end
+deliberately doesn't (the top of the range is what a cast *asks* for before you spend anything on it);
+and only options that actually put the card into play count. Cycling, plotting and suspending are
+things you do *instead of* playing the card, so folding their costs in would make a {1}{G} creature
+with cycling {W} read as a "{W}-to-{1}{G}" spell — they still get their own ladder row.
+
+## "Won't untap" cue
+
+Three server signals mean one thing to a player reading the board — `DOESNT_UNTAP` and
+`CANT_BECOME_UNTAPPED` in `ClientCard.abilityFlags` (both ride the projected keyword set, the same
+one the untap step gates on) and `ClientCard.isExerted` (CR 701.43a). They collapse into a single
+cue: `components/game/card/untapRestriction.ts` picks the strongest, `GameCard` pins a frost padlock
+badge, and a tapped-and-restricted permanent additionally gets `styles.untapLockedOverlay` — an
+inset rime rim that separates "frozen" from the ordinary darkening every tapped permanent wears.
+
+Two things keep it honest. The restriction shows on *untapped* permanents too, because "tapping this
+is one-way" is the read you need before crewing or attacking with it. And the frost is deliberately
+pale, never `TARGET_COLOR`'s saturated cyan, and inset where targeting glows outward — otherwise a
+locked permanent looks like a legal target. Stun counters stay out of the ladder: their own counter
+badge already carries a count, which says more than a padlock would.
+
+A restriction implemented *outside* the layer system (read directly by a manager, as the block
+restrictions are) would stop the untap while leaving the card visually identical to one that untaps
+normally. `UntapRestrictionVisibilityTest` pins the projected-keyword contract this depends on.
+
+## Battlefield card sizing
+
+Battlefield cards are sized from the slot the board grid gives them, not from the window: every
+row's fullest wrap line must fit the slot's width, and all lines, dividers, row paddings and the gap
+toward the center HUD must fit its height. Rows never move — creatures/planeswalkers stay in the
+front row by the HUD, lands/other in the back row at the outer edge — only the card size and the
+wrap-line count per row change with what is on the board. Design and worked numbers:
+[`plans/battlefield-sparse-layout.md`](plans/battlefield-sparse-layout.md).
+
+- **`board/battlefieldLayout.ts`** — the pure solver (`solveSlotLayout`, `solvePooledLayout`) and
+  every geometry constant (card aspect, size floor/ceiling, divider strip, tapped footprint, stack
+  peek, `BACK_ROW_SCALE`). No DOM, no React; `battlefieldLayout.test.ts` pins the reference numbers.
+  An empty row costs no line, and the divider margin / HUD gap / row padding scale with the card
+  actually rendered rather than with the desktop base card.
+- **`board/useBoardGroups.ts`** — groups one side's permanents into stacks (`groupCards`) and derives
+  the per-row stats the solver consumes (stack count, tapped count, capped peek depth).
+- **`board/shared.ts` — `useSlotSizedResponsive`** — measures one battlefield's slot with a
+  `ResizeObserver`, runs `solveSlotLayout`, and re-provides `ResponsiveContext` with the resulting
+  `battlefieldCardWidth` (badges and row padding rescaled by `sizesForCardWidth`). This is the path
+  for multiplayer strip cells, which size themselves per cell.
+- **`board/usePooledBattlefieldLayout.ts`** — the two-player path. `GameBoard` measures the height
+  grid rows 2 and 4 have *together* (container minus the hand reservations and the HUD) and both
+  sides' stats, and `solvePooledLayout` returns one shared card width plus the slot height each side
+  needs; the heights become the `fr` weights of rows 2/4 and the layout reaches both `Battlefield`s
+  through `PooledBattlefieldLayoutContext`. The split is clamped (`SLOT_SPLIT_MIN`) so the HUD stays
+  near the middle. No feedback loop: every measured input (viewport, HUD `auto` height, the fixed
+  zone-pile / command-zone columns) is independent of the layout it produces.
+- Battlefield card boxes ease size changes (`CARD_RESIZE_TRANSITION`, off under
+  `prefers-reduced-motion`); the arrow overlays poll rects every 100 ms and drag-drop resolves with
+  `elementFromPoint`, so both follow a transition without change.
+
 ## Battlefield card grouping (token quantity aggregation)
 
 Identical permanents on one player's board collapse into a single visual **stack**
@@ -252,27 +404,47 @@ are gated on `players.length > 2`).
   name, life (also the floating ±delta anchor via `data-life-display`), hand count, poison,
   commander-damage warning, active-turn ring, priority dot, deciding spinner
   (`opponentDecisionStatus.playerId`), attention pulses, and a tombstone once a player has
-  left the game. The *viewed* opponent additionally keeps a full-size life orb in the
-  center HUD (seat-tinted to match their chip) — the familiar, biggest click target for
-  targeting and defender assignment. Anchors (`data-player-id` / `data-life-id` /
+  left the game, and (desktop) a `kbd` badge with the digit that focuses the board — the
+  same living-opponent index `useMultiplayerView` maps keys 1–9 to, so a tombstone takes
+  no key and the team rail's regrouping never renumbers. With the sliding camera the
+  *viewed* opponent additionally keeps a full-size life orb in the center HUD (seat-tinted
+  to match their chip) — the familiar, biggest click target for targeting and defender
+  assignment. On the two-row table overview that orb is dropped (`centerOrbStandsIn`):
+  every board's plate already prints the name and life, and the orb was the same number
+  sixty pixels above the plate. Anchors (`data-player-id` / `data-life-id` /
   `data-life-display`) are carried by exactly one element per player: the orb for the
-  viewed opponent, the cell's name plate for every other board visible in a shared-strip
-  view (the plate is also a defender-assignment / player-target click target), and the
-  rail chip only while the board is off-screen — never more than one, so arrows, damage
-  floats, and player-target clicks resolve unambiguously.
+  viewed opponent while it stands in, the cell's name plate for every other board visible
+  in a shared-strip view (the plate is also a defender-assignment / player-target click
+  target), and the rail chip only while the board is off-screen — never more than one, so
+  arrows, damage floats, and player-target clicks resolve unambiguously.
 - **Board switching**: rail-chip click (pins; re-click unpins), keyboard `1`/`2`/`3`,
   horizontal swipe. Follow-the-action (`useMultiplayerView` + the `boardView` slice:
   `viewedOpponentId`, `viewPinned`, `followAction`) slides automatically on coarse
   boundaries — an opponent's turn starting, the attacker's board when you're attacked, the
   priority seat in hotseat — and is refused inside `followViewTo` while any input is
-  pending (the camera never moves under an in-progress selection).
+  pending (the camera never moves under an in-progress selection). A pin *suspends* the
+  follow setting rather than flipping it: `followAction` is the persisted preference,
+  `isFollowingAction(state)` (= `followAction && !viewPinned`) is what the camera does and
+  what the rail's Follow button shows, and Esc / re-clicking the chip / clicking Follow all
+  release the pin. Pinning used to write `followAction: false`, which left Esc a no-op and
+  the camera permanently manual after one chip click.
+- **Turn context in a pod**: the step strip names the active seat ("Tomasz's Turn") and,
+  outside a shared-turn team game, how far off your turn is ("You're next" / "You in 2",
+  counted over living seats). Another seat's elimination shows a transient top-centre
+  `EliminationNotice` (derived from `hasLost` flipping in the roster, so it fires however
+  the seat died) and keeps its seat colour in the log.
 - **Table overview** (`boardView.overviewMode`, rail toggle or key `0`; desktop/tablet
-  only — phones keep the focused camera): every living opponent's board shares the strip
+  only — phones keep the focused camera). **Every 3+ player game opens on it** — the
+  one-board camera hides most of a pod — and `GameBoard` re-defaults once per game
+  (keyed on the session id), so focusing a single board sticks for the rest of that game
+  but the next one starts on the overview again. Every living opponent's board shares the strip
   side-by-side instead of the one-board camera — cells split the width evenly (padded
   clear of the fixed rail via `railReservedWidth` and of the Fullscreen/Concede row),
   hand fans hide (chips carry the counts), and the per-slot card sizer shrinks cards to
   fit. Each visible cell gets a seat-colored **name plate** (`BoardNamePlate` — the
-  board's "face": name + life) and the viewed cell a subtle seat-colored inset ring.
+  board's "face": name + life), and the **active player's** cell a subtle seat-colored inset
+  ring (`activeTurnRingColor` — on the top row, the bottom row, and your own cell): with every
+  board on screen at once, whose turn it is is the thing worth highlighting.
   Hidden boards stay mounted after the visible cells at full width, overflowing
   off-screen right, so their card anchors keep remapping to rail chips. Selecting a
   single board (chip click / `1`-`9`) exits back to the focused camera. Each cell can
@@ -294,10 +466,15 @@ are gated on `players.length > 2`).
   arrow onto a rail chip. Entering the split respects the camera guards (follow on,
   unpinned, no pending input — `hasPendingInputSelection`); once active it holds for the
   whole combat so boards don't shift mid-fight.
-- **Eliminated spectator** (`boardView.eliminatedSpectating`): a personal
-  `PlayerEliminatedMessage` marks the defeat overlay `GameOverState.eliminated`, which
-  adds a "Keep Watching" button. It dismisses the overlay, turns on the table overview,
-  and hides all action UI (hand/pass/undo/concede) behind a "spectating" banner + Leave
+- **Eliminated spectator** (`isViewerEliminated`, in the `boardView` slice): the layout is
+  **derived from the roster** — the local seat is `hasLost` while two or more seats are still
+  standing, in a non-hotseat 3+ player game — not from any message or click, so it holds
+  however the seat died (conceding, damage, decking out, poison) and survives a reconnect.
+  Alongside it the server sends a personal `PlayerEliminatedMessage` (from
+  `GamePlayHandler.notifyEliminatedSeats`, once per seat, for *every* loss reason) which marks
+  the defeat overlay `GameOverState.eliminated` and adds a "Keep Watching" button;
+  `boardView.eliminatedSpectating` records only that the player took it, dismissing the overlay.
+  The layout hides all action UI (hand/pass/undo/concede) behind a "spectating" banner + Leave
   Game button. An eliminated player is just an observer without a board of their own
   (`viewerIsObserver` = spectating ‖ eliminated), so they get the same two-row overview a
   spectator gets: the survivors face each other across the table, with a survivor's board
@@ -351,6 +528,30 @@ are gated on `players.length > 2`).
 
 Dev loop: the scenario builder (`POST /api/scenarios`) accepts an N-player `players` seat
 list (3-4 seats ⇒ hotseat) — see `ScenarioSeat` in `ScenarioDtos.kt`.
+
+### Shared card browser (`components/deckbuilder/browser/`)
+
+The deckbuilder's browsing experience is a reusable module, not a page-private one: `SearchBar`
+(Scryfall-style query + sort + syntax help), `FilterSection` (set combobox, colour/type/subtype/
+rarity/keyword chips, numeric ranges — all round-tripped through the raw query string),
+`CardGrid` (lazy images, count badges, draggable tiles), `HoverFollowPreview`, `useCardCatalog`
+(`/api/cards` + `/api/sets`), `useSetPrintingOverride` (reprint art for an active `s:` filter),
+and the `cardDrag` payload every card surface speaks. `CardBrowser` composes them for callers
+that just need "find me a card" in a side pane; `DeckbuilderPage` composes the same pieces into
+its own three-column layout. All of them share `deckbuilder.module.css`.
+
+### Scenario builder (`components/scenario/`)
+
+Split pane: `CardBrowser` on the left, an editable board on the right, divider position
+persisted in localStorage. `builderState.ts` holds the editing model — an ordered seat list, so
+3-4 player pods edit exactly like duels — plus the pure mutations and the `toSpec`/`fromSpec`
+conversions to the wire `ScenarioSpec`; `builderHistory.ts` wraps it in an undo/redo stack
+(⌘Z / ⇧⌘Z). `ScenarioBoard.tsx` renders each seat's zones as drop targets holding real card
+images (tapped permanents lie sideways, counters and attachments show as badges, pile zones
+collapse duplicates to ×N), and `CardEditorModal.tsx` edits one battlefield permanent —
+tapped / summoning sickness, counters of any type, `attachedTo`, and the pre-set "as this
+enters, choose …" values. Cards arrive by drag from the browser, by drag between zones, or by
+click into the currently targeted zone (with an ×N multiplier for filling libraries).
 
 ## 3D Layout
 
@@ -425,8 +626,34 @@ Confirming a step snapshots the outgoing `TargetingState` onto
 stack so the player can revise an already-confirmed target before the action is submitted —
 the restored step keeps its confirmed picks selected, and re-confirming recomputes later
 steps' valid-target pools against the revised selection. The resolution-time
-`ChooseTargetsDecision` flow (`BattlefieldTargetingUI`) implements the same back navigation
-over its local requirement index. Cancel still aborts the whole action.
+`ChooseTargetsDecision` flow (`ChooseTargetsUI`) implements the same back navigation over its
+requirement index. Cancel still aborts the whole action.
+
+`ChooseTargetsUI` also decides, **per requirement**, which UI collects that slot: a requirement
+whose legal targets all live in a graveyard or exile pile goes to `GraveyardTargetingUI` (a pile
+isn't clickable card-by-card on the board), everything else to `BattlefieldTargetingUI`, which
+highlights board objects through `decisionSelectionState`. The two can mix inside one decision —
+The Spot, Living Portal exiles "up to one target nonland permanent **and** up to one target
+nonland permanent card from a graveyard" — so the choice must not be made once for the whole
+decision. Both collectors take the restored picks as `initialSelection`, so Back keeps its
+confirmed selection whichever UI owns the slot.
+
+A **single** requirement can also span both zones (Taskmaster, Mercenary Mimic: "up to one target
+creature on the battlefield **or** creature card in a graveyard"). Then the board banner stays up
+so permanents remain clickable *and* offers a button that opens the pile picker, whose "View
+Battlefield" hands control back; the picks travel with the player in both directions, so either
+half fills the same slot. That routing — `board` / `pile` / `mixed` — is `routeTargetsByZone` in
+`utils/targeting.ts`, shared with the cast-time path (`TargetingOverlay` +
+`ZoneCardTargetingOverlay`) precisely because the two drifted once and left a trigger's graveyard
+targets unreachable. The decision path's walk itself (requirement index, collected picks, which
+collector owns the screen) is the pure reducer in `decisions/chooseTargetsWalk.ts`, which is also
+where its unit tests live — the web-client has no DOM test environment.
+
+The wording on a pile slot ("Exile" vs "Put onto Battlefield" vs "Shuffle into Library") comes
+from `derivePileAction` in `utils/targeting.ts`, which sniffs the decision's `effectHint` prose.
+That hint describes the effect as a whole rather than the individual requirement, so a composite
+whose slots take different verbs would mislabel one of them; the durable fix is a per-requirement
+action hint on `TargetRequirementInfo`.
 
 ## Type Mapping
 

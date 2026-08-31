@@ -275,8 +275,40 @@ data class CreateTokenCopyOfSourceEffect(
      * (e.g. Ran and Shaw's "create a token that's a copy of Ran and Shaw, except it's not
      * legendary"). Mirrors [CreateTokenCopyOfEquippedCreatureEffect.removeLegendary].
      */
-    val removeLegendary: Boolean = false
+    val removeLegendary: Boolean = false,
+    /**
+     * The "except …" clause in the shared [CopyExceptions] vocabulary — the authoring surface for
+     * anything the flat riders above can't say (a name, added subtypes or colors, a half-specified
+     * P/T). Layered over those riders by [copyExceptions], so the two can be combined and neither
+     * silently drops the other.
+     *
+     * The riders stay for the cards that already use them; **new copy exceptions go here.**
+     */
+    val exceptions: CopyExceptions = CopyExceptions.None,
 ) : Effect {
+    /**
+     * This effect's copy exceptions (CR 707.9) in the shared [CopyExceptions] vocabulary, exactly as
+     * [CreateTokenCopyOfTargetEffect.copyExceptions] does for the targeted sibling — so the
+     * self-copy path runs the same engine-side arithmetic instead of a third hand-rolled version.
+     *
+     * [exceptions] layered over the legacy flat riders, which are projected into the same type here.
+     */
+    val copyExceptions: CopyExceptions
+        get() = exceptions.over(
+            CopyExceptions(
+                removedSupertypes = if (removeLegendary) setOf(Supertype.LEGENDARY) else emptySet(),
+                // The legacy field is `Set<String>` of CardType names; unparseable entries are
+                // dropped exactly as the executor used to drop them.
+                addedCardTypes = addCardTypes.mapNotNull { name ->
+                    runCatching { CardType.valueOf(name.uppercase()) }.getOrNull()
+                }.toSet(),
+                // Historically this path applied a P/T override only when *both* halves were given;
+                // keeping that pairing avoids re-interpreting any existing card.
+                powerOverride = overridePower?.takeIf { overrideToughness != null },
+                toughnessOverride = overrideToughness?.takeIf { overridePower != null },
+            )
+        )
+
     override val description: String = buildString {
         append("Create ")
         if (count == 1) append("a token that's a copy of this creature")
@@ -409,7 +441,8 @@ data class CreateTokenCopyOfTargetEffect(
      * Replaces the token copy's card types outright (e.g. Shelob, Child of Ungoliant's copy "is a
      * Food artifact ... and it loses all other card types" → {ARTIFACT}). Null leaves the copied
      * card's card types untouched. Note: when this drops CREATURE, the copy is no longer a creature,
-     * so it won't enter attacking and copies no P/T meaning.
+     * so it won't enter attacking and copies no P/T meaning. Supersedes [addCardTypes], the same way
+     * [overrideSubtypes] supersedes [addedSubtypes] — a printed clause is one or the other.
      */
     val overrideCardTypes: Set<CardType>? = null,
     /**
@@ -474,8 +507,65 @@ data class CreateTokenCopyOfTargetEffect(
      * token is put onto the battlefield under the named player's control. Mirrors
      * [CreateTokenEffect.controller].
      */
-    val controller: EffectTarget? = null
+    val controller: EffectTarget? = null,
+    /**
+     * When true the token copy has **no mana cost** (and so mana value 0) rather than the copied
+     * card's — the "except it … has no mana cost" copy clause on Embalm (CR 702.128a) and
+     * Eternalize. A copiable value in its own right per the Cursecloth Wrappings ruling, so
+     * anything that later copies the token also sees mana value 0.
+     */
+    val noManaCost: Boolean = false,
+    /**
+     * The "except …" clause in the shared [CopyExceptions] vocabulary — the authoring surface for
+     * anything the flat riders above can't say, starting with [CopyExceptions.nameOverride] and a
+     * half-specified P/T. Layered over those riders by [copyExceptions], so the two can be combined
+     * and neither silently drops the other.
+     *
+     * The riders stay for the ~20 card definitions that already use them (and for their serialized
+     * shape); **new copy exceptions go here.**
+     */
+    val exceptions: CopyExceptions = CopyExceptions.None,
+    /**
+     * Stamp each created token with a `CreatedByComponent` naming the effect's source permanent, so
+     * `StatePredicate.CreatedBySource` / `GameObjectFilter.createdBySource()` can recognize *these*
+     * tokens later even when several sources mint same-named ones. The copy-token sibling of
+     * [CreateTokenEffect.stampCreator], and needed for the same reason: Dance of Many's "when this
+     * enchantment leaves the battlefield, exile the token" has to find the one token it made.
+     */
+    val stampCreator: Boolean = false,
 ) : Effect {
+    /**
+     * This effect's copy exceptions (CR 707.9) in the shared [CopyExceptions] vocabulary — the same
+     * value the permanent-copy path
+     * ([EachPermanentBecomesCopyOfTargetEffect.exceptions]) carries, so both are applied by one
+     * engine helper rather than two hand-rolled copies of the type-line math.
+     *
+     * [exceptions] layered over the legacy flat riders, which are projected into the same type here.
+     */
+    val copyExceptions: CopyExceptions
+        get() = exceptions.over(
+            CopyExceptions(
+                addedKeywords = addedKeywords,
+                addedSupertypes = addedSupertypes,
+                removedSupertypes = removedSupertypes,
+                // The legacy field is `Set<String>` of CardType names; unparseable entries are
+                // dropped exactly as the executor used to drop them.
+                addedCardTypes = addCardTypes.mapNotNull { name ->
+                    runCatching { CardType.valueOf(name.uppercase()) }.getOrNull()
+                }.toSet(),
+                overrideCardTypes = overrideCardTypes,
+                addedSubtypes = addedSubtypes,
+                overrideSubtypes = overrideSubtypes,
+                addedColors = addedColors,
+                overrideColors = overrideColors,
+                // Historically the token path applied a P/T override only when *both* halves were
+                // given; keeping that pairing avoids re-interpreting any existing card.
+                powerOverride = overridePower?.takeIf { overrideToughness != null },
+                toughnessOverride = overrideToughness?.takeIf { overridePower != null },
+                noManaCost = noManaCost,
+            )
+        )
+
     override val description: String = buildString {
         append("Create ${count.description} token copies of target permanent")
         // Merge any copiable-value overrides into one clause, e.g. "except it's a 5/5 black Demon".
@@ -540,6 +630,11 @@ data class CreateTokenCopyOfTargetEffect(
  * the cards whose mana value equals the resolved [manaValue], then picks one with the game's
  * seeded RNG (replay-stable). If no creature has that mana value, nothing happens (the cost was
  * still paid). The minted token's own `{X}` reads 0 (it never went on the stack).
+ *
+ * Creatures with [com.wingedsheep.sdk.model.CardDefinition.hasNoManaCost] are never candidates:
+ * having no mana cost is an *unpayable* cost (CR 202.1b / CR 118.6), so they'd land in the
+ * `[manaValue] == 0` bucket while being uncastable non-cards (the meld results, CR 701.42). A
+ * printed `{0}` is payable and stays eligible.
  *
  * Parameterized over [manaValue] (a [DynamicAmount]) rather than baking in "X" so the same
  * primitive serves any "random creature of mana value N" effect; the avatar passes

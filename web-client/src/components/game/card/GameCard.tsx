@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { useGameStore } from '@/store/gameStore.ts'
 import { useHasLegalActions } from '@/store/selectors.ts'
-import type { ClientCard, EntityId } from '@/types'
+import type { ClientCard, EntityId, LegalActionInfo } from '@/types'
 import { Color, ColorSymbols, Keyword } from '@/types/enums'
-import { getCardImageUrl, getScryfallFallbackUrl, MANIFEST_FACE_DOWN_IMAGE_URL, MORPH_FACE_DOWN_IMAGE_URL } from '@/utils/cardImages.ts'
+import { getCardImageUrl, getScryfallFallbackUrl, faceDownImageUrl } from '@/utils/cardImages.ts'
 import { useInteraction } from '@/hooks/useInteraction.ts'
+import { useOpenCardMenuOnTap } from '@/hooks/useOpenCardMenuOnTap.ts'
+import { isGhostMouseEvent, noteTouchInteraction } from '@/utils/ghostMouse.ts'
 import { ManaCost, ManaSymbol } from '@/components/ui/ManaSymbols.tsx'
 import { HoverCardPreview } from '@/components/ui/HoverCardPreview.tsx'
 import {
@@ -26,6 +27,7 @@ import {
   getCardFallbackColor,
   getLoreCounters,
   getStunCounters,
+  getShieldCounters,
   getFinalityCounters,
   getSupplyCounters,
   getStashCounters,
@@ -36,6 +38,8 @@ import {
   getDeathtouchCounters,
   getLifelinkCounters,
   getReachCounters,
+  getHasteCounters,
+  getMenaceCounters,
   getBlightCounters,
   getDecayedCounters,
   getFloodCounters,
@@ -50,15 +54,22 @@ import {
   getCounterCount,
   PASSIVE_COUNTER_TYPES,
 } from '../board/shared'
-import { styles, bandColorFor, passiveCounterBadgeStyle } from '../board/styles'
+import { CARD_RESIZE_TRANSITION, prefersReducedMotion } from '../board/battlefieldLayout'
+import { styles, bandColorFor, passiveCounterBadgeStyle, UNTAP_FROST_RIM, UNTAP_FROST_FILL } from '../board/styles'
 import {
   TARGET_COLOR, TARGET_COLOR_BRIGHT, TARGET_GLOW, TARGET_GLOW_BRIGHT, TARGET_GLOW_OUTER, TARGET_SHADOW,
   SELECTED_COLOR, SELECTED_GLOW, SELECTED_SHADOW,
 } from '@/styles/targetingColors.ts'
 import { KeywordIcons, ActiveEffectBadges } from './CardOverlays'
+import { untapRestrictionOf } from './untapRestriction'
 import { counterManaClass, counterSvgIcon } from '@/assets/icons/keywords'
 import { SvgGlyph } from '@/assets/icons/SvgGlyph'
 import { RenderProfiler } from '@/utils/renderProfiler'
+import { buildActionOptions, playCostRange } from '@/utils/actionOptions.ts'
+import { getRemainingCostAfterConvoke, parseManaCost, pickConvokeColor, totalManaNeeded } from '@/utils/manaCost.ts'
+
+/** Shared empty list for cards that can never be played from where they are — see GameCardImpl. */
+const NO_LEGAL_ACTIONS: readonly LegalActionInfo[] = Object.freeze([])
 
 /** Soft halo colors for the chosen-color gem, keyed by MTG color (see grantedColors). */
 const COLOR_GLOW: Record<Color, string> = {
@@ -96,6 +107,98 @@ interface GameCardProps {
    * battlefield casts it; dropping anywhere along the bottom cancels.
    */
   enableDragToCast?: boolean
+}
+
+/** The three-point coronet shared by the commander crown and both legend chips. */
+const CROWN_PATH = 'M1.5 12 L1.5 9 L4.5 5 L8 8 L12 2 L16 8 L19.5 5 L22.5 9 L22.5 12 Z'
+
+/**
+ * Pill badge that floats over a battlefield card's top edge, carrying a crown glyph and a label.
+ * Used for the two legend chips, which say opposite things about the same supertype and so must
+ * look like one another's mirror — sharing the geometry here is what keeps them aligned as the
+ * card scales, and stops a third variant from being a third copy of ~50 lines of inline style.
+ */
+function LegendChip({
+  width,
+  bandTop,
+  label,
+  title,
+  gradient,
+  textColor,
+  crownFill,
+  struckThrough = false,
+}: {
+  width: number
+  bandTop: number
+  label: string
+  title: string
+  gradient: string
+  textColor: string
+  crownFill: string
+  struckThrough?: boolean
+}) {
+  const chipHeight = Math.max(10, Math.round(width * 0.12))
+  const crownW = Math.round(chipHeight * 0.95)
+  const crownH = Math.round(chipHeight * 0.55)
+  return (
+    <div
+      aria-label={label}
+      title={title}
+      style={{
+        position: 'absolute',
+        top: bandTop - Math.round(chipHeight * 0.55),
+        left: '50%',
+        transform: 'translateX(-50%)',
+        height: chipHeight,
+        padding: `0 ${Math.max(4, Math.round(chipHeight * 0.6))}px`,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 4,
+        background: gradient,
+        color: textColor,
+        fontSize: Math.max(8, Math.round(chipHeight * 0.62)),
+        fontWeight: 800,
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase',
+        borderRadius: chipHeight,
+        border: '1px solid rgba(0, 0, 0, 0.55)',
+        boxShadow: '0 1px 2px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.18)',
+        pointerEvents: 'none',
+        zIndex: 6,
+        whiteSpace: 'nowrap',
+        lineHeight: 1,
+      }}
+    >
+      <span style={{ position: 'relative', width: crownW, height: crownH, display: 'inline-block' }} aria-hidden>
+        <svg
+          viewBox="0 0 24 13"
+          width={crownW}
+          height={crownH}
+          preserveAspectRatio="none"
+          fill={crownFill}
+          stroke="rgba(0, 0, 0, 0.6)"
+          strokeWidth="0.5"
+          strokeLinejoin="round"
+          style={{ position: 'absolute', inset: 0 }}
+        >
+          <path d={CROWN_PATH} />
+        </svg>
+        {struckThrough && (
+          /* Diagonal strike over the crown, so the chip reads "no crown" at a glance. */
+          <svg
+            viewBox="0 0 24 13"
+            width={crownW}
+            height={crownH}
+            preserveAspectRatio="none"
+            style={{ position: 'absolute', inset: 0 }}
+          >
+            <line x1="2" y1="11.5" x2="22" y2="1.5" stroke="#ff6464" strokeWidth="1.4" strokeLinecap="round" />
+          </svg>
+        )}
+      </span>
+      {label}
+    </div>
+  )
 }
 
 /**
@@ -137,7 +240,16 @@ function GameCardImpl({
   const hotseat = useGameStore(
     (state) => ((state.spectatingState?.gameState ?? state.gameState)?.hotseat ?? false),
   )
-  const legalActions = useGameStore((state) => state.legalActions)
+  // `legalActions` is a fresh array on every server update, so subscribing to it re-renders this
+  // card whenever *anything* happens anywhere — and on a full board that is most of the cost of
+  // a click. It is only ever used to find the ways to play *this* card, which can only exist for
+  // a card in hand (or a commander in the command zone); for everything on the battlefield, in a
+  // graveyard, or on the stack the filter below is always empty. Handing those cards a shared
+  // constant instead lets Zustand's Object.is bail-out skip them entirely.
+  const canBePlayedFromHere = inHand || enableDragToCast
+  const legalActions = useGameStore((state) =>
+    canBePlayedFromHere ? state.legalActions : NO_LEGAL_ACTIONS
+  )
   const toggleAttacker = useGameStore((state) => state.toggleAttacker)
   const assignBlocker = useGameStore((state) => state.assignBlocker)
   const removeBlockerAssignment = useGameStore((state) => state.removeBlockerAssignment)
@@ -157,7 +269,10 @@ function GameCardImpl({
   const setAttackTarget = useGameStore((state) => state.setAttackTarget)
   const startDraggingCard = useGameStore((state) => state.startDraggingCard)
   const stopDraggingCard = useGameStore((state) => state.stopDraggingCard)
-  const draggingCardId = useGameStore((state) => state.draggingCardId)
+  // Per-card boolean rather than the raw id: a plain click on any card writes draggingCardId
+  // twice (pointer down, then up), and subscribing to the id itself made every one of those
+  // writes re-render every card on the board. Only "is it this card?" is ever asked.
+  const isDraggingThisCard = useGameStore((state) => state.draggingCardId === card.id)
   const pendingDecision = useGameStore((state) => state.pendingDecision)
   const submitTargetsDecision = useGameStore((state) => state.submitTargetsDecision)
   const decisionSelectionState = useGameStore((state) => state.decisionSelectionState)
@@ -172,29 +287,43 @@ function GameCardImpl({
   const toggleManaSource = useGameStore((state) => state.toggleManaSource)
   const toggleTapForPowerCreature = useGameStore((state) => state.toggleTapForPowerCreature)
   const toggleConvokeCreature = useGameStore((state) => state.toggleConvokeCreature)
-  const toggleWaterbendPermanent = useGameStore((state) => state.toggleWaterbendPermanent)
+  const toggleTapForGenericPermanent = useGameStore((state) => state.toggleTapForGenericPermanent)
   const toggleHarmonizeCreature = useGameStore((state) => state.toggleHarmonizeCreature)
   const submitYesNoDecision = useGameStore((state) => state.submitYesNoDecision)
   const isBeheldPulsing = useGameStore((state) => state.beholdPulses.some((p) => p.cardId === card.id))
   const responsive = useResponsiveContext()
+  const openCardMenuOnTap = useOpenCardMenuOnTap()
   const { handleCardClick, handleDoubleClick, executeAction } = useInteraction()
   const dragStartPos = useRef<{ x: number; y: number } | null>(null)
   const handledByDrag = useRef(false)
   /** Whether the attacker was already selected when drag started (to know if short press = select or deselect) */
   const attackerWasSelected = useRef(false)
 
-  // Hover handlers for card preview — track position via onMouseMove like the deckbuilder
+  // Hover handlers for card preview — track position via the move handler like the deckbuilder.
+  //
+  // Pointer events, not mouse events, and only for a device that can actually hover: a tap fires a
+  // synthesized mouseenter/mousemove pair before its click, so on a phone the preview opened on top
+  // of the action menu that same tap had just opened — and since no mouseleave follows a tap, it
+  // stayed there. Touch reaches the preview through the long-press below instead.
   const updateHoverPosition = useGameStore((s) => s.updateHoverPosition)
+  // While an action menu is open the pointer is still over the card that opened it, and the
+  // preview would land on top of the menu's buttons — the menu already shows the card full-size.
+  const menuOpen = useGameStore((s) => s.selectedCardId !== null)
 
-  const handleMouseEnter = useCallback((e: React.MouseEvent) => {
+  const handleHoverEnter = useCallback((e: React.PointerEvent) => {
+    if (e.pointerType === 'touch' || menuOpen) return
     hoverCard(card.id, { x: e.clientX, y: e.clientY })
-  }, [card.id, hoverCard])
+  }, [card.id, hoverCard, menuOpen])
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+  const handleHoverMove = useCallback((e: React.PointerEvent) => {
+    if (e.pointerType === 'touch') return
     updateHoverPosition({ x: e.clientX, y: e.clientY })
   }, [updateHoverPosition])
 
-  const handleMouseLeave = useCallback(() => {
+  // Guarded on touch too: without it a finger straying off the card during a long-press would clear
+  // the preview that long-press just opened.
+  const handleHoverLeave = useCallback((e: React.PointerEvent) => {
+    if (e.pointerType === 'touch') return
     hoverCard(null)
   }, [hoverCard])
 
@@ -216,6 +345,10 @@ function GameCardImpl({
     }, 400)
   }, [card.id, hoverCard, stopDraggingCard, stopDraggingBlocker])
 
+  // Also wired to touchcancel, not just touchend: a long press is exactly the gesture that makes a
+  // mobile browser take the touch away from us (native text selection / callout), and it delivers
+  // touchcancel instead of touchend when it does. Only listening for touchend left the preview
+  // stuck on screen with no way to dismiss it.
   const handleTouchEndPreview = useCallback(() => {
     if (longPressTimer.current) {
       clearTimeout(longPressTimer.current)
@@ -250,18 +383,29 @@ function GameCardImpl({
 
   const isTapped = suppressTapRotation ? false : (card.isTapped || forceTapped)
   const isPhasedOut = card.isPhasedOut === true
-  // Rooms (CR 709.5) are printed landscape; rotate the permanent +90° on the battlefield
-  // so the image reads landscape (the source orientation matches "tilt head right").
-  // Tap state stacks an additional +90° on top (= 180° upside-down portrait), preserving
-  // the standard "tap = +90° from current" semantic.
-  const isRoomLandscape = !faceDown && !!battlefield && card.isRoom === true
-  const totalRotateDeg = (isRoomLandscape ? 90 : 0) + (isTapped ? 90 : 0)
+  // "Won't untap" — DOESNT_UNTAP / CANT_BECOME_UNTAPPED / exerted, collapsed to the strongest one.
+  // Battlefield-only: the restrictions are continuous effects on a permanent, so the same card seen
+  // in a graveyard or hand pile must not wear the lock.
+  const untapRestriction = battlefield ? untapRestrictionOf(card) : null
+  // Sideways-printed cards — Rooms (CR 709.5), other split layouts, battles (CR 310) — are rotated
+  // +90° on the battlefield so the image reads landscape (the source orientation matches "tilt head
+  // right"). Tap state stacks an additional +90° on top (= 180° upside-down portrait), preserving
+  // the standard "tap = +90° from current" semantic. One flag decides it for every such family
+  // (server-side `CardDefinition.isLandscapePrint`), and it's per *face*, so a Siege recast as its
+  // portrait back face stops being rotated.
+  const isLandscapePrint = !faceDown && !!battlefield && card.isLandscapeFace === true
+  const totalRotateDeg = (isLandscapePrint ? 90 : 0) + (isTapped ? 90 : 0)
   const needsLandscapeContainer = Math.abs(totalRotateDeg) % 180 === 90
   const isInTargetingMode = targetingState !== null
   const isValidTarget = targetingState?.validTargets.includes(card.id) ?? false
   const isSelectedTarget = targetingState?.selectedTargets.includes(card.id) ?? false
   const isBeingCast = isInTargetingMode && targetingState?.action != null &&
     'cardId' in targetingState.action && targetingState.action.cardId === card.id
+  // Emerge (CR 702.119a): while the sacrifice is being picked, the server has priced *every*
+  // candidate — the reduction is that creature's mana value off the generic part of the emerge cost.
+  // Showing each candidate's resulting cost on the card itself makes the choice comparable before
+  // the click; the overlay banner only ever shows the one already selected.
+  const costIfSacrificed = targetingState?.costAfterSacrifice?.[card.id]
 
   // Check if this card is a valid target in a pending ChooseTargetsDecision (single-requirement only)
   const isChooseTargetsDecision = pendingDecision?.type === 'ChooseTargetsDecision'
@@ -327,11 +471,11 @@ function GameCardImpl({
   const isValidConvokeCreature = convokeSelectionState?.validCreatures.some((c) => c.entityId === card.id) ?? false
   const isSelectedConvokeCreature = convokeSelectionState?.selectedCreatures.some((c) => c.entityId === card.id) ?? false
 
-  // Waterbend selection checks (generic-only; artifacts + creatures eligible)
-  const waterbendSelectionState = useGameStore((state) => state.waterbendSelectionState)
-  const isInWaterbendMode = waterbendSelectionState !== null
-  const isValidWaterbendPermanent = waterbendSelectionState?.validPermanents.some((p) => p.entityId === card.id) ?? false
-  const isSelectedWaterbendPermanent = waterbendSelectionState?.selectedPermanents.includes(card.id) ?? false
+  // Tap-for-generic selection checks (improvise / waterbend; generic-only)
+  const tapForGenericSelectionState = useGameStore((state) => state.tapForGenericSelectionState)
+  const isInTapForGenericMode = tapForGenericSelectionState !== null
+  const isValidTapForGenericPermanent = tapForGenericSelectionState?.validPermanents.some((p) => p.entityId === card.id) ?? false
+  const isSelectedTapForGenericPermanent = tapForGenericSelectionState?.selectedPermanents.includes(card.id) ?? false
 
   // Harmonize creature-tap selection checks (single creature, optional)
   const harmonizeSelectionState = useGameStore((state) => state.harmonizeSelectionState)
@@ -344,6 +488,11 @@ function GameCardImpl({
     && pendingDecision.context.inlineOnTrigger
     && pendingDecision.context.triggeringEntityId === card.id
 
+  // The permanent the pending prompt is currently *about* — Killing Wave asks "pay X life or
+  // sacrifice it" once per creature, and the prompts are otherwise identical. Ringing the subject
+  // keeps "which creature is this?" answerable after minimizing the modal to view the battlefield.
+  const isDecisionSubject = pendingDecision?.context.subjectEntityId === card.id
+
   // Combat mode checks
   const isInAttackerMode = combatState?.mode === 'declareAttackers'
   const isInBlockerMode = combatState?.mode === 'declareBlockers'
@@ -355,7 +504,9 @@ function GameCardImpl({
   // "ours" / "theirs" for combat and let combatState membership disambiguate.
   const ownForCombat = isOwnCreature || (hotseat && card.cardTypes.includes('CREATURE'))
   const opponentForCombat = isOpponentCard || hotseat
-  const isValidAttacker = isInAttackerMode && ownForCombat && !card.isTapped && combatState.validCreatures.includes(card.id)
+  // `validCreatures` is the server's list (tapped creatures are already out of it — the engine's
+  // MustBeUntappedAttackRule); re-checking `isTapped` here would only let the two disagree.
+  const isValidAttacker = isInAttackerMode && ownForCombat && combatState.validCreatures.includes(card.id)
   const isSelectedAsAttacker = isInAttackerMode && combatState.selectedAttackers.includes(card.id)
 
   // Banding (CR 702.22): which declared band (if any) this creature belongs to. Drives the
@@ -393,7 +544,7 @@ function GameCardImpl({
     (cardHasBanding || draggingAttackerHasBanding === true)
 
   // For blocker mode: check if this is a valid blocker or an attacking creature to block
-  const isValidBlocker = isInBlockerMode && ownForCombat && !card.isTapped && combatState.validCreatures.includes(card.id)
+  const isValidBlocker = isInBlockerMode && ownForCombat && combatState.validCreatures.includes(card.id)
   const isSelectedAsBlocker = isInBlockerMode && !!(combatState?.blockerAssignments[card.id]?.length)
   const isAttackingInBlockerMode = isInBlockerMode && opponentForCombat && combatState.attackingCreatures.includes(card.id)
   const isMustBeBlocked = isInBlockerMode && opponentForCombat && combatState.mustBeBlockedAttackers.includes(card.id)
@@ -408,18 +559,27 @@ function GameCardImpl({
     return combat?.attackers.some((a) => a.creatureId === card.id) ?? false
   })
 
-  // For attacker mode: check if this is an opponent's planeswalker that can be attacked
-  const isValidPlaneswalkerTarget = isInAttackerMode && opponentForCombat && combatState.validAttackTargets.includes(card.id)
+  // For attacker mode: check if this permanent can be attacked — an opponent's planeswalker, or a
+  // battle (CR 310.5). Deliberately *not* scoped to opponent cards: a Siege's protector is an
+  // opponent of its controller (CR 310.12a), so its own controller may attack it (CR 310.9b) and
+  // it sits on their side of the board. The server's `validAttackTargets` is the only authority on
+  // which permanents are legal, so trust it rather than re-deriving whose card this is.
+  const isValidAttackTargetCard = isInAttackerMode && combatState.validAttackTargets.includes(card.id)
 
   // Show playable highlight for cards that aren't purely combat-role cards.
   // Valid blockers with legal actions (e.g., activated abilities) are still playable since blocking uses drag.
   // Face-down cards can be playable too (for TurnFaceUp action)
   const isCombatRoleCard = isValidAttacker || (isValidBlocker && !hasLegalActions) || isAttackingInBlockerMode
-  const hasActiveDecision = pendingDecision !== null
+  // A mana-payment decision is the one kind that still leaves actions open: CR 605.3a lets the
+  // paying player activate mana abilities, and the server sends exactly those as legal actions
+  // while the window is up. Sources already offered in the decision's own menu are excluded —
+  // those get the selection highlight and a click toggles them rather than opening a menu.
+  const isManaPaymentWindow = pendingDecision?.type === 'SelectManaSourcesDecision'
+  const hasActiveDecision = pendingDecision !== null && !(isManaPaymentWindow && !isValidDecisionSelection)
   const isPlayable = interactive && hasLegalActions && (!isInCombatMode || !isCombatRoleCard) && !hasActiveDecision
 
   const cardImageUrl = faceDown
-    ? (card.isManifested ? MANIFEST_FACE_DOWN_IMAGE_URL : MORPH_FACE_DOWN_IMAGE_URL)
+    ? faceDownImageUrl(card.faceDownMode)
     : getCardImageUrl(card.name, card.imageUri, 'normal')
 
   // Flip-layout tokens (e.g. the WOE "Cursed" / "Sorcerer" Roles) carry only one Scryfall image,
@@ -447,50 +607,47 @@ function GameCardImpl({
            (action.type === 'CastSpell' && action.cardId === card.id) ||
            (action.type === 'CycleCard' && action.cardId === card.id) ||
            (action.type === 'TypecycleCard' && action.cardId === card.id) ||
-           (action.type === 'PlotCard' && action.cardId === card.id)
+           (action.type === 'PlotCard' && action.cardId === card.id) ||
+           (action.type === 'SuspendCardFromHand' && action.cardId === card.id)
   }), [legalActions, card.id])
   const playableAction = playableActions[0]
   // Open the action menu when the card has more than one way to be played — including cards
-  // whose only affordable option is an alternative cast (cycling/typecycling/plot), so the
-  // player still sees the grayed-out "Cast"/"Play land" and can choose deliberately or cancel
-  // instead of silently auto-firing the lone affordable action.
-  const shouldShowCastModal = computeShouldShowCastModal(playableActions)
+  // whose only affordable option is an alternative cast (cycling/typecycling/plot) or whose
+  // second price is a keyword alternative cost the server couldn't afford to enumerate
+  // (impending, evoke), so the player still sees the grayed-out sibling and can choose
+  // deliberately or cancel instead of silently auto-firing the lone affordable action.
+  const shouldShowCastModal = computeShouldShowCastModal(playableActions, card)
   const canDragToPlay = (inHand || enableDragToCast) && playableAction && !isInCombatMode && !isInTargetingMode
 
-  // Determine mana cost display for cards the player can cast directly from a face-up zone
-  // (hand or, for Commander, the command zone). Commander tax (CR 903.8) folds in here for free
-  // because the server's `enumerateCommandZone` enumerator already builds CastSpell actions with
-  // the post-tax `manaCostString` — we just have to read whichever cost the active action carries.
+  // What it costs to play this card from a face-up zone (hand or, for Commander, the command zone).
+  //
+  // A single number is a lie for most of the interesting cards. An adventure or split card has one
+  // cost per face, kicker and offspring have a paid and an unpaid price, and convoke/delve/emerge sit
+  // well above their own floor. This used to pick the first "normal" CastSpell out of the list and
+  // show only that, which meant an arbitrary face on a split card, nothing at all about a kicker, and
+  // the pre-reduction price on a convoke spell. Show the two ends of the span instead, and let the
+  // hover preview's ladder name the individual options.
+  //
+  // Commander tax (CR 903.8) folds in for free because the server's `enumerateCommandZone` enumerator
+  // already builds its CastSpell actions with the post-tax `manaCostString`.
   const showCastCostOverlay = inHand || enableDragToCast
   const handCostInfo = useMemo(() => {
     if (!showCastCostOverlay || faceDown || !card.manaCost) return null
-    // Find the normal CastSpell action (not morph, not kicked, not mode)
-    const castAction = playableActions.find((a) =>
-      a.action.type === 'CastSpell' && a.actionType !== 'CastFaceDown' && a.actionType !== 'CastWithKicker' && a.actionType !== 'CastSpellMode'
-    )
-    const effectiveCost = castAction?.manaCostString
-    // If no cast action available, show base cost as-is
-    if (effectiveCost == null) return { cost: card.manaCost, isReduced: false, isIncreased: false }
-    // Compare with the card's base mana cost
-    if (effectiveCost === card.manaCost) return { cost: card.manaCost, isReduced: false, isIncreased: false }
-    // Count total mana symbols to determine if cost went up or down
-    const countSymbols = (cost: string) => {
-      const symbols = cost.match(/\{([^}]+)\}/g) ?? []
-      return symbols.reduce((total, s) => {
-        const inner = s.slice(1, -1)
-        const num = parseInt(inner, 10)
-        return total + (isNaN(num) ? 1 : num)
-      }, 0)
-    }
-    const baseMV = countSymbols(card.manaCost)
-    const effectiveMV = countSymbols(effectiveCost)
-    const displayCost = effectiveCost === '' ? '{0}' : effectiveCost
+    const range = playCostRange(buildActionOptions(card, playableActions))
+    // Nothing here plays the card (cycling-only, say) — the printed cost is all we can honestly say.
+    if (!range) return { cost: card.manaCost, floor: null, isReduced: false, isIncreased: false }
+    // The tint compares the *cheapest* way to play the card against the printed cost, so it says
+    // "cheaper or dearer than the card claims". Judging the dear end instead would paint a kicker red
+    // for merely offering a pricier mode, when its base price never moved.
+    const printedMana = totalManaNeeded(parseManaCost(card.manaCost))
+    const lowMana = totalManaNeeded(parseManaCost(range.low))
     return {
-      cost: displayCost,
-      isReduced: effectiveMV < baseMV,
-      isIncreased: effectiveMV > baseMV,
+      cost: range.high,
+      floor: range.isRange ? range.low : null,
+      isReduced: lowMana < printedMana,
+      isIncreased: lowMana > printedMana,
     }
-  }, [showCastCostOverlay, faceDown, playableActions, card.manaCost])
+  }, [showCastCostOverlay, faceDown, playableActions, card])
 
   // Handle mouse/touch down - start dragging for attackers, blockers, or hand cards
   const handlePointerDown = useCallback((e: React.MouseEvent | React.TouchEvent) => {
@@ -535,7 +692,7 @@ function GameCardImpl({
 
   // Global mouse/touch up handler for card dragging (to detect drop outside hand)
   useEffect(() => {
-    if (draggingCardId !== card.id) return
+    if (!isDraggingThisCard) return
 
     const handleGlobalPointerUp = (clientX: number, clientY: number) => {
       // Require minimum drag distance to prevent accidental casts
@@ -597,7 +754,12 @@ function GameCardImpl({
       stopDraggingCard()
     }
 
-    const handleMouseUp = (e: MouseEvent) => handleGlobalPointerUp(e.clientX, e.clientY)
+    // The mouseup half must ignore a tap's compatibility sequence, or the touchend above and the
+    // ghost mouseup behind it both resolve the same drag.
+    const handleMouseUp = (e: MouseEvent) => {
+      if (isGhostMouseEvent()) return
+      handleGlobalPointerUp(e.clientX, e.clientY)
+    }
     const handleTouchEnd = (e: TouchEvent) => {
       const touch = e.changedTouches[0]
       if (touch) handleGlobalPointerUp(touch.clientX, touch.clientY)
@@ -609,7 +771,7 @@ function GameCardImpl({
       window.removeEventListener('mouseup', handleMouseUp)
       window.removeEventListener('touchend', handleTouchEnd)
     }
-  }, [draggingCardId, card.id, playableAction, shouldShowCastModal, executeAction, stopDraggingCard, handleCardClick, selectCard, isInAttackerMode, isValidAttacker, toggleAttacker, isInBlockerMode, isValidBlocker, isSelectedAsBlocker, removeBlockerAssignment])
+  }, [isDraggingThisCard, card.id, playableAction, shouldShowCastModal, executeAction, stopDraggingCard, handleCardClick, selectCard, isInAttackerMode, isValidAttacker, toggleAttacker, isInBlockerMode, isValidBlocker, isSelectedAsBlocker, removeBlockerAssignment])
 
   // Global mouse/touch up handler to cancel blocker drag
   // For touch, we also detect drop target since touchend fires on the originating element
@@ -617,6 +779,7 @@ function GameCardImpl({
     if (!draggingBlockerId) return
 
     const handleGlobalMouseUp = () => {
+      if (isGhostMouseEvent()) return
       stopDraggingBlocker()
     }
 
@@ -656,7 +819,7 @@ function GameCardImpl({
       const elementAtPoint = document.elementFromPoint(clientX, clientY)
       if (!elementAtPoint) return
 
-      // Check if dropped on an opponent planeswalker
+      // Check if dropped on an attackable permanent (planeswalker, battle)
       const cardEl = elementAtPoint.closest('[data-card-id]')
       if (cardEl) {
         const targetCardId = cardEl.getAttribute('data-card-id') as EntityId | null
@@ -673,36 +836,11 @@ function GameCardImpl({
           combatState?.mode === 'declareAttackers' &&
           combatState.validCreatures.includes(targetCardId)
         ) {
-          const sourceHasBanding = card.keywords.includes(Keyword.BANDING)
-          const targetHasBanding = cardEl.getAttribute('data-banding') === 'true'
-          if (sourceHasBanding || targetHasBanding) {
-            // CR 702.22c: a band may contain at most one creature without banding.
-            // Reject the link client-side when the resulting band would exceed that;
-            // banding status of existing members is read off each card's data-banding
-            // attribute (missing attribute = no banding). Server re-checks regardless.
-            const hasBandingFor = (memberId: EntityId): boolean => {
-              if (memberId === draggingAttackerId) return sourceHasBanding
-              if (memberId === targetCardId) return targetHasBanding
-              const el = document.querySelector(`[data-card-id="${memberId}"]`)
-              return el?.getAttribute('data-banding') === 'true'
-            }
-            const bands = combatState.bands
-            const sourceBand = bands.find((b) => b.includes(draggingAttackerId)) ?? []
-            const targetBand = bands.find((b) => b.includes(targetCardId)) ?? []
-            const merged = new Set<EntityId>([
-              draggingAttackerId,
-              targetCardId,
-              ...sourceBand,
-              ...targetBand,
-            ])
-            const nonBandingCount = Array.from(merged).filter((id) => !hasBandingFor(id)).length
-            if (nonBandingCount > 1) {
-              // Illegal band — silently no-op.
-              return
-            }
-            linkBand(draggingAttackerId, targetCardId, sourceHasBanding, targetHasBanding)
-            return
-          }
+          // Whether the band may form (CR 702.22c) is decided in the reducer from the store's
+          // projected keywords — never from the DOM, where an off-screen member has no element
+          // to read and used to count as "no banding". A drop the rule refuses is a no-op.
+          linkBand(draggingAttackerId, targetCardId)
+          return
         }
       }
 
@@ -753,7 +891,10 @@ function GameCardImpl({
       stopDraggingAttacker()
     }
 
-    const handleMouseUp = (e: MouseEvent) => handleGlobalPointerUp(e.clientX, e.clientY)
+    const handleMouseUp = (e: MouseEvent) => {
+      if (isGhostMouseEvent()) return
+      handleGlobalPointerUp(e.clientX, e.clientY)
+    }
     const handleTouchEnd = (e: TouchEvent) => {
       const touch = e.changedTouches[0]
       if (touch) {
@@ -809,61 +950,22 @@ function GameCardImpl({
       if (isSelectedConvokeCreature) {
         toggleConvokeCreature(card.id, card.name, null)
       } else {
-        // Determine best color payment based on creature colors and remaining cost.
-        // The backend sends creature colors as Color enum names ("WHITE", "BLUE"...)
-        // but mana costs parse as pip letters ("W", "U"...), so we normalise to pip
-        // letters for comparison. payingColor submitted back to the server stays as
-        // the Color enum name so kotlinx serialization can deserialize it.
+        // Which colour this creature pays is a preference the shared cost estimate picks
+        // (`pickConvokeColor`); the server checks the creature actually is that colour. Colours
+        // arrive as backend enum names ("WHITE") and go back the same way so kotlinx can read them.
         const creatureInfo = convokeSelectionState.validCreatures.find((c) => c.entityId === card.id)
-        const colorNames = creatureInfo?.colors ?? []
-        const colorPips = colorNames.map(c => ColorSymbols[c as Color] ?? c)
-        // Parse remaining cost to find colored symbols still needed
-        const manaCost = convokeSelectionState.manaCost
-        const symbols: string[] = []
-        const regex = /\{([^}]+)\}/g
-        let m
-        while ((m = regex.exec(manaCost)) !== null) symbols.push(m[1]!)
-        // Remove symbols already covered by existing selections. Hybrid pips (CR 107.4e)
-        // are colored symbols of both halves, so a previous W selection can consume a
-        // {W/U} pip. Prefer exact colored matches before hybrids to avoid wasting pips.
-        const hybridCovers = (sym: string, pip: string): boolean =>
-          sym.includes('/') && sym.split('/').includes(pip)
-        const remaining = [...symbols]
-        for (const sel of convokeSelectionState.selectedCreatures) {
-          if (sel.payingColor) {
-            const pip = ColorSymbols[sel.payingColor as Color] ?? sel.payingColor
-            const idx = remaining.indexOf(pip)
-            if (idx >= 0) { remaining.splice(idx, 1); continue }
-            const hIdx = remaining.findIndex(s => hybridCovers(s, pip))
-            if (hIdx >= 0) remaining.splice(hIdx, 1)
-          } else {
-            const gIdx = remaining.findIndex(s => /^\d+$/.test(s))
-            if (gIdx >= 0) {
-              const val = parseInt(remaining[gIdx]!, 10)
-              if (val > 1) remaining[gIdx] = String(val - 1)
-              else remaining.splice(gIdx, 1)
-            }
-          }
-        }
-        // Pick a color this creature can pay that's still needed. Exact colored pips
-        // first, then hybrid pips where one half matches.
-        let payingColor: string | null = null
-        for (let i = 0; i < colorPips.length; i++) {
-          if (remaining.includes(colorPips[i]!)) { payingColor = colorNames[i]!; break }
-        }
-        if (!payingColor) {
-          for (let i = 0; i < colorPips.length; i++) {
-            if (remaining.some(s => hybridCovers(s, colorPips[i]!))) { payingColor = colorNames[i]!; break }
-          }
-        }
+        const convoked: Record<string, { color: string | null }> = {}
+        for (const sel of convokeSelectionState.selectedCreatures) convoked[sel.entityId] = { color: sel.payingColor }
+        const remaining = getRemainingCostAfterConvoke(parseManaCost(convokeSelectionState.manaCost), convoked)
+        const payingColor = pickConvokeColor(remaining, creatureInfo?.colors ?? [])
         toggleConvokeCreature(card.id, card.name, payingColor)
       }
       return
     }
 
-    // Handle waterbend selection mode - click to toggle artifact/creature (generic-only)
-    if (isInWaterbendMode && isValidWaterbendPermanent) {
-      toggleWaterbendPermanent(card.id)
+    // Handle tap-for-generic selection mode - click to toggle an eligible permanent
+    if (isInTapForGenericMode && isValidTapForGenericPermanent) {
+      toggleTapForGenericPermanent(card.id)
       return
     }
 
@@ -913,7 +1015,7 @@ function GameCardImpl({
         return
       }
       // Clicking an opponent's planeswalker assigns the last selected attacker to it
-      if (isValidPlaneswalkerTarget && combatState && combatState.selectedAttackers.length > 0) {
+      if (isValidAttackTargetCard && combatState && combatState.selectedAttackers.length > 0) {
         const lastAttacker = combatState.selectedAttackers[combatState.selectedAttackers.length - 1]!
         setAttackTarget(lastAttacker, card.id)
         return
@@ -944,6 +1046,15 @@ function GameCardImpl({
       } else {
         handleCardClick(card.id)
       }
+      return
+    }
+
+    // Without hover there is no other way to read a card, so on touch every card the player can
+    // actually see opens the menu — an opponent's permanent is `interactive={false}` and would
+    // otherwise swallow the tap, leaving its rules text unreachable. The menu it gets holds only
+    // "View card"; a face-down card is skipped because there is nothing to reveal.
+    if (openCardMenuOnTap && !faceDown && !isInTargetingMode && !isInCombatMode) {
+      openCardMenuOnTap(card.id)
     }
   }
 
@@ -981,7 +1092,7 @@ function GameCardImpl({
     // Red pulsing glow for must-be-blocked attackers (Alluring Scent)
     borderStyle = '3px solid #ff3333'
     boxShadow = '0 0 16px rgba(255, 51, 51, 0.8), 0 0 32px rgba(255, 51, 51, 0.5), 0 0 48px rgba(255, 51, 51, 0.3)'
-  } else if (isValidPlaneswalkerTarget && combatState && Object.values(combatState.attackerTargets).includes(card.id)) {
+  } else if (isValidAttackTargetCard && combatState && Object.values(combatState.attackerTargets).includes(card.id)) {
     // Red highlight for planeswalkers currently targeted by an attacker
     borderStyle = '3px solid #ff4444'
     boxShadow = '0 0 16px rgba(255, 68, 68, 0.7), 0 0 32px rgba(255, 68, 68, 0.4)'
@@ -1001,6 +1112,11 @@ function GameCardImpl({
     // Orange/gold glow for the trigger creature (matches distribute target style)
     borderStyle = '3px solid #ff6b35'
     boxShadow = '0 0 16px rgba(255, 107, 53, 0.7), 0 0 32px rgba(255, 107, 53, 0.4)'
+  } else if (isDecisionSubject) {
+    // Same orange as the decision modal's ring around this card — one visual language for
+    // "this is the object the current prompt is about".
+    borderStyle = '3px solid var(--color-decision-subject)'
+    boxShadow = '0 0 16px var(--color-decision-subject-glow), 0 0 32px var(--color-decision-subject-shadow)'
   } else if (isDistributeTarget && distributeAllocated > 0) {
     // Orange for distribute targets with damage allocated
     borderStyle = '3px solid #ff6b35'
@@ -1045,16 +1161,16 @@ function GameCardImpl({
     // Blue highlight for valid convoke creatures
     borderStyle = `2px solid ${TARGET_COLOR}`
     boxShadow = `0 0 12px ${TARGET_GLOW}, 0 0 24px ${TARGET_SHADOW}`
-  } else if (isSelectedWaterbendPermanent) {
-    // Green highlight for selected waterbend permanents
+  } else if (isSelectedTapForGenericPermanent) {
+    // Green highlight for permanents selected to tap for generic mana
     borderStyle = `3px solid ${SELECTED_COLOR}`
     boxShadow = `0 0 20px ${SELECTED_GLOW}, 0 0 40px ${SELECTED_SHADOW}`
-  } else if (isValidWaterbendPermanent && isHovered) {
-    // Bright blue highlight when hovering over a tappable waterbend permanent
+  } else if (isValidTapForGenericPermanent && isHovered) {
+    // Bright blue highlight when hovering over a tappable permanent
     borderStyle = `3px solid ${TARGET_COLOR_BRIGHT}`
     boxShadow = `0 0 20px ${TARGET_GLOW_BRIGHT}, 0 0 40px ${TARGET_GLOW_OUTER}`
-  } else if (isValidWaterbendPermanent) {
-    // Blue highlight for valid waterbend permanents
+  } else if (isValidTapForGenericPermanent) {
+    // Blue highlight for permanents eligible to tap for generic mana
     borderStyle = `2px solid ${TARGET_COLOR}`
     boxShadow = `0 0 12px ${TARGET_GLOW}, 0 0 24px ${TARGET_SHADOW}`
   } else if (isSelectedHarmonizeCreature) {
@@ -1088,11 +1204,11 @@ function GameCardImpl({
     // Light-blue highlight for valid attackers/blockers
     borderStyle = `2px solid ${TARGET_COLOR}`
     boxShadow = `0 0 12px ${TARGET_GLOW}, 0 0 24px ${TARGET_SHADOW}`
-  } else if (isValidPlaneswalkerTarget && combatState && combatState.selectedAttackers.length > 0 && isHovered) {
+  } else if (isValidAttackTargetCard && combatState && combatState.selectedAttackers.length > 0 && isHovered) {
     // Bright orange highlight when hovering over a valid planeswalker attack target
     borderStyle = '3px solid #ff8800'
     boxShadow = '0 0 16px rgba(255, 136, 0, 0.7), 0 0 32px rgba(255, 136, 0, 0.4)'
-  } else if (isValidPlaneswalkerTarget && combatState && combatState.selectedAttackers.length > 0) {
+  } else if (isValidAttackTargetCard && combatState && combatState.selectedAttackers.length > 0) {
     // Orange highlight for valid planeswalker attack targets
     borderStyle = '2px solid #ff8800'
     boxShadow = '0 0 12px rgba(255, 136, 0, 0.5), 0 0 24px rgba(255, 136, 0, 0.3)'
@@ -1156,42 +1272,62 @@ function GameCardImpl({
   }
 
   // Determine cursor
-  const canInteract = interactive || isValidTarget || isValidDecisionTarget || isValidDecisionSelection || isValidAttacker || isValidBlocker || isAttackingInBlockerMode || isValidPlaneswalkerTarget || canDragToPlay || isDistributeTarget || isManaValidSource || isValidTapForPowerCreature || isValidConvokeCreature || isValidWaterbendPermanent || isValidHarmonizeCreature
+  const canInteract = interactive || isValidTarget || isValidDecisionTarget || isValidDecisionSelection || isValidAttacker || isValidBlocker || isAttackingInBlockerMode || isValidAttackTargetCard || canDragToPlay || isDistributeTarget || isManaValidSource || isValidTapForPowerCreature || isValidConvokeCreature || isValidTapForGenericPermanent || isValidHarmonizeCreature
   const baseCursor = canInteract ? 'pointer' : 'default'
   const cursor = isValidBlocker || isValidAttacker || isSelectedAsAttacker || canDragToPlay ? 'grab' : baseCursor
 
   // Check if currently being dragged (attacker, blocker, or hand card)
-  const isBeingDragged = draggingBlockerId === card.id || draggingAttackerId === card.id || draggingCardId === card.id
+  const isBeingDragged = draggingBlockerId === card.id || draggingAttackerId === card.id || isDraggingThisCard
 
   // Container dimensions - expand width when the card sits sideways (tapped permanents
   // and Rooms always-landscape) to prevent overlap with neighbours.
   const containerWidth = needsLandscapeContainer && battlefield ? height + 8 : width
   const containerHeight = height
 
+  // A sideways card rotates about its center, so its visible band is only `width` tall and
+  // sits (height - width) / 2 inside the box top *and* bottom. Left there it floats: a tapped
+  // permanent shares no edge with its upright neighbours in a bottom-aligned row. Drop it so
+  // the band's lower edge rests on the container bottom — the line upright cards sit on — and
+  // tapping reads as the card lying down in place rather than shrinking toward its middle.
+  const landscapeDrop = needsLandscapeContainer && battlefield ? (height - width) / 2 : 0
+  // Top edge of the visible band relative to the container, after the drop. The commander
+  // crown and non-legendary chip hang off this rather than the box, so they keep hugging the
+  // card instead of drifting above it when it turns sideways.
+  const bandTop = landscapeDrop * 2
+
   const cardElement = (
     <div
       data-card-id={card.id}
-      {...(cardHasBanding ? { 'data-banding': 'true' } : {})}
       {...(isGhost ? { 'data-ghost': 'true' } : {})}
+      {...(isTapped ? { 'data-tapped': 'true' } : {})}
       onClick={handleClick}
       onDoubleClick={handleDoubleClickEvent}
-      onMouseDown={handlePointerDown}
-      onMouseUp={handlePointerUp}
-      onTouchStart={(e) => { handleTouchStartPreview(e); handlePointerDown(e) }}
-      onTouchEnd={() => { handleTouchEndPreview(); handlePointerUp() }}
-      onTouchMove={handleTouchMovePreview}
-      onMouseEnter={handleMouseEnter}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
+      /* Mouse and touch both drive the drag handlers, so every mouse one has to ignore the
+         compatibility sequence a tap fires after touchend — see utils/ghostMouse. */
+      onMouseDown={(e) => { if (!isGhostMouseEvent()) handlePointerDown(e) }}
+      onMouseUp={() => { if (!isGhostMouseEvent()) handlePointerUp() }}
+      onTouchStart={(e) => { noteTouchInteraction(); handleTouchStartPreview(e); handlePointerDown(e) }}
+      onTouchEnd={() => { noteTouchInteraction(); handleTouchEndPreview(); handlePointerUp() }}
+      onTouchCancel={() => { noteTouchInteraction(); handleTouchEndPreview(); handlePointerUp() }}
+      onTouchMove={() => { noteTouchInteraction(); handleTouchMovePreview() }}
+      onPointerEnter={handleHoverEnter}
+      onPointerMove={handleHoverMove}
+      onPointerLeave={handleHoverLeave}
       style={{
         ...styles.card,
         width,
         height,
+        // Battlefield cards resize as the board fills up or empties out (see
+        // battlefieldLayout.ts); ease the size change so a card entering play
+        // reads as the board settling rather than everything jumping.
+        ...(battlefield && !prefersReducedMotion() ? { transition: CARD_RESIZE_TRANSITION } : {}),
         borderRadius: responsive.isMobile ? 4 : 8,
         cursor,
         border: isBeheldPulsing ? '3px solid #eab308' : borderStyle,
         pointerEvents: 'auto',
-        transform: `${totalRotateDeg ? `rotate(${totalRotateDeg}deg)` : ''} ${isSelected && (!isInCombatMode || !isCombatRoleCard) ? 'translateY(-8px)' : ''}`,
+        // `translateY(landscapeDrop)` is listed first so it applies in screen space, outside
+        // the rotation; the selection lift stays after it, as before.
+        transform: `${landscapeDrop ? `translateY(${landscapeDrop}px)` : ''} ${totalRotateDeg ? `rotate(${totalRotateDeg}deg)` : ''} ${isSelected && (!isInCombatMode || !isCombatRoleCard) ? 'translateY(-8px)' : ''}`,
         transformOrigin: 'center',
         // Commander gold *glow* — soft halo, deliberately no hard 1–2px rim so it doesn't read
         // like the playable-action outline. Inner halo sits close to the card for readable
@@ -1225,8 +1361,8 @@ function GameCardImpl({
         } : {}),
       }}
     >
-      {/* Token with art_crop image — render a custom card frame */}
-      {!faceDown && card.isToken && card.imageUri ? (
+      {/* Legacy art-only token images need a generated frame; full token-card images render directly. */}
+      {!faceDown && card.isToken && card.imageUri?.includes('/art_crop/') ? (
         <div style={{
           ...styles.tokenFrame,
           background: getTokenFrameGradient(card.colors),
@@ -1307,6 +1443,38 @@ function GameCardImpl({
         </>
       )}
 
+      {/* A token that copies a real card (Dance of Many, Clone-style tokens) carries that card's
+          full image, so nothing about it reads as a token — the generated frame above only kicks in
+          for the art-crop tokens. This chip is the marker for that case: it matters at a glance,
+          because a token that leaves the battlefield ceases to exist. Counter-rotated so it stays
+          upright on a tapped permanent, like the untap lock. */}
+      {!faceDown && card.isToken && !card.imageUri?.includes('/art_crop/') && (
+        <div
+          aria-label="Token"
+          title="Token — it ceases to exist if it leaves the battlefield"
+          style={{
+            position: 'absolute',
+            top: 3,
+            left: 3,
+            padding: '0 4px',
+            borderRadius: 3,
+            transform: totalRotateDeg ? `rotate(${-totalRotateDeg}deg)` : undefined,
+            transformOrigin: 'top left',
+            background: 'rgba(0, 0, 0, 0.78)',
+            border: '1px solid rgba(255, 255, 255, 0.55)',
+            color: '#f0f0f0',
+            fontSize: Math.max(responsive.badges.smallLabelFontSize - 1, 6),
+            fontWeight: 700,
+            letterSpacing: 0.5,
+            lineHeight: 1.5,
+            zIndex: 7,
+            pointerEvents: 'none',
+          }}
+        >
+          TOKEN
+        </div>
+      )}
+
       {/* Tapped indicator */}
       {isTapped && (
         <div style={styles.tappedOverlay} />
@@ -1317,6 +1485,50 @@ function GameCardImpl({
         <div style={styles.summoningSicknessOverlay}>
           <div style={{ ...styles.summoningSicknessIcon, fontSize: responsive.badges.sicknessIconSize }}>💤</div>
         </div>
+      )}
+
+      {/* "Won't untap" — DOESNT_UNTAP, CANT_BECOME_UNTAPPED, or exerted (CR 701.43a), whichever is
+          strongest (see untapRestrictionOf). One padlock covers all three because they read the same
+          from across the table; the tooltip says which. The chip counter-rotates so the lock stays
+          upright on a tapped (rotated) permanent — which is exactly when it matters most. */}
+      {untapRestriction && (
+        <div
+          aria-label={untapRestriction.label}
+          title={untapRestriction.label}
+          style={{
+            position: 'absolute',
+            top: 3,
+            right: 3,
+            width: responsive.badges.ptFontSize * 1.7,
+            height: responsive.badges.ptFontSize * 1.7,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: '50%',
+            transform: totalRotateDeg ? `rotate(${-totalRotateDeg}deg)` : undefined,
+            background: 'radial-gradient(circle at 35% 30%, #123246 0%, #06121c 80%)',
+            // A permanent lock gets the full frost ring; the one-shot exert marker is muted so the
+            // two are distinguishable at a glance without reading the tooltip.
+            border: `1px solid ${untapRestriction.permanent ? UNTAP_FROST_RIM : UNTAP_FROST_FILL}`,
+            boxShadow: untapRestriction.permanent
+              ? `0 0 6px 1px ${UNTAP_FROST_FILL}, inset 0 1px 1px rgba(0, 0, 0, 0.5)`
+              : 'inset 0 1px 1px rgba(0, 0, 0, 0.5)',
+            fontSize: responsive.badges.ptFontSize * 0.95,
+            lineHeight: 1,
+            opacity: untapRestriction.permanent ? 1 : 0.8,
+            zIndex: 7,
+            pointerEvents: 'none',
+          }}
+        >
+          🔒
+        </div>
+      )}
+
+      {/* A tapped permanent that won't untap is frozen, not merely tapped — the two look identical
+          without this. A cold wash over the whole card separates "will be back next turn" from
+          "stays like this", which is the read that changes how you attack into the board. */}
+      {untapRestriction && isTapped && (
+        <div style={styles.untapLockedOverlay} />
       )}
 
       {/* Ring-bearer badge (CR 701.54) — a prominent golden Ring marker pinned to the top-left of
@@ -1502,6 +1714,35 @@ function GameCardImpl({
         <DeliriumBadge info={card.deliriumInfo} pip={responsive.badges.counterIconFontSize} />
       )}
 
+      {/* What the spell being cast would cost if *this* creature is the one sacrificed (emerge —
+          CR 702.119a). Only while it's a live candidate; green once picked, matching the selected
+          highlight so the chip and the ring tell the same story. */}
+      {costIfSacrificed && (isValidTarget || isSelectedTarget) && (
+        <div
+          title={`Sacrifice ${card.name}: this spell then costs ${costIfSacrificed}`}
+          style={{
+            position: 'absolute',
+            bottom: 2,
+            left: '50%',
+            // Badges rotate with the card, so a tapped candidate's chip needs the same
+            // counter-rotation the other in-card labels use to stay upright and readable.
+            transform: `translateX(-50%)${totalRotateDeg ? ` rotate(${-totalRotateDeg}deg)` : ''}`,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+            padding: '1px 5px',
+            borderRadius: 8,
+            background: isSelectedTarget ? 'rgba(0, 90, 40, 0.92)' : 'rgba(12, 14, 20, 0.9)',
+            border: `1px solid ${isSelectedTarget ? 'rgba(0, 255, 100, 0.9)' : 'rgba(255, 200, 0, 0.85)'}`,
+            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.55)',
+            pointerEvents: 'none',
+            zIndex: 4,
+          }}
+        >
+          <ManaCost cost={costIfSacrificed} size={responsive.badges.counterIconFontSize} gap={1} />
+        </div>
+      )}
+
       {/* Banding (CR 702.22): band-membership badge, color-coded per band */}
       {isBanded && bandColor && (
         <div style={{ ...styles.bandBadge, backgroundColor: bandColor.base }}>
@@ -1541,6 +1782,37 @@ function GameCardImpl({
             Warped
           </div>
         </>
+      )}
+
+      {/* Saddle (CR 702.171): a Mount reads as saddled or not, and that is the whole difference
+          between its payoffs being on and off. The designation is granted by a resolved saddle
+          ability and lost at end of turn without any visible event, so the board itself has to
+          carry it. Two states, one slot: lit "Saddled" once it's on, muted "Saddle N" while it
+          isn't — the second doubles as "this permanent is a Mount, and here's the price".
+          Shown on every player's Mounts; saddled status is public and changes how you block.
+          Bottom-left, not the crowded top-left provenance lane: unlike a dashed or warped marker
+          this one is on every Mount for that permanent's whole life, so it must not sit on the
+          card name — and combat-relevant state is what the eye already goes to the bottom for. */}
+      {battlefield && !faceDown && card.saddleRequirement != null && (
+        <div
+          style={card.isSaddled ? styles.saddledBadge : styles.saddleAvailableBadge}
+          title={
+            card.isSaddled
+              ? `Saddled (CR 702.171b) until end of turn — its "while saddled" abilities are active`
+              : `Saddle ${card.saddleRequirement} (CR 702.171a) — tap other untapped creatures you control with total power ${card.saddleRequirement} or more, as a sorcery, to saddle it`
+          }
+        >
+          {card.isSaddled ? 'Saddled' : `Saddle ${card.saddleRequirement}`}
+        </div>
+      )}
+
+      {/* Dash (CR 702.109, Khans of Tarkir): a permanent cast for its dash cost — hasty, returned to
+          its owner's hand at the beginning of the next end step. */}
+      {battlefield && card.isDashed && !faceDown && (
+        <div style={styles.dashedBadge} title="Dashed (Khans of Tarkir) — has haste; returned to its owner's hand at the beginning of the next end step">
+          <span aria-hidden="true">⚡</span>
+          Dashed
+        </div>
       )}
 
       {/* Counter badge for creatures with +1/+1 or -1/-1 counters */}
@@ -1655,6 +1927,20 @@ function GameCardImpl({
         </div>
       )}
 
+      {/* Shield counter badge (CR 122.1c) */}
+      {battlefield && getShieldCounters(card) > 0 && (
+        <div style={{
+          ...styles.shieldCounterBadge,
+          fontSize: responsive.badges.counterTextFontSize,
+          padding: responsive.badges.badgePadding,
+        }}>
+          <i className={`ms ms-${counterManaClass.SHIELD}`} style={{ fontSize: responsive.badges.counterIconFontSize }} />
+          <span style={{ fontWeight: 700 }}>
+            {getShieldCounters(card)}
+          </span>
+        </div>
+      )}
+
       {/* Finality counter badge */}
       {battlefield && getFinalityCounters(card) > 0 && (
         <div style={{
@@ -1683,10 +1969,18 @@ function GameCardImpl({
         </div>
       )}
 
-      {/* Stash counter badge */}
-      {battlefield && getStashCounters(card) > 0 && (
+      {/* Stash counter badge. Unlike the other counter badges this one is *not* gated on
+          `battlefield`: a stash counter marks a card sitting in exile (Tinybones, Bauble Burglar
+          exiles opponents' discards with one), and that card is rendered off-battlefield — as a
+          castable ghost card in the hand row and in the exile browser. Hiding the badge there would
+          hide the only cue for why the card is playable. */}
+      {getStashCounters(card) > 0 && (
         <div style={{
           ...styles.stashCounterBadge,
+          // Off the battlefield the top-right corner is the mana-cost badge's (hand and
+          // playable-from-exile ghost cards draw it there, at a higher z-index), so the counter
+          // moves to the free top-left corner instead of hiding behind the cost.
+          ...(battlefield ? {} : { right: 'auto', left: 4 }),
           fontSize: responsive.badges.counterTextFontSize,
           padding: responsive.badges.badgePadding,
         }}>
@@ -1967,6 +2261,34 @@ function GameCardImpl({
         </div>
       )}
 
+      {/* Haste counter badge */}
+      {battlefield && getHasteCounters(card) > 0 && (
+        <div style={{
+          ...styles.hasteCounterBadge,
+          fontSize: responsive.badges.counterTextFontSize,
+          padding: responsive.badges.badgePadding,
+        }}>
+          <i className={`ms ms-${counterManaClass.HASTE}`} style={{ fontSize: responsive.badges.counterIconFontSize }} />
+          <span style={{ fontWeight: 700 }}>
+            {getHasteCounters(card)}
+          </span>
+        </div>
+      )}
+
+      {/* Menace counter badge */}
+      {battlefield && getMenaceCounters(card) > 0 && (
+        <div style={{
+          ...styles.menaceCounterBadge,
+          fontSize: responsive.badges.counterTextFontSize,
+          padding: responsive.badges.badgePadding,
+        }}>
+          <i className={`ms ms-${counterManaClass.MENACE}`} style={{ fontSize: responsive.badges.counterIconFontSize }} />
+          <span style={{ fontWeight: 700 }}>
+            {getMenaceCounters(card)}
+          </span>
+        </div>
+      )}
+
       {/* Saga lore counter badge and chapter progress track */}
       {battlefield && card.subtypes.includes('Saga') && (() => {
         const loreCount = getLoreCounters(card)
@@ -2058,8 +2380,8 @@ function GameCardImpl({
       })()}
 
       {/* Keyword ability icons (shown for face-up cards, and for face-down cards with granted keywords) */}
-      {battlefield && !hideKeywordIcons && (card.keywords.length > 0 || (card.abilityFlags && card.abilityFlags.length > 0) || (card.protections && card.protections.length > 0) || (card.hexproofFromColors && card.hexproofFromColors.length > 0) || card.isSuspected) && (
-        <KeywordIcons keywords={card.keywords} abilityFlags={card.abilityFlags ?? []} protections={card.protections ?? []} hexproofFromColors={card.hexproofFromColors ?? []} hexproofFromMonocolored={card.hexproofFromMonocolored ?? false} isSuspected={card.isSuspected ?? false} {...(() => {
+      {battlefield && !hideKeywordIcons && (card.keywords.length > 0 || (card.abilityFlags && card.abilityFlags.length > 0) || (card.protections && card.protections.length > 0) || (card.hexproofFromColors && card.hexproofFromColors.length > 0) || card.isSuspected || card.isSolved || card.isRenowned) && (
+        <KeywordIcons keywords={card.keywords} abilityFlags={card.abilityFlags ?? []} protections={card.protections ?? []} hexproofFromColors={card.hexproofFromColors ?? []} hexproofFromMonocolored={card.hexproofFromMonocolored ?? false} hexproofFromMulticolored={card.hexproofFromMulticolored ?? false} isSuspected={card.isSuspected ?? false} isSolved={card.isSolved ?? false} isRenowned={card.isRenowned ?? false} {...(() => {
           // The ring-bearer marker and the "Prepared" badge both pin to the top-left corner; push the
           // keyword icons down past whichever is showing so they aren't hidden beneath the badge.
           const topOffset = (card.isRingBearer && !faceDown ? 3 + responsive.badges.ptFontSize * 1.7 + 3 : 0) + (card.isPrepared ? 22 : 0)
@@ -2087,8 +2409,8 @@ function GameCardImpl({
         </div>
       )}
 
-      {/* Chosen creature type / color / mode / card name badge (e.g., Doom Cannon, Riptide Replicator, Outpost Siege, Petrified Hamlet) */}
-      {!faceDown && (card.chosenCreatureType ?? card.chosenColor ?? card.chosenMode ?? card.chosenCardName) && (
+      {/* Chosen creature type / color / mode / card name / card type badge (e.g., Doom Cannon, Riptide Replicator, Outpost Siege, Petrified Hamlet, Arachne) */}
+      {!faceDown && (card.chosenCreatureType ?? card.chosenColor ?? card.chosenMode ?? card.chosenCardName ?? card.chosenCardType) && (
         <div style={{
           position: 'absolute',
           bottom: card.power != null ? 22 : 4,
@@ -2103,7 +2425,7 @@ function GameCardImpl({
           pointerEvents: 'none',
           zIndex: 5,
         }}>
-          {[card.chosenColor, card.chosenCreatureType, card.chosenMode, card.chosenCardName].filter(Boolean).join(' ')}
+          {[card.chosenColor, card.chosenCreatureType, card.chosenMode, card.chosenCardName, card.chosenCardType].filter(Boolean).join(' ')}
         </div>
       )}
 
@@ -2210,15 +2532,14 @@ function GameCardImpl({
         </div>
       )}
 
-      {/* Original-card preview portalled to <body> so it escapes the card's
-          overflow:hidden / transform containing block (tapped cards rotate). */}
-      {!faceDown && card.copyOf && copyBadgeHoverPos && createPortal(
+      {/* Original-card preview. HoverCardPreview portals itself to <body>, so it escapes the
+          card's overflow:hidden / transform containing block (tapped cards rotate). */}
+      {!faceDown && card.copyOf && copyBadgeHoverPos && (
         <HoverCardPreview
           name={card.copyOf}
           imageUri={null}
           pos={copyBadgeHoverPos}
-        />,
-        document.body,
+        />
       )}
 
       {/* Active effect badges (evasion, type/color change, etc.) — sized off the battlefield
@@ -2253,6 +2574,7 @@ function GameCardImpl({
           position: 'absolute',
           top: responsive.badges.badgeInset,
           right: responsive.badges.badgeInset,
+          maxWidth: `calc(100% - ${responsive.badges.badgeInset * 2}px)`,
           backgroundColor: handCostInfo.isReduced || handCostInfo.isIncreased
             ? 'rgba(0, 0, 0, 0.85)'
             : 'rgba(0, 0, 0, 0.7)',
@@ -2269,10 +2591,25 @@ function GameCardImpl({
           pointerEvents: 'none',
           zIndex: 10,
           display: 'flex',
-          alignItems: 'center',
-          gap: 1,
+          // A range stacks rather than sitting side by side. The hand fans its cards with the next one
+          // overlapping this one's right edge, and the badge lives in that corner — laid out in a row,
+          // a {2}–{4}{W}{W} span runs straight under the neighbouring card and loses its dear end.
+          // Stacked, the badge is never wider than its widest single cost, so both ends survive.
+          flexDirection: 'column',
+          alignItems: 'flex-end',
+          gap: 0,
         }}>
-          <ManaCost cost={handCostInfo.cost} size={responsive.badges.manaCostFontSize} gap={1} />
+          {/* Cheapest reachable price on top, then the asking price. The leading dash on the second row
+              is what makes the two read as one span rather than two unrelated numbers. */}
+          {handCostInfo.floor && (
+            <ManaCost cost={handCostInfo.floor} size={responsive.badges.manaCostFontSize} gap={1} />
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {handCostInfo.floor && (
+              <span aria-hidden style={{ color: '#9aa4b8', fontSize: responsive.badges.manaCostFontSize - 2, lineHeight: 1 }}>–</span>
+            )}
+            <ManaCost cost={handCostInfo.cost} size={responsive.badges.manaCostFontSize} gap={1} />
+          </div>
         </div>
       )}
 
@@ -2636,7 +2973,7 @@ function GameCardImpl({
         title="Commander"
         style={{
           position: 'absolute',
-          top: -crownHeight - 3,
+          top: bandTop - crownHeight - 3,
           left: '50%',
           transform: 'translateX(-50%)',
           width: crownWidth,
@@ -2658,7 +2995,7 @@ function GameCardImpl({
           strokeLinejoin="round"
         >
           {/* Three-point coronet on a thin band: outer points at the corners, taller centre point */}
-          <path d="M1.5 12 L1.5 9 L4.5 5 L8 8 L12 2 L16 8 L19.5 5 L22.5 9 L22.5 12 Z" />
+          <path d={CROWN_PATH} />
         </svg>
       </div>
     )
@@ -2670,69 +3007,36 @@ function GameCardImpl({
   // frame, so without this chip a player can't tell the token copy isn't subject to
   // the legend rule. The server sets `nonLegendaryCopy` after comparing the printed
   // CardDefinition's supertypes to the live CardComponent's supertypes.
-  const showNonLegendaryChip = battlefield && !faceDown && card.nonLegendaryCopy === true
-  const nonLegendaryChip = showNonLegendaryChip ? (() => {
-    const chipHeight = Math.max(10, Math.round(width * 0.12))
-    const crownW = Math.round(chipHeight * 0.95)
-    const crownH = Math.round(chipHeight * 0.55)
-    return (
-      <div
-        aria-label="Not legendary"
-        title={`Not legendary — copy effect stripped the Legendary supertype (${card.typeLine})`}
-        style={{
-          position: 'absolute',
-          top: -Math.round(chipHeight * 0.55),
-          left: '50%',
-          transform: 'translateX(-50%)',
-          height: chipHeight,
-          padding: `0 ${Math.max(4, Math.round(chipHeight * 0.6))}px`,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 4,
-          background: 'linear-gradient(135deg, #4a4a4a 0%, #6b6b6b 50%, #4a4a4a 100%)',
-          color: '#f0f0f0',
-          fontSize: Math.max(8, Math.round(chipHeight * 0.62)),
-          fontWeight: 800,
-          letterSpacing: '0.08em',
-          textTransform: 'uppercase',
-          borderRadius: chipHeight,
-          border: '1px solid rgba(0, 0, 0, 0.55)',
-          boxShadow: '0 1px 2px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.18)',
-          pointerEvents: 'none',
-          zIndex: 6,
-          whiteSpace: 'nowrap',
-          lineHeight: 1,
-        }}
-      >
-        {/* Crown silhouette with a diagonal strike-through to read "no crown". */}
-        <span style={{ position: 'relative', width: crownW, height: crownH, display: 'inline-block' }} aria-hidden>
-          <svg
-            viewBox="0 0 24 13"
-            width={crownW}
-            height={crownH}
-            preserveAspectRatio="none"
-            fill="rgba(220, 220, 220, 0.55)"
-            stroke="rgba(0, 0, 0, 0.6)"
-            strokeWidth="0.5"
-            strokeLinejoin="round"
-            style={{ position: 'absolute', inset: 0 }}
-          >
-            <path d="M1.5 12 L1.5 9 L4.5 5 L8 8 L12 2 L16 8 L19.5 5 L22.5 9 L22.5 12 Z" />
-          </svg>
-          <svg
-            viewBox="0 0 24 13"
-            width={crownW}
-            height={crownH}
-            preserveAspectRatio="none"
-            style={{ position: 'absolute', inset: 0 }}
-          >
-            <line x1="2" y1="11.5" x2="22" y2="1.5" stroke="#ff6464" strokeWidth="1.4" strokeLinecap="round" />
-          </svg>
-        </span>
-        Not Legendary
-      </div>
-    )
-  })() : null
+  const nonLegendaryChip = battlefield && !faceDown && card.nonLegendaryCopy === true ? (
+    <LegendChip
+      width={width}
+      bandTop={bandTop}
+      label="Not Legendary"
+      title={`Not legendary — copy effect stripped the Legendary supertype (${card.typeLine})`}
+      gradient="linear-gradient(135deg, #4a4a4a 0%, #6b6b6b 50%, #4a4a4a 100%)"
+      textColor="#f0f0f0"
+      crownFill="rgba(220, 220, 220, 0.55)"
+      struckThrough
+    />
+  ) : null
+
+  // "Legendary" chip — the mirror of the one above, pinned to a permanent whose printed card is
+  // NOT legendary but which a continuous effect has made legendary (Origin of Spider-Man's "it
+  // becomes a legendary Spider Hero", the Ring emblem's "your Ring-bearer is legendary"). The
+  // printed art still shows a non-legendary frame, so without this chip the player can't see that
+  // the legend rule now applies. The server keeps the two flags mutually exclusive (a granted
+  // supertype clears `nonLegendaryCopy`), so the identically-positioned chips can't collide.
+  const grantedLegendaryChip = battlefield && !faceDown && card.legendaryByEffect === true ? (
+    <LegendChip
+      width={width}
+      bandTop={bandTop}
+      label="Legendary"
+      title={`Legendary — granted by an effect (${card.typeLine})`}
+      gradient="linear-gradient(135deg, #6b5312 0%, #b8912c 50%, #6b5312 100%)"
+      textColor="#fff6da"
+      crownFill="#f2d071"
+    />
+  ) : null
 
   // Wrap in container for sideways battlefield cards (tapped permanents and Rooms) to
   // prevent overlap with neighbours.
@@ -2745,21 +3049,22 @@ function GameCardImpl({
         display: 'flex',
         alignItems: 'flex-end',
         justifyContent: 'center',
-        transition: 'width 0.15s, height 0.15s',
+        ...(prefersReducedMotion() ? {} : { transition: 'width 0.18s ease, height 0.18s ease' }),
         pointerEvents: 'none',
         position: 'relative',
       }}>
         {commanderCrown}
         {nonLegendaryChip}
+        {grantedLegendaryChip}
         {cardElement}
       </div>
       </RenderProfiler>
     )
   }
 
-  // Commander OR non-legendary-copy permanents need a relative-positioned wrapper so the chip
-  // can float above the card without being clipped by the card's `overflow: hidden`.
-  if (showCommanderCrown || nonLegendaryChip) {
+  // Commander, non-legendary-copy OR granted-legendary permanents need a relative-positioned
+  // wrapper so the chip can float above the card without being clipped by `overflow: hidden`.
+  if (showCommanderCrown || nonLegendaryChip || grantedLegendaryChip) {
     return (
       <RenderProfiler id={profilerId}>
         <div style={{
@@ -2770,6 +3075,7 @@ function GameCardImpl({
         }}>
           {commanderCrown}
           {nonLegendaryChip}
+          {grantedLegendaryChip}
           {cardElement}
         </div>
       </RenderProfiler>

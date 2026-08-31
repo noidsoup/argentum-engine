@@ -93,6 +93,15 @@ internal object FilterPredicates {
     fun nontoken(node: JsonElement?): Link? = if (node.hasTag("IsNonToken")) Link("nontoken") else null
 
     /**
+     * `.token()` for a positive `IsToken` clause ("creature tokens you control"), else null. The
+     * mirror of [nontoken] — without it an `And(IsCardtype Creature, IsToken, ControlledByAPlayer)`
+     * subject rendered as a bare `Creature.youControl()`, silently WIDENING the anthem to every
+     * creature you control (Intangible Virtue). [hasTag] matches the discriminator value exactly, so
+     * this never fires on the `IsNonToken` sibling.
+     */
+    fun token(node: JsonElement?): Link? = if (node.hasTag("IsToken")) Link("token") else null
+
+    /**
      * `.powerOrToughnessAtLeast(N)` for the `Or[PowerIs >= N, ToughnessIs >= N]` shape ("power or
      * toughness 4 or greater"), else null. When this fires, the caller must NOT also append the
      * standalone [powerAtLeast] — the `PowerIs` clause it would match lives inside this Or, and emitting
@@ -168,11 +177,23 @@ internal fun EmitCtx.creatureFilterExpr(filterNode: JsonElement?): Dsl? {
         if ("ControlledByAPlayer" in blob) return null
         return Call("TargetFilter", listOf(arg(Lit("GameObjectFilter.Creature").dot("crewedOrSaddledSourceThisTurn"))))
     }
-    // "...that was dealt damage this turn" (Rooftop Assassin) renders via `.dealtDamageThisTurn()` on the
-    // plain-creature path below (composed alongside the controller suffix). The special-shape branches
-    // (attacking/blocking/subtype/face-down/non-cardtype) can't compose it, so if such a predicate is also
-    // present, decline rather than silently drop the dealt-damage restriction (which would widen the kill).
-    if ("WasDealtDamageThisTurn" in blob) {
+    // Both damage-history voices render on the plain-creature path below (composed alongside the
+    // controller suffix): the passive "...that was dealt damage this turn" (Rooftop Assassin) via
+    // `.wasDealtDamageThisTurn()`, and the active "...that dealt damage this turn" (Red Guardian,
+    // Super-Soldier) via `.hasDealtDamageThisTurn()`. The special-shape branches (attacking/blocking/
+    // subtype/face-down/non-cardtype) can't compose either, so if such a predicate is also present,
+    // decline rather than silently drop the restriction (which would widen the kill). The active IR
+    // tag is a substring of the passive one, so the single check covers both.
+    //
+    // NOTE — the active tag's exact spelling is UNVERIFIED. The local corpus
+    // (`mtgish-tooling/data/mtgish.lines.json`) is a truncated 1 MiB sample predating MSH and carries
+    // only passive spellings (`WasDealtDamageThisTurn`, `WasDealtDamageByPermanentThisTurn`,
+    // `WasDealtDamageBySpellThisTurn`, `WasDealtDamageByAnyPermanentThisTurn`), so a bare
+    // `DealtDamageThisTurn` is our best guess at what mtgish emits for the active voice. The guess is
+    // fail-safe in both directions: if it never arrives, the render branch below simply never fires,
+    // and this decline check keeps behaving exactly as the passive-only check did. Confirm against the
+    // full corpus before relying on the active render.
+    if ("DealtDamageThisTurn" in blob) {
         val unrenderableAlongside = listOf(
             "IsAttacking", "IsBlocking", "IsFaceDown", "IsCreatureType", "IsNonCreatureType",
             "IsNonCardtype", "Other", "HasACounterOfType",
@@ -217,7 +238,7 @@ internal fun EmitCtx.creatureFilterExpr(filterNode: JsonElement?): Dsl? {
         val otherPredicates = listOf(
             "IsTapped", "IsUntapped", "IsAttacking", "IsBlocking", "PowerIs", "ToughnessIs", "ManaValueIs",
             "IsColor", "IsNonColor", "HasAbility", "DoesntHaveAbility", "IsNonToken", "IsCreatureType",
-            "IsNonCreatureType", "IsNonCardtype", "Other", "HasACounterOfType", "WasDealtDamageThisTurn",
+            "IsNonCreatureType", "IsNonCardtype", "Other", "HasACounterOfType", "DealtDamageThisTurn",
         )
         if (otherPredicates.any { it in blob }) return null
         var g: Dsl = Lit("GameObjectFilter.Creature").dot("notAnyOfSubtypes", arg("Subtype.OUTLAW_TYPES"))
@@ -242,7 +263,7 @@ internal fun EmitCtx.creatureFilterExpr(filterNode: JsonElement?): Dsl? {
         )
         if (otherPredicates.any { it in blob }) return null
         var g: Dsl = Lit("GameObjectFilter.Creature")
-        nonCreatureSubs.forEach { g = g.dot("notSubtype", arg("Subtype(\"$it\")")) }
+        nonCreatureSubs.forEach { g = g.dot("notSubtype", arg(subtypeCtorArg(it))) }
         when {
             "\"You\"" in blob -> g = g.dot("youControl")
             "\"Opponent\"" in blob -> g = g.dot("opponentControls")
@@ -263,7 +284,7 @@ internal fun EmitCtx.creatureFilterExpr(filterNode: JsonElement?): Dsl? {
             val otherPredicates = listOf(
                 "IsTapped", "IsUntapped", "IsAttacking", "IsBlocking", "PowerIs", "ToughnessIs", "ManaValueIs",
                 "IsColor", "IsNonColor", "HasAbility", "DoesntHaveAbility", "IsNonToken", "IsCreatureType",
-                "IsNonCreatureType", "IsNonCardtype", "Other", "WasDealtDamageThisTurn",
+                "IsNonCreatureType", "IsNonCardtype", "Other", "DealtDamageThisTurn",
             )
             if (otherPredicates.none { it in blob }) {
                 val counter = counterTypeDsl(counterNodes.first()["args"]) ?: return null
@@ -291,7 +312,7 @@ internal fun EmitCtx.creatureFilterExpr(filterNode: JsonElement?): Dsl? {
             "IsCreatureType", "IsNonCreatureType", "IsArtifactType", "IsLandType", "IsEnchantmentType",
             "IsNonCardtype", "IsColor", "IsNonColor", "PowerIs", "ToughnessIs", "ManaValueIs", "HasAbility",
             "DoesntHaveAbility", "IsTapped", "IsUntapped", "IsAttacking", "IsBlocking", "IsFaceDown",
-            "IsNonToken", "HasACounterOfType", "WasDealtDamageThisTurn",
+            "IsNonToken", "HasACounterOfType", "DealtDamageThisTurn",
         )
         if (jsonContains(filterNode, "_Permanents", "Other") &&
             "Creature" in filterNode.argWordsTagged("IsCardtype") &&
@@ -312,7 +333,7 @@ internal fun EmitCtx.creatureFilterExpr(filterNode: JsonElement?): Dsl? {
             "IsCreatureType", "IsNonCreatureType", "IsArtifactType", "IsLandType", "IsEnchantmentType",
             "IsNonCardtype", "IsColor", "IsNonColor", "PowerIs", "ToughnessIs", "ManaValueIs", "HasAbility",
             "DoesntHaveAbility", "IsTapped", "IsUntapped", "IsAttacking", "IsBlocking", "IsFaceDown",
-            "IsNonToken", "HasACounterOfType", "WasDealtDamageThisTurn", "ControlledByAPlayer", "ControlledByPlayer",
+            "IsNonToken", "HasACounterOfType", "DealtDamageThisTurn", "ControlledByAPlayer", "ControlledByPlayer",
         )
         if (jsonContains(filterNode, "_Permanents", "Other") &&
             "Creature" in filterNode.argWordsTagged("IsCardtype") &&
@@ -334,18 +355,9 @@ internal fun EmitCtx.creatureFilterExpr(filterNode: JsonElement?): Dsl? {
     // names a specific player ref (e.g. the attack trigger's defending player). Either is a controller
     // restriction that must be preserved or the card declines — never silently widened.
     val hasController = "ControlledByAPlayer" in blob || "ControlledByPlayer" in blob
-    val controller: Link? = when {
-        !hasController -> null
-        // "target creature defending player controls" in an attack trigger (Spring Splasher): the
-        // defending player is by definition an opponent of the attacking source's controller.
-        "\"Trigger_DefendingPlayer\"" in blob -> Link("opponentControls")
-        "\"Opponent\"" in blob -> Link("opponentControls")
-        "\"You\"" in blob -> Link("youControl")
-        // "a creature that player controls" in a combat-damage trigger: the player ~ dealt damage to is an
-        // opponent (your creature dealt them combat damage), so it's that opponent's creature (Skirk Commando).
-        "\"Trigger_ThatPlayer\"" in blob -> Link("opponentControls")
-        else -> return null
-    }
+    val controller: Link? =
+        if (!hasController) null
+        else controllerSuffix(filterNode, allowTriggerPlayerRefs = true) ?: return null
     // Whole-creature shapes whose helpers live on GameObjectFilter (not TargetFilter), or are a named
     // TargetFilter constant. ONS targets use these in isolation, so render them as the whole filter.
     if ("IsAttacking" in blob && "IsBlocking" in blob) {
@@ -376,11 +388,11 @@ internal fun EmitCtx.creatureFilterExpr(filterNode: JsonElement?): Dsl? {
         // widen the target. Decline so the card scaffolds rather than emit a too-broad filter.
         val statePredicates = listOf(
             "IsAttacking", "IsBlocking", "IsTapped", "IsUntapped", "PowerIs", "ToughnessIs", "ManaValueIs",
-            "IsColor", "IsNonColor", "HasAbility", "DoesntHaveAbility", "IsNonToken", "HasACounterOfType",
-            "WasDealtDamageThisTurn",
+            "IsColor", "IsNonColor", "HasAbility", "DoesntHaveAbility", "IsNonToken", "IsToken",
+            "HasACounterOfType", "DealtDamageThisTurn",
         )
         if (statePredicates.any { it in blob }) return null
-        return Call("TargetFilter", listOf(arg(Infix("or", subs.map { Lit("GameObjectFilter.Creature").dot("withSubtype", arg("\"$it\"")) }))))
+        return Call("TargetFilter", listOf(arg(Infix("or", subs.map { Lit("GameObjectFilter.Creature").dot("withSubtype", arg(subtypeArg(it))) }))))
     }
     var node: Dsl = Lit("TargetFilter.Creature")
     if (nonlegendary) node = node.dot("nonlegendary")
@@ -401,6 +413,9 @@ internal fun EmitCtx.creatureFilterExpr(filterNode: JsonElement?): Dsl? {
     FilterPredicates.tapped(filterNode)?.let { node = node.dot(it) }
     FilterPredicates.attacking(filterNode)?.let { node = node.dot(it) }
     FilterPredicates.nontoken(filterNode)?.let { node = node.dot(it) }
+    // "target token you control" (IsToken) — the positive mirror of nontoken; dropping it would widen
+    // the target to any creature.
+    FilterPredicates.token(filterNode)?.let { node = node.dot(it) }
     // "power or toughness N or greater" takes the whole Or; suppress the standalone power bounds it
     // would otherwise also match (the PowerIs clause inside the Or) — see [powerOrToughnessAtLeast].
     val powerOrToughness = FilterPredicates.powerOrToughnessAtLeast(filterNode)
@@ -412,9 +427,17 @@ internal fun EmitCtx.creatureFilterExpr(filterNode: JsonElement?): Dsl? {
     }
     FilterPredicates.manaValueAtMost(filterNode)?.let { node = node.dot(it) }
     FilterPredicates.manaValueAtLeast(filterNode)?.let { node = node.dot(it) }
-    // "...that was dealt damage this turn" (Rooftop Assassin) — composes onto the plain-creature filter
-    // via .dealtDamageThisTurn(). Special shapes that carry this predicate already declined above.
-    if ("WasDealtDamageThisTurn" in blob) node = node.dot("dealtDamageThisTurn")
+    // Damage history, both voices — composes onto the plain-creature filter. Special shapes that carry
+    // either predicate already declined above. `WasDealtDamageThisTurn` (passive, Rooftop Assassin) is
+    // the SDK's `.wasDealtDamageThisTurn()`; the bare `DealtDamageThisTurn` (active, Red Guardian,
+    // Super-Soldier) is `.hasDealtDamageThisTurn()`. The active tag is a substring of the passive one,
+    // so the active test runs against a blob with the passive spellings removed. The active spelling is
+    // an unconfirmed guess — see the note on the decline check above; an unrecognised tag just means
+    // this branch never fires.
+    if ("WasDealtDamageThisTurn" in blob) node = node.dot("wasDealtDamageThisTurn")
+    if ("DealtDamageThisTurn" in blob.replace("WasDealtDamageThisTurn", "")) {
+        node = node.dot("hasDealtDamageThisTurn")
+    }
     // Keyword-ability restrictions ("attacking creature with shadow", Maze of Shadows): a
     // HasAbility / DoesntHaveAbility clause carrying a `_CheckHasable` keyword -> .withKeyword /
     // .withoutKeyword. Flying is already composed above (string match), so skip it here. If any
@@ -520,12 +543,8 @@ internal fun EmitCtx.targetExpr(tnode: JsonObject, actionContext: List<JsonObjec
         val artifactSubtype = args.firstArgWordTagged("IsArtifactType")
         if (artifactSubtype != null) {
             if (types.isNotEmpty() || "IsNonCardtype" in blob || hasCreatureSubtype) return null
-            val controller: Link? = when {
-                "ControlledByAPlayer" !in blob -> null
-                "\"You\"" in blob -> Link("youControl")
-                "\"Opponent\"" in blob -> Link("opponentControls")
-                else -> return null
-            }
+            val controller: Link? =
+                if ("ControlledByAPlayer" !in blob) null else controllerSuffix(args) ?: return null
             var base: Dsl = Lit("GameObjectFilter.Artifact").dot("withSubtype", arg(subtypeArg(artifactSubtype)))
             controller?.let { base = base.dot(it) }
             val parts = mutableListOf(arg("filter", Call("TargetFilter", listOf(arg(base)))))
@@ -568,12 +587,8 @@ internal fun EmitCtx.targetExpr(tnode: JsonObject, actionContext: List<JsonObjec
                 "IsToken", "IsSupertype", "IsArtifactType", "ManaValueAtMost", "ManaValueAtLeast",
             )
             if (extras.any { it in blob }) return@run
-            val controller: Link? = when {
-                "ControlledByAPlayer" !in blob -> null
-                "\"You\"" in blob -> Link("youControl")
-                "\"Opponent\"" in blob -> Link("opponentControls")
-                else -> return null
-            }
+            val controller: Link? =
+                if ("ControlledByAPlayer" !in blob) null else controllerSuffix(args) ?: return null
             if (controller == null) {
                 // No controller restriction — the named TargetCreatureOrPlaneswalker is exact.
                 val parts = listOfNotNull(
@@ -632,12 +647,8 @@ internal fun EmitCtx.targetExpr(tnode: JsonObject, actionContext: List<JsonObjec
             // ControlledByAPlayer clause. Preserve it as a `.youControl()` / `.opponentControls()` suffix
             // (mirrors the creature path); a controller clause we can't render exactly declines (-> SCAFFOLD)
             // rather than silently widening to any land/artifact/enchantment.
-            val controller: Link? = when {
-                "ControlledByAPlayer" !in blob -> null
-                "\"You\"" in blob -> Link("youControl")
-                "\"Opponent\"" in blob -> Link("opponentControls")
-                else -> return null
-            }
+            val controller: Link? =
+                if ("ControlledByAPlayer" !in blob) null else controllerSuffix(args) ?: return null
             var f: Dsl = Lit(singleType.getValue(types.first()))
             if (nonbasic) f = f.dot("nonbasic")
             controller?.let { f = f.dot(it) }  // "land you control" -> TargetFilter.Land.youControl()
@@ -662,13 +673,9 @@ internal fun EmitCtx.targetExpr(tnode: JsonObject, actionContext: List<JsonObjec
                     "HasACounterOfType",
                 )
                 if (extras.any { it in blob }) return null
-                val controller: Link? = when {
-                    "ControlledByAPlayer" !in blob -> null
-                    "\"You\"" in blob -> Link("youControl")
-                    "\"Opponent\"" in blob -> Link("opponentControls")
-                    else -> return null
-                }
-                var g: Dsl = Lit("GameObjectFilter.NonlandPermanent").dot("notSubtype", arg("Subtype(\"${negSubs[0]}\")"))
+                val controller: Link? =
+                    if ("ControlledByAPlayer" !in blob) null else controllerSuffix(args) ?: return null
+                var g: Dsl = Lit("GameObjectFilter.NonlandPermanent").dot("notSubtype", arg(subtypeCtorArg(negSubs[0])))
                 controller?.let { g = g.dot(it) }
                 val parts = mutableListOf(arg("filter", Call("TargetFilter", listOf(arg(g)))))
                 if (ttype in setOf("NumberTargetPermanents", "UptoNumberTargetPermanents") && countInt is Int) parts.add(0, arg("count", "$countInt"))
@@ -694,9 +701,7 @@ internal fun EmitCtx.targetExpr(tnode: JsonObject, actionContext: List<JsonObjec
             val controller: Link? = when {
                 "ControlledByAPlayer" !in blob -> null
                 manaValueX -> return null  // .manaValueEqualsX() + controller has no composed shape here
-                "\"You\"" in blob -> Link("youControl")
-                "\"Opponent\"" in blob -> Link("opponentControls")
-                else -> return null
+                else -> controllerSuffix(args) ?: return null
             }
             var f: Dsl = when {
                 controller == null -> Lit("TargetFilter.NonlandPermanent")
@@ -756,12 +761,8 @@ internal fun EmitCtx.targetExpr(tnode: JsonObject, actionContext: List<JsonObjec
             setOf("Artifact", "Enchantment") to "TargetFilter.ArtifactOrEnchantment",
         )
         multiTypeFilter[types]?.let { union ->
-            val controller: Link? = when {
-                "ControlledByAPlayer" !in blob -> null
-                "\"You\"" in blob -> Link("youControl")
-                "\"Opponent\"" in blob -> Link("opponentControls")
-                else -> return null
-            }
+            val controller: Link? =
+                if ("ControlledByAPlayer" !in blob) null else controllerSuffix(args) ?: return null
             // "creatures and/or enchantments YOU OWN" (Get Out mode 2) — an OwnedByAPlayer(You) clause.
             // Render `.ownedByYou()` so the ownership restriction isn't silently dropped (which would let
             // the spell bounce an opponent's permanents); any other owner shape declines (-> SCAFFOLD).
@@ -1238,6 +1239,9 @@ internal fun EmitCtx.gameObjectFilterExpr(filterNode: JsonElement?): Dsl? {
     // GameObjectFilter.Creature.blocking(), the same helper TargetFilter.BlockingCreature uses).
     FilterPredicates.blocking(filterNode)?.let { node = node.dot(it) }
     FilterPredicates.nontoken(filterNode)?.let { node = node.dot(it) }
+    // "creature TOKENS you control get +1/+1" (IsToken) — Intangible Virtue. Dropping this widened the
+    // anthem to every creature you control, so it's a real predicate here, not decoration.
+    FilterPredicates.token(filterNode)?.let { node = node.dot(it) }
     // "a face-down permanent you control" (IsFaceDown) — Cryptid Inspector's "whenever a face-down
     // permanent you control enters". Backed by GameObjectFilter.faceDown(); dropping it would widen
     // the trigger to every permanent entering, so it's a real predicate here.
@@ -1389,5 +1393,51 @@ internal fun EmitCtx.landSearchFilterExpr(filterNode: JsonElement?): Dsl {
             out
         }
         else -> Lit("GameObjectFilter.Any")
+    }
+}
+
+/**
+ * The `.youControl()` / `.opponentControls()` suffix carried by a filter's controller restriction —
+ * a `ControlledByAPlayer` clause (the generic "you / an opponent" scope) or a `ControlledByPlayer`
+ * one (a specific player ref, e.g. an attack trigger's defending player).
+ *
+ * The clause's player scope is inspected **structurally**, never by scanning the serialized blob for a
+ * bare `"You"`. `Other(You)` is "a player other than you" — i.e. an opponent — so "target creature you
+ * DON'T control" (Affectionate Indrik, Primal Might, Bite Down) carries a `You` player ref that a
+ * substring scan reads as `youControl`, inverting the restriction and offering exactly the wrong half of
+ * the battlefield. This mirrors the scope handling [groupFilterExpr] already does for group filters.
+ *
+ * [allowTriggerPlayerRefs] widens the accepted set to a trigger's implied opponent (the defending
+ * player, the player just dealt combat damage). Collapsing those to "an opponent" is exact in a
+ * two-player game but LOSSY in multiplayer — the IR names one specific player, `opponentControls`
+ * matches any of them. Only the plain-creature surface has historically taken that trade; the other
+ * surfaces decline, and they stay that way here so this stays a bug fix and not a coverage change.
+ *
+ * @return the suffix to append, or null when the scope has no exact rendering — the caller declines
+ *   (-> SCAFFOLD) rather than silently widening the target to every permanent.
+ */
+private fun controllerSuffix(filterNode: JsonElement?, allowTriggerPlayerRefs: Boolean = false): Link? {
+    val clause = filterNode.nodesTagged("ControlledByAPlayer").firstOrNull()
+        ?: filterNode.nodesTagged("ControlledByPlayer").firstOrNull()
+        ?: return null
+    val scope = clause.field("args")
+    // `ControlledByAPlayer` wraps a `_Players` collection ({"_Players":"SinglePlayer","args":{"_Player":…}});
+    // `ControlledByPlayer` names the `_Player` directly ({"_Player":"Trigger_DefendingPlayer"}).
+    val playersKind = scope.strField("_Players")
+    val playerRef = scope.field("args").strField("_Player") ?: scope.strField("_Player")
+    return when {
+        playersKind == "Opponent" -> Link("opponentControls")
+        // "creature you don't control" — Other(You) is every player but you, i.e. your opponents.
+        playersKind == "Other" && playerRef == "You" -> Link("opponentControls")
+        playerRef == "You" -> Link("youControl")
+        !allowTriggerPlayerRefs -> null
+        // "target creature defending player controls" in an attack trigger (Spring Splasher): the
+        // defending player is by definition an opponent of the attacking source's controller.
+        playerRef == "Trigger_DefendingPlayer" -> Link("opponentControls")
+        // "a creature that player controls" in a combat-damage trigger: the player ~ dealt damage to is
+        // an opponent (your creature dealt them combat damage), so it's that opponent's creature
+        // (Skirk Commando).
+        playerRef == "Trigger_ThatPlayer" -> Link("opponentControls")
+        else -> null
     }
 }

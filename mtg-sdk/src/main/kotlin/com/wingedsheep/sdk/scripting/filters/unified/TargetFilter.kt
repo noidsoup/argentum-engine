@@ -157,6 +157,13 @@ data class TargetFilter(
         /** Target permanent you control */
         val PermanentYouControl = TargetFilter(GameObjectFilter.Companion.Permanent.youControl())
 
+        /**
+         * Target token you control — any token permanent, not just a creature one. "Target token
+         * you control becomes a copy of it" (Kaya, Spirits' Justice) is deliberately wide enough to
+         * turn a Clue or a Treasure into a creature.
+         */
+        val TokenYouControl = TargetFilter(GameObjectFilter.Companion.Permanent.token().youControl())
+
         /** Target nonland permanent an opponent controls */
         val NonlandPermanentOpponentControls = TargetFilter(GameObjectFilter.Companion.NonlandPermanent.opponentControls())
 
@@ -186,6 +193,10 @@ data class TargetFilter(
         /** Target artifact or land */
         val ArtifactOrLand = TargetFilter(GameObjectFilter.Companion.ArtifactOrLand)
 
+        /** Target artifact, enchantment, or land (Creeping Mold) */
+        val ArtifactEnchantmentOrLand =
+            TargetFilter(GameObjectFilter.Companion.ArtifactEnchantmentOrLand)
+
         /** Target land */
         val Land = TargetFilter(GameObjectFilter.Companion.Land)
 
@@ -207,6 +218,39 @@ data class TargetFilter(
 
         /** Target creature card in your graveyard */
         val CreatureInYourGraveyard = TargetFilter(GameObjectFilter.Companion.Creature.ownedByYou(), zone = Zone.GRAVEYARD)
+
+        /**
+         * Target permanent card in your graveyard — for wordings that print the word "permanent".
+         *
+         * **Not what a bare tribal noun names.** "Return target **Zombie card** from your graveyard"
+         * names any card with the subtype, and a card with a creature type need not be a permanent
+         * card: Kindred (formerly Tribal) carries creature types onto instants and sorceries, so
+         * Tarfire and Boggart Birth Rite are Goblin cards, Murderous Rider is a Zombie card, and the
+         * corpus holds 31 non-permanent Dragon cards, 12 Elf and 10 Cleric. An earlier version of
+         * this KDoc asserted the opposite and nine hand-written cards were built on it; the
+         * differential caught them once Argentum Assay learned to read card position correctly.
+         *
+         * For a bare tribal noun use `CardInGraveyard.withSubtype(…).ownedByYou()`.
+         * [CreatureInYourGraveyard] is the counterpart for the adjectival "target Zombie creature
+         * card", which *does* narrow to creature cards.
+         */
+        val PermanentInYourGraveyard = TargetFilter(GameObjectFilter.Companion.Permanent.ownedByYou(), zone = Zone.GRAVEYARD)
+
+        /**
+         * Target artifact card in your graveyard — the "return target artifact card from your
+         * graveyard" family (Ritual of Restoration, Myr Retriever, Refurbish, Fortuitous Find).
+         *
+         * `GameObjectFilter.Artifact` is a lone `IsArtifact` predicate, so this is **inclusive**, not
+         * exclusive: an artifact creature card in your graveyard satisfies this filter *and*
+         * [CreatureInYourGraveyard]. A card printing both as separate modes still can't recur one
+         * such card twice — the two targets are chosen at the same time and must be different
+         * objects — but either mode alone will happily take it.
+         *
+         * Ownership, not control, is the axis: a card in a graveyard represents neither a permanent
+         * nor a spell and so has no controller, only the owner whose graveyard it sits in. Use
+         * `TargetFilter.Artifact` (battlefield, `youControl()`) when the wording means a permanent.
+         */
+        val ArtifactInYourGraveyard = TargetFilter(GameObjectFilter.Companion.Artifact.ownedByYou(), zone = Zone.GRAVEYARD)
 
         /** Target instant or sorcery card in a graveyard */
         val InstantOrSorceryInGraveyard = TargetFilter(GameObjectFilter.Companion.InstantOrSorcery, zone = Zone.GRAVEYARD)
@@ -297,6 +341,27 @@ data class TargetFilter(
             ),
             zone = Zone.STACK
         )
+
+        /**
+         * Target an instant spell, sorcery spell, or triggered ability on the stack — the Spider-Sense
+         * counter template. Narrower than [InstantSorcerySpellOrAbilityOnStack]: activated abilities
+         * are **not** included (only triggered ones), matching "counter target instant spell, sorcery
+         * spell, or triggered ability".
+         */
+        val InstantSorcerySpellOrTriggeredAbilityOnStack = TargetFilter(
+            GameObjectFilter(
+                cardPredicates = listOf(
+                    CardPredicate.Or(
+                        listOf(
+                            CardPredicate.IsInstant,
+                            CardPredicate.IsSorcery,
+                            CardPredicate.IsTriggeredAbility
+                        )
+                    )
+                )
+            ),
+            zone = Zone.STACK
+        )
     }
 
     // =============================================================================
@@ -378,6 +443,9 @@ data class TargetFilter(
     /** Must have no counters of any type ("with no counters on it" — Heartless Act). */
     fun withoutCounters() = copy(baseFilter = baseFilter.withoutCounters())
 
+    /** Must not have a counter of the given type; other counter types are allowed. */
+    fun withoutCounter(counterType: String) = copy(baseFilter = baseFilter.withoutCounter(counterType))
+
     /** Must be tapped */
     fun tapped() = copy(baseFilter = baseFilter.tapped())
 
@@ -390,6 +458,9 @@ data class TargetFilter(
     /** Must be attacking */
     fun attacking() = copy(baseFilter = baseFilter.attacking())
 
+    /** Attacking, with no other creature attacking (CR 506.5) — Crowd of True Believers. */
+    fun attackingAlone() = copy(baseFilter = baseFilter.attackingAlone())
+
     /** Spell on the stack cast from [zone] (reads `SpellOnStackComponent.castFromZone`). */
     fun castFromZone(zone: Zone) = copy(baseFilter = baseFilter.castFromZone(zone))
 
@@ -399,11 +470,21 @@ data class TargetFilter(
      */
     fun notCastFromZone(zone: Zone) = copy(baseFilter = baseFilter.notCastFromZone(zone))
 
-    /** Must have been dealt damage this turn ("...that was dealt damage this turn"). */
-    fun dealtDamageThisTurn() = copy(baseFilter = baseFilter.dealtDamageThisTurn())
+    /** Must have been dealt damage this turn — passive ("...that was dealt damage this turn"). */
+    fun wasDealtDamageThisTurn() = copy(baseFilter = baseFilter.wasDealtDamageThisTurn())
+
+    /** Must have dealt damage this turn — active ("...that dealt damage this turn"). */
+    fun hasDealtDamageThisTurn() = copy(baseFilter = baseFilter.hasDealtDamageThisTurn())
 
     /** Must be controlled by you */
     fun youControl() = copy(baseFilter = baseFilter.youControl())
+
+    /**
+     * Narrow a stack-ability target by its *source* (CR 113.7): "…from a creature source",
+     * "…from an artifact source". See [CardPredicate.AbilitySourceMatches].
+     */
+    fun abilitySourceMatches(subfilter: GameObjectFilter) =
+        copy(baseFilter = baseFilter.abilitySourceMatches(subfilter))
 
     /** Must not be legendary */
     fun nonlegendary() = copy(baseFilter = baseFilter.nonlegendary())
@@ -416,6 +497,9 @@ data class TargetFilter(
 
     /** Must be controlled by opponent */
     fun opponentControls() = copy(baseFilter = baseFilter.opponentControls())
+
+    /** Must have an Aura attached ("target enchanted creature", Graceful Takedown). */
+    fun enchanted() = copy(baseFilter = baseFilter.enchanted())
 
     /** Must be owned by you (for cards in graveyards/exile) */
     fun ownedByYou() = copy(baseFilter = baseFilter.ownedByYou())

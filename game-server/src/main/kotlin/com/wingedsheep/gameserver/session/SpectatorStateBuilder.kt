@@ -188,8 +188,11 @@ class SpectatorStateBuilder(
         val playerId = seat.playerId
         val playerEntity = state.getEntity(playerId)
 
-        val life = playerEntity?.get<LifeTotalComponent>()?.life ?: 20
-        val poisonCounters = playerEntity?.get<CountersComponent>()?.getCount(CounterType.POISON) ?: 0
+        // Through the resolvers: in Two-Headed Giant the life total (CR 810.9a) and the poison
+        // count (CR 810.10a) are the team's, carried on one member — a raw read shows the other
+        // head frozen at its starting life for the whole game.
+        val life = if (playerEntity?.get<LifeTotalComponent>() != null) state.lifeTotal(playerId) else 20
+        val poisonCounters = state.teamPoison(playerId)
         val hand = state.getZone(playerId, Zone.HAND)
         val library = state.getZone(playerId, Zone.LIBRARY)
         val battlefield = state.getZone(playerId, Zone.BATTLEFIELD)
@@ -213,11 +216,11 @@ class SpectatorStateBuilder(
     }
 
     /**
-     * Per-commander damage tallies against [defenderId]. Empty outside `Format.Commander`. Mirrors
+     * Per-commander damage tallies against [defenderId]. Empty when the format has no commanders. Mirrors
      * the player-facing transformer so the spectator badge renders identically.
      */
     private fun buildCommanderDamage(state: GameState, defenderId: EntityId): List<ClientCommanderDamage> {
-        val format = state.format as? Format.Commander ?: return emptyList()
+        val threshold = state.format.commanderDamageThreshold ?: return emptyList()
         if (state.commanderDamage.isEmpty()) return emptyList()
         return state.commanderDamage
             .asSequence()
@@ -233,7 +236,7 @@ class SpectatorStateBuilder(
                     commanderName = card.name,
                     controllerId = controllerId,
                     amount = entry.amount,
-                    threshold = format.commanderDamageThreshold,
+                    threshold = threshold,
                     imageUri = card.imageUri,
                 )
             }
@@ -283,7 +286,10 @@ class SpectatorStateBuilder(
         return ServerMessage.SpectatorCardInfo(
             entityId = cardId.value,
             name = cardComponent.name,
-            imageUri = cardDef?.metadata?.imageUri,
+            // Prefer the entity's own art: CardEntityFactory stamps the printing the player actually
+            // put in their deck onto it, so a reprint matches what the players themselves see. The
+            // definition's canonical metadata is only a fallback for entities with no image stamped.
+            imageUri = cardComponent.imageUri ?: cardDef?.metadata?.imageUri,
             isTapped = tapped,
             power = cardComponent.baseStats?.basePower,
             toughness = cardComponent.baseStats?.baseToughness,

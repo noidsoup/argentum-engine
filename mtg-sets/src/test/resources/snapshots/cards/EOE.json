@@ -13,6 +13,7 @@
                     "type": "AddMana",
                     "color": "WHITE"
                 },
+                "timing": "ManaAbility",
                 "isManaAbility": true
             },
             {
@@ -431,7 +432,7 @@
                         "player": "DefendingPlayer"
                     }
                 },
-                "triggerCondition": "Void",
+                "interveningIf": "Void",
                 "descriptionOverride": "Void — Whenever Alpharael attacks, if a nonland permanent left the battlefield this turn or a spell was warped this turn, defending player loses half their life, rounded up."
             }
         ]
@@ -570,12 +571,16 @@
                 },
                 {
                     "effect": {
-                        "type": "MoveToZone",
-                        "target": {
-                            "type": "BoundVariable",
-                            "name": "target creature and/or planeswalker cards"
-                        },
-                        "destination": "Hand"
+                        "type": "ForEach",
+                        "space": "IterationSpace.Targets",
+                        "body": {
+                            "type": "MoveToZone",
+                            "target": {
+                                "type": "ContextTarget",
+                                "index": 0
+                            },
+                            "destination": "Hand"
+                        }
                     },
                     "targetRequirements": [
                         {
@@ -585,8 +590,7 @@
                             "filter": {
                                 "baseFilter": "creature|planeswalker",
                                 "zone": "Graveyard"
-                            },
-                            "id": "target creature and/or planeswalker cards"
+                            }
                         }
                     ],
                     "description": "Return one or two target creature and/or planeswalker cards from your graveyard to your hand"
@@ -1374,7 +1378,8 @@
                 "id": "ability_2",
                 "trigger": {
                     "type": "PermanentsSacrificedEvent",
-                    "filter": "artifact"
+                    "filter": "artifact",
+                    "perPermanent": true
                 },
                 "binding": "ANY",
                 "effect": {
@@ -1567,33 +1572,6 @@
     },
     "colorIdentityOverride": [
         "RED"
-    ]
-}
-
-// Breeding Pool
-{
-    "name": "Breeding Pool",
-    "manaCost": "",
-    "typeLine": "Land — Forest Island",
-    "oracleText": "({T}: Add {G} or {U}.)\nAs this land enters, you may pay 2 life. If you don't, it enters tapped.",
-    "script": {
-        "replacementEffects": [
-            {
-                "type": "EntersTapped",
-                "payLifeCost": 2
-            }
-        ]
-    },
-    "metadata": {
-        "collectorNumber": "251",
-        "rarity": "RARE",
-        "artist": "Constantin Marin",
-        "flavorText": "\"Log 1.4.778: Granove, a tropical moon teeming with endemic biota. A must see for any aspiring astrobiologist!\"\n—*Maisie's Edge Chronicles*",
-        "imageUri": "https://cards.scryfall.io/normal/front/3/c/3c750d5a-f743-41ff-b5ba-02025ca0bec2.jpg?1752947580"
-    },
-    "colorIdentityOverride": [
-        "BLUE",
-        "GREEN"
     ]
 }
 
@@ -1852,7 +1830,7 @@
                 },
                 "binding": "ANY",
                 "effect": "SacrificeSelf",
-                "triggerCondition": {
+                "triggerRestriction": {
                     "type": "Not",
                     "condition": "Void"
                 },
@@ -2050,18 +2028,12 @@
             {
                 "type": "ConditionalStaticAbility",
                 "ability": {
-                    "type": "GrantDynamicStats",
+                    "type": "ModifyStats",
+                    "powerBonus": 1,
+                    "toughnessBonus": 0,
                     "filter": {
                         "baseFilter": "permanent",
                         "scope": "Self"
-                    },
-                    "powerBonus": {
-                        "type": "Fixed",
-                        "amount": 1
-                    },
-                    "toughnessBonus": {
-                        "type": "Fixed",
-                        "amount": 0
                     }
                 },
                 "condition": {
@@ -3036,7 +3008,7 @@
                         "target": "Self"
                     }
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "AggregateBattlefield",
@@ -4299,7 +4271,7 @@
                     "imageUri": "https://cards.scryfall.io/normal/front/c/4/c46f9a07-005c-44b7-8057-b2f00b274dd6.jpg?1756281130",
                     "artifactToken": true
                 },
-                "triggerCondition": "Void",
+                "interveningIf": "Void",
                 "descriptionOverride": "At the beginning of your end step, if a nonland permanent left the battlefield this turn or a spell was warped this turn, create a 2/2 colorless Robot artifact creature token."
             }
         ]
@@ -4503,7 +4475,7 @@
                         "player": "TriggeringPlayer"
                     }
                 },
-                "triggerCondition": {
+                "triggerRestriction": {
                     "type": "Compare",
                     "left": {
                         "type": "EntityProperty",
@@ -4728,7 +4700,7 @@
                     "filter": "land ctrl:you",
                     "to": "Battlefield"
                 },
-                "binding": "OTHER",
+                "binding": "ANY",
                 "effect": {
                     "type": "GainLife",
                     "amount": {
@@ -4772,7 +4744,7 @@
                     "filter": "land ctrl:you",
                     "to": "Battlefield"
                 },
-                "binding": "OTHER",
+                "binding": "ANY",
                 "effect": {
                     "type": "CreateToken",
                     "power": 2,
@@ -4814,6 +4786,7 @@
                     "type": "AddMana",
                     "color": "GREEN"
                 },
+                "timing": "ManaAbility",
                 "isManaAbility": true
             },
             {
@@ -4858,6 +4831,7 @@
                         "filter": "creature"
                     }
                 },
+                "timing": "ManaAbility",
                 "restrictions": [
                     {
                         "type": "ActivationOnlyIfCondition",
@@ -5618,7 +5592,7 @@
                         "amount": 2
                     }
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "AggregateBattlefield",
@@ -5809,7 +5783,7 @@
                     "count": 1,
                     "target": "Self"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "AggregateBattlefield",
@@ -6172,12 +6146,13 @@
                             "type": "CostAtomWrapper",
                             "atom": {
                                 "type": "AtomTapPermanents",
-                                "excludeSelf": true
+                                "filter": "permanent"
                             }
                         }
                     ]
                 },
                 "effect": "AddManaOfChoice",
+                "timing": "ManaAbility",
                 "isManaAbility": true
             }
         ]
@@ -6215,7 +6190,7 @@
                     "filter": "land ctrl:you",
                     "to": "Battlefield"
                 },
-                "binding": "OTHER",
+                "binding": "ANY",
                 "effect": {
                     "type": "Gated",
                     "gate": {
@@ -6415,7 +6390,7 @@
                     "filter": "land ctrl:you",
                     "to": "Battlefield"
                 },
-                "binding": "OTHER",
+                "binding": "ANY",
                 "effect": {
                     "type": "ForEach",
                     "space": {
@@ -6466,33 +6441,6 @@
     ]
 }
 
-// Godless Shrine
-{
-    "name": "Godless Shrine",
-    "manaCost": "",
-    "typeLine": "Land — Plains Swamp",
-    "oracleText": "({T}: Add {W} or {B}.)\nAs this land enters, you may pay 2 life. If you don't, it enters tapped.",
-    "script": {
-        "replacementEffects": [
-            {
-                "type": "EntersTapped",
-                "payLifeCost": 2
-            }
-        ]
-    },
-    "metadata": {
-        "collectorNumber": "254",
-        "rarity": "RARE",
-        "artist": "Rob Rey",
-        "flavorText": "\"Log 1.7.618: Starshadow, a relic of a culture lost to calamity. Its people were eradicated in a single day—but by what?\"\n—*Maisie's Edge Chronicles*",
-        "imageUri": "https://cards.scryfall.io/normal/front/8/c/8c542ea4-98c3-4c2d-9066-205ab7aa697a.jpg?1752947593"
-    },
-    "colorIdentityOverride": [
-        "WHITE",
-        "BLACK"
-    ]
-}
-
 // Gravblade Heavy
 {
     "name": "Gravblade Heavy",
@@ -6508,18 +6456,12 @@
             {
                 "type": "ConditionalStaticAbility",
                 "ability": {
-                    "type": "GrantDynamicStats",
+                    "type": "ModifyStats",
+                    "powerBonus": 1,
+                    "toughnessBonus": 0,
                     "filter": {
                         "baseFilter": "permanent",
                         "scope": "Self"
-                    },
-                    "powerBonus": {
-                        "type": "Fixed",
-                        "amount": 1
-                    },
-                    "toughnessBonus": {
-                        "type": "Fixed",
-                        "amount": 0
                     }
                 },
                 "condition": {
@@ -6816,7 +6758,7 @@
                         "amount": 1
                     }
                 },
-                "triggerCondition": {
+                "triggerRestriction": {
                     "type": "Compare",
                     "left": {
                         "type": "TurnTracking",
@@ -6951,17 +6893,18 @@
             }
         }
     },
-    "script": {
-        "staticAbilities": [
-            {
-                "type": "GrantWard",
-                "cost": {
-                    "type": "WardCost.Mana",
-                    "manaCost": "{2}"
-                }
+    "keywords": [
+        "WARD"
+    ],
+    "keywordAbilities": [
+        {
+            "type": "Ward",
+            "cost": {
+                "type": "WardCost.Mana",
+                "manaCost": "{2}"
             }
-        ]
-    },
+        }
+    ],
     "metadata": {
         "collectorNumber": "189",
         "rarity": "UNCOMMON",
@@ -7232,7 +7175,7 @@
                     },
                     "id": "target creature you control"
                 },
-                "triggerCondition": "Void"
+                "interveningIf": "Void"
             }
         ],
         "activatedAbilities": [
@@ -7365,7 +7308,7 @@
                     "filter": "land ctrl:you",
                     "to": "Battlefield"
                 },
-                "binding": "OTHER",
+                "binding": "ANY",
                 "effect": {
                     "type": "ModifyStats",
                     "powerModifier": {
@@ -7411,7 +7354,7 @@
                     "filter": "land ctrl:you",
                     "to": "Battlefield"
                 },
-                "binding": "OTHER",
+                "binding": "ANY",
                 "effect": {
                     "type": "Composite",
                     "effects": [
@@ -7878,7 +7821,7 @@
                     "count": 1,
                     "target": "Self"
                 },
-                "triggerCondition": "Void"
+                "interveningIf": "Void"
             }
         ]
     },
@@ -7945,7 +7888,7 @@
                     "count": 1,
                     "target": "Self"
                 },
-                "triggerCondition": "Void",
+                "interveningIf": "Void",
                 "descriptionOverride": "At the beginning of your end step, if a nonland permanent left the battlefield this turn or a spell was warped this turn, put a +1/+1 counter on this creature."
             }
         ]
@@ -8208,7 +8151,7 @@
                     "count": 1,
                     "target": "Self"
                 },
-                "triggerCondition": "Void",
+                "interveningIf": "Void",
                 "descriptionOverride": "At the beginning of your end step, if a nonland permanent left the battlefield this turn or a spell was warped this turn, put a +1/+1 counter on this creature."
             }
         ]
@@ -8307,6 +8250,7 @@
                     "type": "AddMana",
                     "color": "RED"
                 },
+                "timing": "ManaAbility",
                 "isManaAbility": true
             },
             {
@@ -8740,9 +8684,10 @@
                 "id": "ability_1",
                 "trigger": {
                     "type": "PermanentsSacrificedEvent",
-                    "filter": "creature|artifact"
+                    "filter": "creature|artifact",
+                    "perPermanent": true
                 },
-                "binding": "ANY",
+                "binding": "OTHER",
                 "effect": {
                     "type": "AddCounters",
                     "counterType": "+1/+1",
@@ -10001,7 +9946,7 @@
                     "filter": "land ctrl:you",
                     "to": "Battlefield"
                 },
-                "binding": "OTHER",
+                "binding": "ANY",
                 "effect": {
                     "type": "ModifyStats",
                     "powerModifier": {
@@ -10062,7 +10007,7 @@
                     "filter": "artifact ctrl:you",
                     "to": "Battlefield"
                 },
-                "binding": "OTHER",
+                "binding": "ANY",
                 "effect": {
                     "type": "AddCounters",
                     "counterType": "+1/+1",
@@ -12000,7 +11945,7 @@
                     "target": "Self",
                     "tap": false
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "TurnTracking",
@@ -12276,7 +12221,7 @@
                     "filter": "land ctrl:you",
                     "to": "Battlefield"
                 },
-                "binding": "OTHER",
+                "binding": "ANY",
                 "effect": {
                     "type": "ModifyStats",
                     "powerModifier": {
@@ -12717,7 +12662,7 @@
                     },
                     "id": "instant or sorcery card with mana value 2 or less from your graveyard"
                 },
-                "triggerCondition": "Void",
+                "interveningIf": "Void",
                 "descriptionOverride": "Void — When this creature enters, if a nonland permanent left the battlefield this turn or a spell was warped this turn, exile up to one target instant or sorcery card with mana value 2 or less from your graveyard. Copy it. You may cast the copy without paying its mana cost."
             }
         ]
@@ -12871,33 +12816,6 @@
     ]
 }
 
-// Sacred Foundry
-{
-    "name": "Sacred Foundry",
-    "manaCost": "",
-    "typeLine": "Land — Mountain Plains",
-    "oracleText": "({T}: Add {R} or {W}.)\nAs this land enters, you may pay 2 life. If you don't, it enters tapped.",
-    "script": {
-        "replacementEffects": [
-            {
-                "type": "EntersTapped",
-                "payLifeCost": 2
-            }
-        ]
-    },
-    "metadata": {
-        "collectorNumber": "256",
-        "rarity": "RARE",
-        "artist": "Titus Lunter",
-        "flavorText": "\"Log 2.2.119: Kiln, known for its blazing forges and ancient lava seeps. The footing may be treacherous, but the metallurgy is grand!\"\n—*Maisie's Edge Chronicles*",
-        "imageUri": "https://cards.scryfall.io/normal/front/8/b/8b4e2642-3c87-4708-b9b4-2e7f7359ac7d.jpg?1752947600"
-    },
-    "colorIdentityOverride": [
-        "WHITE",
-        "RED"
-    ]
-}
-
 // Sami's Curiosity
 {
     "name": "Sami's Curiosity",
@@ -12965,7 +12883,7 @@
                     "tapped": true,
                     "artifactToken": true
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "AggregateBattlefield",
@@ -13091,8 +13009,8 @@
                     "effect": {
                         "type": "MoveToZone",
                         "target": {
-                            "type": "ContextTarget",
-                            "index": 0
+                            "type": "BoundVariable",
+                            "name": "artifact card in your graveyard"
                         },
                         "destination": "Hand"
                     },
@@ -13102,74 +13020,15 @@
                             "filter": {
                                 "baseFilter": "artifact own:you",
                                 "zone": "Graveyard"
-                            }
+                            },
+                            "id": "artifact card in your graveyard"
                         }
                     ],
                     "description": "Return target artifact card from your graveyard to your hand"
-                },
-                {
-                    "effect": {
-                        "type": "Composite",
-                        "effects": [
-                            {
-                                "type": "Composite",
-                                "effects": [
-                                    {
-                                        "type": "GatherCards",
-                                        "source": {
-                                            "type": "FromZone",
-                                            "zone": "Library",
-                                            "filter": "artifact"
-                                        },
-                                        "storeAs": "searchable"
-                                    },
-                                    {
-                                        "type": "SelectFromCollection",
-                                        "from": "searchable",
-                                        "selection": {
-                                            "type": "ChooseUpTo",
-                                            "count": {
-                                                "type": "Fixed",
-                                                "amount": 1
-                                            }
-                                        },
-                                        "storeSelected": "found"
-                                    },
-                                    {
-                                        "type": "MoveCollection",
-                                        "from": "found",
-                                        "destination": {
-                                            "type": "ToZone",
-                                            "zone": "Hand"
-                                        },
-                                        "revealed": true
-                                    },
-                                    "ShuffleLibrary",
-                                    "EmitLibrarySearchedEvent"
-                                ]
-                            },
-                            {
-                                "type": "MoveToZone",
-                                "target": {
-                                    "type": "ContextTarget",
-                                    "index": 0
-                                },
-                                "destination": "Hand"
-                            }
-                        ]
-                    },
-                    "targetRequirements": [
-                        {
-                            "type": "TargetObject",
-                            "filter": {
-                                "baseFilter": "artifact own:you",
-                                "zone": "Graveyard"
-                            }
-                        }
-                    ],
-                    "description": "Search your library for an artifact card and return target artifact card from your graveyard to your hand"
                 }
-            ]
+            ],
+            "chooseCount": 2,
+            "minChooseCount": 1
         }
     },
     "metadata": {
@@ -13428,6 +13287,7 @@
                         "amount": 1
                     }
                 },
+                "timing": "ManaAbility",
                 "isManaAbility": true
             },
             {
@@ -13538,7 +13398,7 @@
                     "filter": "land ctrl:you",
                     "to": "Battlefield"
                 },
-                "binding": "OTHER",
+                "binding": "ANY",
                 "effect": {
                     "type": "AddCounters",
                     "counterType": "+1/+1",
@@ -14410,7 +14270,7 @@
                         }
                     ]
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Any",
                     "conditions": [
                         {
@@ -15275,33 +15135,6 @@
     ]
 }
 
-// Stomping Ground
-{
-    "name": "Stomping Ground",
-    "manaCost": "",
-    "typeLine": "Land — Mountain Forest",
-    "oracleText": "({T}: Add {R} or {G}.)\nAs this land enters, you may pay 2 life. If you don't, it enters tapped.",
-    "script": {
-        "replacementEffects": [
-            {
-                "type": "EntersTapped",
-                "payLifeCost": 2
-            }
-        ]
-    },
-    "metadata": {
-        "collectorNumber": "258",
-        "rarity": "RARE",
-        "artist": "Bruce Brenneise",
-        "flavorText": "\"Log 2.5.325: A newborn moon, Aqqat still churns with the fires of creation. I'm eager to see what it will become!\"\n—*Maisie's Edge Chronicles*",
-        "imageUri": "https://cards.scryfall.io/normal/front/6/9/69be21b4-c613-47c6-ba57-f4785861af3e.jpg?1752947608"
-    },
-    "colorIdentityOverride": [
-        "RED",
-        "GREEN"
-    ]
-}
-
 // Sunset Saboteur
 {
     "name": "Sunset Saboteur",
@@ -15394,7 +15227,7 @@
                     },
                     "id": "target creature you control"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "AggregateBattlefield",
@@ -15489,27 +15322,21 @@
                     "to": "Battlefield"
                 },
                 "effect": {
-                    "type": "Gated",
-                    "gate": {
-                        "type": "Gate.WhenCondition",
-                        "condition": {
-                            "type": "Compare",
-                            "left": {
-                                "type": "AggregateBattlefield",
-                                "player": "EachOpponent",
-                                "filter": "land"
-                            },
-                            "operator": "GT",
-                            "right": {
-                                "type": "AggregateBattlefield",
-                                "player": "You",
-                                "filter": "land"
-                            }
-                        }
+                    "type": "CreatePredefinedToken",
+                    "tokenType": "Lander"
+                },
+                "interveningIf": {
+                    "type": "Compare",
+                    "left": {
+                        "type": "AggregateBattlefield",
+                        "player": "EachOpponent",
+                        "filter": "land"
                     },
-                    "then": {
-                        "type": "CreatePredefinedToken",
-                        "tokenType": "Lander"
+                    "operator": "GT",
+                    "right": {
+                        "type": "AggregateBattlefield",
+                        "player": "You",
+                        "filter": "land"
                     }
                 }
             },
@@ -15520,7 +15347,7 @@
                     "filter": "land ctrl:you",
                     "to": "Battlefield"
                 },
-                "binding": "OTHER",
+                "binding": "ANY",
                 "effect": {
                     "type": "ModifyStats",
                     "powerModifier": {
@@ -15722,6 +15549,7 @@
                     "type": "AddMana",
                     "color": "BLACK"
                 },
+                "timing": "ManaAbility",
                 "isManaAbility": true
             },
             {
@@ -16142,7 +15970,7 @@
                     },
                     "id": "up to one other target artifact you control"
                 },
-                "triggerCondition": {
+                "triggerRestriction": {
                     "type": "Compare",
                     "left": {
                         "type": "EntityProperty",
@@ -16399,7 +16227,7 @@
                     },
                     "id": "up to one target nonland permanent"
                 },
-                "triggerCondition": {
+                "triggerRestriction": {
                     "type": "Compare",
                     "left": {
                         "type": "EntityProperty",
@@ -16438,7 +16266,7 @@
                     },
                     "id": "up to one target nonland permanent"
                 },
-                "triggerCondition": {
+                "triggerRestriction": {
                     "type": "Compare",
                     "left": {
                         "type": "EntityProperty",
@@ -16500,18 +16328,18 @@
                     "to": "Battlefield"
                 },
                 "effect": {
-                    "type": "Composite",
-                    "effects": [
-                        {
-                            "type": "ForEach",
-                            "space": {
-                                "type": "IterationSpace.Group",
-                                "filter": {
-                                    "baseFilter": "creature ctrl:you",
-                                    "excludeSelf": true
-                                }
-                            },
-                            "body": {
+                    "type": "ForEach",
+                    "space": {
+                        "type": "IterationSpace.Group",
+                        "filter": {
+                            "baseFilter": "creature ctrl:you",
+                            "excludeSelf": true
+                        }
+                    },
+                    "body": {
+                        "type": "Composite",
+                        "effects": [
+                            {
                                 "type": "ModifyStats",
                                 "powerModifier": {
                                     "type": "Fixed",
@@ -16522,24 +16350,14 @@
                                     "amount": 0
                                 },
                                 "target": "Self"
-                            }
-                        },
-                        {
-                            "type": "ForEach",
-                            "space": {
-                                "type": "IterationSpace.Group",
-                                "filter": {
-                                    "baseFilter": "creature ctrl:you",
-                                    "excludeSelf": true
-                                }
                             },
-                            "body": {
+                            {
                                 "type": "GrantKeyword",
                                 "keyword": "DEATHTOUCH",
                                 "target": "Self"
                             }
-                        }
-                    ]
+                        ]
+                    }
                 },
                 "descriptionOverride": "other creatures you control get +1/+0 and gain deathtouch until end of turn"
             },
@@ -16547,18 +16365,18 @@
                 "id": "ability_2",
                 "trigger": "AttackEvent",
                 "effect": {
-                    "type": "Composite",
-                    "effects": [
-                        {
-                            "type": "ForEach",
-                            "space": {
-                                "type": "IterationSpace.Group",
-                                "filter": {
-                                    "baseFilter": "creature ctrl:you",
-                                    "excludeSelf": true
-                                }
-                            },
-                            "body": {
+                    "type": "ForEach",
+                    "space": {
+                        "type": "IterationSpace.Group",
+                        "filter": {
+                            "baseFilter": "creature ctrl:you",
+                            "excludeSelf": true
+                        }
+                    },
+                    "body": {
+                        "type": "Composite",
+                        "effects": [
+                            {
                                 "type": "ModifyStats",
                                 "powerModifier": {
                                     "type": "Fixed",
@@ -16569,24 +16387,14 @@
                                     "amount": 0
                                 },
                                 "target": "Self"
-                            }
-                        },
-                        {
-                            "type": "ForEach",
-                            "space": {
-                                "type": "IterationSpace.Group",
-                                "filter": {
-                                    "baseFilter": "creature ctrl:you",
-                                    "excludeSelf": true
-                                }
                             },
-                            "body": {
+                            {
                                 "type": "GrantKeyword",
                                 "keyword": "DEATHTOUCH",
                                 "target": "Self"
                             }
-                        }
-                    ]
+                        ]
+                    }
                 },
                 "descriptionOverride": "other creatures you control get +1/+0 and gain deathtouch until end of turn"
             }
@@ -16722,7 +16530,7 @@
                     "filter": "land ctrl:you",
                     "to": "Battlefield"
                 },
-                "binding": "OTHER",
+                "binding": "ANY",
                 "effect": {
                     "type": "Composite",
                     "effects": [
@@ -17186,7 +16994,8 @@
                 "trigger": {
                     "type": "CountersPlacedEvent",
                     "counterType": "+1/+1",
-                    "filter": "creature ctrl:you"
+                    "filter": "creature ctrl:you",
+                    "placedBy": "You"
                 },
                 "binding": "ANY",
                 "effect": {
@@ -17200,7 +17009,7 @@
                         }
                     }
                 },
-                "oncePerTurn": true
+                "effectOncePerTurn": true
             }
         ]
     },
@@ -17238,7 +17047,7 @@
                     "filter": "land ctrl:you",
                     "to": "Battlefield"
                 },
-                "binding": "OTHER",
+                "binding": "ANY",
                 "effect": {
                     "type": "Composite",
                     "effects": [
@@ -17855,6 +17664,7 @@
                         "amount": 3
                     }
                 },
+                "timing": "ManaAbility",
                 "isManaAbility": true
             },
             {
@@ -17892,6 +17702,7 @@
                         }
                     }
                 },
+                "timing": "ManaAbility",
                 "restrictions": [
                     {
                         "type": "ActivationOnlyIfCondition",
@@ -18660,6 +18471,7 @@
                     "type": "AddMana",
                     "color": "BLUE"
                 },
+                "timing": "ManaAbility",
                 "isManaAbility": true
             },
             {
@@ -18704,6 +18516,7 @@
                         "filter": "artifact"
                     }
                 },
+                "timing": "ManaAbility",
                 "restrictions": [
                     {
                         "type": "ActivationOnlyIfCondition",
@@ -18805,7 +18618,7 @@
                         }
                     }
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "AggregateBattlefield",
@@ -18887,79 +18700,6 @@
     }
 }
 
-// Virus Beetle
-{
-    "name": "Virus Beetle",
-    "manaCost": "{1}{B}",
-    "typeLine": "Artifact Creature — Insect",
-    "oracleText": "When this creature enters, each opponent discards a card.",
-    "creatureStats": {
-        "power": 1,
-        "toughness": 1
-    },
-    "script": {
-        "triggeredAbilities": [
-            {
-                "id": "ability_1",
-                "trigger": {
-                    "type": "ZoneChangeEvent",
-                    "to": "Battlefield"
-                },
-                "effect": {
-                    "type": "ForEach",
-                    "space": {
-                        "type": "IterationSpace.Players",
-                        "players": "EachOpponent"
-                    },
-                    "body": {
-                        "type": "Composite",
-                        "effects": [
-                            {
-                                "type": "GatherCards",
-                                "source": {
-                                    "type": "FromZone",
-                                    "zone": "Hand"
-                                },
-                                "storeAs": "hand"
-                            },
-                            {
-                                "type": "SelectFromCollection",
-                                "from": "hand",
-                                "selection": {
-                                    "type": "ChooseExactly",
-                                    "count": {
-                                        "type": "Fixed",
-                                        "amount": 1
-                                    }
-                                },
-                                "storeSelected": "discarded"
-                            },
-                            {
-                                "type": "MoveCollection",
-                                "from": "discarded",
-                                "destination": {
-                                    "type": "ToZone",
-                                    "zone": "Graveyard"
-                                },
-                                "moveType": "Discard"
-                            }
-                        ]
-                    }
-                }
-            }
-        ]
-    },
-    "metadata": {
-        "collectorNumber": "124",
-        "artist": "Leesha Hannigan",
-        "flavorText": "The Eumidian biotechs were delighted when a mutated malware gene devastated their systems. They'd encourage the trait, so long as future clutches could be contained.",
-        "imageUri": "https://cards.scryfall.io/normal/front/e/9/e96c986c-684c-4546-a9c9-b6b903bda101.jpg?1752947055"
-    },
-    "colorIdentityOverride": [
-        "BLACK"
-    ]
-}
-
 // Voidforged Titan
 {
     "name": "Voidforged Titan",
@@ -18999,7 +18739,7 @@
                         }
                     ]
                 },
-                "triggerCondition": "Void",
+                "interveningIf": "Void",
                 "descriptionOverride": "At the beginning of your end step, if a nonland permanent left the battlefield this turn or a spell was warped this turn, you draw a card and lose 1 life."
             }
         ]
@@ -19185,33 +18925,6 @@
     },
     "colorIdentityOverride": [
         "RED"
-    ]
-}
-
-// Watery Grave
-{
-    "name": "Watery Grave",
-    "manaCost": "",
-    "typeLine": "Land — Island Swamp",
-    "oracleText": "({T}: Add {U} or {B}.)\nAs this land enters, you may pay 2 life. If you don't, it enters tapped.",
-    "script": {
-        "replacementEffects": [
-            {
-                "type": "EntersTapped",
-                "payLifeCost": 2
-            }
-        ]
-    },
-    "metadata": {
-        "collectorNumber": "261",
-        "rarity": "RARE",
-        "artist": "Sergey Glushakov",
-        "flavorText": "\"Log 2.9.089: Lammuat, the cemetery moon of salvage and secrets. Could be profitable for those brave enough to plumb its recesses.\"\n—*Maisie's Edge Chronicles*",
-        "imageUri": "https://cards.scryfall.io/normal/front/5/b/5b8170dc-6a90-46fc-9989-7575f3d402b5.jpg?1752947617"
-    },
-    "colorIdentityOverride": [
-        "BLUE",
-        "BLACK"
     ]
 }
 
@@ -19561,7 +19274,7 @@
                         }
                     ]
                 },
-                "triggerCondition": "WasCast"
+                "interveningIf": "WasCast"
             }
         ],
         "staticAbilities": [
@@ -19953,6 +19666,7 @@
                     "type": "AddMana",
                     "color": "RED"
                 },
+                "timing": "ManaAbility",
                 "isManaAbility": true
             },
             {

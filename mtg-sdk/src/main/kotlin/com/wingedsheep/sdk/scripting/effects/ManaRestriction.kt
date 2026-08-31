@@ -46,14 +46,32 @@ sealed interface ManaRestriction {
     }
 
     /**
-     * "Spend this mana only to cast creature spells with mana value 4 or greater
-     * or creature spells with {X} in their mana costs."
+     * "Spend this mana only to cast spells with mana value [minManaValue] or greater
+     * [or spells with {X} in their mana costs]."
+     *
+     * Parameterized over the threshold and the two optional clauses printed alongside it, because
+     * the mana-value gate shows up at several thresholds and with different qualifiers:
+     *  - `SpellsWithManaValueAtLeast(4)` — Ashling, Rimebound
+     *  - `SpellsWithManaValueAtLeast(4, orXInCost = true, creatureOnly = true)` — Helga, Skittish Seer
+     *  - `SpellsWithManaValueAtLeast(5, orXInCost = true)` — Troyan, Gutsy Explorer
+     *
+     * [orXInCost] adds the "or spells with {X} in their mana costs" clause — a spell with {X} in its
+     * cost qualifies regardless of its mana value, and the mana may pay any part of the cost, not
+     * just the {X} part. [creatureOnly] narrows both clauses to creature spells. Ability activations
+     * never satisfy this restriction.
      */
-    @SerialName("CreatureMV4OrXCost")
+    @SerialName("SpellsWithManaValueAtLeast")
     @Serializable
-    data object CreatureMV4OrXCost : ManaRestriction {
-        override val description: String =
-            "Spend this mana only to cast creature spells with mana value 4 or greater or creature spells with {X} in their mana costs"
+    data class SpellsWithManaValueAtLeast(
+        val minManaValue: Int,
+        val orXInCost: Boolean = false,
+        val creatureOnly: Boolean = false,
+    ) : ManaRestriction {
+        override val description: String = buildString {
+            val noun = if (creatureOnly) "creature spells" else "spells"
+            append("Spend this mana only to cast $noun with mana value $minManaValue or greater")
+            if (orXInCost) append(" or $noun with {X} in their mana costs")
+        }
     }
 
     /**
@@ -73,16 +91,6 @@ sealed interface ManaRestriction {
     @Serializable
     data object LegendarySpellsOnly : ManaRestriction {
         override val description: String = "Spend this mana only to cast legendary spells"
-    }
-
-    /**
-     * "Spend this mana only to cast spells with mana value 4 or greater."
-     */
-    @SerialName("SpellsMV4OrGreater")
-    @Serializable
-    data object SpellsMV4OrGreater : ManaRestriction {
-        override val description: String =
-            "Spend this mana only to cast spells with mana value 4 or greater"
     }
 
     /**
@@ -134,6 +142,23 @@ sealed interface ManaRestriction {
     }
 
     /**
+     * "Spend this mana only to cast face-down spells."
+     *
+     * Satisfied by casting a card face down for its morph (CR 702.37a) or disguise (CR 702.168a)
+     * cost — a spell with no name and no characteristics but "2/2 creature" (CR 708.2). Used
+     * inside [AnyOf] by Tin Street Gossip.
+     *
+     * Deliberately *not* satisfied by effects that merely put cards onto the battlefield face
+     * down: per the printed ruling on Tin Street Gossip, this mana can't pay for a spell that
+     * instructs you to cloak or manifest, because nothing there is cast face down.
+     */
+    @SerialName("FaceDownSpellsOnly")
+    @Serializable
+    data object FaceDownSpellsOnly : ManaRestriction {
+        override val description: String = "Spend this mana only to cast face-down spells"
+    }
+
+    /**
      * "Spend this mana only to unlock a door."
      *
      * Satisfied by the unlock-a-door special action (CR 709.5e), not by spell casts or ability
@@ -180,6 +205,64 @@ sealed interface ManaRestriction {
     }
 
     /**
+     * "Spend this mana only to activate equip abilities." Satisfied only by paying the cost of an
+     * **equip** ability (CR 702.6a — "[Cost]: Attach this permanent to target creature you control.
+     * Activate only as a sorcery"), including the "Equip [quality]" (CR 702.6c) and
+     * "Equip planeswalker" (CR 702.6e) variants and non-mana equip costs such as
+     * "Equip—Sacrifice a creature": everything the engine flags `ActivatedAbility.isEquipAbility`.
+     *
+     * A strict narrowing of [AbilityActivationOnly], and deliberately *not* expressible as
+     * `SubtypeSpellsOrAbilitiesOnly("Equipment")`: that one admits **every** activated ability of
+     * an Equipment source, so it would also pay Iron Man Armor's `{2}: … becomes a creature` or
+     * Batterskull's `{3}: Return this Equipment to its owner's hand`. It is likewise not
+     * `AbilityActivationOnly` narrowed by a card type — the equip ability of an Equipment and its
+     * other abilities share a card type, so the type test can't separate them.
+     *
+     * Kept as its own atom rather than a `equipOnly` flag on [AbilityActivationOnly] for the same
+     * reason [TurnPermanentsFaceUpOnly], [UnlockDoorOnly] and [FaceDownSpellsOnly] are separate
+     * atoms: each names one spend context, `AnyOf` composes them, and [AbilityActivationOnly] is a
+     * shipped `data object` whose `@SerialName` is already on the wire — turning it into a
+     * parameterized `data class` would change its serial shape. Ronin, Shadow Stalker's
+     * "cast Equipment spells or activate equip abilities" is
+     * `AnyOf(SubtypeSpellsOnly(setOf("Equipment")), EquipAbilityActivationOnly)`, and Freya
+     * Crescent's identically-meant "cast an Equipment spell or activate an equip ability" is the
+     * same expression — it predates this atom and was converged onto it off
+     * [SubtypeSpellsOrAbilitiesOnly], which had been paying for Iron Man Armor's animate ability.
+     */
+    @SerialName("EquipAbilityActivationOnly")
+    @Serializable
+    data object EquipAbilityActivationOnly : ManaRestriction {
+        override val description: String = "Spend this mana only to activate equip abilities"
+    }
+
+    /**
+     * "This mana can't be spent to cast a non-[cardTypes] spell" (Hydraulic Helper:
+     * "{T}: Add {U}. This mana can't be spent to cast a nonartifact spell").
+     *
+     * The only **negative** restriction in this family, and the distinction is load-bearing.
+     * Every other variant is a whitelist — "spend this mana *only* to …" — which blocks any spend
+     * that isn't the named one. This clause blocks exactly one thing, casting a spell that lacks
+     * one of [cardTypes], and leaves every other spend legal: activating an ability, paying a ward
+     * cost, an "unless that player pays {2}" tax, a cost demanded while something resolves,
+     * turning a permanent face up. Modelling it as `AnyOf(CardTypeSpellsOrAbilitiesOnly(…),
+     * AbilityActivationOnly)` covers only the first of those and silently rejects the rest.
+     */
+    @SerialName("CannotCastSpellsOtherThan")
+    @Serializable
+    data class CannotCastSpellsOtherThan(
+        val cardTypes: Set<com.wingedsheep.sdk.core.CardType>
+    ) : ManaRestriction {
+        init {
+            require(cardTypes.isNotEmpty()) { "CannotCastSpellsOtherThan needs at least one card type" }
+        }
+
+        override val description: String =
+            "This mana can't be spent to cast a non${
+                cardTypes.joinToString("/") { it.displayName.lowercase() }
+            } spell"
+    }
+
+    /**
      * "Spend this mana only to cast a spell from anywhere other than your hand."
      *
      * Used by Mm'menon, the Right Hand's granted artifact ability. Generalizes
@@ -212,7 +295,14 @@ sealed interface ManaRestriction {
     ) : ManaRestriction {
         override val description: String = buildString {
             append("Spend this mana only to cast ")
-            append(subtypes.joinToString(" or ") { "a $it spell" })
+            // "an Equipment spell" / "an Omen spell" — the article follows the subtype, and this
+            // string is player-visible (the client groups restricted-mana orbs by it).
+            append(
+                subtypes.joinToString(" or ") { subtype ->
+                    val article = if (subtype.firstOrNull()?.lowercaseChar() in setOf('a', 'e', 'i', 'o', 'u')) "an" else "a"
+                    "$article $subtype spell"
+                }
+            )
         }
     }
 

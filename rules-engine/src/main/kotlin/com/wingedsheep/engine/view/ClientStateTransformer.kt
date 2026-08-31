@@ -3,17 +3,25 @@ package com.wingedsheep.engine.view
 import com.wingedsheep.sdk.core.AbilityFlag
 import com.wingedsheep.sdk.core.CardType
 import com.wingedsheep.sdk.core.Color
+import com.wingedsheep.engine.mechanics.citysblessing.CitysBlessingService
+import com.wingedsheep.engine.mechanics.enduringstory.EnduringStoryService
 import com.wingedsheep.engine.mechanics.combat.rules.DefenderBypass
 import com.wingedsheep.sdk.core.Keyword
 import com.wingedsheep.sdk.core.Phase
 import com.wingedsheep.sdk.core.Subtype
+import com.wingedsheep.sdk.core.Supertype
 import com.wingedsheep.sdk.core.CounterType
 import com.wingedsheep.sdk.core.Zone
+import com.wingedsheep.sdk.dsl.RIOT_MODE_COUNTER
+import com.wingedsheep.sdk.dsl.RIOT_MODE_HASTE
 import com.wingedsheep.sdk.model.EntityId
 import com.wingedsheep.sdk.scripting.Duration
+import com.wingedsheep.sdk.scripting.GameObjectFilter
 import com.wingedsheep.sdk.scripting.GrantChosenColor
 import com.wingedsheep.sdk.scripting.KeywordAbility
 import com.wingedsheep.sdk.scripting.ProtectionScope
+import com.wingedsheep.engine.state.FACE_DOWN_CARD_DISPLAY_NAME
+import com.wingedsheep.engine.state.FACE_DOWN_DISPLAY_NAME
 import com.wingedsheep.engine.state.GameState
 import com.wingedsheep.engine.state.ZoneKey
 import com.wingedsheep.engine.state.components.identity.*
@@ -27,16 +35,22 @@ import com.wingedsheep.engine.state.components.stack.TriggeredAbilityOnStackComp
 import com.wingedsheep.engine.state.components.stack.SpellOnStackComponent
 import com.wingedsheep.engine.handlers.DynamicAmountEvaluator
 import com.wingedsheep.engine.handlers.EffectContext
+import com.wingedsheep.engine.handlers.effects.DamageUtils
 import com.wingedsheep.engine.handlers.effects.composite.asConditional
+import com.wingedsheep.sdk.scripting.events.DamageType
 import com.wingedsheep.engine.state.permissions.hasMayPlayFor
+import com.wingedsheep.engine.handlers.effects.FaceDownTurnUp
 import com.wingedsheep.sdk.scripting.effects.CompositeEffect
 import com.wingedsheep.sdk.scripting.effects.Effect
 import com.wingedsheep.sdk.scripting.effects.GiftGivenEffect
 import com.wingedsheep.sdk.scripting.effects.GatedEffect
 import com.wingedsheep.sdk.scripting.effects.ModalEffect
+import com.wingedsheep.sdk.scripting.effects.MORPH_HELPER_CARD_IMAGE_URI
 import com.wingedsheep.engine.mechanics.layers.ProjectedState
 import com.wingedsheep.engine.mechanics.layers.SerializableModification
 import com.wingedsheep.engine.mechanics.layers.imageOverrideFor
+import com.wingedsheep.engine.mechanics.targeting.ControllerHexproof
+import com.wingedsheep.engine.mechanics.targeting.ControllerShroud
 import com.wingedsheep.engine.registry.CardRegistry
 import com.wingedsheep.sdk.model.CardDefinition
 import kotlinx.serialization.json.JsonArray
@@ -74,6 +88,7 @@ class ClientStateTransformer(
 ) {
 
     private val conditionEvaluator = com.wingedsheep.engine.handlers.ConditionEvaluator()
+    private val visibility = Visibility(cardRegistry, debugMode)
     // Reused (with conditionEvaluator + cardRegistry) to surface each player's effective maximum
     // hand size via the shared com.wingedsheep.engine.core.MaximumHandSize source of truth.
     private val dynamicAmountEvaluator = DynamicAmountEvaluator(conditionEvaluator)
@@ -101,7 +116,7 @@ class ClientStateTransformer(
         val zones = mutableListOf<ClientZone>()
 
         for ((zoneKey, entityIds) in state.zones) {
-            val isZoneVisible = isZoneVisibleTo(state, zoneKey, viewingPlayerId, isSpectator)
+            val isZoneVisible = visibility.isZoneVisibleTo(state, zoneKey, viewingPlayerId, isSpectator)
 
             // For libraries we always send the full ordered list of entity IDs so the client can
             // render a correctly sized stack. Individual card *details* are only populated for cards
@@ -112,7 +127,13 @@ class ClientStateTransformer(
                 entityIds
             } else {
                 entityIds.filter { entityId ->
-                    isCardRevealedTo(state, entityId, viewingPlayerId)
+                    visibility.isCardIdentityVisibleTo(
+                        state,
+                        zoneKey,
+                        entityId,
+                        viewingPlayerId,
+                        isSpectator,
+                    )
                 }
             }
             val zoneCardIds = if (isLibrary) entityIds else cardsWithDetails
@@ -177,7 +198,7 @@ class ClientStateTransformer(
             for (entityId in state.stack) {
                 if (entityId !in cards) {
                     val clientCard = transformCard(state, entityId, stackZoneKey, projectedState, viewingPlayerId, isSpectator)
-                        ?: transformAbilityOnStack(state, entityId, viewingPlayerId)
+                        ?: transformAbilityOnStack(state, entityId, viewingPlayerId, isSpectator)
                     if (clientCard != null) {
                         cards[entityId] = clientCard
                     }
@@ -185,73 +206,6 @@ class ClientStateTransformer(
             }
         }
         // --- FIX END ---
-
-        // Reveal top library card for players who "play with the top card revealed"
-        // (PlayFromTopOfLibrary, e.g. Future Sight; or RevealTopOfLibrary, e.g. Goblin Spy).
-        // The top card is revealed to ALL players per the card's oracle text. The two abilities
-        // differ only in play permission (handled elsewhere); the public reveal is identical.
-        for (ownerId in state.turnOrder) {
-            if (revealsTopOfLibraryPublicly(state, ownerId)) {
-                val library = state.getLibrary(ownerId)
-                if (library.isNotEmpty()) {
-                    val topCardId = library.first()
-                    if (topCardId !in cards) {
-                        val libraryZoneKey = ZoneKey(ownerId, Zone.LIBRARY)
-                        val clientCard = transformCard(state, topCardId, libraryZoneKey, projectedState, viewingPlayerId)
-                        if (clientCard != null) {
-                            cards[topCardId] = clientCard
-                            // Update the library zone entry to include this card as visible
-                            val zoneIndex = zones.indexOfFirst {
-                                it.zoneId.ownerId == ownerId && it.zoneId.zoneType == Zone.LIBRARY
-                            }
-                            if (zoneIndex >= 0) {
-                                val existingZone = zones[zoneIndex]
-                                val newCardIds = if (existingZone.cardIds.contains(topCardId)) {
-                                    existingZone.cardIds
-                                } else {
-                                    listOf(topCardId) + existingZone.cardIds
-                                }
-                                zones[zoneIndex] = existingZone.copy(
-                                    cardIds = newCardIds,
-                                    isVisible = true
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Reveal top library card privately for players with LookAtTopOfLibrary (e.g., Lens of Clarity)
-        // Unlike PlayFromTopOfLibrary, this only reveals to the controller, not all players.
-        if (!isSpectator && hasLookAtTopOfLibrary(state, viewingPlayerId)) {
-            val library = state.getLibrary(viewingPlayerId)
-            if (library.isNotEmpty()) {
-                val topCardId = library.first()
-                if (topCardId !in cards) {
-                    val libraryZoneKey = ZoneKey(viewingPlayerId, Zone.LIBRARY)
-                    val clientCard = transformCard(state, topCardId, libraryZoneKey, projectedState, viewingPlayerId)
-                    if (clientCard != null) {
-                        cards[topCardId] = clientCard
-                        val zoneIndex = zones.indexOfFirst {
-                            it.zoneId.ownerId == viewingPlayerId && it.zoneId.zoneType == Zone.LIBRARY
-                        }
-                        if (zoneIndex >= 0) {
-                            val existingZone = zones[zoneIndex]
-                            val newCardIds = if (existingZone.cardIds.contains(topCardId)) {
-                                existingZone.cardIds
-                            } else {
-                                listOf(topCardId) + existingZone.cardIds
-                            }
-                            zones[zoneIndex] = existingZone.copy(
-                                cardIds = newCardIds,
-                                isVisible = true
-                            )
-                        }
-                    }
-                }
-            }
-        }
 
         // Build player information
         val players = state.turnOrder.map { playerId ->
@@ -310,6 +264,7 @@ class ClientStateTransformer(
             winnerId = state.winnerId,
             combat = combat,
             voidActive = state.nonlandPermanentLeftBattlefieldThisTurn || state.spellWarpedThisTurn,
+            dayNight = state.dayNight,
             youAreHijacking = youAreHijacking,
             youAreHijackedBy = youAreHijackedBy,
             hotseat = hotseat,
@@ -355,7 +310,12 @@ class ClientStateTransformer(
 
             val tally = tallies.getOrPut(definitionId) { Tally() }
             tally.copies++
-            if (!ownerKnowsIdentity(state, entityId, zoneType, viewingPlayerId)) tally.remaining++
+            // The zone walk below has a real key to hand and the stack has none, so let the
+            // visibility authority derive it either way rather than assuming every zone is
+            // owner-keyed — the battlefield is not.
+            if (!visibility.isCardIdentityVisibleTo(state, zoneType, entityId, viewingPlayerId)) {
+                tally.remaining++
+            }
             if (copyOf == null && tally.printingImageUri == null) {
                 tally.printingImageUri = cardComponent.imageUri
             }
@@ -379,31 +339,6 @@ class ClientStateTransformer(
                 imageUri = tally.printingImageUri ?: definition.metadata.imageUri
             )
         }.sortedWith(compareBy({ it.cmc }, { it.cardName }))
-    }
-
-    /**
-     * Whether the owner of [entityId] can currently tell *which* of their cards this one is.
-     *
-     * False for anything in their library (that's the whole point — you know what's in your deck,
-     * not where), and for a card of theirs that is face down somewhere they can't look: exiled face
-     * down, or a face-down permanent an opponent controls. Mirrors the face-down masking in
-     * [transformCard] so the tracker never claims knowledge the client wasn't sent.
-     */
-    private fun ownerKnowsIdentity(
-        state: GameState,
-        entityId: EntityId,
-        zoneType: Zone,
-        viewingPlayerId: EntityId
-    ): Boolean {
-        if (zoneType == Zone.LIBRARY) return false
-        val container = state.getEntity(entityId) ?: return false
-        val isInFaceDownZone =
-            zoneType == Zone.BATTLEFIELD || zoneType == Zone.STACK || zoneType == Zone.EXILE
-        if (!isInFaceDownZone || !container.has<FaceDownComponent>()) return true
-        val controllerId = container.get<ControllerComponent>()?.playerId
-        return controllerId == viewingPlayerId ||
-            isCardRevealedTo(state, entityId, viewingPlayerId) ||
-            (zoneType == Zone.BATTLEFIELD && hasLookAtFaceDownCreatures(state, viewingPlayerId))
     }
 
     /**
@@ -476,43 +411,6 @@ class ClientStateTransformer(
         return false
     }
 
-    private fun isZoneVisibleTo(
-        state: GameState,
-        zoneKey: ZoneKey,
-        viewingPlayerId: EntityId,
-        isSpectator: Boolean
-    ): Boolean {
-        return when (zoneKey.zoneType) {
-            Zone.LIBRARY -> false
-            // During a Mindslaver-style hijack the controller (actor) sees what the
-            // affected player sees of their own hand. Spectators never gain visibility.
-            // A non-spectator viewer also sees an opponent's hand while they control a
-            // permanent that makes their opponents play with hands revealed (Seer's Vision).
-            // In Two-Headed Giant (CR 810.2b) teammates share strategy openly, so a player
-            // always sees their teammate's hand; [teammatesOf] is empty in non-team games, so
-            // this clause is inert for 2-player / Free-for-All. (Library stays hidden — teams
-            // share life and turns, not card knowledge of each other's library order.)
-            Zone.HAND -> debugMode || zoneKey.ownerId == viewingPlayerId ||
-                (!isSpectator && state.actorFor(zoneKey.ownerId) == viewingPlayerId) ||
-                (!isSpectator && state.teammatesOf(viewingPlayerId).contains(zoneKey.ownerId)) ||
-                (!isSpectator && zoneKey.ownerId != viewingPlayerId &&
-                    revealsOpponentHandsTo(state, viewingPlayerId))
-            // The sideboard is private "outside the game" knowledge (CR 100.4 / 400.11a): only its
-            // owner ever sees it, never opponents or spectators. (The wish *choice* itself is driven
-            // by the SelectFromCollection decision, which sends the deciding player the gathered
-            // cards directly — it doesn't depend on this passive zone visibility.) The actorFor
-            // clause keeps a Mindslaver-style controller able to see the sideboard of the player
-            // whose turn they're piloting.
-            Zone.SIDEBOARD -> debugMode || zoneKey.ownerId == viewingPlayerId ||
-                (!isSpectator && state.actorFor(zoneKey.ownerId) == viewingPlayerId)
-            Zone.BATTLEFIELD,
-            Zone.GRAVEYARD,
-            Zone.STACK,
-            Zone.EXILE,
-            Zone.COMMAND -> true
-        }
-    }
-
     /**
      * Resolve a static ability that may be gated by a [ConditionalStaticAbility] (e.g. The
      * Belligerent's play-from-top window, a [LookAtTopOfLibrary] gated on "attacked this turn").
@@ -521,82 +419,26 @@ class ClientStateTransformer(
      * otherwise. Mirrors `CastPermissionUtils.activeStaticAbility` so that what a player can SEE
      * stays in sync with what the legal-actions layer lets them DO.
      */
-    private fun activeStaticAbility(
-        state: GameState,
-        ability: com.wingedsheep.sdk.scripting.StaticAbility,
-        sourceId: EntityId,
-        controllerId: EntityId
-    ): com.wingedsheep.sdk.scripting.StaticAbility? = when (ability) {
-        is ConditionalStaticAbility -> {
-            val context = EffectContext(sourceId = sourceId, controllerId = controllerId)
-            if (conditionEvaluator.evaluate(state, ability.condition, context)) ability.ability else null
-        }
-        else -> ability
-    }
-
-    /**
-     * Check whether any static ability active on [playerId]'s battlefield satisfies [predicate],
-     * honoring [ConditionalStaticAbility] gates via [activeStaticAbility].
-     */
-    private fun hasActiveStaticAbility(
-        state: GameState,
-        playerId: EntityId,
-        predicate: (com.wingedsheep.sdk.scripting.StaticAbility) -> Boolean
-    ): Boolean {
-        for (entityId in state.getBattlefield(playerId)) {
-            val card = state.getEntity(entityId)?.get<CardComponent>() ?: continue
-            val cardDef = cardRegistry.getCard(card.cardDefinitionId) ?: continue
-            if (cardDef.script.staticAbilities.any { ability ->
-                    activeStaticAbility(state, ability, entityId, playerId)?.let(predicate) == true
-                }
-            ) {
-                return true
-            }
-        }
-        return false
-    }
-
     /**
      * Check if a player controls a permanent that reveals the top card of their library to all
      * players — either [PlayFromTopOfLibrary] (Future Sight) or [RevealTopOfLibrary] (Goblin Spy).
      * The two abilities share the public-reveal visibility; they diverge only in play permission,
      * which is handled by the cast/play-from-top paths (keyed on [PlayFromTopOfLibrary] alone).
      */
-    private fun revealsTopOfLibraryPublicly(state: GameState, playerId: EntityId): Boolean =
-        hasActiveStaticAbility(state, playerId) { it is PlayFromTopOfLibrary || it is RevealTopOfLibrary }
-
-    /**
-     * Check if [playerId] controls a permanent with [OpponentsPlayWithHandsRevealed]
-     * (e.g., Seer's Vision). While they do, their opponents' hands are visible to them.
-     */
-    private fun revealsOpponentHandsTo(state: GameState, playerId: EntityId): Boolean =
-        hasActiveStaticAbility(state, playerId) { it is OpponentsPlayWithHandsRevealed }
-
     /**
      * Check if a player controls a permanent with an active LookAtTopOfLibrary (e.g., Lens of
      * Clarity; The Belligerent's is gated behind "attacked this turn").
      * This reveals the top card of the controller's library privately (only to them).
      */
-    private fun hasLookAtTopOfLibrary(state: GameState, playerId: EntityId): Boolean =
-        hasActiveStaticAbility(state, playerId) { it is LookAtTopOfLibrary }
-
     /**
      * Check if a player controls a permanent with LookAtFaceDownCreatures (e.g., Lens of Clarity).
      * This reveals the identity of opponent's face-down battlefield creatures to the controller.
      */
-    private fun hasLookAtFaceDownCreatures(state: GameState, playerId: EntityId): Boolean =
-        hasActiveStaticAbility(state, playerId) { it is LookAtFaceDownCreatures }
-
     /**
      * Check if an individual card has been revealed to a specific player.
      * This is used for "look at hand" or "reveal hand" effects where the viewing player
      * can see specific cards in an otherwise hidden zone.
      */
-    private fun isCardRevealedTo(state: GameState, entityId: EntityId, viewingPlayerId: EntityId): Boolean {
-        val revealedComponent = state.getEntity(entityId)?.get<RevealedToComponent>()
-        return revealedComponent?.isRevealedTo(viewingPlayerId) == true
-    }
-
     /**
      * Transform an activated or triggered ability on the stack into a ClientCard DTO.
      * These don't have CardComponent, so we create a synthetic card representation.
@@ -604,7 +446,8 @@ class ClientStateTransformer(
     private fun transformAbilityOnStack(
         state: GameState,
         entityId: EntityId,
-        viewingPlayerId: EntityId
+        viewingPlayerId: EntityId,
+        isSpectator: Boolean
     ): ClientCard? {
         val container = state.getEntity(entityId) ?: return null
 
@@ -701,7 +544,7 @@ class ClientStateTransformer(
                         val mode = triggeredModal.modes.getOrNull(modeIndex)
                             ?: return@map "Unknown mode"
                         try {
-                            mode.effect.runtimeDescription { amount -> evaluator.evaluate(state, amount, context) }
+                            mode.effect.runtimeDescription { amount -> evaluator.evaluateForDisplay(state, amount, context) }
                         } catch (_: Exception) {
                             mode.description
                         }
@@ -714,7 +557,8 @@ class ClientStateTransformer(
                         triggeredAbility.chosenModes,
                         triggeredAbility.modeTargetsOrdered,
                         triggeredModeDescriptions,
-                        viewingPlayerId
+                        viewingPlayerId,
+                        isSpectator
                     )
                 } else emptyList()
 
@@ -807,7 +651,19 @@ class ClientStateTransformer(
         // so only allow face-down status in zones where it makes sense (defense-in-depth).
         val spellOnStack = container.get<SpellOnStackComponent>()
         val isInFaceDownZone = zoneKey.zoneType == Zone.BATTLEFIELD || zoneKey.zoneType == Zone.STACK || zoneKey.zoneType == Zone.EXILE
-        val isFaceDown = isInFaceDownZone && (container.has<FaceDownComponent>() || spellOnStack?.castFaceDown == true)
+        // A card exiled face down that the viewer has been granted permission to PLAY
+        // ("look at and play the exiled cards" — Black Cat, Cunning Thief) must not be hidden from
+        // that viewer, or the client has no card data to act on the CastSpell the server offers.
+        // It stays face-down (masked) to everyone else. Keyed on the same may-play check that drives
+        // `playableFromExile` below, so visibility and playability stay in lockstep. Scoped to exile
+        // so battlefield/stack morph masking (a face-down 2/2 revealed via Spy Network stays a 2/2)
+        // is unchanged.
+        val viewerMayPlayThisExiledCard = !isSpectator &&
+            zoneKey.zoneType == Zone.EXILE &&
+            state.hasMayPlayFor(entityId, viewingPlayerId, conditionEvaluator, cardRegistry)
+        val isFaceDown = isInFaceDownZone &&
+            (container.has<FaceDownComponent>() || spellOnStack?.castFaceDown == true) &&
+            !viewerMayPlayThisExiledCard
         // Use projected P/T which correctly handles face-down base 2/2 + any modifications.
         // CR 208.3: a noncreature permanent has no power or toughness — even one with a printed P/T
         // (a Vehicle), and even a creature turned into an artifact/land by a type-changing effect
@@ -840,6 +696,16 @@ class ClientStateTransformer(
             ?.mapNotNull { try { Color.valueOf(it.removePrefix(protectionPrefix)) } catch (_: Exception) { null } }
             ?: emptyList()
         val cardDef = cardRegistry.getCard(cardComponent.cardDefinitionId)
+        // Which face-down mechanic this object is *drawn* as: it decides the helper card every
+        // surface shows in place of the hidden art (morph's helmet, the Manifest token, "A
+        // Mysterious Creature" for disguise/cloak). A permanent carries the mode as a component
+        // from the moment it enters, but a spell still on the stack does not — it is stamped when
+        // it resolves — so derive that one from the keyword it was cast under. Without the
+        // fallback a creature *being cast* with disguise would be drawn as a morph.
+        val faceDownDisplayMode = container.get<FaceDownModeComponent>()?.mode
+            ?: if (spellOnStack?.castFaceDown == true) FaceDownTurnUp.castMode(cardDef) else null
+        val faceDownHelperCardImageUri =
+            faceDownDisplayMode?.helperCardImageUri ?: MORPH_HELPER_CARD_IMAGE_URI
         val staticProtections = cardDef?.keywordAbilities
             ?.filterIsInstance<KeywordAbility.Protection>()
             ?.mapNotNull { (it.scope as? ProtectionScope.Color)?.color }
@@ -862,6 +728,9 @@ class ClientStateTransformer(
         // Hexproof from monocolored (CR 105.2) — a quality, not a color, so it rides its own flag.
         val hexproofFromMonocolored = projectedValues?.keywords?.contains("HEXPROOF_FROM_MONOCOLORED") ?: false
 
+        // Hexproof from multicolored (CR 105.2b) — the other half of the quality pair, same shape.
+        val hexproofFromMulticolored = projectedValues?.keywords?.contains("HEXPROOF_FROM_MULTICOLORED") ?: false
+
         // Add PROTECTION keyword when protections are present
         val keywords = if (protections.isNotEmpty()) rawKeywords + Keyword.PROTECTION else rawKeywords
 
@@ -871,6 +740,7 @@ class ClientStateTransformer(
 
         // Get state components
         val isTapped = container.has<TappedComponent>()
+        val isExerted = container.has<com.wingedsheep.engine.state.components.battlefield.ExertedComponent>()
         val isPhasedOut = container.has<PhasedOutComponent>()
         // Summoning sickness doesn't affect creatures with haste. The engine attaches the
         // marker to every entering permanent (so Vehicles / animated lands inherit it when
@@ -891,16 +761,19 @@ class ClientStateTransformer(
             // Check if the face-down card has been revealed to the viewing player (e.g., via Spy Network)
             // Also check LookAtFaceDownCreatures (e.g., Lens of Clarity) — only for battlefield creatures,
             // not face-down spells on the stack (per ruling).
-            val isRevealedToViewer = !isSpectator && (
-                isCardRevealedTo(state, entityId, viewingPlayerId) ||
-                (zoneKey.zoneType == Zone.BATTLEFIELD && hasLookAtFaceDownCreatures(state, viewingPlayerId))
+            val isRevealedToViewer = visibility.isCardIdentityVisibleTo(
+                state,
+                zoneKey,
+                entityId,
+                viewingPlayerId,
+                isSpectator,
             )
 
             // Face-down exiled cards show minimal info (not creatures, no P/T)
             if (zoneKey.zoneType == Zone.EXILE) {
                 return ClientCard(
                     id = entityId,
-                    name = "Face-down card",
+                    name = FACE_DOWN_CARD_DISPLAY_NAME,
                     manaCost = "",
                     manaValue = 0,
                     typeLine = "",
@@ -931,8 +804,9 @@ class ClientStateTransformer(
                     attachedTo = null,
                     attachments = emptyList(),
                     isFaceDown = true,
+                    faceDownMode = faceDownDisplayMode?.name,
                     morphCost = null,
-                    imageUri = "https://cards.scryfall.io/normal/front/e/9/e9375cbe-93c0-41a5-a6e3-fb4416f54a69.jpg",
+                    imageUri = faceDownHelperCardImageUri,
                     activeEffects = emptyList(),
                     revealedName = if (isRevealedToViewer) cardComponent.name else null,
                     revealedImageUri = if (isRevealedToViewer) (cardComponent.imageUri ?: cardDef?.metadata?.imageUri) else null
@@ -960,7 +834,7 @@ class ClientStateTransformer(
             val faceDownKeywordsWithProtection = if (faceDownProtections.isNotEmpty()) faceDownKeywords + Keyword.PROTECTION else faceDownKeywords
             return ClientCard(
                 id = entityId,
-                name = "Face-down creature",
+                name = FACE_DOWN_DISPLAY_NAME,
                 manaCost = "",
                 manaValue = 0,
                 typeLine = "Creature",
@@ -979,6 +853,7 @@ class ClientStateTransformer(
                 hexproofFromColors = faceDownHexproofFromColors,
                 counters = container.get<CountersComponent>()?.counters ?: emptyMap(),
                 isTapped = isTapped,
+                isExerted = isExerted,
                 hasSummoningSickness = hasSummoningSickness,
                 isTransformed = false,
                 isPhasedOut = isPhasedOut,
@@ -996,9 +871,9 @@ class ClientStateTransformer(
                 },
                 linkedExile = container.get<LinkedExileComponent>()?.exiledIds ?: emptyList(),
                 isFaceDown = true,
-                isManifested = container.has<ManifestedComponent>(),
+                faceDownMode = faceDownDisplayMode?.name,
                 morphCost = null, // Opponent can't see morph cost
-                imageUri = "https://cards.scryfall.io/normal/front/e/9/e9375cbe-93c0-41a5-a6e3-fb4416f54a69.jpg", // Morph token from Commander 2019
+                imageUri = faceDownHelperCardImageUri,
                 activeEffects = buildCardActiveEffects(state, entityId),
                 revealedName = if (isRevealedToViewer) cardComponent.name else null,
                 revealedImageUri = if (isRevealedToViewer) (cardComponent.imageUri ?: cardDef?.metadata?.imageUri) else null
@@ -1062,9 +937,11 @@ class ClientStateTransformer(
         // on a real control change (see RingBearerComponent), so the presence of the component is
         // enough — a stolen permanent or token copy never falsely carries it.
         val isRingBearer = container.has<com.wingedsheep.engine.state.components.identity.RingBearerComponent>()
-        val pairedWith = container
-            .get<com.wingedsheep.engine.state.components.battlefield.SoulbondPairComponent>()
-            ?.partnerId
+
+        // Soulbond partner (CR 702.95b) — surfaced so the UI can draw the bond between the two
+        // paired battlefield slots. Read through SoulbondPairing so a pair that has broken but not
+        // yet been tidied up by `SoulbondPairingCheck` never surfaces a bond to a departed creature.
+        val pairedWithId = com.wingedsheep.engine.mechanics.SoulbondPairing.partnerOf(state, entityId)
 
         // Get targets for spells/abilities on stack (for targeting arrows)
         val targetsComponent = container.get<TargetsComponent>()
@@ -1098,22 +975,69 @@ class ClientStateTransformer(
                 spellOnStack.chosenModes,
                 spellOnStack.modeTargetsOrdered,
                 chosenModeDescriptions,
-                viewingPlayerId
+                viewingPlayerId,
+                isSpectator
             )
         } else emptyList()
 
-        // Get kicker status for spells on the stack
-        val wasKicked = spellOnStack?.wasKicked ?: false
+        // Name the optional additional cost a spell on the stack declared ("Kicked", "Bargained",
+        // "Offspring"), so opponents can see at a glance which branch is coming on resolution. The
+        // label is derived server-side from the keyword's printed prefix — the client renders the
+        // badge verbatim rather than mapping slots to words itself.
+        val optionalCostLabel = spellOnStack?.declaredCostSlot?.let { slot ->
+            val declared = cardDef?.keywordAbilities
+                ?.filterIsInstance<com.wingedsheep.sdk.scripting.KeywordAbility.OptionalAdditionalCost>()
+                ?.firstOrNull { it.declaredSlot == slot }
+            when {
+                declared?.keyword == Keyword.OFFSPRING -> "Offspring"
+                slot == com.wingedsheep.sdk.scripting.ChoiceSlot.BARGAINED -> "Bargained"
+                slot == com.wingedsheep.sdk.scripting.ChoiceSlot.KICKED -> "Kicked"
+                // Teamwork prints its N, so the badge is the keyword's own prefix ("Teamwork 2")
+                // rather than the bare slot name (CR 702.194b — "cast using teamwork").
+                slot == com.wingedsheep.sdk.scripting.ChoiceSlot.TEAMWORK ->
+                    declared?.displayPrefix ?: "Teamwork"
+                else -> slot.name.lowercase().replaceFirstChar { it.uppercase() }
+            }
+        }
+
+        // Name how the spell got onto the stack ("Disturb · Graveyard") so a cast from anywhere but
+        // hand doesn't read as a cast out of hand. Same server-side-naming rule as the label above.
+        val castProvenanceLabel = spellOnStack?.let {
+            CastProvenance.badgeLabel(it.alternativeCost, it.castFromZone)
+        }
+
+        // An alternative cost replaces the printed cost, so the printed pips explain nothing about
+        // what this cast actually took: name the body it ate and the mana that left the pool. Scoped
+        // to alternative-cost casts on purpose — for a normal cast both are already inferable from
+        // the card, and every spell would grow two badges for nothing. Emerge (CR 702.119a) is the
+        // case that needs it: the sacrifice is *why* the cost shrank.
+        val alternativeCostSpell = spellOnStack?.takeIf { it.alternativeCost != null }
+        val costSacrificeLabel = alternativeCostSpell?.let {
+            CastProvenance.sacrificeLabel(it.sacrificedPermanents.mapNotNull { snapshot -> snapshot.name })
+        }
+        val manaPaidCost = alternativeCostSpell?.let {
+            CastProvenance.paidManaCost(
+                white = it.manaSpentWhite,
+                blue = it.manaSpentBlue,
+                black = it.manaSpentBlack,
+                red = it.manaSpentRed,
+                green = it.manaSpentGreen,
+                colorless = it.manaSpentColorless,
+            )
+        }
 
         // Surface whether the optional Blight additional cost was paid (Lorwyn Eclipsed)
         // so opponents can see at a glance that a stronger effect is incoming on resolution.
         val wasBlightPaid = spellOnStack?.wasBlightPaid ?: false
 
         // Detect whether this spell promised a gift (Bloomburrow gift mechanic).
-        // Gift is modeled as a modal choice: the "promise" mode's effect tree contains
-        // GiftGivenEffect. Surface this to opponents so they can see at a glance that
-        // a gift is coming on resolution, rather than having to parse the mode description.
+        // Permanent spells carry the promise as the gift additional cost elected while casting
+        // (CR 702.174a — `giftRecipient`); instants and sorceries model it as a modal choice whose
+        // "promise" mode's effect tree contains GiftGivenEffect. Surface either to opponents so
+        // they can see at a glance that a gift is coming on resolution, rather than having to parse
+        // the mode description.
         val giftPromised = spellOnStack?.let { comp ->
+            if (comp.giftRecipient != null) return@let true
             if (comp.chosenModes.isEmpty()) return@let false
             val spellEffect = cardRegistry.getCard(cardComponent.cardDefinitionId)?.script?.spellEffect
                 ?: return@let false
@@ -1139,8 +1063,11 @@ class ClientStateTransformer(
         // Get chosen mode label for "as enters, choose X or Y" permanents (e.g., Outpost Siege).
         // Resolve the stored mode id back to the display label declared in the card's
         // EntersWithChoice(modeOptions = [...]) so the UI can show the human-friendly name.
+        // Riot's counter/haste mode is a one-time enters-with choice, not an ongoing mode — its
+        // effect is already visible as a +1/+1 counter or the haste keyword — so it gets no badge.
         val chosenMode = container
             .chosenModeId()
+            ?.takeUnless { it == RIOT_MODE_COUNTER || it == RIOT_MODE_HASTE }
             ?.let { modeId ->
                 val modeOptions = cardDef?.script?.replacementEffects
                     ?.filterIsInstance<com.wingedsheep.sdk.scripting.EntersWithChoice>()
@@ -1152,6 +1079,9 @@ class ClientStateTransformer(
 
         // Get chosen card name for "as enters, choose a card name" permanents (e.g., Petrified Hamlet)
         val chosenCardName = container.chosenCardName()
+
+        // Get chosen card type for "choose a card type" permanents (e.g., Arachne, Psionic Weaver)
+        val chosenCardType = container.chosenCardType()
 
         // Get sacrificed creature types for spells with sacrifice-as-cost (e.g., Endemic Plague)
         val sacrificedCreatureTypes = spellOnStack?.sacrificedPermanents
@@ -1180,8 +1110,7 @@ class ClientStateTransformer(
         // subtypes instead. The CHANGELING badge (if any) or the source's static ability
         // already conveys "every creature type" to the player. The DTO `subtypes` field
         // still carries the full projected set for any client-side filtering.
-        val hasAllCreatureTypes = projectedSubtypes != null &&
-            Subtype.ALL_CREATURE_TYPES.all { it in projectedSubtypes }
+        val hasAllCreatureTypes = projectedSubtypes != null && hasEveryCreatureType(projectedSubtypes)
         val typeLineSubtypes = if (rawKeywords.contains(Keyword.CHANGELING) || hasAllCreatureTypes) {
             typeLine.subtypes.map { it.value }
         } else {
@@ -1193,9 +1122,20 @@ class ClientStateTransformer(
         } else {
             typeLine.cardTypes.toList()
         }
+        // Supertypes share the projected `types` set with card types and subtypes (see
+        // StateProjector.extractTypes), so a granted supertype — Origin of Spider-Man's "it becomes
+        // a legendary Spider Hero", the Ring emblem's "your Ring-bearer is legendary" (CR 701.54c) —
+        // only reaches the client if we read them from the projection too. Reading base
+        // `typeLine.supertypes` dropped them: they're not a CardType, so `displayCardTypes` filters
+        // them out as well and "Legendary" vanished from the rendered type line entirely.
+        val displaySupertypes = if (projectedTypes != null) {
+            Supertype.fromProjectedTypes(projectedTypes)
+        } else {
+            typeLine.supertypes.toList()
+        }
         val typeLineParts = mutableListOf<String>()
-        if (typeLine.supertypes.isNotEmpty()) {
-            typeLineParts.add(typeLine.supertypes.joinToString(" ") { it.displayName })
+        if (displaySupertypes.isNotEmpty()) {
+            typeLineParts.add(displaySupertypes.joinToString(" ") { it.displayName })
         }
         typeLineParts.add(displayCardTypes.joinToString(" ") { it.displayName })
         val typeLineString = if (typeLineSubtypes.isNotEmpty()) {
@@ -1205,11 +1145,12 @@ class ClientStateTransformer(
         }
 
         // Build active effects from floating effects
-        val activeEffects = buildCardActiveEffects(state, entityId, projectedState)
+        val activeEffects = buildCardActiveEffects(state, entityId, projectedState) +
+            notedCreatureTypeBadges(container, viewingPlayerId, isSpectator)
 
         // Check if this card is playable from exile (impulse draw like Mind's Desire,
         // or cast-from-linked-exile like Rona / Dawnhand Dissident).
-        val mayPlayFromExile = state.hasMayPlayFor(entityId, viewingPlayerId, conditionEvaluator)
+        val mayPlayFromExile = state.hasMayPlayFor(entityId, viewingPlayerId, conditionEvaluator, cardRegistry)
         val playableFromExile = zoneKey.zoneType == Zone.EXILE && (
             mayPlayFromExile || isCastableFromLinkedExile(state, viewingPlayerId, entityId, container)
         )
@@ -1223,6 +1164,17 @@ class ClientStateTransformer(
         // them in a dedicated public pile (otherwise indistinguishable from any other exiled card).
         val isParadigm = zoneKey.zoneType == Zone.EXILE &&
             container.has<com.wingedsheep.engine.state.components.battlefield.ParadigmComponent>()
+
+        // Suspended cards (CR 702.62) sit face-up in exile with a SuspendedComponent, counting down at
+        // the owner's upkeep; surface a flag so the client can show them in a dedicated public pile
+        // (otherwise indistinguishable from any other exiled card). CR 702.62b: "suspended" also
+        // requires at least one time counter — the marker alone lingers after the owner declines the
+        // free cast at zero counters (see SuspendCardFromHandHandler), and that leftover shouldn't
+        // read as an active countdown.
+        val isSuspended = zoneKey.zoneType == Zone.EXILE &&
+            container.has<com.wingedsheep.engine.state.components.battlefield.SuspendedComponent>() &&
+            (container.get<com.wingedsheep.engine.state.components.battlefield.CountersComponent>()
+                ?.getCount(CounterType.TIME) ?: 0) > 0
 
         // Prepared permanents (Secrets of Strixhaven) carry a PreparedComponent while a copy of their
         // prepare spell waits castable in exile; surface a flag so the client can badge the creature.
@@ -1239,6 +1191,26 @@ class ClientStateTransformer(
         // exiled at the next end step; surface a flag so the client can show the cosmic warp cue.
         val isWarped = zoneKey.zoneType == Zone.BATTLEFIELD &&
             container.has<com.wingedsheep.engine.state.components.battlefield.WarpedComponent>()
+
+        // Dashed permanents (CR 702.109, Khans of Tarkir) carry a DashedComponent until they're
+        // returned to hand at the next end step; surface a flag so the client can show a dash cue.
+        val isDashed = zoneKey.zoneType == Zone.BATTLEFIELD &&
+            container.has<com.wingedsheep.engine.state.components.battlefield.DashedComponent>()
+
+        // Mounts (CR 702.171): surface the printed Saddle N and whether the permanent currently
+        // carries the saddled designation, so the client can badge both states. Read from the card
+        // definition for the same reason `SaddleEnumerator` does — the handler resolves the saddle
+        // keyword by definition id, so a renamed copy (CR 707.9) still saddles.
+        val saddleRequirement = if (zoneKey.zoneType == Zone.BATTLEFIELD) {
+            cardDef?.keywordAbilities
+                ?.filterIsInstance<com.wingedsheep.sdk.scripting.KeywordAbility.Numeric>()
+                ?.firstOrNull { it.keyword == com.wingedsheep.sdk.core.Keyword.SADDLE }
+                ?.n
+        } else {
+            null
+        }
+        val isSaddled = zoneKey.zoneType == Zone.BATTLEFIELD &&
+            container.has<com.wingedsheep.engine.state.components.battlefield.SaddledComponent>()
 
         // Threshold-style progress badge: detect static abilities gated on
         // "controller's graveyard has at least N cards".
@@ -1269,7 +1241,10 @@ class ClientStateTransformer(
             }
         }
 
-        // Modal DFC (CR 712) back face for display/flip preview (it lives in `cardFaces`, not `backFace`).
+        // Modal DFC (CR 712) back face for display/flip preview. A *spell* back lives in
+        // `cardFaces` (Flamescroll Celebrant // Revel in Silence) and is picked up here; a
+        // *permanent* back lives in `backFace` (the MSH hero cycle) and is picked up by
+        // `dfcBackFace` below, which is also what the transform machinery reads.
         val modalBackFace = if (cardDef?.layout == com.wingedsheep.sdk.model.CardLayout.MODAL_DFC) {
             cardDef.cardFaces.firstOrNull()
         } else null
@@ -1301,8 +1276,10 @@ class ClientStateTransformer(
             protections = protections,
             hexproofFromColors = hexproofFromColors,
             hexproofFromMonocolored = hexproofFromMonocolored,
+            hexproofFromMulticolored = hexproofFromMulticolored,
             counters = counters,
             isTapped = isTapped,
+            isExerted = isExerted,
             hasSummoningSickness = hasSummoningSickness,
             isTransformed = false, // TODO: Add transformed support
             isPhasedOut = isPhasedOut,
@@ -1311,32 +1288,50 @@ class ClientStateTransformer(
             attackingTarget = attackingTarget,
             blockingTarget = blockingTarget,
             controllerId = controllerId,
+            // A battle's protector (CR 310.9). Absent on every other permanent.
+            protectorId = container.get<com.wingedsheep.engine.state.components.battlefield.ProtectorComponent>()
+                ?.playerId,
             ownerId = ownerId,
             isToken = isToken,
             isCommander = isCommander,
             isRingBearer = isRingBearer,
-            pairedWith = pairedWith,
+            pairedWithId = pairedWithId,
             zone = zoneKey,
             attachedTo = attachedTo,
             attachments = attachments,
             linkedExile = linkedExile,
             isFaceDown = isFaceDown,
-            isManifested = isFaceDown && container.has<ManifestedComponent>(),
+            faceDownMode = if (isFaceDown) faceDownDisplayMode?.name else null,
             isSuspected = projectedValues?.isSuspected == true,
+            isSolved = container.has<com.wingedsheep.engine.state.components.battlefield.SolvedComponent>(),
+            isRenowned = container.has<com.wingedsheep.engine.state.components.battlefield.RenownedComponent>(),
+            saddleRequirement = saddleRequirement,
+            isSaddled = isSaddled,
             isPlotted = isPlotted,
             isParadigm = isParadigm,
+            isSuspended = isSuspended,
             isPrepared = isPrepared,
             isPreparedSpell = isPreparedSpell,
             isWarped = isWarped,
+            isDashed = isDashed,
             morphCost = if (isFaceDown && morphData != null) morphData.morphCost.description else null,
             targets = targets,
-            imageUri = state.imageOverrideFor(entityId) ?: cardComponent.imageUri ?: cardDef?.metadata?.imageUri,
+            imageUri = state.imageOverrideFor(entityId)
+                ?: cardDef?.metadata?.imageUriByCreatureSubtype
+                    ?.entries
+                    ?.firstOrNull { (subtype) -> subtype in displaySubtypes }
+                    ?.value
+                ?: cardComponent.imageUri
+                ?: cardDef?.metadata?.imageUri,
             imageRotation = cardDef?.metadata?.imageRotation ?: 0,
             activeEffects = activeEffects,
             rulings = cardDef?.metadata?.rulings?.map {
                 ClientRuling(date = it.date, text = it.text)
             } ?: emptyList(),
-            wasKicked = wasKicked,
+            optionalCostLabel = optionalCostLabel,
+            castProvenanceLabel = castProvenanceLabel,
+            costSacrificeLabel = costSacrificeLabel,
+            manaPaidCost = manaPaidCost,
             giftPromised = giftPromised,
             wasBlightPaid = wasBlightPaid,
             chosenX = chosenX,
@@ -1344,15 +1339,50 @@ class ClientStateTransformer(
             chosenColor = chosenColor,
             chosenMode = chosenMode,
             chosenCardName = chosenCardName,
+            chosenCardType = chosenCardType,
             sacrificedCreatureTypes = sacrificedCreatureTypes,
             playableFromExile = playableFromExile,
             copyOf = container.get<com.wingedsheep.engine.state.components.identity.CopyOfComponent>()?.let { copyComp ->
                 cardRegistry.getCard(copyComp.originalCardDefinitionId)?.name
             },
+            // The two legendary flags are complements, and the `!in displaySupertypes` clause is what
+            // makes them so: a non-legendary copy that an effect then makes legendary again (Impostor
+            // Syndrome's copy designated Ring-bearer) is simply legendary, so "not legendary" is a lie
+            // about it and the client would otherwise badge it both ways at once.
             nonLegendaryCopy = zoneKey.zoneType == Zone.BATTLEFIELD
                 && cardDef != null
-                && com.wingedsheep.sdk.core.Supertype.LEGENDARY in cardDef.typeLine.supertypes
-                && com.wingedsheep.sdk.core.Supertype.LEGENDARY !in cardComponent.typeLine.supertypes,
+                && Supertype.LEGENDARY in cardDef.typeLine.supertypes
+                && Supertype.LEGENDARY !in cardComponent.typeLine.supertypes
+                && Supertype.LEGENDARY !in displaySupertypes,
+            legendaryByEffect = zoneKey.zoneType == Zone.BATTLEFIELD
+                && Supertype.LEGENDARY in displaySupertypes
+                && Supertype.LEGENDARY !in cardComponent.typeLine.supertypes,
+            // Same projected-minus-printed shape as legendaryByEffect. Skipped for the
+            // all-creature-types case, which typeLineSubtypes already collapses above.
+            grantedSubtypes = if (zoneKey.zoneType == Zone.BATTLEFIELD && !hasAllCreatureTypes) {
+                val printed = cardComponent.typeLine.subtypes.map { it.value }.toSet()
+                // Subtypes a *floating* effect is responsible for already have their own badge —
+                // "+Hero" for AddSubtype (`type_added`) and the full list for SetCreatureSubtypes
+                // (`type_changed`), both built below from those effects directly. Repeating them
+                // here would show the same grant twice in the preview. What this field is actually
+                // for is the case those badges miss: a grant from a continuous *static* ability,
+                // such as an Aura's "is a legendary Soldier in addition to its other types".
+                val alreadyBadged = state.floatingEffects
+                    .filter { entityId in it.effect.affectedEntities }
+                    .flatMap {
+                        when (val mod = it.effect.modification) {
+                            is SerializableModification.AddSubtype -> listOf(mod.subtype)
+                            is SerializableModification.SetCreatureSubtypes -> displaySubtypes
+                            else -> emptyList()
+                        }
+                    }
+                    .toSet()
+                displaySubtypes.filterNot { it in printed || it in alreadyBadged }.toSet()
+            } else emptySet(),
+            grantedCardTypes = if (zoneKey.zoneType == Zone.BATTLEFIELD) {
+                val printed = cardComponent.typeLine.cardTypes.map { it.name }.toSet()
+                displayCardTypes.map { it.name }.filterNot { it in printed }.toSet()
+            } else emptySet(),
             damageDistribution = (spellOnStack?.damageDistribution ?: container.get<TriggeredAbilityOnStackComponent>()?.damageDistribution)?.takeIf { it.isNotEmpty() },
             sagaTotalChapters = cardDef?.finalChapter,
             classLevel = container.get<com.wingedsheep.engine.state.components.battlefield.ClassLevelComponent>()?.currentLevel,
@@ -1374,9 +1404,10 @@ class ClientStateTransformer(
             } else null,
             chosenModeDescriptions = chosenModeDescriptions,
             perModeTargets = perModeTargets,
-            // Modal DFCs (CR 712) keep their back face in `cardFaces`, not `backFace`, so the
-            // SDK `isDoubleFaced` (transform machinery) stays false; surface them to the client
-            // as double-faced for display/flip-preview only.
+            // A modal DFC with a *spell* back (CR 712) keeps it in `cardFaces`, so the SDK
+            // `isDoubleFaced` (transform machinery) stays false — surface it to the client as
+            // double-faced for display/flip-preview only. One with a *permanent* back already
+            // reports `isDoubleFaced`, since that back is reachable by transform too (CR 712.3).
             isDoubleFaced = container.has<com.wingedsheep.engine.state.components.identity.DoubleFacedComponent>() || cardDef?.isDoubleFaced == true || modalBackFace != null,
             currentFace = container.get<com.wingedsheep.engine.state.components.identity.DoubleFacedComponent>()?.currentFace?.name
                 ?: if (cardDef?.isDoubleFaced == true || modalBackFace != null) "FRONT" else null,
@@ -1384,8 +1415,21 @@ class ClientStateTransformer(
             backFaceTypeLine = dfcBackFace(container, cardDef)?.typeLine?.toString() ?: modalBackFace?.typeLine?.toString(),
             backFaceOracleText = dfcBackFace(container, cardDef)?.oracleText ?: modalBackFace?.oracleText,
             backFaceImageUri = cardComponent.backFaceImageUri ?: dfcBackFace(container, cardDef)?.metadata?.imageUri ?: modalBackFace?.imageUri,
+            // A modal DFC's spell back lives in `cardFaces` and carries no P/T of its own, so only
+            // the transform back face (a permanent) contributes stats; keywords come from either.
+            backFacePower = dfcBackFace(container, cardDef)?.creatureStats?.basePower,
+            backFaceToughness = dfcBackFace(container, cardDef)?.creatureStats?.baseToughness,
+            backFaceKeywords = dfcBackFace(container, cardDef)?.keywords ?: modalBackFace?.keywords ?: emptySet(),
             planeswalkerAbilities = buildPlaneswalkerAbilities(cardDef, zoneKey),
             isRoom = cardDef?.isRoom == true,
+            // `cardDef` already tracks the *displayed* face of a DFC (dfcBackFace resolves the
+            // other one relative to DoubleFacedComponent.currentFace), so a defeated Siege recast
+            // as its portrait back face correctly stops reporting landscape.
+            isLandscapeFace = cardDef?.isLandscapePrint == true,
+            // Only transforming DFCs can pair a landscape face with a portrait one; a modal DFC's
+            // other half lives in `cardFaces` under the MODAL_DFC layout, which is portrait on both
+            // sides, so it never contributes here.
+            backFaceIsLandscape = dfcBackFace(container, cardDef)?.isLandscapePrint == true,
             cardFaces = buildClientCardFaces(container, cardDef),
             castFaceIndex = spellOnStack?.faceIndex,
             // Impending (CR 702.176): expose the reduced cost + time-counter count so the client can
@@ -1394,7 +1438,14 @@ class ClientStateTransformer(
             impending = cardDef?.keywordAbilities
                 ?.filterIsInstance<KeywordAbility.Impending>()
                 ?.firstOrNull()
-                ?.let { ClientImpending(cost = it.cost.toString(), time = it.time) }
+                ?.let { ClientImpending(cost = it.cost.toString(), time = it.time) },
+            // Evoke (CR 702.74): same reason as impending — the alternative cost has to be on the
+            // card so the menu can offer both prices even when only one of them is affordable.
+            evoke = cardDef?.keywordAbilities
+                ?.filterIsInstance<KeywordAbility.Evoke>()
+                ?.firstOrNull()
+                ?.cost
+                ?.toString()
         )
     }
 
@@ -1434,11 +1485,14 @@ class ClientStateTransformer(
         if (!cardDef.typeLine.cardTypes.contains(CardType.PLANESWALKER)) return null
         val abilities = cardDef.script.activatedAbilities.filter { it.isPlaneswalkerAbility }
         if (abilities.isEmpty()) return null
+        // Consumed in order, so two abilities sharing a loyalty cost (Garruk Relentless's two
+        // 0-cost abilities) each take their own oracle line instead of both echoing the first.
         val oracleDescriptions = parseOracleLoyaltyLines(cardDef.oracleText)
+            .mapValues { (_, lines) -> ArrayDeque(lines) }
         return abilities.mapNotNull { ability ->
             val loyalty = (ability.cost as? com.wingedsheep.sdk.scripting.AbilityCost.Loyalty)?.change
                 ?: return@mapNotNull null
-            val description = oracleDescriptions[loyalty]
+            val description = oracleDescriptions[loyalty]?.removeFirstOrNull()
                 ?: ability.descriptionOverride
                 ?: effectDisplayText(ability.effect, "this planeswalker")
             ClientPlaneswalkerAbility(
@@ -1450,23 +1504,25 @@ class ClientStateTransformer(
     }
 
     /**
-     * Parse a planeswalker's oracle text into a map of loyalty change → ability text.
-     * Example line: "−2: Ajani deals 4 damage to target tapped creature."
+     * Parse a planeswalker's oracle text into a map of loyalty change → ability texts, in the order
+     * the lines appear. Example line: "−2: Ajani deals 4 damage to target tapped creature."
      * Handles the Unicode minus (U+2212), the ASCII hyphen, and a leading "+".
-     * If a planeswalker has two abilities with the same loyalty cost (rare — Vivien, Monsters'
-     * Advocate), only the first is kept here; the fallback to `effect.description` covers the rest.
+     *
+     * A loyalty cost maps to a *list* because it isn't unique: Garruk Relentless has two 0-cost
+     * abilities, Vivien, Monsters' Advocate two −2s. Keying one text per cost gave every ability
+     * sharing that cost the first line's text, so the card showed the same ability twice.
      */
-    private fun parseOracleLoyaltyLines(oracleText: String): Map<Int, String> {
+    private fun parseOracleLoyaltyLines(oracleText: String): Map<Int, List<String>> {
         if (oracleText.isBlank()) return emptyMap()
         val pattern = Regex("""^\s*([+−\-]?)(\d+):\s*(.+?)\s*$""")
-        val result = mutableMapOf<Int, String>()
+        val result = mutableMapOf<Int, MutableList<String>>()
         for (raw in oracleText.lines()) {
             val match = pattern.matchEntire(raw) ?: continue
             val sign = match.groupValues[1]
             val magnitude = match.groupValues[2].toIntOrNull() ?: continue
             val loyalty = if (sign == "−" || sign == "-") -magnitude else magnitude
             val text = match.groupValues[3].trimEnd('.', ' ')
-            result.putIfAbsent(loyalty, text)
+            result.getOrPut(loyalty) { mutableListOf() }.add(text)
         }
         return result
     }
@@ -1532,7 +1588,7 @@ class ClientStateTransformer(
                 sourceId = spellEntityId,
                 controllerId = spellOnStack.casterId,
                 xValue = spellOnStack.xValue,
-                wasKicked = spellOnStack.wasKicked,
+                declaredCostSlot = spellOnStack.declaredCostSlot,
                 wasBlightPaid = spellOnStack.wasBlightPaid,
                 sacrificedPermanents = spellOnStack.sacrificedPermanents,
                 chosenEntitySnapshots = spellOnStack.chosenEntitySnapshots,
@@ -1550,7 +1606,7 @@ class ClientStateTransformer(
             // depending on whether the optional Blight cost was paid) instead of the full
             // "if X, do Y. Otherwise, do Z." description.
             val resolvedEffect = resolveConditionalForStack(state, effect, context)
-            resolvedEffect.runtimeDescription { amount -> evaluator.evaluate(state, amount, context) }
+            resolvedEffect.runtimeDescription { amount -> evaluator.evaluateForDisplay(state, amount, context) }
         } catch (_: Exception) {
             effect.description
         }
@@ -1607,7 +1663,7 @@ class ClientStateTransformer(
         return spellOnStack.chosenModes.map { modeIndex ->
             val mode = modal.modes.getOrNull(modeIndex) ?: return@map "Unknown mode"
             try {
-                mode.effect.runtimeDescription { amount -> evaluator.evaluate(state, amount, context) }
+                mode.effect.runtimeDescription { amount -> evaluator.evaluateForDisplay(state, amount, context) }
             } catch (_: Exception) {
                 mode.description
             }
@@ -1617,14 +1673,17 @@ class ClientStateTransformer(
     /**
      * Build per-mode target groups for a modal spell on the stack, aligned with
      * [SpellOnStackComponent.modeTargetsOrdered]. Hidden-zone targets are redacted to a generic
-     * "a card in X's hand/library" string when the viewer does not own the zone.
+     * "a card in X's hand/library" string, and a face-down object gets its generic public name,
+     * whenever the shared identity authority says this viewer may not know it (see
+     * [resolveTargetDisplayName]).
      */
     private fun buildPerModeTargetGroups(
         state: GameState,
         chosenModes: List<Int>,
         modeTargetsOrdered: List<List<ChosenTarget>>,
         modeDescriptions: List<String>,
-        viewingPlayerId: EntityId
+        viewingPlayerId: EntityId,
+        isSpectator: Boolean
     ): List<ClientPerModeTargetGroup> {
         if (chosenModes.isEmpty()) return emptyList()
         return chosenModes.mapIndexed { index, modeIndex ->
@@ -1638,7 +1697,7 @@ class ClientStateTransformer(
                 }
             }
             val targetNames = rawTargets.map { target ->
-                resolveTargetDisplayName(state, target, viewingPlayerId)
+                resolveTargetDisplayName(state, target, viewingPlayerId, isSpectator)
             }
             ClientPerModeTargetGroup(
                 modeIndex = modeIndex,
@@ -1650,28 +1709,66 @@ class ClientStateTransformer(
     }
 
     /**
-     * Resolve a [ChosenTarget] to a human-readable display name for the stack view. Cards in
-     * hidden zones are redacted unless the viewing player owns the zone.
+     * Resolve a [ChosenTarget] to a human-readable display name for the stack view. The engine's
+     * [Visibility] authority decides identity; this method owns only the client-facing placeholder.
      */
     private fun resolveTargetDisplayName(
         state: GameState,
         target: ChosenTarget,
-        viewingPlayerId: EntityId
+        viewingPlayerId: EntityId,
+        isSpectator: Boolean
     ): String = when (target) {
         is ChosenTarget.Player -> state.getEntity(target.playerId)
             ?.get<PlayerComponent>()?.name ?: "a player"
-        is ChosenTarget.Permanent -> state.getEntity(target.entityId)
-            ?.get<CardComponent>()?.name ?: "a permanent"
-        is ChosenTarget.Spell -> state.getEntity(target.spellEntityId)
-            ?.get<CardComponent>()?.name ?: "a spell"
+        is ChosenTarget.Permanent -> {
+            if (visibility.isCardIdentityVisibleTo(
+                    state,
+                    Zone.BATTLEFIELD,
+                    target.entityId,
+                    viewingPlayerId,
+                    isSpectator,
+                )
+            ) {
+                state.getEntity(target.entityId)?.get<CardComponent>()?.name ?: "a permanent"
+            } else {
+                FACE_DOWN_DISPLAY_NAME
+            }
+        }
+        is ChosenTarget.Spell -> {
+            if (visibility.isCardIdentityVisibleTo(
+                    state,
+                    Zone.STACK,
+                    target.spellEntityId,
+                    viewingPlayerId,
+                    isSpectator,
+                )
+            ) {
+                state.getEntity(target.spellEntityId)?.get<CardComponent>()?.name ?: "a spell"
+            } else {
+                FACE_DOWN_DISPLAY_NAME
+            }
+        }
         is ChosenTarget.Card -> {
-            val hiddenZone = target.zone == Zone.HAND || target.zone == Zone.LIBRARY
-            if (hiddenZone && target.ownerId != viewingPlayerId) {
+            val identityVisible = visibility.isCardIdentityVisibleTo(
+                state,
+                ZoneKey(target.ownerId, target.zone),
+                target.cardId,
+                viewingPlayerId,
+                isSpectator,
+            )
+            if (identityVisible) {
+                state.getEntity(target.cardId)?.get<CardComponent>()?.name ?: "a card"
+            } else if (target.zone == Zone.HAND ||
+                target.zone == Zone.LIBRARY ||
+                target.zone == Zone.SIDEBOARD
+            ) {
                 val ownerName = state.getEntity(target.ownerId)
                     ?.get<PlayerComponent>()?.name ?: "opponent"
                 "a card in ${ownerName}'s ${target.zone.name.lowercase()}"
+            } else if (target.zone == Zone.EXILE) {
+                FACE_DOWN_CARD_DISPLAY_NAME
             } else {
-                state.getEntity(target.cardId)?.get<CardComponent>()?.name ?: "a card"
+                "a card"
             }
         }
     }
@@ -1691,6 +1788,7 @@ class ClientStateTransformer(
         val context = EffectContext(
             sourceId = abilityEntityId,
             controllerId = activated.controllerId,
+            targets = chosenTargetsOf(state, abilityEntityId),
             xValue = activated.xValue,
             sacrificedPermanents = activated.sacrificedPermanents,
             tappedPermanents = activated.tappedPermanents,
@@ -1698,6 +1796,21 @@ class ClientStateTransformer(
         )
         return runtimeAbilityText(state, activated.effect, context)
     }
+
+    /**
+     * The targets already chosen for an ability sitting on the stack.
+     *
+     * An ability's targets are locked in when it's put on the stack, so text rendered for it can
+     * read them — "double its power" on a 5/5 should say "+5/+5", not fall back to the amount's
+     * wording. The spell path does the same thing; omitting it here left every
+     * [com.wingedsheep.sdk.scripting.values.EntityReference.Target]-relative amount undeterminable
+     * on the stack, where it is in fact known.
+     */
+    private fun chosenTargetsOf(state: GameState, abilityEntityId: EntityId) =
+        state.getEntity(abilityEntityId)
+            ?.get<com.wingedsheep.engine.state.components.stack.TargetsComponent>()
+            ?.targets
+            ?: emptyList()
 
     /**
      * Generate runtime text for a triggered ability on the stack. Builds an [EffectContext] with
@@ -1718,7 +1831,7 @@ class ClientStateTransformer(
     private fun runtimeAbilityText(state: GameState, effect: Effect, context: EffectContext): String? {
         return try {
             val evaluator = DynamicAmountEvaluator()
-            val text = effect.runtimeDescription { amount -> evaluator.evaluate(state, amount, context) }
+            val text = effect.runtimeDescription { amount -> evaluator.evaluateForDisplay(state, amount, context) }
             // Only return if it differs from static description (i.e., dynamic amounts were resolved)
             if (text != effect.description) text else null
         } catch (_: Exception) {
@@ -1771,6 +1884,7 @@ class ClientStateTransformer(
     ): EffectContext = EffectContext(
         sourceId = abilityEntityId,
         controllerId = triggered.controllerId,
+        targets = chosenTargetsOf(state, abilityEntityId),
         xValue = triggered.xValue,
         triggerDamageAmount = triggered.triggerDamageAmount,
         triggerCounterCount = triggered.triggerCounterCount,
@@ -1784,6 +1898,7 @@ class ClientStateTransformer(
         triggerLastKnownToughness = triggered.lastKnownToughness,
         triggerDiedBatchTotalPower = triggered.diedBatchTotalPower,
         triggerScryCount = triggered.triggerScryCount,
+        triggerDiscardCount = triggered.triggerDiscardCount,
         triggerDiscoverValue = triggered.triggerDiscoverValue,
         triggerExcessDamageAmount = triggered.triggerExcessDamageAmount,
         triggerRecipientToughness = triggered.triggerRecipientToughness,
@@ -1866,7 +1981,10 @@ class ClientStateTransformer(
             playerId = playerId,
             name = playerComponent?.name ?: "Unknown",
             life = displayedLife ?: 20,
-            poisonCounters = container?.get<CountersComponent>()?.getCount(CounterType.POISON) ?: 0,
+            // CR 810.10a — a player's displayed poison is the team's pooled total in Two-Headed
+            // Giant, the same way [life] above is the team's shared total. The team orb and the
+            // 15-counter loss check (CR 810.8d) must read the same number.
+            poisonCounters = state.teamPoison(playerId),
             handSize = handSize,
             maxHandSize = maxHandSize,
             librarySize = librarySize,
@@ -1876,20 +1994,28 @@ class ClientStateTransformer(
             hasLost = hasLost,
             manaPool = manaPool,
             activeEffects = activeEffects,
-            commanderDamage = buildCommanderDamage(state, playerId)
+            commanderDamage = buildCommanderDamage(state, playerId),
+            // CR 702.179 — public information, and 0 for the overwhelming majority of games.
+            speed = state.speed(playerId),
+            // CR 107.14 — public information like poison counters, and 0 outside energy decks.
+            energyCounters = container?.get<CountersComponent>()?.getCount(CounterType.ENERGY) ?: 0,
+            // Team variants (CR 810 / CR 808). Public information, and absent from every
+            // non-team game, so both fields serialize away by default.
+            teamIndex = container?.get<TeamComponent>()?.teamIndex,
+            teamSharedLife = state.format.sharesTeamLife,
+            teamSharedTurns = state.format.sharesTeamTurns
         )
     }
 
     /**
-     * Build per-commander damage tallies against [playerId]. Empty outside `Format.Commander`
+     * Build per-commander damage tallies against [playerId]. Empty when the format has no commanders
      * and for defenders no commander has connected with yet.
      */
     private fun buildCommanderDamage(
         state: GameState,
         playerId: EntityId
     ): List<ClientCommanderDamage> {
-        val format = state.format as? com.wingedsheep.sdk.core.Format.Commander
-            ?: return emptyList()
+        val threshold = state.format.commanderDamageThreshold ?: return emptyList()
         if (state.commanderDamage.isEmpty()) return emptyList()
 
         return state.commanderDamage
@@ -1906,7 +2032,7 @@ class ClientStateTransformer(
                     commanderName = card.name,
                     controllerId = controllerId,
                     amount = entry.amount,
-                    threshold = format.commanderDamageThreshold,
+                    threshold = threshold,
                     imageUri = card.imageUri,
                 )
             }
@@ -1929,13 +2055,54 @@ class ClientStateTransformer(
         // Check floating effects for damage prevention shields on this player
         var preventDamageTotal = 0
         var preventsAllDamage = false
+        var preventsAllCombatDamage = false
+        var preventsAttackingCreatureDamage = false
         val preventedCreatureTypes = mutableSetOf<String>()
+        val preventedCombatDamageSources = mutableSetOf<String>()
         val preventedFromSources = mutableSetOf<EntityId>()
+        // Single-instance chosen-source shields, kept separate from the all-damage ones above
+        // because they read differently: "the next time" rather than "all damage", and Dark Sphere
+        // halves rather than prevents. Pair = (source, halved).
+        val preventedNextInstanceFromSources = mutableListOf<Pair<EntityId, Boolean>>()
         for (floatingEffect in state.floatingEffects) {
+            val modification = floatingEffect.effect.modification
+            if (
+                modification is SerializableModification.PreventAllDamageToGroup &&
+                modification.includesController &&
+                floatingEffect.controllerId == playerId
+            ) {
+                val sourceDescription = modification.sourceFilter?.description
+                val scopeDescription = if (modification.combatOnly) "combat damage" else "damage"
+                val sourceSuffix = sourceDescription?.let { " from $it" } ?: ""
+                effects.add(
+                    ClientPlayerEffect(
+                        effectId = "prevent_damage_to_controller_${floatingEffect.id.value}",
+                        name = "Damage Shield",
+                        description = "All $scopeDescription that would be dealt to you$sourceSuffix is prevented",
+                        icon = "prevent-damage"
+                    )
+                )
+            }
+            // Board-wide combat-damage prevention (Fog, Holy Day, Spore Flower's ability). These
+            // shields name neither a permanent nor a player, so they carry no affected entity to
+            // hang a card badge on — and without a player badge the only trace that one resolved is
+            // a line in the log. They apply to every creature's combat damage, so both players
+            // carry the badge.
+            when (modification) {
+                is SerializableModification.PreventAllCombatDamage -> preventsAllCombatDamage = true
+                is SerializableModification.PreventCombatDamageFromGroup ->
+                    preventedCombatDamageSources.add(modification.filter.description)
+                else -> {}
+            }
             if (playerId !in floatingEffect.effect.affectedEntities) continue
-            when (val modification = floatingEffect.effect.modification) {
+            when (modification) {
                 is SerializableModification.PreventAllDamageTo -> {
                     preventsAllDamage = true
+                }
+                // Deep Wood. Unlike the two above this one is scoped to the shield's controller,
+                // so it badges only the protected player.
+                is SerializableModification.PreventDamageFromAttackingCreatures -> {
+                    preventsAttackingCreatureDamage = true
                 }
                 is SerializableModification.PreventNextDamage -> {
                     preventDamageTotal += modification.remainingAmount
@@ -1946,6 +2113,11 @@ class ClientStateTransformer(
                 is SerializableModification.PreventAllDamageFromSource -> {
                     preventedFromSources.add(modification.damageSourceId)
                 }
+                is SerializableModification.PreventNextDamageInstanceFromSource -> {
+                    preventedNextInstanceFromSources.add(
+                        modification.damageSourceId to modification.halveRoundedDown
+                    )
+                }
                 else -> {}
             }
         }
@@ -1955,6 +2127,36 @@ class ClientStateTransformer(
                     effectId = "prevent_all_damage",
                     name = "Prevent All Damage",
                     description = "All damage that would be dealt to you is prevented",
+                    icon = "prevent-damage"
+                )
+            )
+        }
+        if (preventsAllCombatDamage) {
+            effects.add(
+                ClientPlayerEffect(
+                    effectId = "prevent_all_combat_damage",
+                    name = "No Combat Damage",
+                    description = "All combat damage that would be dealt this turn is prevented",
+                    icon = "prevent-damage"
+                )
+            )
+        }
+        if (preventsAttackingCreatureDamage) {
+            effects.add(
+                ClientPlayerEffect(
+                    effectId = "prevent_damage_from_attackers",
+                    name = "No Attacker Damage",
+                    description = "Damage that attacking creatures would deal to you this turn is prevented",
+                    icon = "prevent-damage"
+                )
+            )
+        }
+        for (sourceDescription in preventedCombatDamageSources) {
+            effects.add(
+                ClientPlayerEffect(
+                    effectId = "prevent_combat_damage_from_${sourceDescription.lowercase().replace(' ', '_')}",
+                    name = "No Combat Damage",
+                    description = "Combat damage that would be dealt by $sourceDescription this turn is prevented",
                     icon = "prevent-damage"
                 )
             )
@@ -1991,6 +2193,64 @@ class ClientStateTransformer(
             )
         }
 
+        // The Circle of Protection family and Dark Sphere: one instance from one chosen source.
+        // Listed per shield rather than deduplicated by source — two Circles pointed at the same
+        // source are two separate shields, each spent by its own damage instance.
+        for ((sourceId, halved) in preventedNextInstanceFromSources) {
+            val sourceName = state.getEntity(sourceId)?.get<CardComponent>()?.name ?: "a chosen source"
+            effects.add(
+                ClientPlayerEffect(
+                    effectId = "prevent_next_damage_instance_from_source_${sourceId.value}" +
+                        if (halved) "_halved" else "",
+                    name = if (halved) "Halve from $sourceName" else "Prevent from $sourceName",
+                    description = if (halved) {
+                        "The next time $sourceName would deal damage to you this turn, " +
+                            "prevent half that damage, rounded down"
+                    } else {
+                        "The next time $sourceName would deal damage to you this turn, prevent that damage"
+                    },
+                    icon = "prevent-damage"
+                )
+            )
+        }
+
+        // Damage-doubling warnings — the mirror image of the prevention shields above, so a player
+        // about to take double damage can see it before they attack into it (Twinflame Tyrant,
+        // Gratuitous Violence). One badge per replacement: each applies once (CR 616.1), so two
+        // Tyrants show two badges and quadruple the damage.
+        for (doubler in DamageUtils.damageDoublersAffectingPlayer(state, playerId)) {
+            val scope = when (doubler.damageType) {
+                is DamageType.Combat -> "Combat damage"
+                is DamageType.NonCombat -> "Noncombat damage"
+                is DamageType.Any -> "Damage"
+            }
+            effects.add(
+                ClientPlayerEffect(
+                    effectId = "damage_doubled_${doubler.sourceId.value}",
+                    name = "Damage Doubled",
+                    description = "$scope dealt to you is doubled by ${doubler.sourceName}",
+                    icon = "double-damage"
+                )
+            )
+        }
+
+        // Player-scoped damage doubling from a floating effect (Lightning, Army of One's "Stagger").
+        // Same badge, but it outlives its source, so it's named for the effect rather than a card.
+        for (floatingEffect in state.floatingEffects) {
+            val modification = floatingEffect.effect.modification
+            if (modification !is SerializableModification.DoubleDamageToPlayer) continue
+            if (modification.playerId != playerId) continue
+            val attribution = floatingEffect.sourceName?.let { " ($it)" } ?: ""
+            effects.add(
+                ClientPlayerEffect(
+                    effectId = "damage_doubled_player_${floatingEffect.id.value}",
+                    name = "Damage Doubled",
+                    description = "Damage dealt to you and to permanents you control is doubled$attribution",
+                    icon = "double-damage"
+                )
+            )
+        }
+
         // Check for SkipCombatPhasesComponent (False Peace effect)
         if (container.has<SkipCombatPhasesComponent>()) {
             effects.add(
@@ -1998,6 +2258,19 @@ class ClientStateTransformer(
                     effectId = "skip_combat",
                     name = "Skip Combat",
                     description = "Combat phases will be skipped on your next turn",
+                    icon = "shield-off"
+                )
+            )
+        }
+
+        // Turn-scoped step/phase skips (Fatespinner). One badge per chosen part, so a player who
+        // has been hit by two of them sees both.
+        container.get<SkippedTurnPartsComponent>()?.parts?.forEach { part ->
+            effects.add(
+                ClientPlayerEffect(
+                    effectId = "skip_turn_part_${part.name.lowercase()}",
+                    name = "Skip ${part.displayName.replaceFirstChar { it.uppercase() }}",
+                    description = "You skip each ${part.displayName} this turn",
                     icon = "shield-off"
                 )
             )
@@ -2052,8 +2325,10 @@ class ClientStateTransformer(
             )
         }
 
-        // Check for PlayerShroudComponent (e.g., Gilded Light)
-        if (container.has<PlayerShroudComponent>()) {
+        // Shroud, from a resolution-time effect (Gilded Light) or from a permanent that grants it
+        // (True Believer). [ControllerShroud] unions the two and re-evaluates any "as long as …"
+        // gate the grant sits behind, so the badge tracks the gate instead of freezing on entry.
+        if (ControllerShroud.appliesTo(state, playerId)) {
             effects.add(
                 ClientPlayerEffect(
                     effectId = "player_shroud",
@@ -2099,8 +2374,11 @@ class ClientStateTransformer(
             )
         }
 
-        // Check for PlayerHexproofComponent (e.g., Dawn's Truce)
-        if (container.has<PlayerHexproofComponent>()) {
+        // Hexproof, from a resolution-time effect (Dawn's Truce) or from a permanent that grants it
+        // (Shalai, Voice of Plenty). Same union-and-re-evaluate as shroud above; this used to be
+        // two blocks, the second scanning the battlefield on the *base* controller so a stolen
+        // Shalai badged the wrong player.
+        if (ControllerHexproof.appliesTo(state, playerId)) {
             effects.add(
                 ClientPlayerEffect(
                     effectId = "player_hexproof",
@@ -2111,27 +2389,13 @@ class ClientStateTransformer(
             )
         }
 
-        // Check for permanent-based player hexproof (e.g., Shalai, Voice of Plenty)
-        val hasHexproof = !container.has<PlayerHexproofComponent>() && state.getBattlefield().any { entityId ->
-            val entityContainer = state.getEntity(entityId) ?: return@any false
-            entityContainer.get<GrantsControllerHexproofComponent>() != null &&
-                entityContainer.get<ControllerComponent>()?.playerId == playerId
-        }
-        if (hasHexproof) {
-            effects.add(
-                ClientPlayerEffect(
-                    effectId = "player_hexproof",
-                    name = "Hexproof",
-                    description = "You have hexproof (you can't be the target of spells or abilities your opponents control)",
-                    icon = "shield"
-                )
-            )
-        }
-
-        // Check for PlayerCitysBlessingComponent (Ascend / city's blessing, CR 702.131).
-        // Surface the actual Scryfall "City's Blessing" marker card (tblc #40) as the badge
-        // image so it matches the physical-game marker players know.
-        if (container.has<PlayerCitysBlessingComponent>()) {
+        // Ascend / city's blessing (CR 702.131). Read through CitysBlessingService rather than the
+        // component so the badge tracks the rule: ascend on a permanent is continuous, and a player
+        // who has just crossed ten permanents already has the blessing even though the state-based
+        // action that writes the marker hasn't been polled yet. Surface the actual Scryfall "City's
+        // Blessing" marker card (tblc #40) as the badge image so it matches the physical-game
+        // marker players know.
+        if (CitysBlessingService.has(state, playerId)) {
             effects.add(
                 ClientPlayerEffect(
                     effectId = "citys_blessing",
@@ -2139,6 +2403,24 @@ class ClientStateTransformer(
                     description = "You have the city's blessing for the rest of the game",
                     icon = "shield",
                     imageUri = "https://cards.scryfall.io/normal/front/3/0/30758c2e-fc01-4037-838c-bdabe8a4e5a3.jpg?1721428739"
+                )
+            )
+        }
+
+        // Storied / enduring story (CR 702.195). Read through EnduringStoryService rather than the
+        // component for the same reason as the city's blessing above: storied on a permanent is
+        // continuous, so a player who has just crossed three qualifying permanents already has the
+        // designation even though the state-based action that writes the marker hasn't been polled
+        // yet. The badge image is the actual Scryfall "Enduring Story" marker card (thob #14), so it
+        // matches the physical-game marker players know.
+        if (EnduringStoryService.has(state, playerId)) {
+            effects.add(
+                ClientPlayerEffect(
+                    effectId = "enduring_story",
+                    name = "Enduring Story",
+                    description = "You have an enduring story for the rest of the game",
+                    icon = "shield",
+                    imageUri = "https://cards.scryfall.io/normal/front/5/3/53bfaac7-07cf-4637-8f64-aba93ec7fd1a.jpg?1785534385"
                 )
             )
         }
@@ -2207,6 +2489,32 @@ class ClientStateTransformer(
                     name = "Uncounterable",
                     description = "Your next $filterDesc spell can't be countered ($sourceName)",
                     icon = "no-counter"
+                )
+            )
+        }
+
+        // Check for pending "next spell can be cast without paying its mana cost" riders
+        // (e.g. World War Hulk I) — the player needs to see the free cast is still available.
+        val pendingFreeCasts = state.pendingFreeCastSpells.filter { it.controllerId == playerId }
+        if (pendingFreeCasts.isNotEmpty()) {
+            val sourceName = pendingFreeCasts.map { it.sourceName }.distinct().joinToString(", ")
+            // With several riders the broadest one sets the wording: an unfiltered rider frees the
+            // next spell whatever it is, so naming only a filtered sibling's types would understate
+            // it — and joining a blank filter into the list rendered as "red or green creature /".
+            val filterDesc = if (pendingFreeCasts.any { it.spellFilter == GameObjectFilter.Any }) {
+                ""
+            } else {
+                pendingFreeCasts
+                    .map { it.spellFilter.description }
+                    .distinct()
+                    .joinToString("/") + " "
+            }
+            effects.add(
+                ClientPlayerEffect(
+                    effectId = "pending_free_cast_spell",
+                    name = "Free Cast",
+                    description = "Your next ${filterDesc}spell can be cast without paying its mana cost ($sourceName)",
+                    icon = "free-cast"
                 )
             )
         }
@@ -2298,6 +2606,39 @@ class ClientStateTransformer(
     }
 
     /**
+     * Badge the creature types this permanent has noted — Long List of the Ents' running list, and
+     * A Killer Among Us's single secret choice.
+     *
+     * A *secret* note (`NotedCreatureTypesComponent.secretTo`) is hidden information: only the
+     * player who made it gets the badge, so an opponent's view of the permanent looks exactly the
+     * same whichever type was chosen. A spectator sees neither, since they'd otherwise leak the
+     * answer to anyone watching. Paying the reveal cost clears `secretTo`, and the badge becomes
+     * public in the same update.
+     *
+     * Without this the chooser has no way to remember what they picked — the whole point of the
+     * note is that the *engine* keeps track of the piece of paper (CR 702.106b) for them.
+     */
+    private fun notedCreatureTypeBadges(
+        container: com.wingedsheep.engine.state.ComponentContainer,
+        viewingPlayerId: EntityId,
+        isSpectator: Boolean
+    ): List<ClientCardEffect> {
+        val noted = container.get<NotedCreatureTypesComponent>() ?: return emptyList()
+        if (noted.types.isEmpty()) return emptyList()
+        val secret = noted.secretTo != null
+        if (secret && (isSpectator || !noted.isVisibleTo(viewingPlayerId))) return emptyList()
+        return listOf(
+            ClientCardEffect(
+                effectId = "noted_creature_types_${noted.types.sorted().joinToString("_")}",
+                name = if (secret) "Chosen (secret)" else "Noted",
+                description = noted.types.sorted().joinToString(", ") +
+                    if (secret) " — only you can see this" else "",
+                icon = "creature-type"
+            )
+        )
+    }
+
+    /**
      * Build a list of active effects on a card for display as badges.
      * These come from floating effects that target this specific card.
      */
@@ -2323,6 +2664,27 @@ class ClientStateTransformer(
             }
         }
 
+        // Damage this creature deals is doubled by an Equipment/Aura attached to it (Mjölnir,
+        // Hammer of Thor). This is the source-side mirror of the player badges built in
+        // buildPlayerActiveEffects: the doubling is a property of *this* creature's outgoing damage,
+        // so it belongs here rather than warning every player that damage dealt to them is doubled.
+        // Attachment is checked by the engine, so the badge is absent while the Equipment is unequipped.
+        for (doubler in DamageUtils.damageDoublersAffectingSource(state, entityId)) {
+            val scope = when (doubler.damageType) {
+                is DamageType.Combat -> "Combat damage"
+                is DamageType.NonCombat -> "Noncombat damage"
+                is DamageType.Any -> "Damage"
+            }
+            effects.add(
+                ClientCardEffect(
+                    effectId = "damage_doubled_source_${doubler.sourceId.value}",
+                    name = "Damage Doubled",
+                    description = "$scope this creature deals is doubled by ${doubler.sourceName}",
+                    icon = "double-damage"
+                )
+            )
+        }
+
         // Check all floating effects that affect this entity
         var preventDamageTotal = 0
         var regenerationShieldCount = 0
@@ -2339,6 +2701,20 @@ class ClientStateTransformer(
                             effectId = "cant_be_blocked_except_by_${modification.color.lowercase()}",
                             name = "Evasion",
                             description = "Can't be blocked except by $colorName creatures",
+                            icon = "evasion"
+                        )
+                    )
+                }
+                // The filter-based sibling of the color case above (Speed, Young Avenger's "can't be
+                // blocked this turn except by creatures with haste", Resilient Roadrunner). It routes
+                // through the same projected evasion channel, so the block rules already enforced it
+                // — only the badge was missing, leaving the restriction invisible to both players.
+                is SerializableModification.CantBeBlockedExceptBy -> {
+                    effects.add(
+                        ClientCardEffect(
+                            effectId = "cant_be_blocked_except_by",
+                            name = "Evasion",
+                            description = "Can't be blocked except by ${modification.blockerFilter.description}",
                             icon = "evasion"
                         )
                     )
@@ -2433,51 +2809,48 @@ class ClientStateTransformer(
                     )
                 }
                 is SerializableModification.MustBlockSpecificAttacker -> {
+                    // Name the attacker. The pinned creature is not always the obvious one — an
+                    // ANY-bound "blocks that Wolf" trigger (Tolsimir, Midnight's Light) pins the
+                    // blocker to a creature other than the ability's source, and a defender who
+                    // guesses wrong only finds out when their declaration is rejected.
+                    val attackerName = state.getEntity(modification.attackerId)
+                        ?.get<CardComponent>()?.name
                     effects.add(
                         ClientCardEffect(
                             effectId = "must_block_${modification.attackerId}",
                             name = "Must Block",
-                            description = "This creature must block a specific attacker if able",
+                            description = if (attackerName != null) {
+                                "This creature must block $attackerName this combat if able"
+                            } else {
+                                "This creature must block a specific attacker if able"
+                            },
                             icon = "must-attack"
                         )
                     )
                 }
-                is SerializableModification.PreventAllCombatDamage -> {
+                // The unrestricted requirement (Culvert Ambusher). Badged for the same reason as
+                // "Must Attack": the defending player finds out about it when their declaration is
+                // rejected, which is far too late to be the first they hear of it.
+                is SerializableModification.SetMustBlock -> {
                     effects.add(
                         ClientCardEffect(
-                            effectId = "prevent_all_combat_damage",
-                            name = "No Combat Dmg",
-                            description = "All combat damage is prevented",
-                            icon = "prevent-damage"
+                            effectId = "must_block_this_turn",
+                            name = "Must Block",
+                            description = "This creature must block this turn if able",
+                            icon = "must-attack"
                         )
                     )
                 }
+                // PreventAllCombatDamage, PreventCombatDamageFromGroup and
+                // PreventDamageFromAttackingCreatures are not card-scoped — the first two hold no
+                // affected entity at all and the third holds a player — so they are badged on the
+                // player in buildActiveEffects instead.
                 is SerializableModification.PreventCombatDamageToAndBy -> {
                     effects.add(
                         ClientCardEffect(
                             effectId = "prevent_combat_damage_to_and_by",
                             name = "No Combat Dmg",
                             description = "All combat damage dealt to and dealt by this creature is prevented",
-                            icon = "prevent-damage"
-                        )
-                    )
-                }
-                is SerializableModification.PreventCombatDamageFromGroup -> {
-                    effects.add(
-                        ClientCardEffect(
-                            effectId = "prevent_combat_damage_from_group",
-                            name = "No Combat Dmg",
-                            description = "Combat damage from this creature is prevented",
-                            icon = "prevent-damage"
-                        )
-                    )
-                }
-                is SerializableModification.PreventDamageFromAttackingCreatures -> {
-                    effects.add(
-                        ClientCardEffect(
-                            effectId = "prevent_damage_from_attackers",
-                            name = "Fog",
-                            description = "Damage from attacking creatures is prevented",
                             icon = "prevent-damage"
                         )
                     )
@@ -2493,7 +2866,7 @@ class ClientStateTransformer(
                         )
                     )
                 }
-                is SerializableModification.PreventNextDamageFromChosenSourceShield -> {
+                is SerializableModification.PreventNextDamageFromSourceShield -> {
                     effects.add(
                         ClientCardEffect(
                             effectId = "deflect_damage_${modification.damageSourceId}",
@@ -2633,7 +3006,27 @@ class ClientStateTransformer(
                 entityId in it.effect.affectedEntities &&
                     it.effect.modification is SerializableModification.SetCreatureSubtypes
             }
-            if (hasSetCreatureSubtypes && projectedSubtypes.isNotEmpty() && projectedSubtypes != baseSubtypes) {
+            // "Is all creature types" (Undercover Skrull's graveyard-gated static, Stalactite
+            // Dagger) projects every creature type. The type line deliberately collapses back to the
+            // printed subtypes rather than rendering ~150 of them, and a *granted* all-types has no
+            // CHANGELING keyword to badge — so without this the state is invisible. Checked before
+            // the diff branches below, which would otherwise try to list every type.
+            val isEveryCreatureType = hasEveryCreatureType(projectedSubtypes)
+            val hasChangelingKeyword = baseCardComponent?.baseKeywords?.contains(Keyword.CHANGELING) == true
+            if (isEveryCreatureType) {
+                // A *native* changeling already reads off its printed keyword badge; only a
+                // granted all-types needs one of its own.
+                if (!hasChangelingKeyword) {
+                    effects.add(
+                        ClientCardEffect(
+                            effectId = "all_creature_types",
+                            name = "All types",
+                            description = "Is every creature type",
+                            icon = "type-change"
+                        )
+                    )
+                }
+            } else if (hasSetCreatureSubtypes && projectedSubtypes.isNotEmpty() && projectedSubtypes != baseSubtypes) {
                 val joined = projectedSubtypes.joinToString(" ")
                 effects.add(
                     ClientCardEffect(
@@ -2807,6 +3200,18 @@ class ClientStateTransformer(
                 )
             )
         }
+        for (granted in state.grantedStateTriggeredAbilities) {
+            if (granted.entityId != entityId) continue
+            if (!seenGrantDescriptions.add(granted.ability.description)) continue
+            effects.add(
+                ClientCardEffect(
+                    effectId = "granted_state_trig_${granted.ability.id.value}",
+                    name = "Granted Ability",
+                    description = granted.ability.description,
+                    icon = "granted-ability"
+                )
+            )
+        }
         for (granted in state.grantedActivatedAbilities) {
             if (granted.entityId != entityId) continue
             if (!seenGrantDescriptions.add(granted.ability.description)) continue
@@ -2857,7 +3262,7 @@ class ClientStateTransformer(
         val restrictionController = state.projectedState.getController(entityId)
         if (cardDefForRestrictions != null && restrictionController != null) {
             for (ability in cardDefForRestrictions.script.staticAbilities) {
-                val active = activeStaticAbility(state, ability, entityId, restrictionController)
+                val active = visibility.activeStaticAbility(state, ability, entityId, restrictionController)
                 if (active is com.wingedsheep.sdk.scripting.CantBeBlockedByMoreThan &&
                     active.filter.scope is com.wingedsheep.sdk.scripting.filters.unified.Scope.Self
                 ) {
@@ -2905,7 +3310,8 @@ class ClientStateTransformer(
 
     /**
      * Build badges showing progress toward intervening-if trigger conditions.
-     * For example, Oversold Cemetery shows "Creatures in GY: 2/4".
+     * For example, Oversold Cemetery shows "Creatures in GY: 2/4", and an unsolved Case shows how
+     * far along its "to solve" criterion is ("2/3 sources dealt damage").
      */
     private fun buildTriggerConditionBadges(
         state: GameState,
@@ -2920,47 +3326,89 @@ class ClientStateTransformer(
 
         for (ability in cardDef.triggeredAbilities) {
             val condition = ability.triggerCondition ?: continue
-            val badge = evaluateConditionBadge(state, condition, controllerId)
-            if (badge != null) badges.add(badge)
+            badges.addAll(evaluateConditionBadges(state, condition, controllerId, entityId))
         }
 
-        return badges
+        // The client keys badges by effectId, so a card with two countable conditions — two
+        // intervening-ifs, or one composite carrying two of them — needs them distinguished. The
+        // first keeps the bare id so existing badges are untouched.
+        return badges.mapIndexed { index, badge ->
+            if (index == 0) badge else badge.copy(effectId = "${badge.effectId}_$index")
+        }
     }
 
     /**
-     * Evaluate a trigger condition and return a badge showing progress.
+     * Whether [subtypes] covers every creature type — printed changeling, granted changeling, or an
+     * "is all creature types" static (Undercover Skrull, Stalactite Dagger). Two places need the
+     * same answer and must not drift: the type line collapses back to the printed subtypes rather
+     * than rendering ~150 entries, and the badge builder substitutes a single "All types" badge.
      */
-    private fun evaluateConditionBadge(
+    private fun hasEveryCreatureType(subtypes: Collection<String>): Boolean {
+        if (subtypes.isEmpty()) return false
+        // Hash once: one caller hands us a List, and a linear `in` per creature type would make
+        // this ~150 scans of it on every card of every state transform.
+        val lookup = if (subtypes is Set<String>) subtypes else subtypes.toSet()
+        return Subtype.ALL_CREATURE_TYPES.all { it in lookup }
+    }
+
+    /**
+     * The progress badges one triggered ability's condition contributes: one per countable clause,
+     * none while an uncountable clause is already false.
+     */
+    private fun evaluateConditionBadges(
         state: GameState,
         condition: Condition,
-        controllerId: EntityId
-    ): ClientCardEffect? {
-        return when (condition) {
-            is Compare -> {
-                val context = com.wingedsheep.engine.handlers.EffectContext(
-                    sourceId = null,
-                    controllerId = controllerId,
-                )
-                val evaluator = com.wingedsheep.engine.handlers.DynamicAmountEvaluator()
-                val leftVal = evaluator.evaluate(state, condition.left, context)
-                val rightVal = evaluator.evaluate(state, condition.right, context)
-                val met = when (condition.operator) {
-                    ComparisonOperator.LT -> leftVal < rightVal
-                    ComparisonOperator.LTE -> leftVal <= rightVal
-                    ComparisonOperator.EQ -> leftVal == rightVal
-                    ComparisonOperator.NEQ -> leftVal != rightVal
-                    ComparisonOperator.GT -> leftVal > rightVal
-                    ComparisonOperator.GTE -> leftVal >= rightVal
-                }
+        controllerId: EntityId,
+        sourceId: EntityId,
+    ): List<ClientCardEffect> {
+        // The badge must evaluate against the permanent that owns the ability: conditions
+        // routinely read `EntityReference.Source` (counters on this permanent, its power,
+        // whether it's attacking). With a null sourceId those resolve to 0, so the badge
+        // reads a permanently-stuck "0/N" while the real condition works fine — e.g. MSH's
+        // Plan enchantments, whose "the number of plan counters" badge never moved.
+        val context = com.wingedsheep.engine.handlers.EffectContext(
+            sourceId = sourceId,
+            controllerId = controllerId,
+        )
+        // An intervening-if with more than one clause is one condition to the engine and several
+        // to a player. Every Case's "to solve" is such a composite — the printed criterion ANDed
+        // with "and this Case is not solved" (CR 719.3a) — so without splitting it, the very cards
+        // whose whole point is a countdown were the ones showing no countdown at all.
+        val parts = when (condition) {
+            is AllConditions -> condition.conditions
+            else -> listOf(condition)
+        }
+        val progress = parts.map { part -> part to conditionEvaluator.countProgress(state, part, context) }
+        // A clause that can't be counted is a gate, and a gate that's already shut makes the count
+        // moot: a solved Case would otherwise sit on a stale "5/3" for the rest of the game,
+        // because "not solved" — not the criterion — is what stops it triggering again.
+        val gateShut = progress.any { (part, counted) ->
+            counted == null && !conditionEvaluator.evaluate(state, part, context)
+        }
+        if (gateShut) return emptyList()
+
+        return progress.mapNotNull { (part, counted) ->
+            counted?.let {
                 ClientCardEffect(
                     effectId = "condition_compare",
-                    name = "$leftVal/$rightVal",
-                    description = "${condition.left.description} ($leftVal/${rightVal})",
-                    icon = if (met) "condition-met" else "condition-unmet"
+                    name = "${it.current}/${it.required}",
+                    description = "${describeCountedClause(part)} (${it.current}/${it.required})",
+                    icon = if (it.met) "condition-met" else "condition-unmet"
                 )
             }
-            else -> null
         }
+    }
+
+    /**
+     * How a counted clause is named in its badge tooltip: the *quantity* it counts, not the whole
+     * comparison. A [Compare] names its left operand ("the number of creature cards in your
+     * graveyard"), which reads as a label beside the "2/4" rather than repeating the threshold that
+     * is already there. The clause shapes that have no left operand — "you control no suspected
+     * Skeletons", "you've cast N spells this turn" — fall back to describing themselves.
+     */
+    private fun describeCountedClause(condition: Condition): String = when (condition) {
+        is Compare -> condition.left.description
+        else -> condition.description
     }
 
     /**

@@ -23,12 +23,11 @@ import kotlin.reflect.KClass
  *
  * "Deal X damage divided as you choose among N targets"
  *
- * Per MTG rules, damage distribution must be chosen as part of targeting (at cast time),
- * not when the spell resolves. This executor uses the pre-supplied distribution from
- * the EffectContext.
- *
- * If there's only one target, deal all damage directly (no distribution needed).
- * If there are multiple targets, use the pre-supplied damageDistribution from context.
+ * Per MTG rules the division is chosen as the spell is cast / the ability is activated (CR 601.2d),
+ * not when it resolves, so this executor prefers the pre-supplied `context.damageDistribution` —
+ * dealing each surviving target exactly its announced share and dropping the share of any target
+ * that became illegal in the meantime. Only when no division was announced (a single target, or a
+ * non-interactive controller) does it deal the whole total or ask for the division at resolution.
  */
 class DividedDamageExecutor(
     private val decisionHandler: DecisionHandler,
@@ -57,36 +56,31 @@ class DividedDamageExecutor(
             else EffectResult.error(state, "No targets for divided damage")
         }
 
+        val distribution = context.damageDistribution
         val (lifeGainCauseId, lifeGainCauseTypeLine, lifeGainCauseColors) =
             DamageUtils.resolvingSpellCauseLki(state, context)
-
-        // If there's only one target, deal all damage directly
-        if (targets.size == 1) {
-            return dealDamageToTarget(
-                state, targets.first(), total, context.sourceId,
-                lifeGainCauseId = lifeGainCauseId,
-                lifeGainCauseTypeLine = lifeGainCauseTypeLine,
-                lifeGainCauseColors = lifeGainCauseColors,
+        if (distribution != null) {
+            // The division was locked in when the spell/ability was announced (CR 601.2d), so it is
+            // honored verbatim — never re-divided at resolution. `context.targets` has already had
+            // targets that became illegal dropped (CR 608.2b); their share is simply not dealt, and
+            // the survivors keep exactly what they were assigned. This is why the assigned shares
+            // can sum to less than [total] and must not be recomputed from the surviving count.
+            val stillLegal = targets.toSet()
+            val (readyState, pause) = OptionalDamageRedirect.beforeDealing(
+                state,
+                distribution
+                    .filter { (targetId, amount) -> amount > 0 && targetId in stillLegal }
+                    .map { (targetId, amount) -> OptionalDamageRedirect.Instance(context.sourceId, targetId, amount) },
+                effect,
+                context
             )
-        }
+            if (pause != null) return pause
 
-        // Multiple targets - use pre-supplied distribution from context
-        val distribution = context.damageDistribution
-        if (distribution == null) {
-            // Fallback: This shouldn't happen with proper flow, but handle gracefully
-            // by creating a decision (legacy behavior)
-            return createDistributionDecision(
-                state, effect, context, targets, total,
-                lifeGainCauseId, lifeGainCauseTypeLine, lifeGainCauseColors
-            )
-        }
+            var currentState = readyState
+            val events = mutableListOf<com.wingedsheep.engine.core.GameEvent>()
 
-        // Deal damage to each target per the distribution
-        var currentState = state
-        val events = mutableListOf<com.wingedsheep.engine.core.GameEvent>()
-
-        for ((targetId, amount) in distribution) {
-            if (amount > 0) {
+            for ((targetId, amount) in distribution) {
+                if (amount <= 0 || targetId !in stillLegal) continue
                 val result = dealDamageToTarget(
                     currentState, targetId, amount, context.sourceId,
                     lifeGainCauseId = lifeGainCauseId,
@@ -99,9 +93,29 @@ class DividedDamageExecutor(
                 currentState = result.newState
                 events.addAll(result.events)
             }
+
+            return EffectResult.success(currentState, events)
         }
 
-        return EffectResult.success(currentState, events)
+        // No division was announced. A single target takes the whole total with nothing to divide;
+        // otherwise fall back to asking for the division now (the path non-interactive controllers
+        // and engine-direct actions take).
+        if (targets.size == 1) {
+            val (readyState, pause) = OptionalDamageRedirect.beforeDealing(
+                state,
+                listOf(OptionalDamageRedirect.Instance(context.sourceId, targets.first(), total)),
+                effect,
+                context
+            )
+            if (pause != null) return pause
+            return dealDamageToTarget(
+                readyState, targets.first(), total, context.sourceId,
+                lifeGainCauseId = lifeGainCauseId,
+                lifeGainCauseTypeLine = lifeGainCauseTypeLine,
+                lifeGainCauseColors = lifeGainCauseColors,
+            )
+        }
+        return createDistributionDecision(state, effect, context, targets, total)
     }
 
     /**
@@ -113,10 +127,7 @@ class DividedDamageExecutor(
         effect: DividedDamageEffect,
         context: EffectContext,
         targets: List<com.wingedsheep.sdk.model.EntityId>,
-        total: Int,
-        lifeGainCauseId: com.wingedsheep.sdk.model.EntityId?,
-        lifeGainCauseTypeLine: com.wingedsheep.sdk.core.TypeLine?,
-        lifeGainCauseColors: Set<com.wingedsheep.sdk.core.Color>,
+        total: Int
     ): EffectResult {
         val sourceName = context.sourceId?.let { sourceId ->
             state.getEntity(sourceId)?.get<CardComponent>()?.name
@@ -137,9 +148,9 @@ class DividedDamageExecutor(
             minPerTarget = 1 // Per MTG rules, must assign at least 1 damage to each target
         )
 
-        // Push continuation so we know how to resume — stamp the spell cause now, while the
-        // stack object (and its LKI) is still available. After pause the spell leaves the stack
-        // before damage is applied on resume.
+        // Push continuation so we know how to resume
+        val (lifeGainCauseId, lifeGainCauseTypeLine, lifeGainCauseColors) =
+            DamageUtils.resolvingSpellCauseLki(state, context)
         val continuation = DistributeDamageContinuation(
             decisionId = decisionId,
             sourceId = context.sourceId,

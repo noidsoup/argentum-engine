@@ -72,8 +72,9 @@ data class TrainingObservation(
 
     /**
      * Per-zone entity views. A `(ownerId, zoneType)` pair appears at most once.
-     * Hidden zones (opponent hand, libraries) expose [ZoneView.hidden] = true
-     * and [ZoneView.cards] is empty (only [ZoneView.size] is populated).
+     * [ZoneView.hidden] means the zone is not wholly public to this perspective. [ZoneView.cards]
+     * contains only the identities this perspective may know, so an individually revealed card can
+     * appear while the zone remains hidden and [ZoneView.size] still reports its true size.
      */
     val zones: List<ZoneView>,
 
@@ -131,8 +132,14 @@ data class ManaPoolView(
 /**
  * A zone's contents from [TrainingObservation.perspectivePlayerId]'s point of view.
  *
- * When [hidden] is true (opponent's hand, any library), [cards] is empty and
- * only [size] is meaningful. This mirrors real-MTG information hiding.
+ * [hidden] reports the structural fact that the zone is not wholly public to this perspective (an
+ * opponent's hand, any library) — a stable feature, so an agent's input distribution does not shift
+ * as reveals come and go. It is deliberately not "something here is unknown": [size] is the true
+ * count while [cards] carries only the entries this perspective knows, and that subset can be the
+ * whole zone. A hand-peek effect leaves the cards it showed visible to the player who saw them, so
+ * a two-card hidden hand can legitimately list one card — or, for a one-card library under a public
+ * top-card reveal, all of it. Hidden-zone slot IDs and the positions of known cards among unknown
+ * ones are intentionally not part of this schema.
  */
 @Serializable
 data class ZoneView(
@@ -156,7 +163,14 @@ data class ZoneView(
 @Serializable
 data class EntityFeatures(
     val entityId: EntityId,
+    /** Null for a face-down object the perspective player may not look at. */
     val cardDefinitionId: String?,
+    /**
+     * The projected name — what Layer 3 renamed the object to (Witness Protection), else the
+     * printed one. `"Face-down creature"` / `"Face-down card"` for a face-down object the
+     * perspective player may not look at, whose [oracleText], [manaCost] and [manaValue] are
+     * blanked to match.
+     */
     val name: String,
     val zone: Zone,
     val ownerId: EntityId?,
@@ -194,6 +208,12 @@ data class EntityFeatures(
     val toughness: Int?,
 
     val tapped: Boolean = false,
+    /**
+     * The restriction actually in force: the object entered under this controller too recently,
+     * it is currently a creature, and it has no haste. Not the raw engine marker — a creature
+     * with projected haste reports `false` even though the marker is still on it, and reverts to
+     * `true` if the haste goes away while the marker stands.
+     */
     val summoningSick: Boolean = false,
     val faceDown: Boolean = false,
     val damageMarked: Int = 0,
@@ -208,11 +228,17 @@ data class EntityFeatures(
 @Serializable
 data class StackItemView(
     val entityId: EntityId,
+    /** The caster of a spell, or the controller of an ability. */
     val controllerId: EntityId?,
+    /** The spell's card name, or the source name of an ability. */
     val name: String,
     val kind: StackItemKind,
-    /** Printed oracle text of the card backing this stack item — empty for stackless triggers. */
+    /** Printed oracle text of the card, or an ability's description. */
     val oracleText: String = "",
+    /**
+     * The chosen targets, in the order they were chosen, flattened to entity ids. A player
+     * target contributes the player's own entity id.
+     */
     val targets: List<EntityId> = emptyList()
 )
 
@@ -244,6 +270,33 @@ data class LegalActionView(
     val maxTargets: Int = 0,
     val requiresDamageDistribution: Boolean = false,
     val isManaAbility: Boolean = false,
+    /**
+     * Creatures that may be declared as attackers (`kind == "DeclareAttackers"`), empty otherwise.
+     * Pair each with one of [validAttackTargets] in `ActionParams.attackers` when stepping; step it
+     * with no params to attack with nobody.
+     */
+    val validAttackers: List<EntityId> = emptyList(),
+    /** Attackers that *must* attack if able (CR 508.1d) — a declaration omitting one is rejected. */
+    val mandatoryAttackers: List<EntityId> = emptyList(),
+    /** Players, planeswalkers and battles this player may attack. */
+    val validAttackTargets: List<EntityId> = emptyList(),
+    /**
+     * Creatures that may be declared as blockers (`kind == "DeclareBlockers"`), empty otherwise.
+     * Map each to the attackers it blocks in `ActionParams.blockers`.
+     */
+    val validBlockers: List<EntityId> = emptyList(),
+    /**
+     * How many attackers each blocker may block at once — absent means the default one (CR 509.1a).
+     * A declaration exceeding a blocker's limit is rejected, so a caller building
+     * `ActionParams.blockers` has to respect it.
+     */
+    val blockerMaxBlockCounts: Map<EntityId, Int> = emptyMap(),
+    /**
+     * Blocks that *must* be made if able (CR 509.1c) — blocker id → the attackers it is required to
+     * block. Like [mandatoryAttackers] on the attack side, a declaration that obeys fewer of these
+     * than it could is illegal, so this is not advisory.
+     */
+    val mandatoryBlockerAssignments: Map<EntityId, List<EntityId>> = emptyMap(),
     /** True when this entry was generated from [PendingDecisionView], not a GameAction. */
     val isDecisionOption: Boolean = false
 )

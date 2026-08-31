@@ -1,20 +1,32 @@
 package com.wingedsheep.sdk.serialization
 
+import com.wingedsheep.sdk.core.Subtype
+import com.wingedsheep.sdk.core.TypeLine
 import com.wingedsheep.sdk.model.CardDefinition
+import com.wingedsheep.sdk.model.CardScript
+import com.wingedsheep.sdk.scripting.StaticAbility
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * Structural lint for card definitions (sdk-analysis §1.1): catches the "silent no-op" bug class
- * where a name-based reference — a pipeline collection, a stored number, a chosen value, a
- * cast-time target binding, a [com.wingedsheep.sdk.scripting.ChoiceSlot] — doesn't resolve to
- * anything because of a typo, a missing writer, or a reference into the wrong ability's scope.
+ * where a reference doesn't resolve to anything, so the ability compiles and serializes cleanly
+ * while doing nothing at all. Two flavors:
+ *
+ * - **Name-based** — a pipeline collection, a stored number, a chosen value, a cast-time target
+ *   binding, a [com.wingedsheep.sdk.scripting.ChoiceSlot] that misses because of a typo, a missing
+ *   writer, or a reference into the wrong ability's scope.
+ * - **Shape-based** — a reference that can't resolve given what the card *is*: a
+ *   `TargetChooser.Opponent` outside an activated ability ([checkOpponentChoosers]), an
+ *   `EntityMatches` role the evaluator doesn't dispatch, or an attach-scope filter on a card that
+ *   can never be attached ([checkAttachedScope]).
  *
  * ## How it works
  *
@@ -60,6 +72,16 @@ object CardLinter {
      */
     private val lintJson = Json(from = CardSerialization.json) { encodeDefaults = true }
 
+    /** `Scope.AttachedTo`'s serial name. */
+    private const val ATTACHED_TO = "AttachedTo"
+
+    /**
+     * Fortifications attach to lands (CR 301.6-adjacent; the Fortify keyword). No card in the
+     * corpus uses one yet and there is no `Subtype` constant, but they are an attachment type, so
+     * the attachability check honors the subtype rather than mis-flagging the first one added.
+     */
+    private val FORTIFICATION = Subtype("Fortification")
+
     fun lint(card: CardDefinition): List<CardValidationError> {
         val findings = mutableListOf<CardValidationError>()
         val fullTree = lintJson.encodeToJsonElement(CardDefinition.serializer(), card) as JsonObject
@@ -74,58 +96,449 @@ object CardLinter {
         lintDefinition(card.name, fullTree, explicitTree, slots, findings)
         checkSlots(card.name, slots, findings)
         checkOpponentChoosers(card.name, explicitTree, withinActivatedAbility = false, findings)
+        checkAttachedScope(card, findings)
+        checkManaAbilityClassification(card.name, fullTree, findings)
         return findings
     }
 
+    /** Serial names of the effects that put mana into a pool (CR 605.1a's "could add mana"). */
+    private val MANA_ADDING_EFFECTS = setOf(
+        "AddMana",
+        "AddColorlessMana",
+        "AddManaOfChoice",
+        "AddDynamicMana",
+        "AddAnyColorManaSpendOnChosenType",
+        "AddOneManaOfEachColorAmong",
+    )
+
     /**
-     * Flag a [com.wingedsheep.sdk.scripting.targets.TargetChooser.Opponent] requirement
-     * ("… of an opponent's choice") in a context the engine doesn't route to an opponent. Only
-     * activated abilities (including loyalty and granted activated abilities) honor the chooser at
-     * announcement; on a spell, triggered ability, kicker target, or saga chapter the controller
-     * would silently choose the target instead. Catch it at card load rather than mis-resolve.
+     * Check every activated ability's `isManaAbility` flag against CR 605.1a, in both directions.
      *
-     * Walks the JSON tree carrying whether we're inside an `"activatedAbilities"` subtree, so the
-     * check covers every container structurally (granted abilities, class levels, token abilities)
-     * regardless of which field name holds the requirement (`targetRequirement`,
-     * `targetRequirements`, `additionalTargetRequirements`, …). The match is anchored on the
-     * `AnyTarget` type discriminator: it's the only [TargetRequirement] that carries a
-     * `TargetChooser`, so this can't collide with the unrelated `chooser` field on pipeline
-     * selection steps (`Chooser`, which has its own honored `Opponent` value).
+     * CR 605.1a makes the classification a *consequence* of the ability, not a choice: an activated
+     * ability that could add mana, doesn't target, isn't a loyalty ability and whose **cost and
+     * effect** move no card to or from a library **is** a mana ability — and one that fails any of
+     * those tests is not, however much mana it makes. Getting the flag wrong is invisible on
+     * inspection and changes four things at once: whether the ability can be activated while paying
+     * a cost (CR 605.3a), whether it uses the stack and can be responded to (CR 605.3b), whether
+     * `ManaAbilityEnumerator` surfaces it to the auto-tap solver, and whether anything keying off
+     * "tapping a permanent for mana" (Badgermole Cub, Lavaleaper, Overabundance) fires.
+     *
+     * **Unflagged** — the `activatedAbility { manaAbility = true }` builder derives
+     * [TimingRule.ManaAbility] from the flag, but a raw `ActivatedAbility(...)` — the only way to
+     * build one *inside* a `GrantActivatedAbility` — has no builder to do it, and its
+     * `isManaAbility` defaults to false. That is how Cryptolith Rite, Joiner Adept and Citanul
+     * Hierophants shipped unflagged, and then Abundant Growth, Nature's Embrace, New Horizons,
+     * Huatli, Enduring Vitality and Great Divide Guide after them. Documenting it twice didn't stop
+     * the second batch; this does.
+     *
+     * **Misflagged** — the mirror image, and the reason this check runs both ways. The library
+     * clause was only added to 605.1a in the August 7, 2026 rules update, so seven cards that were
+     * mana abilities when they were written stopped being them on that date: Chromatic Sphere and
+     * the five Odyssey Eggs (mana plus "Draw a card") and Deranged Assistant (a mill *cost*). A
+     * one-directional check silently keeps every one of them resolving off the stack.
+     *
+     * Structural on purpose: an `isManaAbility` member identifies an `ActivatedAbility` wherever it
+     * sits — printed, inside a static grant, or nested in a `GrantActivatedAbilityEffect` — so a
+     * new grant shape is covered the day it is added.
+     */
+    private fun checkManaAbilityClassification(
+        cardName: String,
+        tree: JsonElement,
+        findings: MutableList<CardValidationError>
+    ) {
+        forEachActivatedAbility(tree) { ability ->
+            val flagged = (ability["isManaAbility"] as? JsonPrimitive)?.booleanOrNull ?: return@forEachActivatedAbility
+            val isLoyalty = (ability["isPlaneswalkerAbility"] as? JsonPrimitive)?.booleanOrNull == true
+            val targets = (ability["targetRequirements"] as? JsonArray)?.isNotEmpty() == true
+            val effect = ability["effect"] ?: return@forEachActivatedAbility
+            val movesLibraryCard = movesCardToOrFromLibrary(ability)
+
+            if (!flagged) {
+                if (isLoyalty || targets || movesLibraryCard) return@forEachActivatedAbility
+                if (!ownEffectContains(effect, MANA_ADDING_EFFECTS)) return@forEachActivatedAbility
+                findings.add(
+                    CardValidationError.UnflaggedManaAbility(
+                        cardName = cardName,
+                        message = "'$cardName' has an activated ability that adds mana but is not " +
+                            "flagged `isManaAbility = true`. By CR 605.1a it IS a mana ability, so the " +
+                            "engine must resolve it off the stack: as written it uses the stack, can't " +
+                            "be activated while paying a cost, is invisible to the auto-tap solver, and " +
+                            "never triggers a \"whenever you tap a permanent for mana\" static. Set " +
+                            "`isManaAbility = true` and `timing = TimingRule.ManaAbility` on the raw " +
+                            "ActivatedAbility (the `activatedAbility { manaAbility = true }` builder " +
+                            "sets both for you). If the ability genuinely isn't one — it targets, or " +
+                            "moves a card to or from a library — say so in lint-allowlist.txt."
+                    )
+                )
+                return@forEachActivatedAbility
+            }
+
+            val disqualifier = when {
+                movesLibraryCard -> "its cost or effect moves a card to or from a library"
+                targets -> "it requires a target"
+                isLoyalty -> "it is a loyalty ability"
+                else -> return@forEachActivatedAbility
+            }
+            findings.add(
+                CardValidationError.MisflaggedManaAbility(
+                    cardName = cardName,
+                    message = "'$cardName' has an activated ability flagged `isManaAbility = true` " +
+                        "that CR 605.1a disqualifies, because $disqualifier. It is an ordinary " +
+                        "activated ability: it must use the stack, be respondable, and be " +
+                        "unavailable while paying a cost — but as flagged the engine resolves it " +
+                        "off the stack and offers it to the auto-tap solver. Drop `manaAbility = " +
+                        "true` (and any explicit `timing = TimingRule.ManaAbility`) so the ability " +
+                        "keeps the default instant-speed timing."
+                )
+            )
+        }
+    }
+
+    /**
+     * True if [ability]'s **cost or effect** moves a card to or from a library — the CR 605.1a
+     * disqualifier ("its cost and effect don't move any card to or from a library").
+     *
+     * Checked by serial name against the *real* vocabulary, because there is no single `Mill` or
+     * `SearchLibrary` node to look for: mill, search, exile-the-top and every other library
+     * operation is a `GatherCards` → `MoveCollection` pipeline over a `CardSource` /
+     * `CardDestination`, so the library-ness lives in a **zone field** on those nodes rather than
+     * in the effect's own name. Three tests, in order of how much they have to know:
+     *
+     * - [LIBRARY_MOVING_NODES] — nodes that move a library card whatever their arguments:
+     *   `DrawCards`, `Surveil` (library → graveyard), `Cascade`/`Discover`/`ExileFromTopRepeating`/
+     *   `ExileLibraryUntilManaValue`, `PutOnLibraryPositionOfChoice`, and the `AtomMill` cost.
+     * - The `AtomExileFrom` cost, which is a move only when its zone is the library — it exiles
+     *   from a graveyard or a hand just as often (Molt Tender).
+     * - [crossesLibraryBoundary] — the pipeline shapes, where whether a card moves *to or from* a
+     *   library is a property of the whole pipeline rather than of any one node.
+     *
+     * `Scry` is deliberately in none of them: it reorders cards *within* a library and never moves
+     * one to or from it, so a scry rider leaves a mana ability a mana ability (Path of Ancestry).
+     */
+    private fun movesCardToOrFromLibrary(ability: JsonObject): Boolean =
+        listOfNotNull(ability["effect"], ability["cost"]).any { tree ->
+            ownEffectContains(tree, LIBRARY_MOVING_NODES) ||
+                exilesFromLibraryAsCost(tree) ||
+                crossesLibraryBoundary(tree)
+        }
+
+    /**
+     * True if a card *crosses* the library boundary somewhere in [tree] — the pipeline half of
+     * [movesCardToOrFromLibrary], and the reason `TopOfLibrary` and `ToZone(Library)` can't simply
+     * be listed as library-moving nodes.
+     *
+     * `CardSource.TopOfLibrary` is the shared gather for mill, exile-the-top, surveil, scry **and
+     * look-at-top**, and `CardDestination.ToZone(Library)` is the shared put-back for shuffle-in,
+     * put-on-top *and* the same reorders. Either one alone says only that a library was *touched*.
+     *
+     * So the default is that touching a library at all counts, and exactly one shape is carved out:
+     * a **reorder**, where cards come off a library and every one of them goes straight back into
+     * it. That is `LibraryPatterns.lookAtTopAndReorder` and the pipeline the compact `Scry` node
+     * expands to — flagging those would make the check contradict its own `Scry` carve-out
+     * depending only on which spelling the card used. Anything else that leaves the library
+     * (mill, `lookAtTopAndKeep`, a search that casts what it finds) and anything that enters one
+     * without having come from it (shuffle a graveyard in, put a card from hand on top) crosses.
+     *
+     * Reading destinations tree-wide rather than per-`MoveCollection` keeps this independent of
+     * collection-key bookkeeping: `scryPipeline` re-keys its gather through `SelectFromCollection`
+     * into two separate moves, and both still land in the library.
+     */
+    private fun crossesLibraryBoundary(tree: JsonElement): Boolean {
+        val fromLibrary = anyNode(tree) { node, type ->
+            type == "TopOfLibrary" || (type in ZONE_SOURCE_NODES && namesLibrary(node))
+        }
+        val toLibrary = anyNode(tree) { node, type -> type == "ToZone" && namesLibrary(node) }
+        if (!fromLibrary && !toLibrary) return false
+
+        val toElsewhere = anyNode(tree) { node, type -> type == "ToZone" && !namesLibrary(node) }
+        // A cast takes the card to the stack, so a gather it consumes has left the library even
+        // though no `ToZone` says so.
+        val castsFromCollection = anyNode(tree) { _, type -> type == CAST_FROM_COLLECTION }
+        val reorder = fromLibrary && toLibrary && !toElsewhere && !castsFromCollection
+        return !reorder
+    }
+
+    /** True if [tree] pays an `AtomExileFrom` cost out of a library. */
+    private fun exilesFromLibraryAsCost(tree: JsonElement): Boolean =
+        anyNode(tree) { node, type -> type == "AtomExileFrom" && namesLibrary(node) }
+
+    /**
+     * True if any node in [tree] satisfies [predicate], which receives the node and its serial
+     * `type`. Stops at the same boundary as [ownEffectContains]: a granted ability or an embedded
+     * token definition that reaches a library is not something *this* resolution does.
+     */
+    private fun anyNode(tree: JsonElement, predicate: (JsonObject, String?) -> Boolean): Boolean =
+        when (tree) {
+            is JsonObject ->
+                if (isNestedAbilityOrDefinition(tree)) false
+                else predicate(tree, (tree["type"] as? JsonPrimitive)?.contentOrNull) ||
+                    tree.values.any { anyNode(it, predicate) }
+            is JsonArray -> tree.any { anyNode(it, predicate) }
+            else -> false
+        }
+
+    /** True if [node] names the library in a scalar `zone` member or in a `zones` list. */
+    private fun namesLibrary(node: JsonObject): Boolean =
+        (node["zone"] as? JsonPrimitive)?.contentOrNull == LIBRARY_ZONE ||
+            (node["zones"] as? JsonArray)
+                ?.any { (it as? JsonPrimitive)?.contentOrNull == LIBRARY_ZONE } == true
+
+    /** Nodes that move a card to or from a library. See [movesCardToOrFromLibrary]. */
+    private val LIBRARY_MOVING_NODES = setOf(
+        "DrawCards",
+        "Surveil",
+        "Cascade",
+        "Discover",
+        "ExileFromTopRepeating",
+        "ExileLibraryUntilManaValue",
+        "PutOnLibraryPositionOfChoice",
+        "AtomMill",
+    )
+
+    /** `CardSource` shapes that name the zone they gather from. See [crossesLibraryBoundary]. */
+    private val ZONE_SOURCE_NODES = setOf(
+        "FromZone",
+        "FromMultipleZones",
+    )
+
+    /** Serial name of the effect that casts a gathered card, taking it out of wherever it was. */
+    private const val CAST_FROM_COLLECTION = "CastFromCollectionWithoutPayingCost"
+
+    /** `Zone.LIBRARY`'s serial name. */
+    private const val LIBRARY_ZONE = "Library"
+
+    /** Every serialized `ActivatedAbility` anywhere in [tree] — the `isManaAbility` member marks one. */
+    private fun forEachActivatedAbility(tree: JsonElement, visit: (JsonObject) -> Unit) {
+        when (tree) {
+            is JsonObject -> {
+                if (tree.containsKey("isManaAbility")) visit(tree)
+                tree.values.forEach { forEachActivatedAbility(it, visit) }
+            }
+            is JsonArray -> tree.forEach { forEachActivatedAbility(it, visit) }
+            else -> {}
+        }
+    }
+
+    /**
+     * True if any polymorphic `"type"` discriminator in [tree] — or the tree itself, when a
+     * no-argument effect encodes as the bare serial name — is one of [names], counting only what
+     * *this* resolution does.
+     *
+     * The recursion stops at a nested ability or embedded card definition, because an effect that
+     * merely carries one doesn't perform it: Avatar Roku's "{8}: Create a … Dragon with firebending
+     * 4" embeds a token whose attack trigger adds {R}{R}{R}{R}, and the {8} ability adds no mana at
+     * all. The same guard keeps a `GrantActivatedAbilityEffect` from being read as though it
+     * produced the mana its granted ability will — [forEachActivatedAbility] visits that one on its
+     * own terms.
+     */
+    private fun ownEffectContains(tree: JsonElement, names: Set<String>): Boolean = when (tree) {
+        is JsonPrimitive -> tree.isString && tree.contentOrNull in names
+        is JsonObject ->
+            if (isNestedAbilityOrDefinition(tree)) false
+            else (tree["type"] as? JsonPrimitive)?.contentOrNull in names ||
+                tree.values.any { ownEffectContains(it, names) }
+        is JsonArray -> tree.any { ownEffectContains(it, names) }
+        else -> false
+    }
+
+    /** A serialized ability or card definition rather than a step of the effect being scanned. */
+    private fun isNestedAbilityOrDefinition(tree: JsonObject): Boolean =
+        tree.containsKey("script") || tree.containsKey("trigger") ||
+            tree.containsKey("isManaAbility") || tree.containsKey("chapter")
+
+    /**
+     * Flag a `Scope.AttachedTo` filter on a card that can never host an attachment.
+     *
+     * Attach-scope means "the permanent this Aura/Equipment is attached to". The engine reaches it
+     * only by walking a host's attachments — `TriggerAbilityResolver` iterates the permanents
+     * attached to the entity, and the projection layer resolves the scope the same way. So on a
+     * card that is nobody's Aura or Equipment there is no permanent to resolve to and the filter
+     * silently matches nothing: the ability compiles, serializes, and does nothing at all.
+     *
+     * This is how Harmonious Grovestrider shipped with no ward. Its printed "Ward {2}" was authored
+     * as `GrantWard(WardCost.Mana("{2}"))`, and `GrantWard.filter` *defaults* to
+     * `GroupFilter.attachedCreature()` — the Aura/Equipment shape. Nothing was attached to the
+     * Beast, so no ward trigger was ever generated and no `WARD` keyword was ever projected. A
+     * creature's own printed ward is `keywordAbility(KeywordAbility.ward("{N}"))`; the attach-scope
+     * default only makes sense on a card that attaches.
+     *
+     * The default filter is exactly what makes this invisible on inspection: it doesn't appear in
+     * the card source *or* the serialized snapshot, so each ability is re-encoded with defaults
+     * materialized ([lintJson]) rather than read off the explicit tree.
+     *
+     * ## What is deliberately *not* flagged
+     *
+     * Only the card's **printed** static abilities are checked — `script.staticAbilities` and the
+     * per-level `classLevels`, on every face. Attach scope nested inside an *effect* is legitimate,
+     * because an effect can change what the card is before the filter is ever read: The Irencrag is
+     * a Legendary Artifact whose trigger turns it into an Equipment and hands it
+     * `ModifyStats(3, 3)` on the default attached scope, which is correct precisely because the
+     * grant only applies once it *is* an Equipment. The same goes for abilities an effect gives to
+     * some other object — an Aura token minted by `CreateTokenEffect`, say. A printed static
+     * ability has no such escape: it describes the card as printed, so its scope has to make sense
+     * for the card as printed.
+     *
+     * Attachability is judged across the whole physical card — either side of a DFC and any
+     * [com.wingedsheep.sdk.model.CardFace] counts — so a creature that transforms into an Aura is
+     * not flagged for the attach-scope abilities on its other face.
+     */
+    private fun checkAttachedScope(
+        card: CardDefinition,
+        findings: MutableList<CardValidationError>
+    ) {
+        if (canEverBeAttached(card)) return
+        val offends = printedStaticAbilities(card).any { ability ->
+            hasAttachedScope(lintJson.encodeToJsonElement(StaticAbility.serializer(), ability))
+        }
+        if (!offends) return
+        findings.add(
+            CardValidationError.AttachedScopeGrantOnNonAttachment(
+                cardName = card.name,
+                message = "'${card.name}' uses a GroupFilter scoped to Scope.AttachedTo " +
+                    "(\"enchanted/equipped creature\"), but it is not an Aura, Equipment, or " +
+                    "Fortification and has no auraTarget or equipCost — nothing can ever be " +
+                    "attached to it, so the filter matches no permanent and the ability is a " +
+                    "silent no-op. Note that attach-scope is the *default* filter on the Grant* " +
+                    "static abilities, so an omitted filter argument is the usual cause: for a " +
+                    "card's own printed keyword use the keyword ability (e.g. " +
+                    "keywordAbility(KeywordAbility.ward(\"{2}\"))), and for a lord-style grant to " +
+                    "other permanents pass an explicit battlefield-scoped GroupFilter."
+            )
+        )
+    }
+
+    /**
+     * The card's printed static abilities across every face — the ones that describe the card as
+     * printed, and so must make sense for the card as printed. Class levels count: an unlocked
+     * level's statics are printed on the Class, just gated behind the level.
+     */
+    private fun printedStaticAbilities(card: CardDefinition): List<StaticAbility> = buildList {
+        fun addFrom(script: CardScript) {
+            addAll(script.staticAbilities)
+            script.classLevels.forEach { addAll(it.staticAbilities) }
+        }
+        addFrom(card.script)
+        card.cardFaces.forEach { addFrom(it.script) }
+        card.backFace?.let { addAll(printedStaticAbilities(it)) }
+    }
+
+    /** True if any face of the physical card can host an attachment. */
+    private fun canEverBeAttached(card: CardDefinition): Boolean {
+        fun attaches(typeLine: TypeLine, script: CardScript) =
+            typeLine.isAura || typeLine.isEquipment || typeLine.hasSubtype(FORTIFICATION) ||
+                // A card can carry the target/cost without the subtype; CardValidator reports that
+                // mismatch on its own, and this check has no business double-reporting it.
+                script.auraTarget != null
+
+        if (attaches(card.typeLine, card.script) || card.equipCost != null) return true
+        if (card.cardFaces.any { attaches(it.typeLine, it.script) }) return true
+        return card.backFace?.let { canEverBeAttached(it) } ?: false
+    }
+
+    /**
+     * True if any `"scope"` member anywhere in [tree] is `AttachedTo`. `Scope` is a sealed
+     * hierarchy of `data object`s, which encode as the bare string `"AttachedTo"`; the object form
+     * is accepted too so a future `Scope` variant carrying data doesn't slip past.
+     */
+    private fun hasAttachedScope(tree: JsonElement): Boolean = when (tree) {
+        is JsonObject -> {
+            val scope = tree["scope"]
+            val isAttached = when (scope) {
+                is JsonPrimitive -> scope.contentOrNull == ATTACHED_TO
+                is JsonObject -> (scope["type"] as? JsonPrimitive)?.contentOrNull == ATTACHED_TO
+                else -> false
+            }
+            isAttached || tree.values.any { hasAttachedScope(it) }
+        }
+        is JsonArray -> tree.any { hasAttachedScope(it) }
+        else -> false
+    }
+
+    /**
+     * Flag a [com.wingedsheep.sdk.scripting.targets.TargetChooser] requirement in a context the
+     * engine doesn't route to that chooser. Each chooser is honored by exactly one announcement
+     * path, and in the wrong context the controller would silently choose the target instead — so
+     * catch it at card load rather than mis-resolve:
+     *
+     * - `Opponent` ("… of an opponent's choice") — activated abilities only, because routing it
+     *   needs the controller to first pick *which* opponent decides.
+     * - `TriggeringPlayer` / `ControllerOfTriggeringEntity` — triggered abilities only, because
+     *   both are read off a trigger context that nothing else has.
+     *
+     * Walks the JSON tree carrying which ability subtree we're inside, so the check covers every
+     * container structurally (granted abilities, class levels, token abilities) regardless of which
+     * field name holds the requirement (`targetRequirement`, `targetRequirements`,
+     * `additionalTargetRequirements`, …). The match is anchored on the type discriminator of the
+     * [TargetRequirement]s that carry a `TargetChooser`, so this can't collide with the unrelated
+     * `chooser` field on pipeline selection steps (`Chooser`, which has its own honored `Opponent`
+     * value).
      */
     private fun checkOpponentChoosers(
         cardName: String,
         element: JsonElement,
         withinActivatedAbility: Boolean,
-        findings: MutableList<CardValidationError>
+        findings: MutableList<CardValidationError>,
+        withinTriggeredAbility: Boolean = false
     ) {
         when (element) {
             is JsonObject -> {
                 val type = (element["type"] as? JsonPrimitive)?.contentOrNull
                 val chooser = (element["chooser"] as? JsonPrimitive)?.contentOrNull
-                if (!withinActivatedAbility && type == "AnyTarget" && chooser == "Opponent") {
-                    findings.add(
-                        CardValidationError.UnsupportedOpponentChooser(
-                            cardName = cardName,
-                            message = "'$cardName' uses a TargetChooser.Opponent (\"… of an " +
-                                "opponent's choice\") target outside an activated ability. Only " +
-                                "activated abilities route the selection to an opponent; here the " +
-                                "controller would silently choose it. Move it to an activated " +
-                                "ability or drop the chooser."
+                if (type in CHOOSER_BEARING_TARGET_TYPES) {
+                    val misplaced = when (chooser) {
+                        "Opponent" -> !withinActivatedAbility
+                        "TriggeringPlayer", "ControllerOfTriggeringEntity" -> !withinTriggeredAbility
+                        else -> false
+                    }
+                    if (misplaced) {
+                        val expected =
+                            if (chooser == "Opponent") "an activated ability" else "a triggered ability"
+                        // Name the printed wording, not just the enum: that is what lets an author
+                        // recognise the clause they were modelling.
+                        val wording = when (chooser) {
+                            "Opponent" -> "… of an opponent's choice"
+                            "TriggeringPlayer" -> "that player … of their choice"
+                            else -> "its controller chooses target …"
+                        }
+                        findings.add(
+                            CardValidationError.UnsupportedOpponentChooser(
+                                cardName = cardName,
+                                message = "'$cardName' uses a TargetChooser.$chooser " +
+                                    "(\"$wording\") target outside $expected. Only $expected " +
+                                    "routes that selection to the named player; here the " +
+                                    "controller would silently choose the target instead. Move it " +
+                                    "there or drop the chooser."
+                            )
                         )
-                    )
+                    }
                 }
                 for ((key, value) in element) {
                     checkOpponentChoosers(
-                        cardName, value, withinActivatedAbility || key == "activatedAbilities", findings
+                        cardName,
+                        value,
+                        withinActivatedAbility || key == "activatedAbilities",
+                        findings,
+                        withinTriggeredAbility ||
+                            key == "triggeredAbilities" ||
+                            key == "stateTriggeredAbilities"
                     )
                 }
             }
             is JsonArray -> element.forEach {
-                checkOpponentChoosers(cardName, it, withinActivatedAbility, findings)
+                checkOpponentChoosers(
+                    cardName, it, withinActivatedAbility, findings, withinTriggeredAbility
+                )
             }
             else -> {}
         }
     }
+
+    /**
+     * The [com.wingedsheep.sdk.scripting.targets.TargetRequirement] type discriminators that carry
+     * a `chooser` field. Keep in step with the SDK: a requirement that gains a `chooser` and is
+     * missing here is silently exempt from [checkOpponentChoosers].
+     */
+    private val CHOOSER_BEARING_TARGET_TYPES = setOf("AnyTarget", "TargetObject")
 
     // =========================================================================================
     // Namespaces and registries
@@ -170,19 +583,28 @@ object CardLinter {
         put("FilterCollection" to "storeMatching", write(Space.COLLECTION))
         put("FilterCollection" to "storeNonMatching", write(Space.COLLECTION))
         put("ExileLibraryUntilManaValue" to "storeAs", write(Space.COLLECTION))
+        // The contest publishes the winning *player* as a one-entry collection and every card it
+        // exiled, in every round, as another.
+        put("ExileTopCardContest" to "storeWinnerAs", write(Space.COLLECTION))
+        put("ExileTopCardContest" to "storeExiledAs", write(Space.COLLECTION))
         put("Discover" to "storeDiscoveredAs", write(Space.COLLECTION))
         put("CopyCardIntoCollection" to "storeAs", write(Space.COLLECTION))
         put("CopyCollectionIntoCollection" to "storeAs", write(Space.COLLECTION))
         put("CastFromCollectionWithoutPayingCost" to "storeCastTo", write(Space.COLLECTION))
         put("CounterAllOnStack" to "storeCountAs", write(Space.COLLECTION))
         put("Behold" to "storeAs", write(Space.COLLECTION))
-        put("BeholdOrPay" to "storeAs", write(Space.COLLECTION))
         put("ChooseEntity" to "storeAs", write(Space.COLLECTION))
+        put("ChooseOnePerCategory" to "storeAs", write(Space.COLLECTION))
         put("StoreNumber" to "name", write(Space.NUMBER))
         put("FlipCoins" to "storeHeadsAs", write(Space.NUMBER))
+        put("FlipCoinsUntilLoss" to "storeWinsAs", write(Space.NUMBER))
+        put("PlayerGuessesConditionEffect" to "storeGuessedRightAs", write(Space.NUMBER))
         put("ForEachCapturedController" to "countVariable", write(Space.NUMBER))
         put("DrawUpTo" to "storeNotDrawnAs", write(Space.NUMBER))
         put("Fight" to "excessDamageVariable", write(Space.NUMBER))
+        put("PayCounters" to "storeAmountAs", write(Space.NUMBER))
+        put("CollectEvidenceChosenAmount" to "storeAmountAs", write(Space.NUMBER))
+        put("PayManaCostRepeatedly" to "storeCountAs", write(Space.NUMBER))
         put("ChooseOption" to "storeAs", write(Space.CHOSEN))
         put("NoteCreatureType" to "storeAs", write(Space.CHOSEN))
         put("StoreCardName" to "storeAs", write(Space.CHOSEN))
@@ -195,10 +617,11 @@ object CardLinter {
             "ChoosePile", "MoveCollection", "GrantMayPlayFromExile", "GrantPlayWithoutPayingCost",
             "MakePlotted",
             "GrantPlayWithAdditionalCost", "GrantPlayWithCostIncrease", "FilterCollection",
-            "StoreCardName", "CastFromCollectionWithoutPayingCost",
+            "ChooseOnePerCategory",
+            "StoreCardName", "CastFromCollectionWithoutPayingCost", "PlayFromCollectionWithoutPayingCost",
             "CastAnyNumberFromCollectionWithoutPayingCost", "ExileFromStorage",
             "CopyCollectionIntoCollection", "RecordChosenLinkedExile",
-            "PutOntoBattlefieldAttachedTo",
+            "PairWithSource", "PutOntoBattlefieldAttachedTo",
         )) put(type to "from", read(Space.COLLECTION))
         put("ChoosePile" to "pileA", read(Space.COLLECTION))
         put("ChoosePile" to "pileB", read(Space.COLLECTION))
@@ -265,6 +688,12 @@ object CardLinter {
         when {
             type == "ChooseCreatureType" ->
                 listOf(Kind.WRITE to (Space.CHOSEN to "chosenCreatureType"))
+            // Paying "Reveal the creature type you chose" publishes the source's secret note into
+            // the ability's own resolution under the well-known key, so the ability's effect can
+            // test its target against it (A Killer Among Us). The write lives on the *cost*, not on
+            // any effect step, which is why it has to be declared here.
+            type == "AtomRevealNotedCreatureType" ->
+                listOf(Kind.WRITE to (Space.CHOSEN to "chosenCreatureType"))
             type == "SelectFromCollection" &&
                 (obj["matchChosenCreatureType"] as? JsonPrimitive)?.contentOrNull == "true" ->
                 listOf(Kind.READ to (Space.CHOSEN to "chosenCreatureType"))
@@ -273,6 +702,18 @@ object CardLinter {
             type == "CreateToken" || type == "CreatePredefinedToken" ||
                 type == "CreateTokenCopyOfTarget" || type == "CreateTokenCopyOfSource" ->
                 listOf(Kind.WRITE to (Space.COLLECTION to "createdTokens"))
+            // Amass publishes the Army it chose under this well-known name (CR 701.47c), so a
+            // sibling step can address "the amassed Army" — either as
+            // DynamicAmount.EntityProperty(EntityReference.AmassedArmy, …) or, when it needs it
+            // as a target, EffectTarget.PipelineTarget(AmassedArmy.STORAGE_KEY) (Goblin Plate
+            // Mail's "then attach this Equipment to the amassed Army").
+            type == "Amass" ->
+                listOf(
+                    Kind.WRITE to (
+                        Space.COLLECTION to com.wingedsheep.sdk.scripting.values
+                            .EntityReference.AmassedArmy.STORAGE_KEY
+                        ),
+                )
             // The scry / surveil macros are opaque nodes on the card, but the engine expands each
             // into a Gather → Select → Move pipeline (LibraryPatterns.scryPipeline /
             // surveilPipeline) whose selected/remainder collections seed the *same* EffectContext.
@@ -290,6 +731,16 @@ object CardLinter {
                     Kind.WRITE to (Space.COLLECTION to "toGraveyard"),
                     Kind.WRITE to (Space.COLLECTION to "toTop"),
                 )
+            type == "ForEach" -> {
+                val reducers = obj["collectCollections"] as? JsonObject
+                if (reducers == null) emptyList() else reducers.flatMap { (localName, aggregateValue) ->
+                    val aggregateName = (aggregateValue as? JsonPrimitive)?.contentOrNull
+                    if (aggregateName == null) emptyList() else listOf(
+                        Kind.READ to (Space.COLLECTION to localName),
+                        Kind.WRITE to (Space.COLLECTION to aggregateName),
+                    )
+                }
+            }
             else -> emptyList()
         }
 
@@ -297,21 +748,29 @@ object CardLinter {
     // Choice slots
     // =========================================================================================
 
-    /** Node types that declare a slot just by being present. */
-    private val slotDeclarers: Map<String, String> = mapOf(
-        "Kicker" to "KICKED",
-        "Sneak" to "SNEAK",
-        "Ninjutsu" to "SNEAK",
-        "BlightVariable" to "BLIGHT_AMOUNT",
-        "BlightOrPay" to "BLIGHT_AMOUNT",
+    /** Node types that declare one or more slots just by being present. */
+    private val slotDeclarers: Map<String, List<String>> = mapOf(
+        "Sneak" to listOf("SNEAK"),
+        "Ninjutsu" to listOf("SNEAK"),
+        // Web-slinging (CR 702.188): the engine stamps both the "was web-slung" flag and the
+        // returned creature's mana value when the web-slinging cost is paid (see StackResolver).
+        "WebSlinging" to listOf("WEB_SLUNG", "WEB_SLUNG_RETURNED_MV"),
+        // Mayhem (CR 702.187): the engine stamps the "mayhem cost was paid" flag on a resolved
+        // permanent / into the resolution context when the Mayhem cost is paid (see StackResolver).
+        "Mayhem" to listOf("MAYHEM_CAST"),
+        "BlightVariable" to listOf("BLIGHT_AMOUNT"),
+        "BlightOrPay" to listOf("BLIGHT_AMOUNT"),
         // Resolution-time color choices: ChooseColorThen sets EffectContext.chosenColor for its
         // wrapped effect; ChooseColorForTarget stamps a ChosenColorComponent on the permanent.
         // Both are what HasChosenColor / GrantChosenColor-style readers consume.
-        "ChooseColorThen" to "COLOR",
-        "ChooseColorForTarget" to "COLOR",
+        "ChooseColorThen" to listOf("COLOR"),
+        "ChooseColorForTarget" to listOf("COLOR"),
         // Resolution-time opponent choice: writes ChoiceSlot.OPPONENT on the source entity,
         // read back by Player.ChosenOpponent (gift recipient).
-        "ChooseOpponentForSource" to "OPPONENT",
+        "ChooseOpponentForSource" to listOf("OPPONENT"),
+        // Gift (CR 702.174a): the cast-time promise declares both the "was it promised" flag and
+        // the promised opponent, read back by Conditions.GiftWasPromised and Player.ChosenOpponent.
+        "Gift" to listOf("GIFT_PROMISED", "OPPONENT"),
     )
 
     /** [com.wingedsheep.sdk.scripting.ReplacementEffect] `EntersWithChoice.choiceType` → slot. */
@@ -338,6 +797,7 @@ object CardLinter {
         "NotOfSourceChosenType" to "CREATURE_TYPE",
         "SneakCostWasPaid" to "SNEAK",
         "SourceChosenModeIs" to "MODE",
+        "CardTypeEqualsChosenComponent" to "CARD_TYPE",
     )
 
     /** Node types whose `slot` field names the slot they read. */
@@ -348,7 +808,7 @@ object CardLinter {
      * [com.wingedsheep.sdk.scripting.effects.ChooseNumberForSourceEffect] records a number under the
      * named slot (e.g. `CHOSEN_NUMBER` for Shapeshifter), which a `CastChoice` read then resolves.
      */
-    private val slotFieldDeclarers = setOf("ChooseNumberForSource")
+    private val slotFieldDeclarers = setOf("ChooseNumberForSource", "ChooseCardTypeForSource")
 
     private class SlotUsage {
         val declared = mutableSetOf<String>()
@@ -362,7 +822,7 @@ object CardLinter {
         when (element) {
             is JsonObject -> {
                 val type = element.typeName()
-                slotDeclarers[type]?.let { slots.declared.add(it) }
+                slotDeclarers[type]?.let { slots.declared.addAll(it) }
                 if (type == "EntersWithChoice") {
                     val choiceType = (element["choiceType"] as? JsonPrimitive)?.contentOrNull
                     choiceTypeToSlot[choiceType]?.let { slots.declared.add(it) }
@@ -379,6 +839,13 @@ object CardLinter {
                 if (type in slotFieldDeclarers) {
                     (element["slot"] as? JsonPrimitive)?.contentOrNull
                         ?.let { slots.declared.add(it) }
+                }
+                // The optional-additional-cost keyword (serial name "Kicker") declares whichever
+                // slot its own mechanic uses: KICKED for kicker/multikicker/offspring, BARGAINED
+                // for bargain (CR 702.166b).
+                if (type == "Kicker") {
+                    val declaredSlot = (element["declaredSlot"] as? JsonPrimitive)?.contentOrNull
+                    slots.declared.add(declaredSlot ?: "KICKED")
                 }
                 if (type == "SourceChosenModeIs") {
                     (element["modeId"] as? JsonPrimitive)?.contentOrNull
@@ -417,6 +884,13 @@ object CardLinter {
         val label: String,
         val targetCount: Int,
         val targetIds: Set<String>,
+        /**
+         * The subset of [targetIds] whose requirement spans more than one slot of the flat chosen-
+         * target list ("two target creatures", "one or two target …", `unlimited`, a
+         * `dynamicMaxCount`). Such a requirement has no single bound handle: its targets are keyed
+         * per slot, so a bare `BoundVariable` on the id resolves to nothing at resolution.
+         */
+        val multiSlotTargetIds: Set<String>,
         /** Non-null for Mode scopes: collections resolve against this enclosing scope. */
         val collectionParent: Scope?,
     ) {
@@ -436,8 +910,10 @@ object CardLinter {
             label: String,
             targetCount: Int = 0,
             targetIds: Set<String> = emptySet(),
+            multiSlotTargetIds: Set<String> = emptySet(),
             collectionParent: Scope? = null,
-        ): Scope = Scope(label, targetCount, targetIds, collectionParent).also { scopes.add(it) }
+        ): Scope = Scope(label, targetCount, targetIds, multiSlotTargetIds, collectionParent)
+            .also { scopes.add(it) }
     }
 
     // =========================================================================================
@@ -496,6 +972,8 @@ object CardLinter {
                 requirementSlotCount(cleaveReqs),
             ),
             targetIds = requirementIds(baseReqs) + requirementIds(kickerReqs) + requirementIds(cleaveReqs),
+            multiSlotTargetIds = multiSlotRequirementIds(baseReqs) +
+                multiSlotRequirementIds(kickerReqs) + multiSlotRequirementIds(cleaveReqs),
         )
 
         // Spell-resolution scope, in execution order: cast-time writers (captures, additional
@@ -564,15 +1042,38 @@ object CardLinter {
         // requirements (the engine slices the flat target list per mode only when modes
         // declare their own).
         val scope = if (reqs.isEmpty() && collectionParent != null) {
-            state.newScope(label, collectionParent.targetCount, collectionParent.targetIds, collectionParent)
+            state.newScope(
+                label, collectionParent.targetCount, collectionParent.targetIds,
+                collectionParent.multiSlotTargetIds, collectionParent,
+            )
         } else {
-            state.newScope(label, requirementSlotCount(reqs), requirementIds(reqs), collectionParent)
+            state.newScope(
+                label, requirementSlotCount(reqs), requirementIds(reqs),
+                multiSlotRequirementIds(reqs), collectionParent,
+            )
         }
         walkInto(obj, scope, state)
     }
 
     private fun requirementIds(reqs: JsonArray): Set<String> =
         reqs.mapNotNull { ((it as? JsonObject)?.get("id") as? JsonPrimitive)?.contentOrNull }.toSet()
+
+    /**
+     * Ids of the requirements that occupy more than one slot of the flat chosen-target list —
+     * `count > 1`, `unlimited`, or a `dynamicMaxCount`. [EffectContext.buildNamedTargets] keys
+     * those per slot (`id[0]`, `id[1]`, …) and leaves the bare `id` unmapped, so an effect handed
+     * the requirement's bound handle resolves to `null` and silently does nothing. Such a
+     * requirement is read with `ForEachTargetEffect` over `ContextTarget(0)` instead.
+     */
+    private fun multiSlotRequirementIds(reqs: JsonArray): Set<String> =
+        reqs.mapNotNull { req ->
+            val obj = req as? JsonObject ?: return@mapNotNull null
+            val id = (obj["id"] as? JsonPrimitive)?.contentOrNull ?: return@mapNotNull null
+            val unlimited = (obj["unlimited"] as? JsonPrimitive)?.contentOrNull == "true"
+            val dynamicMax = obj["dynamicMaxCount"]?.takeIf { it !is JsonNull } != null
+            val count = (obj["count"] as? JsonPrimitive)?.contentOrNull?.toIntOrNull() ?: 1
+            id.takeIf { unlimited || dynamicMax || count > 1 }
+        }.toSet()
 
     /**
      * Number of `ContextTarget` indices a requirement list spans. `ContextTarget(i)` indexes the
@@ -640,7 +1141,7 @@ object CardLinter {
                     "CreateDelayedTrigger" -> return walkDeferredEffect(
                         element, scope, state,
                         effectField = "effect",
-                        reqFields = listOf("targetRequirement"),
+                        reqFields = listOf("targetRequirement", "additionalTargetRequirements"),
                         label = "delayed trigger of ${scope.label}",
                     )
                 }
@@ -657,7 +1158,8 @@ object CardLinter {
      * target requirements: a `ReflexiveTriggerEffect`'s reflexive effect targets via
      * `reflexiveTargetRequirements` (chosen when the reflexive trigger goes on the stack —
      * Foray of Orcs et al.), and a `CreateDelayedTriggerEffect`'s effect targets via its
-     * `targetRequirement` (chosen each time the delayed trigger fires — Rediscover the Way).
+     * `targetRequirement` plus `additionalTargetRequirements` (chosen each time the delayed trigger
+     * fires — Rediscover the Way for one, Feral Encounter for two).
      * `ContextTarget` indices inside the deferred effect are scoped to those requirements;
      * when none are declared, they inherit the outer ability's targets ("exile target card …
      * when you do, return it"). Pipeline collections flow through — the engine snapshots them
@@ -686,9 +1188,12 @@ object CardLinter {
             }
         )
         val child = if (reqs.isEmpty()) {
-            state.newScope(label, scope.targetCount, scope.targetIds, scope)
+            state.newScope(label, scope.targetCount, scope.targetIds, scope.multiSlotTargetIds, scope)
         } else {
-            state.newScope(label, requirementSlotCount(reqs), requirementIds(reqs), collectionParent = scope)
+            state.newScope(
+                label, requirementSlotCount(reqs), requirementIds(reqs),
+                multiSlotRequirementIds(reqs), collectionParent = scope,
+            )
         }
         obj[effectField]?.let { walk(it, child, state) }
     }
@@ -706,6 +1211,7 @@ object CardLinter {
         "ContextTarget",
         "TriggeringEntity",
         "DiscardedAsCost",
+        "LinkedExiledCard",
     )
 
     /** Records this node's dataflow accesses and target references (not its children). */
@@ -818,7 +1324,8 @@ object CardLinter {
                 if (engineSeeded(read)) continue
                 val inScope = scope.writes.filter { matches(read, it) }
                 when {
-                    inScope.any { it.pos <= read.pos } -> {}
+                    inScope.any { it.pos <= read.pos } ||
+                        (read.nodeType == "ForEach" && read.field == "(implicit)" && inScope.isNotEmpty()) -> {}
                     inScope.isNotEmpty() -> state.findings.add(
                         CardValidationError.PipelineReadBeforeWrite(
                             cardName = state.cardName,
@@ -910,6 +1417,19 @@ object CardLinter {
                 }
                 if (ref.boundName != null) {
                     val base = ref.boundName.substringBefore('[')
+                    if (base in scope.multiSlotTargetIds && base == ref.boundName) {
+                        state.findings.add(
+                            CardValidationError.MultiSlotTargetBinding(
+                                cardName = state.cardName,
+                                message = "'${state.cardName}' (${scope.label}): " +
+                                    "${ref.nodeType} reads BoundVariable('${ref.boundName}'), but that " +
+                                    "target requirement spans more than one slot of the chosen-target " +
+                                    "list, so the bare binding resolves to nothing and the effect " +
+                                    "silently does nothing. Read the targets one at a time with " +
+                                    "ForEachTargetEffect over EffectTarget.ContextTarget(0).",
+                            )
+                        )
+                    }
                     if (base !in scope.targetIds) {
                         state.findings.add(
                             CardValidationError.UnknownTargetBinding(

@@ -508,6 +508,7 @@
                         "amount": 2
                     }
                 },
+                "timing": "ManaAbility",
                 "isManaAbility": true,
                 "descriptionOverride": "Sacrifice a creature: Add {C}{C}."
             }
@@ -973,7 +974,7 @@
                     "count": 1,
                     "target": "Self"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Any",
                     "conditions": [
                         {
@@ -2797,7 +2798,10 @@
                     "baseFilter": "permanent",
                     "scope": "AttachedTo"
                 },
-                "amount": 2,
+                "amount": {
+                    "type": "Fixed",
+                    "amount": 2
+                },
                 "manaFloor": 1
             }
         ],
@@ -2911,6 +2915,8 @@
                         "numericProperty": "ManaValue"
                     }
                 },
+                "timing": "ManaAbility",
+                "isManaAbility": true,
                 "descriptionOverride": "{T}, Sacrifice an artifact: Add an amount of {B} equal to the sacrificed artifact's mana value."
             }
         ]
@@ -3326,10 +3332,13 @@
                 },
                 "binding": "ANY",
                 "effect": {
-                    "type": "ChooseNumberForSource",
-                    "prompt": "Choose a number between 0 and 7"
-                },
-                "optional": true
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "ChooseNumberForSource",
+                        "prompt": "Choose a number between 0 and 7"
+                    }
+                }
             }
         ],
         "staticAbilities": [
@@ -3844,33 +3853,36 @@
                 },
                 "binding": "ANY",
                 "effect": {
-                    "type": "ConvertCountersToTokens",
-                    "tokenFactory": {
-                        "power": 1,
-                        "toughness": 1,
-                        "colors": [],
-                        "creatureTypes": [
-                            "Tetravite"
-                        ],
-                        "keywords": [
-                            "FLYING"
-                        ],
-                        "name": "Tetravite",
-                        "artifactToken": true,
-                        "staticAbilities": [
-                            {
-                                "type": "GrantKeyword",
-                                "keyword": "CANT_BE_ENCHANTED",
-                                "filter": {
-                                    "baseFilter": "permanent",
-                                    "scope": "Self"
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "ConvertCountersToTokens",
+                        "tokenFactory": {
+                            "power": 1,
+                            "toughness": 1,
+                            "colors": [],
+                            "creatureTypes": [
+                                "Tetravite"
+                            ],
+                            "keywords": [
+                                "FLYING"
+                            ],
+                            "name": "Tetravite",
+                            "artifactToken": true,
+                            "staticAbilities": [
+                                {
+                                    "type": "GrantKeyword",
+                                    "keyword": "CANT_BE_ENCHANTED",
+                                    "filter": {
+                                        "baseFilter": "permanent",
+                                        "scope": "Self"
+                                    }
                                 }
-                            }
-                        ],
-                        "stampCreator": true
+                            ],
+                            "stampCreator": true
+                        }
                     }
-                },
-                "optional": true
+                }
             },
             {
                 "id": "ability_2",
@@ -3880,47 +3892,50 @@
                 },
                 "binding": "ANY",
                 "effect": {
-                    "type": "Composite",
-                    "effects": [
-                        {
-                            "type": "GatherCards",
-                            "source": {
-                                "type": "BattlefieldMatching",
-                                "filter": {
-                                    "statePredicates": [
-                                        "CreatedBySource"
-                                    ]
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "Composite",
+                        "effects": [
+                            {
+                                "type": "GatherCards",
+                                "source": {
+                                    "type": "BattlefieldMatching",
+                                    "filter": {
+                                        "statePredicates": [
+                                            "CreatedBySource"
+                                        ]
+                                    }
+                                },
+                                "storeAs": "tetraviteTokens"
+                            },
+                            {
+                                "type": "SelectFromCollection",
+                                "from": "tetraviteTokens",
+                                "selection": "ChooseAnyNumber",
+                                "storeSelected": "exiledTokens",
+                                "prompt": "Exile any number of Tetravite tokens created with this creature"
+                            },
+                            {
+                                "type": "MoveCollection",
+                                "from": "exiledTokens",
+                                "destination": {
+                                    "type": "ToZone",
+                                    "zone": "Exile"
                                 }
                             },
-                            "storeAs": "tetraviteTokens"
-                        },
-                        {
-                            "type": "SelectFromCollection",
-                            "from": "tetraviteTokens",
-                            "selection": "ChooseAnyNumber",
-                            "storeSelected": "exiledTokens",
-                            "prompt": "Exile any number of Tetravite tokens created with this creature"
-                        },
-                        {
-                            "type": "MoveCollection",
-                            "from": "exiledTokens",
-                            "destination": {
-                                "type": "ToZone",
-                                "zone": "Exile"
+                            {
+                                "type": "AddDynamicCounters",
+                                "counterType": "+1/+1",
+                                "amount": {
+                                    "type": "VariableReference",
+                                    "variableName": "exiledTokens_count"
+                                },
+                                "target": "Self"
                             }
-                        },
-                        {
-                            "type": "AddDynamicCounters",
-                            "counterType": "+1/+1",
-                            "amount": {
-                                "type": "VariableReference",
-                                "variableName": "exiledTokens_count"
-                            },
-                            "target": "Self"
-                        }
-                    ]
-                },
-                "optional": true
+                        ]
+                    }
+                }
             }
         ],
         "replacementEffects": [
@@ -4622,7 +4637,7 @@
 {
     "name": "Urza's Power Plant",
     "manaCost": "",
-    "typeLine": "Land — Urza's Power",
+    "typeLine": "Land — Urza's Power-Plant",
     "oracleText": "{T}: Add {C}. If you control an Urza's Mine and an Urza's Tower, add {C}{C} instead.",
     "script": {
         "activatedAbilities": [
@@ -4901,27 +4916,30 @@
                 },
                 "binding": "ANY",
                 "effect": {
-                    "type": "Sacrifice",
-                    "filter": "artifact"
-                },
-                "optional": true,
-                "elseEffect": {
-                    "type": "Composite",
-                    "effects": [
-                        {
-                            "type": "TapUntap",
-                            "target": "Self"
-                        },
-                        {
-                            "type": "DealDamage",
-                            "amount": {
-                                "type": "Fixed",
-                                "amount": 2
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "Sacrifice",
+                        "filter": "artifact"
+                    },
+                    "otherwise": {
+                        "type": "Composite",
+                        "effects": [
+                            {
+                                "type": "TapUntap",
+                                "target": "Self"
                             },
-                            "target": "Controller",
-                            "damageSource": "Self"
-                        }
-                    ]
+                            {
+                                "type": "DealDamage",
+                                "amount": {
+                                    "type": "Fixed",
+                                    "amount": 2
+                                },
+                                "target": "Controller",
+                                "damageSource": "Self"
+                            }
+                        ]
+                    }
                 }
             }
         ]

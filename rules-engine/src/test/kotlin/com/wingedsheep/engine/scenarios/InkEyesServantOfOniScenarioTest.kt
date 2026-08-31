@@ -40,6 +40,8 @@ class InkEyesServantOfOniScenarioTest : ScenarioTestBase() {
             advanceToDecision(game)
 
             val giant = game.findCardsInGraveyard(2, "Hill Giant").first()
+            game.answerYesNo(true)
+            advanceToDecision(game)
             game.selectTargets(listOf(giant)).error shouldBe null
             game.resolveStack()
 

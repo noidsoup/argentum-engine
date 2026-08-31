@@ -93,6 +93,49 @@
     ]
 }
 
+// Azami, Lady of Scrolls
+{
+    "name": "Azami, Lady of Scrolls",
+    "manaCost": "{2}{U}{U}{U}",
+    "typeLine": "Legendary Creature — Human Wizard",
+    "oracleText": "Tap an untapped Wizard you control: Draw a card.",
+    "creatureStats": {
+        "power": 0,
+        "toughness": 2
+    },
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": {
+                    "type": "CostAtomWrapper",
+                    "atom": {
+                        "type": "AtomTapPermanents",
+                        "filter": "permanent Wizard"
+                    }
+                },
+                "effect": {
+                    "type": "DrawCards",
+                    "count": {
+                        "type": "Fixed",
+                        "amount": 1
+                    }
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "52",
+        "rarity": "RARE",
+        "artist": "Ittoku",
+        "flavorText": "\"Choices belong to those with the luxuries of time and distance. We have neither. I recommend we proceed with the plan to destroy all shrines of the kami.\"\n—Lady Azami, letter to Sensei Hisoka",
+        "imageUri": "https://cards.scryfall.io/normal/front/1/5/15ea91b1-f2ff-4b99-8148-333aa27ea8cd.jpg"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
+
 // Ben-Ben, Akki Hermit
 {
     "name": "Ben-Ben, Akki Hermit",
@@ -400,19 +443,26 @@
     "oracleText": "Destroy all enchantments.",
     "script": {
         "spellEffect": {
-            "type": "ForEach",
-            "space": {
-                "type": "IterationSpace.Group",
-                "filter": {
-                    "baseFilter": "enchantment"
+            "type": "Composite",
+            "effects": [
+                {
+                    "type": "GatherCards",
+                    "source": {
+                        "type": "BattlefieldMatching",
+                        "filter": "enchantment"
+                    },
+                    "storeAs": "destroyAll_gathered"
+                },
+                {
+                    "type": "MoveCollection",
+                    "from": "destroyAll_gathered",
+                    "destination": {
+                        "type": "ToZone",
+                        "zone": "Graveyard"
+                    },
+                    "moveType": "Destroy"
                 }
-            },
-            "body": {
-                "type": "MoveToZone",
-                "target": "Self",
-                "destination": "Graveyard",
-                "byDestruction": true
-            }
+            ]
         }
     },
     "metadata": {
@@ -1237,7 +1287,7 @@
                     {
                         "type": "TargetObject",
                         "filter": {
-                            "baseFilter": "creature Spirit"
+                            "baseFilter": "permanent Spirit"
                         },
                         "id": "target"
                     }
@@ -1500,7 +1550,7 @@
                             "type": "CostAtomWrapper",
                             "atom": {
                                 "type": "AtomSacrifice",
-                                "filter": "creature Rat"
+                                "filter": "permanent Rat"
                             }
                         }
                     ]
@@ -1528,7 +1578,7 @@
                 "type": "GrantKeyword",
                 "keyword": "FEAR",
                 "filter": {
-                    "baseFilter": "creature Rat"
+                    "baseFilter": "permanent Rat"
                 }
             }
         ]
@@ -1712,7 +1762,11 @@
                 "type": "ConditionalStaticAbility",
                 "ability": {
                     "type": "GrantKeyword",
-                    "keyword": "INDESTRUCTIBLE"
+                    "keyword": "INDESTRUCTIBLE",
+                    "filter": {
+                        "baseFilter": "permanent",
+                        "scope": "Self"
+                    }
                 },
                 "condition": {
                     "type": "EntityMatches",
@@ -2317,7 +2371,7 @@
             {
                 "type": "TargetObject",
                 "filter": {
-                    "baseFilter": "creature Spirit"
+                    "baseFilter": "permanent Spirit"
                 },
                 "id": "target"
             }
@@ -2354,6 +2408,68 @@
     ]
 }
 
+// Ryusei, the Falling Star
+{
+    "name": "Ryusei, the Falling Star",
+    "manaCost": "{5}{R}",
+    "typeLine": "Legendary Creature — Dragon Spirit",
+    "oracleText": "Flying\nWhen Ryusei dies, it deals 5 damage to each creature without flying.",
+    "creatureStats": {
+        "power": 5,
+        "toughness": 5
+    },
+    "keywords": [
+        "FLYING"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "from": "Battlefield",
+                    "to": "Graveyard"
+                },
+                "effect": {
+                    "type": "ForEach",
+                    "space": {
+                        "type": "IterationSpace.Group",
+                        "filter": {
+                            "baseFilter": {
+                                "cardPredicates": [
+                                    "IsCreature",
+                                    {
+                                        "type": "NotKeyword",
+                                        "keyword": "FLYING"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "body": {
+                        "type": "DealDamage",
+                        "amount": {
+                            "type": "Fixed",
+                            "amount": 5
+                        },
+                        "target": "Self"
+                    }
+                },
+                "descriptionOverride": "When Ryusei dies, it deals 5 damage to each creature without flying."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "185",
+        "rarity": "RARE",
+        "artist": "Nottsuo",
+        "imageUri": "https://cards.scryfall.io/normal/front/1/7/17898412-6275-4762-a03b-04daf30fee7f.jpg?1783944296"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
 // Sachi, Daughter of Seshiro
 {
     "name": "Sachi, Daughter of Seshiro",
@@ -2387,10 +2503,12 @@
                             "type": "Fixed",
                             "amount": 2
                         }
-                    }
+                    },
+                    "timing": "ManaAbility",
+                    "isManaAbility": true
                 },
                 "filter": {
-                    "baseFilter": "creature Shaman ctrl:you"
+                    "baseFilter": "permanent Shaman ctrl:you"
                 }
             }
         ]
@@ -2874,6 +2992,97 @@
     },
     "colorIdentityOverride": [
         "BLUE"
+    ]
+}
+
+// Through the Breach
+{
+    "name": "Through the Breach",
+    "manaCost": "{4}{R}",
+    "typeLine": "Instant — Arcane",
+    "oracleText": "You may put a creature card from your hand onto the battlefield. That creature gains haste. Sacrifice that creature at the beginning of the next end step.\nSplice onto Arcane {2}{R}{R} (As you cast an Arcane spell, you may reveal this card from your hand and pay its splice cost. If you do, add this card's effects to that spell.)",
+    "keywords": [
+        "SPLICE"
+    ],
+    "keywordAbilities": [
+        {
+            "type": "Splice",
+            "cost": "{2}{R}{R}"
+        }
+    ],
+    "script": {
+        "spellEffect": {
+            "type": "Composite",
+            "effects": [
+                {
+                    "type": "GatherCards",
+                    "source": {
+                        "type": "FromZone",
+                        "zone": "Hand",
+                        "filter": "creature"
+                    },
+                    "storeAs": "put_candidates"
+                },
+                {
+                    "type": "SelectFromCollection",
+                    "from": "put_candidates",
+                    "selection": {
+                        "type": "ChooseUpTo",
+                        "count": {
+                            "type": "Fixed",
+                            "amount": 1
+                        }
+                    },
+                    "storeSelected": "putting"
+                },
+                {
+                    "type": "MoveCollection",
+                    "from": "putting",
+                    "destination": {
+                        "type": "ToZone",
+                        "zone": "Battlefield"
+                    }
+                },
+                {
+                    "type": "ConditionalOnCollection",
+                    "collection": "putting",
+                    "ifNotEmpty": {
+                        "type": "Composite",
+                        "effects": [
+                            {
+                                "type": "GrantKeyword",
+                                "keyword": "HASTE",
+                                "target": {
+                                    "type": "PipelineTarget",
+                                    "collectionName": "putting"
+                                },
+                                "duration": "Permanent"
+                            },
+                            {
+                                "type": "CreateDelayedTrigger",
+                                "step": "END",
+                                "effect": {
+                                    "type": "SacrificeTarget",
+                                    "target": {
+                                        "type": "PipelineTarget",
+                                        "collectionName": "putting"
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+    },
+    "metadata": {
+        "collectorNumber": "193",
+        "rarity": "RARE",
+        "artist": "Hugh Jamieson",
+        "imageUri": "https://cards.scryfall.io/normal/front/6/d/6da09e6a-2965-4855-bd41-41b41ba188fb.jpg"
+    },
+    "colorIdentityOverride": [
+        "RED"
     ]
 }
 

@@ -88,32 +88,145 @@ class MoveCollectionExecutor(
             return EffectResult.success(state)
         }
 
-        return when (destination) {
-            is CardDestination.ToZone -> {
-                var result = moveToZone(state, context, cards, destination, effect.order, effect.revealed, effect.moveType, effect.faceDown, effect.noRegenerate, effect.storeMovedAs, effect.underOwnersControl, effect.revealToSelf)
-                if (effect.linkToSource && result.isSuccess) {
-                    result = linkCardsToSource(result, context, cards)
+        var result = when (destination) {
+            is CardDestination.ToZone ->
+                moveToZone(state, context, cards, destination, effect.order, effect.revealed, effect.moveType, effect.faceDown, effect.noRegenerate, effect.storeMovedAs, effect.underOwnersControl, effect.revealToSelf)
+            is CardDestination.ToZoneExiledFrom ->
+                moveToZonesExiledFrom(state, context, cards, destination, effect)
+        }
+        if (effect.linkToSource && result.isSuccess) {
+            result = linkCardsToSource(result, context, cards)
+        }
+        if (effect.unlinkFromSource && result.isSuccess) {
+            result = unlinkCardsFromSource(result, context, cards)
+        }
+        val counterType = effect.addCounterType
+        if (counterType != null && result.isSuccess) {
+            var newState = result.state
+            for (cardId in cards) {
+                newState = newState.updateEntity(cardId) { c ->
+                    val existing = c.get<CountersComponent>() ?: CountersComponent()
+                    c.with(existing.withAdded(counterType, 1))
                 }
-                if (effect.unlinkFromSource && result.isSuccess) {
-                    result = unlinkCardsFromSource(result, context, cards)
-                }
-                val counterType = effect.addCounterType
-                if (counterType != null && result.isSuccess) {
-                    var newState = result.state
-                    for (cardId in cards) {
-                        newState = newState.updateEntity(cardId) { c ->
-                            val existing = c.get<CountersComponent>() ?: CountersComponent()
-                            c.with(existing.withAdded(counterType, 1))
-                        }
-                    }
-                    result = EffectResult.success(newState, result.events).copy(updatedCollections = result.updatedCollections)
-                }
-                if (effect.markEnteredViaSourceAbility && destination.zone == Zone.BATTLEFIELD && result.isSuccess) {
-                    result = markEnteredViaSourceAbility(result, context, cards)
-                }
-                result
+            }
+            result = EffectResult.success(newState, result.events).copy(updatedCollections = result.updatedCollections)
+        }
+        val marksBattlefieldEntries = when (destination) {
+            is CardDestination.ToZone -> destination.zone == Zone.BATTLEFIELD
+            // Per-card destination: markEnteredViaSourceAbility already skips cards that didn't
+            // land on the battlefield, so let it inspect the whole set.
+            is CardDestination.ToZoneExiledFrom -> true
+        }
+        if (effect.markEnteredViaSourceAbility && marksBattlefieldEntries && result.isSuccess) {
+            result = markEnteredViaSourceAbility(result, context, cards)
+        }
+        return result
+    }
+
+    /**
+     * Send each card back to the zone recorded on its
+     * [com.wingedsheep.engine.state.components.identity.ExiledFromZoneComponent] — CR 610.3's
+     * "return the object to its previous zone" for an exile-until whose exile half spanned several
+     * zones.
+     *
+     * Cards are grouped by destination zone and each group is handed to the ordinary
+     * [moveToZone] path, so aura-target selection, owner routing, library placement, reveals and
+     * events all behave exactly as they do for a fixed [CardDestination.ToZone].
+     *
+     * The per-group [CardDestination.ToZone] is rebuilt with **only** the zone: no `player`, no
+     * `placement`. That is load-bearing rather than an oversight — owner routing for a
+     * non-battlefield zone comes from the zone transition itself (it routes to the card's owner),
+     * and the battlefield case comes from `underOwnersControl` (CR 610.3c). One consequence worth
+     * knowing: a card that was exiled from the *middle* of a library comes back at
+     * `ZonePlacement.Default`, not at the index it left from. CR 610.3 names only "its previous
+     * zone" and fixes no position, so that is legal, but it is not a round trip.
+     *
+     * **Group order matters.** `moveToZone` can pause for player input, and a pause abandons the
+     * groups that haven't run yet. Only two destinations can pause: a library group under
+     * [CardOrder.ControllerChooses] (the reorder decision) and a battlefield group containing an
+     * Aura (its enchant target, CR 303.4f). Those two are therefore ordered last — every zone that
+     * cannot pause runs first. With the shipped `Effects.ReturnLinkedExileToZoneExiledFrom` facade
+     * (which uses [CardOrder.Preserve]) only the battlefield group can pause, so nothing is ever
+     * stranded; a caller that opts into `ControllerChooses` *and* returns cards to both a library
+     * and the battlefield could strand the battlefield group behind the library prompt.
+     * TODO: resume the remaining groups from the continuation instead of abandoning them, so that
+     *  combination stops being a hazard a caller has to know about.
+     *
+     * A card whose origin zone wasn't recorded, or was a zone an object can't be returned to
+     * (the stack), falls back to [CardDestination.ToZoneExiledFrom.fallback]. A card recorded as
+     * exiled *from exile* (CR 406.7) is left exactly where it is — see [originZoneOf].
+     */
+    private fun moveToZonesExiledFrom(
+        state: GameState,
+        context: EffectContext,
+        cards: List<EntityId>,
+        destination: CardDestination.ToZoneExiledFrom,
+        effect: MoveCollectionEffect
+    ): EffectResult {
+        val byZone = cards.groupBy { cardId -> originZoneOf(state, cardId, destination.fallback) }
+            // An object exiled from exile (CR 406.7) never changed zones, so "return it to its
+            // previous zone" leaves it in exile. Skip the group outright rather than running an
+            // exile → exile transition, which would emit a spurious ZoneChangeEvent and strip the
+            // face-down / suspend / madness / paradigm markers off a card that went nowhere.
+            .filterKeys { it != Zone.EXILE }
+        // Zones that cannot pause first; library then battlefield last (see the doc comment).
+        val orderedZones = byZone.keys.sortedBy { zone ->
+            when (zone) {
+                Zone.LIBRARY -> 1
+                Zone.BATTLEFIELD -> 2
+                else -> 0
             }
         }
+
+        var runningState = state
+        val events = mutableListOf<GameEvent>()
+        val collections = mutableMapOf<String, List<EntityId>>()
+
+        for (zone in orderedZones) {
+            val group = byZone.getValue(zone)
+            val groupResult = moveToZone(
+                runningState, context, group,
+                CardDestination.ToZone(zone),
+                effect.order, effect.revealed, effect.moveType, effect.faceDown,
+                effect.noRegenerate, effect.storeMovedAs, effect.underOwnersControl, effect.revealToSelf
+            )
+            runningState = groupResult.state
+            events.addAll(groupResult.events)
+            groupResult.updatedCollections.forEach { (key, ids) ->
+                collections[key] = (collections[key] ?: emptyList()) + ids
+            }
+            if (!groupResult.isSuccess || groupResult.pendingDecision != null) {
+                return groupResult.copy(
+                    state = runningState,
+                    events = events,
+                    updatedCollections = collections
+                )
+            }
+        }
+
+        return EffectResult.success(runningState, events).copy(updatedCollections = collections)
+    }
+
+    /**
+     * The zone [cardId] was exiled from, or [fallback] when nothing usable was recorded.
+     *
+     * Two recorded values are not returned as-is:
+     *  - **`STACK`** takes [fallback]. A spell lifted off the stack and exiled has no stack object
+     *    to go back to (CR 400.7 — it would be a new object, and the stack only holds spells and
+     *    abilities that were *put* there).
+     *  - **`EXILE`** is returned unchanged, and the caller ([moveToZonesExiledFrom]) drops that
+     *    group: an object exiled from exile (CR 406.7) "doesn't change zones", so its previous
+     *    zone *is* exile and the CR 610.3 return is a no-op.
+     *
+     * Every other `Zone` member — battlefield, hand, graveyard, library, command, sideboard — is
+     * passed straight through, so this is a two-value exclusion list, not an allowlist.
+     */
+    private fun originZoneOf(state: GameState, cardId: EntityId, fallback: Zone): Zone {
+        val recorded = state.getEntity(cardId)
+            ?.get<com.wingedsheep.engine.state.components.identity.ExiledFromZoneComponent>()
+            ?.zone
+            ?: return fallback
+        return if (recorded == Zone.STACK) fallback else recorded
     }
 
     /**
@@ -633,10 +746,24 @@ class MoveCollectionExecutor(
                 if (newState.projectedState.hasKeyword(cardId, Keyword.INDESTRUCTIBLE)) {
                     continue
                 }
+                // CR 122.1c — a shield counter replaces destruction by an effect, one counter per
+                // destruction. A board wipe destroys each permanent as a separate destruction event,
+                // so each shielded permanent spends exactly one counter and survives. Ordered ahead
+                // of regeneration for the reason given in `ZoneMovementUtils.destroyPermanent`.
+                val shielded = consumeShieldCounter(newState, cardId)
+                if (shielded != null) {
+                    newState = shielded.first
+                    events.add(shielded.second)
+                    continue
+                }
                 if (!noRegenerate) {
                     val (shieldState, wasRegenerated) = ZoneMovementUtils.applyRegenerationShields(newState, cardId)
                     if (wasRegenerated) {
-                        newState = ZoneMovementUtils.applyRegenerationReplacement(shieldState, cardId).state
+                        // Regeneration's tap emits a TappedEvent (CR 701.19a); fold it in so
+                        // "becomes tapped" triggers fire on this path too, not just the SBA one.
+                        val regenResult = ZoneMovementUtils.applyRegenerationReplacement(shieldState, cardId)
+                        newState = regenResult.state
+                        events.addAll(regenResult.events)
                         continue
                     }
                 }
@@ -669,9 +796,10 @@ class MoveCollectionExecutor(
                 else -> destPlayerId
             }
 
-            // Face-down battlefield entry (morph/manifest): derive each card's turn-up data from
-            // its identity and the mode. Per-card because manifested cards turn up for their own
-            // (differing) mana costs. Exile face-down (Hideaway) is just hidden — no turn-up data.
+            // Face-down battlefield entry (morph/manifest/disguise/cloak): derive each card's
+            // turn-up data from its identity and the mode. Per-card because manifested and cloaked
+            // cards turn up for their own (differing) mana costs. Exile face-down (Hideaway) is
+            // just hidden — no turn-up data.
             val isBattlefieldFaceDown = faceDown != null && destZone == Zone.BATTLEFIELD
             val morphData = if (isBattlefieldFaceDown) {
                 val cardDefinitionId = newState.getEntity(cardId)?.get<CardComponent>()?.cardDefinitionId
@@ -689,8 +817,13 @@ class MoveCollectionExecutor(
                 tappedAndAttacking = destination.placement == ZonePlacement.TappedAndAttacking,
                 faceDown = isBattlefieldFaceDown,
                 morphData = morphData,
-                manifested = isBattlefieldFaceDown && faceDown == FaceDownMode.MANIFEST,
-                faceDownExile = faceDown != null && destZone == Zone.EXILE
+                faceDownMode = if (isBattlefieldFaceDown) faceDown else null,
+                faceDownExile = faceDown != null && destZone == Zone.EXILE,
+                // Who may keep seeing this card once it is in the library. The policy lives in
+                // LibraryRevealUtils.placementAudience — this only names the mover and whether the
+                // move was public.
+                libraryMoverId = context.controllerId,
+                libraryMovePublic = revealed
             )
 
             // Delegate to ZoneTransitionService for full cleanup + entry
@@ -705,6 +838,14 @@ class MoveCollectionExecutor(
             // battlefield from a non-stack zone (e.g., Celestial Reunion tutoring directly to
             // play, Hideaway's free-cast pile). Face-down entries skip this — morphed creatures
             // enter as 2/2 nameless with no replacement effects from their face-up identity.
+            //
+            // KNOWN GAP: the single-card sibling of this path (MoveToZoneEffectExecutor) also runs
+            // PermanentEntryReplacements.runOnEnterRunEffect here; this one does not, so a card
+            // with an "as ~ enters, run [effect]" replacement (Multiversal Passage, Game Trail)
+            // tutored onto the battlefield still enters with its clause never run. Closing it
+            // needs more than the two-line call: this is a loop, the replacement can pause for a
+            // decision, and pausing mid-loop requires a continuation that resumes the remaining
+            // cards. See docs/card-sdk-language-reference.md, OnEnterRunEffect "Scope today".
             if (destZone == Zone.BATTLEFIELD && faceDown == null) {
                 val (counterState, counterEvents) = EntersWithReplacements.applyOnEntry(
                     newState, cardId, actualDestPlayerId, cardRegistry
@@ -734,22 +875,12 @@ class MoveCollectionExecutor(
             }
         }
 
-        // Persist reveals when cards are moved into a library at a known position.
-        // The mover knows where each card landed; if revealed=true, everyone knows.
-        // (Shuffled placement is handled above and intentionally does NOT mark.)
-        if (destZone == Zone.LIBRARY && destination.placement != ZonePlacement.Shuffled && movedIds.isNotEmpty()) {
-            val audience: Set<EntityId> = if (revealed) {
-                newState.turnOrder.toSet()
-            } else {
-                setOf(context.controllerId)
-            }
-            newState = LibraryRevealUtils.markRevealed(newState, movedIds, audience)
-        }
-
         // Emit discard event if configured
         if (moveType == MoveType.Discard && cards.isNotEmpty()) {
             val discardNames = cards.map { state.getEntity(it)?.get<CardComponent>()?.name ?: "Card" }
             events.add(CardsDiscardedEvent(destPlayerId, cards, discardNames))
+            newState = com.wingedsheep.engine.handlers.effects.ZoneTransitionService
+                .trackDiscard(newState, destPlayerId, cards)
         }
 
         // Emit sacrifice event if configured. Track the per-turn sacrifice count + Food

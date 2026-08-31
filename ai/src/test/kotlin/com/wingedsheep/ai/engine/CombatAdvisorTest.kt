@@ -95,18 +95,26 @@ class CombatAdvisorTest : FunSpec({
 
     // ── Helper: set up a game, place creatures, and get combat advisor ──
 
+    /**
+     * `TestCards.all` is the *whole* card corpus (`MtgSetCatalog.all` + the test-only cards), so it
+     * is registered **first** and the test's own [allCards] second: `CardRegistry.register` is
+     * last-write-wins by name, and a test that hand-builds a creature to get exact P/T must win over
+     * a real card that happens to share its name. Registering the corpus last silently swapped this
+     * suite's 4/4 "Pillarfield Ox" and 2/3 "Nessian Courser" for the printed 2/4 and 3/3 the moment
+     * those cards were implemented, which broke the gang-block arithmetic the tests assert on.
+     */
     fun setup(allCards: List<CardDefinition>): Triple<GameTestDriver, CardRegistry, CombatAdvisor> {
         val driver = GameTestDriver()
-        driver.registerCards(allCards)
         driver.registerCards(TestCards.all)
+        driver.registerCards(allCards)
         driver.initMirrorMatch(
             deck = Deck.of("Plains" to 20, "Forest" to 20),
             startingLife = 20
         )
 
         val registry = CardRegistry()
-        registry.register(allCards)
         registry.register(TestCards.all)
+        registry.register(allCards)
         val simulator = GameSimulator(registry)
         val evaluator = AIPlayer.defaultEvaluator()
         val advisor = CombatAdvisor(simulator, evaluator)
@@ -281,6 +289,44 @@ class CombatAdvisorTest : FunSpec({
 
         // Should NOT block: blocker dies to first strike before dealing damage
         result.blockers shouldNotContainKey blocker
+    }
+
+    test("does not gang block an attacker that can only be blocked by one creature") {
+        val cappedAttacker = com.wingedsheep.sdk.dsl.card("Capped Attacker") {
+            manaCost = "{3}{G}"
+            typeLine = "Creature — Warrior"
+            power = 4
+            toughness = 4
+            staticAbility {
+                ability = com.wingedsheep.sdk.scripting.CantBeBlockedByMoreThan(1)
+            }
+        }
+        val gangBlocker = CardDefinition.creature(
+            name = "Gang Blocker",
+            manaCost = ManaCost.parse("{2}{G}"),
+            subtypes = setOf(Subtype("Beast")),
+            power = 2,
+            toughness = 3,
+        )
+        val cards = listOf(cappedAttacker, gangBlocker)
+        val (driver, _, advisor) = setup(cards)
+        val p1 = driver.player1
+        val p2 = driver.player2
+        driver.passPriorityUntil(Step.PRECOMBAT_MAIN)
+        val attacker = driver.putCreatureOnBattlefield(p1, "Capped Attacker")
+        driver.removeSummoningSickness(attacker)
+        val blocker1 = driver.putCreatureOnBattlefield(p2, "Gang Blocker")
+        val blocker2 = driver.putCreatureOnBattlefield(p2, "Gang Blocker")
+        driver.passPriorityUntil(Step.DECLARE_ATTACKERS)
+        driver.submit(DeclareAttackers(p1, mapOf(attacker to p2)))
+        driver.passPriorityUntil(Step.DECLARE_BLOCKERS)
+
+        val result = advisor.chooseBlockers(
+            driver.state, buildBlockAction(p2, listOf(blocker1, blocker2)), p2
+        ) as DeclareBlockers
+
+        result.blockers.values.flatten().count { it == attacker } shouldBe 1
+        driver.submit(result).isSuccess shouldBe true
     }
 
     // ═════════════════════════════════════════════════════════════════════

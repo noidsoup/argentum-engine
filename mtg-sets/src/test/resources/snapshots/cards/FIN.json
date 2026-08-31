@@ -729,7 +729,7 @@
                     "filter": "land ctrl:you",
                     "to": "Battlefield"
                 },
-                "binding": "OTHER",
+                "binding": "ANY",
                 "effect": {
                     "type": "ModifyStats",
                     "powerModifier": {
@@ -805,7 +805,9 @@
                         }
                     ]
                 },
-                "activeZone": "Graveyard"
+                "activeZones": [
+                    "Graveyard"
+                ]
             }
         ],
         "staticAbilities": [
@@ -1007,8 +1009,8 @@
                             "filter": "artifact",
                             "storeSelected": "kept",
                             "storeRemainder": "rest",
-                            "selectedLabel": "Put in hand",
-                            "remainderLabel": "Put on bottom"
+                            "prompt": "You may reveal an artifact card from among them and put it into your hand",
+                            "showAllCards": true
                         },
                         {
                             "type": "MoveCollection",
@@ -1329,7 +1331,8 @@
         "colorIdentityOverride": [
             "GREEN",
             "BLUE"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "272",
@@ -1455,7 +1458,7 @@
                     },
                     "then": "AddCombatPhase"
                 },
-                "triggerCondition": "IsFirstCombatPhaseOfTurn",
+                "interveningIf": "IsFirstCombatPhaseOfTurn",
                 "descriptionOverride": "Whenever a Vehicle crewed by Balthier and Fran this turn attacks, if it's the first combat phase of the turn, you may pay {1}{R}{G}. If you do, after this phase, there is an additional combat phase."
             }
         ],
@@ -2164,7 +2167,7 @@
                     "count": 1,
                     "target": "Self"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "ContextProperty",
@@ -2493,7 +2496,7 @@
                     "target": "Self",
                     "destination": "Hand"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Not",
                     "condition": {
                         "type": "EntityMatches",
@@ -2854,7 +2857,8 @@
         },
         "colorIdentityOverride": [
             "WHITE"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "91",
@@ -2974,7 +2978,7 @@
                     "filter": "land ctrl:you",
                     "to": "Battlefield"
                 },
-                "binding": "OTHER",
+                "binding": "ANY",
                 "effect": {
                     "type": "ModifyStats",
                     "powerModifier": {
@@ -3901,7 +3905,8 @@
         },
         "colorIdentityOverride": [
             "RED"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "133",
@@ -4819,7 +4824,8 @@
         },
         "colorIdentityOverride": [
             "WHITE"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "13",
@@ -5242,7 +5248,7 @@
                     "type": "GrantKeyword",
                     "keyword": "FLYING",
                     "filter": {
-                        "baseFilter": "creature Knight ctrl:you",
+                        "baseFilter": "permanent Knight ctrl:you",
                         "excludeSelf": true
                     }
                 },
@@ -5366,7 +5372,8 @@
         },
         "colorIdentityOverride": [
             "WHITE"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "16",
@@ -6029,7 +6036,7 @@
                     "gate": "Gate.MayDecide",
                     "then": "Transform"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "Count",
@@ -6101,7 +6108,8 @@
         "colorIdentityOverride": [
             "BLUE",
             "BLACK"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "218",
@@ -6238,18 +6246,18 @@
                 {
                     "chapter": 3,
                     "effect": {
-                        "type": "Composite",
-                        "effects": [
-                            {
-                                "type": "ForEach",
-                                "space": {
-                                    "type": "IterationSpace.Group",
-                                    "filter": {
-                                        "baseFilter": "creature ctrl:you",
-                                        "excludeSelf": true
-                                    }
-                                },
-                                "body": {
+                        "type": "ForEach",
+                        "space": {
+                            "type": "IterationSpace.Group",
+                            "filter": {
+                                "baseFilter": "creature ctrl:you",
+                                "excludeSelf": true
+                            }
+                        },
+                        "body": {
+                            "type": "Composite",
+                            "effects": [
+                                {
                                     "type": "ModifyStats",
                                     "powerModifier": {
                                         "type": "Fixed",
@@ -6260,24 +6268,14 @@
                                         "amount": 2
                                     },
                                     "target": "Self"
-                                }
-                            },
-                            {
-                                "type": "ForEach",
-                                "space": {
-                                    "type": "IterationSpace.Group",
-                                    "filter": {
-                                        "baseFilter": "creature ctrl:you",
-                                        "excludeSelf": true
-                                    }
                                 },
-                                "body": {
+                                {
                                     "type": "GrantKeyword",
                                     "keyword": "TRAMPLE",
                                     "target": "Self"
                                 }
-                            }
-                        ]
+                            ]
+                        }
                     }
                 }
             ]
@@ -6291,7 +6289,8 @@
         },
         "colorIdentityOverride": [
             "GREEN"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "185",
@@ -6331,6 +6330,7 @@
                         "CopyNextSpellCast"
                     ]
                 },
+                "timing": "ManaAbility",
                 "isManaAbility": true,
                 "descriptionOverride": "{T}, Exile this artifact: Add {U}. When you next cast an instant or sorcery spell this turn, copy that spell. You may choose new targets for the copy."
             }
@@ -6528,7 +6528,7 @@
                 },
                 "binding": "ANY",
                 "effect": "Transform",
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "Count",
@@ -6575,7 +6575,8 @@
         "colorIdentityOverride": [
             "BLACK",
             "GREEN"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "220",
@@ -6904,10 +6905,19 @@
                     "type": "AddMana",
                     "color": "RED",
                     "restriction": {
-                        "type": "SubtypeSpellsOrAbilitiesOnly",
-                        "subtype": "Equipment"
+                        "type": "AnyOf",
+                        "restrictions": [
+                            {
+                                "type": "SubtypeSpellsOnly",
+                                "subtypes": [
+                                    "Equipment"
+                                ]
+                            },
+                            "EquipAbilityActivationOnly"
+                        ]
                     }
                 },
+                "timing": "ManaAbility",
                 "isManaAbility": true,
                 "descriptionOverride": "{T}: Add {R}. Spend this mana only to cast an Equipment spell or activate an equip ability."
             }
@@ -7363,7 +7373,8 @@
         "colorIdentityOverride": [
             "BLACK",
             "RED"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "221",
@@ -8320,7 +8331,7 @@
                     },
                     "id": "target creature card from your graveyard"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "AggregateBattlefield",
@@ -9623,7 +9634,8 @@
         },
         "colorIdentityOverride": [
             "BLACK"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "104",
@@ -9708,7 +9720,7 @@
                         "numericProperty": "Power"
                     }
                 },
-                "triggerCondition": "IsYourTurn"
+                "triggerRestriction": "IsYourTurn"
             }
         ]
     },
@@ -9957,7 +9969,8 @@
         },
         "colorIdentityOverride": [
             "BLUE"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "58",
@@ -10151,7 +10164,8 @@
         "colorIdentityOverride": [
             "RED",
             "WHITE"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "229",
@@ -10648,7 +10662,7 @@
                             "key": "TRIGGER_LIFE_LOST"
                         }
                     },
-                    "triggerCondition": "IsYourTurn",
+                    "triggerRestriction": "IsYourTurn",
                     "descriptionOverride": "Whenever an opponent loses life during your turn, you draw that many cards."
                 }
             ]
@@ -10663,7 +10677,8 @@
             "BLUE",
             "BLACK",
             "RED"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "231",
@@ -10805,7 +10820,8 @@
         "colorIdentityOverride": [
             "BLACK",
             "RED"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "232",
@@ -11398,12 +11414,18 @@
         ],
         "additionalCosts": [
             {
-                "type": "SacrificeOrPay",
-                "filter": {
-                    "cardPredicates": [
-                        "IsCreature",
-                        "IsLegendary"
-                    ]
+                "type": "OrPay",
+                "cost": {
+                    "type": "AdditionalAtom",
+                    "atom": {
+                        "type": "AtomSacrifice",
+                        "filter": {
+                            "cardPredicates": [
+                                "IsCreature",
+                                "IsLegendary"
+                            ]
+                        }
+                    }
                 },
                 "alternativeManaCost": "{2}"
             }
@@ -13829,7 +13851,7 @@
                     "type": "CreatePredefinedToken",
                     "tokenType": "Treasure"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "TriggeringSpellManaSpentAtLeast",
                     "amount": 4
                 },
@@ -14487,7 +14509,9 @@
     "colorIdentityOverride": [
         "BLACK",
         "GREEN"
-    ]
+    ],
+    "hasNoManaCost": true,
+    "meldResult": true
 }
 
 // Random Encounter
@@ -14883,7 +14907,8 @@
                             "type": "MoveToZone",
                             "target": "Self",
                             "destination": "Battlefield",
-                            "placement": "Tapped"
+                            "placement": "Tapped",
+                            "fromZone": "Graveyard"
                         },
                         {
                             "type": "AddCounters",
@@ -15320,7 +15345,7 @@
                     "filter": "land ctrl:you",
                     "to": "Battlefield"
                 },
-                "binding": "OTHER",
+                "binding": "ANY",
                 "effect": {
                     "type": "AddCounters",
                     "counterType": "+1/+1",
@@ -15715,7 +15740,7 @@
                     "imageUri": "https://cards.scryfall.io/normal/front/1/9/19faca08-0eef-4da4-ab6f-c3aed63ac77b.jpg?1748704096",
                     "legendary": true
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Exists",
                     "player": "You",
                     "zone": "Battlefield",
@@ -15832,7 +15857,7 @@
                     "filter": "land ctrl:you",
                     "to": "Battlefield"
                 },
-                "binding": "OTHER",
+                "binding": "ANY",
                 "effect": {
                     "type": "Gated",
                     "gate": "Gate.MayDecide",
@@ -16179,7 +16204,7 @@
                         }
                     ]
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "TriggeringSpellManaSpentAtLeast",
                     "amount": 4
                 }
@@ -17020,7 +17045,8 @@
         },
         "colorIdentityOverride": [
             "BLACK"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "115",
@@ -17141,7 +17167,7 @@
                     "gate": "Gate.MayDecide",
                     "then": "Transform"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "AggregateBattlefield",
@@ -17237,7 +17263,8 @@
         "colorIdentityOverride": [
             "GREEN",
             "WHITE"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "240",
@@ -17358,10 +17385,13 @@
                     "then": {
                         "type": "MoveToZone",
                         "target": "Self",
-                        "destination": "Hand"
+                        "destination": "Hand",
+                        "fromZone": "Graveyard"
                     }
                 },
-                "activeZone": "Graveyard"
+                "activeZones": [
+                    "Graveyard"
+                ]
             }
         ],
         "replacementEffects": [
@@ -17645,7 +17675,7 @@
                 },
                 "binding": "ANY",
                 "effect": "Transform",
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "Count",
@@ -17689,7 +17719,8 @@
         },
         "colorIdentityOverride": [
             "BLUE"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "73",
@@ -17937,7 +17968,7 @@
                         }
                     ]
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "TurnTracking",
@@ -18012,7 +18043,8 @@
         },
         "colorIdentityOverride": [
             "BLACK"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "119",
@@ -18103,7 +18135,7 @@
                         }
                     ]
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "AnyPlayerDealtCombatDamageThisTurnAtLeast",
                     "amount": 6
                 }
@@ -18168,7 +18200,8 @@
         },
         "colorIdentityOverride": [
             "RED"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "158",
@@ -18239,7 +18272,7 @@
                 },
                 "binding": "ANY",
                 "effect": "Transform",
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "AggregateBattlefield",
@@ -18317,7 +18350,7 @@
                         "filter": "land ctrl:you",
                         "to": "Battlefield"
                     },
-                    "binding": "OTHER",
+                    "binding": "ANY",
                     "effect": {
                         "type": "ForEach",
                         "space": {
@@ -18350,7 +18383,8 @@
         },
         "colorIdentityOverride": [
             "GREEN"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "201",
@@ -21552,7 +21586,8 @@
             "BLACK",
             "RED",
             "GREEN"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "245",
@@ -21775,7 +21810,10 @@
                 },
                 "effect": {
                     "type": "DistributeCountersAmongTargets",
-                    "totalCounters": 2
+                    "totalCounters": {
+                        "type": "Fixed",
+                        "amount": 2
+                    }
                 },
                 "targetRequirements": [
                     {
@@ -21972,7 +22010,8 @@
         "colorIdentityOverride": [
             "BLUE",
             "RED"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "219",
@@ -22406,7 +22445,7 @@
                         "amount": 3
                     }
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "TriggeringSpellManaSpentAtLeast",
                     "amount": 4
                 }
@@ -22541,7 +22580,7 @@
                     ],
                     "imageUri": "https://cards.scryfall.io/normal/front/f/e/fe592a5c-5e6e-40ed-8818-f4651bcf2fe8.jpg?1748704098"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "AggregateBattlefield",
@@ -23081,7 +23120,7 @@
                     "filter": "land ctrl:you",
                     "to": "Battlefield"
                 },
-                "binding": "OTHER",
+                "binding": "ANY",
                 "effect": {
                     "type": "ModifyStats",
                     "powerModifier": {
@@ -23335,6 +23374,7 @@
                 "id": "ability_2",
                 "cost": "CostTap",
                 "effect": "AddManaOfChoice",
+                "timing": "ManaAbility",
                 "isManaAbility": true
             }
         ]
@@ -24141,7 +24181,8 @@
         "colorIdentityOverride": [
             "BLUE",
             "BLACK"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "247",
@@ -24206,7 +24247,7 @@
                     },
                     "id": "target"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "TriggeringSpellManaSpentAtLeast",
                     "amount": 4
                 }
@@ -24228,7 +24269,7 @@
                     "count": 8,
                     "target": "Self"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "TriggeringSpellManaSpentAtLeast",
                     "amount": 8
                 }
@@ -24931,7 +24972,8 @@
         },
         "colorIdentityOverride": [
             "WHITE"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "39",
@@ -25028,7 +25070,8 @@
         },
         "colorIdentityOverride": [
             "BLACK"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "125",
@@ -25495,7 +25538,7 @@
                         "id": "target creature you control"
                     }
                 ],
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Exists",
                     "player": "You",
                     "zone": "Battlefield",
@@ -26604,7 +26647,7 @@
                         "type": "WinGame",
                         "message": "Shinryu, Transcendent Rival — the chosen player lost the game"
                     },
-                    "triggerCondition": {
+                    "triggerRestriction": {
                         "type": "TriggeringPlayerIs",
                         "player": "ChosenOpponent"
                     },
@@ -26620,7 +26663,8 @@
         },
         "colorIdentityOverride": [
             "BLACK"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "127",
@@ -26810,7 +26854,7 @@
                 "trigger": {
                     "type": "PermanentsSacrificedEvent",
                     "filter": "creature",
-                    "byAnyPlayer": true
+                    "sacrificedBy": "Each"
                 },
                 "binding": "ANY",
                 "effect": {

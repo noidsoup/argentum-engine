@@ -605,3 +605,23 @@
         "WHITE"
     ]
 }
+
+// Leopard-Spotted Jiao
+{
+    "name": "Leopard-Spotted Jiao",
+    "manaCost": "{1}{R}",
+    "typeLine": "Creature — Beast",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 1
+    },
+    "metadata": {
+        "collectorNumber": "23",
+        "artist": "Shinchuen Chen",
+        "flavorText": "This strange beast has the hide of a leopard, the howl of a dog, and the horns of an ox.",
+        "imageUri": "https://cards.scryfall.io/normal/front/9/1/91df110f-85d2-41cb-96b6-6c79cebfada7.jpg?1783934627"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}

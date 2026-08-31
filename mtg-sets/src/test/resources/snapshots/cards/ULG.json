@@ -1,3 +1,36 @@
+// Angelic Curator
+{
+    "name": "Angelic Curator",
+    "manaCost": "{1}{W}",
+    "typeLine": "Creature — Angel Spirit",
+    "oracleText": "Flying, protection from artifacts",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 1
+    },
+    "keywords": [
+        "FLYING"
+    ],
+    "keywordAbilities": [
+        {
+            "type": "Protection",
+            "scope": {
+                "type": "ProtectionScope.CardType",
+                "cardType": "Artifact"
+            }
+        }
+    ],
+    "metadata": {
+        "collectorNumber": "1",
+        "artist": "Greg Staples",
+        "flavorText": "\"Do not treat your people as you treat your artifacts. Let them go, and they will live; seal them here, and they will die.\"\n—Urza, to Radiant",
+        "imageUri": "https://cards.scryfall.io/normal/front/c/6/c63ba2da-6dea-44ac-8439-527222da565b.jpg?1783946254"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
 // Archivist
 {
     "name": "Archivist",
@@ -964,6 +997,52 @@
     },
     "colorIdentityOverride": [
         "GREEN"
+    ]
+}
+
+// Miscalculation
+{
+    "name": "Miscalculation",
+    "manaCost": "{1}{U}",
+    "typeLine": "Instant",
+    "oracleText": "Counter target spell unless its controller pays {2}.\nCycling {2}",
+    "keywordAbilities": [
+        {
+            "type": "Cycling",
+            "cost": "{2}"
+        }
+    ],
+    "script": {
+        "spellEffect": {
+            "type": "Counter",
+            "condition": {
+                "type": "CounterCondition.UnlessPaysMana",
+                "cost": "{2}"
+            }
+        },
+        "targetRequirements": [
+            {
+                "type": "TargetObject",
+                "filter": {
+                    "baseFilter": {},
+                    "zone": "Stack"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "36",
+        "artist": "Jeff Laubenstein",
+        "imageUri": "https://cards.scryfall.io/normal/front/4/b/4b4956a2-9a39-4152-9c98-70e4b2acfa26.jpg?1783946245",
+        "rulings": [
+            {
+                "date": "2008-10-01",
+                "text": "Cycling is an activated ability. Effects that interact with activated abilities (such as Stifle or Rings of Brighthearth) will interact with cycling. Effects that interact with spells (such as Remove Soul or Faerie Tauntings) will not."
+            }
+        ]
+    },
+    "colorIdentityOverride": [
+        "BLUE"
     ]
 }
 
@@ -2122,7 +2201,7 @@
             {
                 "type": "TargetObject",
                 "filter": {
-                    "baseFilter": "creature own:you",
+                    "baseFilter": "creature mv<=3 own:you",
                     "zone": "Graveyard"
                 },
                 "id": "target"

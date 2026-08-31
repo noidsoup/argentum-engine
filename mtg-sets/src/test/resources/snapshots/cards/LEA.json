@@ -139,6 +139,62 @@
     ]
 }
 
+// Basalt Monolith
+{
+    "name": "Basalt Monolith",
+    "manaCost": "{3}",
+    "typeLine": "Artifact",
+    "oracleText": "This artifact doesn't untap during your untap step.\n{T}: Add {C}{C}{C}.\n{3}: Untap this artifact.",
+    "flags": [
+        "DOESNT_UNTAP"
+    ],
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": "CostTap",
+                "effect": {
+                    "type": "AddColorlessMana",
+                    "amount": {
+                        "type": "Fixed",
+                        "amount": 3
+                    }
+                },
+                "timing": "ManaAbility",
+                "isManaAbility": true
+            },
+            {
+                "id": "ability_2",
+                "cost": {
+                    "type": "CostAtomWrapper",
+                    "atom": {
+                        "type": "AtomMana",
+                        "cost": "{3}"
+                    }
+                },
+                "effect": {
+                    "type": "TapUntap",
+                    "target": "Self",
+                    "tap": false
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "231",
+        "rarity": "UNCOMMON",
+        "artist": "Jesper Myrfors",
+        "imageUri": "https://cards.scryfall.io/normal/front/6/6/66a74c89-6f86-4ec8-af17-391cd5026054.jpg",
+        "rulings": [
+            {
+                "date": "2020-08-07",
+                "text": "Basalt Monolith's last ability can untap it as often as you can pay for it. If you believe you've found a way to generate an unbounded amount of mana with it, you're probably right."
+            }
+        ]
+    },
+    "colorIdentityOverride": []
+}
+
 // Bayou
 {
     "name": "Bayou",
@@ -248,6 +304,44 @@
     "colorIdentityOverride": [
         "BLACK"
     ]
+}
+
+// Black Lotus
+{
+    "name": "Black Lotus",
+    "manaCost": "{0}",
+    "typeLine": "Artifact",
+    "oracleText": "{T}, Sacrifice this artifact: Add three mana of any one color.",
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": {
+                    "type": "CostComposite",
+                    "costs": [
+                        "CostTap",
+                        "CostSacrificeSelf"
+                    ]
+                },
+                "effect": {
+                    "type": "AddManaOfChoice",
+                    "amount": {
+                        "type": "Fixed",
+                        "amount": 3
+                    }
+                },
+                "timing": "ManaAbility",
+                "isManaAbility": true
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "232",
+        "rarity": "RARE",
+        "artist": "Christopher Rush",
+        "imageUri": "https://cards.scryfall.io/normal/front/b/0/b0faa7f2-b547-42c4-a810-839da50dadfe.jpg?1783948669"
+    },
+    "colorIdentityOverride": []
 }
 
 // Black Ward
@@ -734,6 +828,40 @@
     ]
 }
 
+// Death Ward
+{
+    "name": "Death Ward",
+    "manaCost": "{W}",
+    "typeLine": "Instant",
+    "oracleText": "Regenerate target creature.",
+    "script": {
+        "spellEffect": {
+            "type": "Regenerate",
+            "target": {
+                "type": "BoundVariable",
+                "name": "target"
+            }
+        },
+        "targetRequirements": [
+            {
+                "type": "TargetObject",
+                "filter": {
+                    "baseFilter": "creature"
+                },
+                "id": "target"
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "17",
+        "artist": "Mark Poole",
+        "imageUri": "https://cards.scryfall.io/normal/front/f/a/fa5466cc-aa57-4a7f-8b21-d92b2fe02e13.jpg"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
 // Deathgrip
 {
     "name": "Deathgrip",
@@ -933,7 +1061,7 @@
                     {
                         "type": "TargetObject",
                         "filter": {
-                            "baseFilter": "creature Wall"
+                            "baseFilter": "permanent Wall"
                         },
                         "id": "target"
                     }
@@ -1051,11 +1179,15 @@
                     }
                 },
                 {
-                    "type": "DealDamage",
-                    "amount": "XValue",
-                    "target": {
-                        "type": "PlayerRef",
-                        "player": "Each"
+                    "type": "ForEach",
+                    "space": {
+                        "type": "IterationSpace.Players",
+                        "players": "Each"
+                    },
+                    "body": {
+                        "type": "DealDamage",
+                        "amount": "XValue",
+                        "target": "Controller"
                     }
                 }
             ]
@@ -1468,7 +1600,7 @@
                 "powerBonus": 1,
                 "toughnessBonus": 1,
                 "filter": {
-                    "baseFilter": "creature Goblin",
+                    "baseFilter": "permanent Goblin",
                     "excludeSelf": true
                 }
             },
@@ -1476,7 +1608,7 @@
                 "type": "GrantKeyword",
                 "keyword": "MOUNTAINWALK",
                 "filter": {
-                    "baseFilter": "creature Goblin",
+                    "baseFilter": "permanent Goblin",
                     "excludeSelf": true
                 }
             }
@@ -1863,11 +1995,15 @@
                     }
                 },
                 {
-                    "type": "DealDamage",
-                    "amount": "XValue",
-                    "target": {
-                        "type": "PlayerRef",
-                        "player": "Each"
+                    "type": "ForEach",
+                    "space": {
+                        "type": "IterationSpace.Players",
+                        "players": "Each"
+                    },
+                    "body": {
+                        "type": "DealDamage",
+                        "amount": "XValue",
+                        "target": "Controller"
                     }
                 }
             ]
@@ -1881,6 +2017,84 @@
     },
     "colorIdentityOverride": [
         "GREEN"
+    ]
+}
+
+// Hypnotic Specter
+{
+    "name": "Hypnotic Specter",
+    "manaCost": "{1}{B}{B}",
+    "typeLine": "Creature — Specter",
+    "oracleText": "Flying\nWhenever this creature deals damage to an opponent, that player discards a card at random.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 2
+    },
+    "keywords": [
+        "FLYING"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "DealsDamageEvent",
+                    "recipient": "RecipientOpponent"
+                },
+                "effect": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "GatherCards",
+                            "source": {
+                                "type": "FromZone",
+                                "zone": "Hand",
+                                "player": "TriggeringPlayer"
+                            },
+                            "storeAs": "hand"
+                        },
+                        {
+                            "type": "SelectFromCollection",
+                            "from": "hand",
+                            "selection": {
+                                "type": "Random",
+                                "count": {
+                                    "type": "Fixed",
+                                    "amount": 1
+                                }
+                            },
+                            "storeSelected": "discarded"
+                        },
+                        {
+                            "type": "MoveCollection",
+                            "from": "discarded",
+                            "destination": {
+                                "type": "ToZone",
+                                "zone": "Graveyard",
+                                "player": "TriggeringPlayer"
+                            },
+                            "moveType": "Discard"
+                        }
+                    ]
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "112",
+        "rarity": "UNCOMMON",
+        "artist": "Douglas Shuler",
+        "flavorText": "\"...There was no trace/ Of aught on that illumined face...\"\n—Samuel Coleridge, \"Phantom\"",
+        "imageUri": "https://cards.scryfall.io/normal/front/b/4/b43b900f-2d9b-442b-9699-058483604ec9.jpg?1783948694",
+        "rulings": [
+            {
+                "date": "2008-08-01",
+                "text": "The ability triggers even if the Specter's damage is being redirected to an opponent. It does not trigger if damage that would have been dealt to the opponent is redirected to a nonopponent player or a creature, or if the damage is prevented."
+            }
+        ]
+    },
+    "colorIdentityOverride": [
+        "BLACK"
     ]
 }
 
@@ -1984,7 +2198,7 @@
                 "type": "CantBeBlockedExceptBy",
                 "blockerFilter": {
                     "cardPredicates": [
-                        "IsCreature",
+                        "IsPermanent",
                         {
                             "type": "HasSubtype",
                             "subtype": "Wall"
@@ -2394,7 +2608,7 @@
                 "powerBonus": 1,
                 "toughnessBonus": 1,
                 "filter": {
-                    "baseFilter": "creature Merfolk",
+                    "baseFilter": "permanent Merfolk",
                     "excludeSelf": true
                 }
             },
@@ -2402,7 +2616,7 @@
                 "type": "GrantKeyword",
                 "keyword": "ISLANDWALK",
                 "filter": {
-                    "baseFilter": "creature Merfolk",
+                    "baseFilter": "permanent Merfolk",
                     "excludeSelf": true
                 }
             }
@@ -3980,19 +4194,26 @@
     "oracleText": "Destroy all enchantments.",
     "script": {
         "spellEffect": {
-            "type": "ForEach",
-            "space": {
-                "type": "IterationSpace.Group",
-                "filter": {
-                    "baseFilter": "enchantment"
+            "type": "Composite",
+            "effects": [
+                {
+                    "type": "GatherCards",
+                    "source": {
+                        "type": "BattlefieldMatching",
+                        "filter": "enchantment"
+                    },
+                    "storeAs": "destroyAll_gathered"
+                },
+                {
+                    "type": "MoveCollection",
+                    "from": "destroyAll_gathered",
+                    "destination": {
+                        "type": "ToZone",
+                        "zone": "Graveyard"
+                    },
+                    "moveType": "Destroy"
                 }
-            },
-            "body": {
-                "type": "MoveToZone",
-                "target": "Self",
-                "destination": "Graveyard",
-                "byDestruction": true
-            }
+            ]
         }
     },
     "metadata": {
@@ -4031,19 +4252,26 @@
     "oracleText": "Destroy all Islands.",
     "script": {
         "spellEffect": {
-            "type": "ForEach",
-            "space": {
-                "type": "IterationSpace.Group",
-                "filter": {
-                    "baseFilter": "land Island"
+            "type": "Composite",
+            "effects": [
+                {
+                    "type": "GatherCards",
+                    "source": {
+                        "type": "BattlefieldMatching",
+                        "filter": "land Island"
+                    },
+                    "storeAs": "destroyAll_gathered"
+                },
+                {
+                    "type": "MoveCollection",
+                    "from": "destroyAll_gathered",
+                    "destination": {
+                        "type": "ToZone",
+                        "zone": "Graveyard"
+                    },
+                    "moveType": "Destroy"
                 }
-            },
-            "body": {
-                "type": "MoveToZone",
-                "target": "Self",
-                "destination": "Graveyard",
-                "byDestruction": true
-            }
+            ]
         }
     },
     "metadata": {
@@ -4107,7 +4335,7 @@
             {
                 "type": "TargetObject",
                 "filter": {
-                    "baseFilter": "creature Wall"
+                    "baseFilter": "permanent Wall"
                 },
                 "id": "target"
             }
@@ -4272,13 +4500,16 @@
                 },
                 "binding": "ANY",
                 "effect": {
-                    "type": "DrawCards",
-                    "count": {
-                        "type": "Fixed",
-                        "amount": 1
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "DrawCards",
+                        "count": {
+                            "type": "Fixed",
+                            "amount": 1
+                        }
                     }
-                },
-                "optional": true
+                }
             }
         ]
     },

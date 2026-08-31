@@ -39,6 +39,80 @@
     "colorIdentityOverride": []
 }
 
+// Alabaster Mage
+{
+    "name": "Alabaster Mage",
+    "manaCost": "{1}{W}",
+    "typeLine": "Creature — Human Wizard",
+    "oracleText": "{1}{W}: Target creature you control gains lifelink until end of turn. (Damage dealt by the creature also causes its controller to gain that much life.)",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 1
+    },
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": {
+                    "type": "CostAtomWrapper",
+                    "atom": {
+                        "type": "AtomMana",
+                        "cost": "{1}{W}"
+                    }
+                },
+                "effect": {
+                    "type": "GrantKeyword",
+                    "keyword": "LIFELINK",
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "target creature you control"
+                    }
+                },
+                "targetRequirements": [
+                    {
+                        "type": "TargetObject",
+                        "filter": {
+                            "baseFilter": "creature ctrl:you"
+                        },
+                        "id": "target creature you control"
+                    }
+                ],
+                "descriptionOverride": "{1}{W}: Target creature you control gains lifelink until end of turn."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "2",
+        "rarity": "UNCOMMON",
+        "artist": "Izzy",
+        "flavorText": "\"We hold sacred the powers of light and life. Truth and honor are our greatest weapons.\"\n—Alabaster creed",
+        "imageUri": "https://cards.scryfall.io/normal/front/f/8/f82e6a81-6a45-45f9-829d-332859a32257.jpg?1783941106"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
+// Amphin Cutthroat
+{
+    "name": "Amphin Cutthroat",
+    "manaCost": "{3}{U}",
+    "typeLine": "Creature — Salamander Rogue",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 4
+    },
+    "metadata": {
+        "collectorNumber": "43",
+        "artist": "Howard Lyon",
+        "flavorText": "\"The amphin have long built their society in secret. While surface dwellers squabbled over trivial borders, they patiently expanded, building their ammonite temple-caves. Now amphin priests eye the shore, and amphin hunters gird for war.\"\n—Gor Muldrak, *Cryptohistories*",
+        "imageUri": "https://cards.scryfall.io/normal/front/f/d/fd169064-9c7b-40bd-8be0-a89fcb28ae2f.jpg?1783941096"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
+
 // Angelic Destiny
 {
     "name": "Angelic Destiny",
@@ -113,6 +187,344 @@
     ]
 }
 
+// Armored Warhorse
+{
+    "name": "Armored Warhorse",
+    "manaCost": "{W}{W}",
+    "typeLine": "Creature — Horse",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 3
+    },
+    "metadata": {
+        "collectorNumber": "7",
+        "artist": "rk post",
+        "flavorText": "\"When we of the Northern Verge claim a mount, no peasant's nag will do. It must be as strong as our virtue, and must join us of its own will.\"\n—Sarlena, paladin of the Northern Verge",
+        "imageUri": "https://cards.scryfall.io/normal/front/5/2/52daf505-d436-4ea6-a157-4268af2ff7a8.jpg?1783941106"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
+// Bonebreaker Giant
+{
+    "name": "Bonebreaker Giant",
+    "manaCost": "{4}{R}",
+    "typeLine": "Creature — Giant",
+    "creatureStats": {
+        "power": 4,
+        "toughness": 4
+    },
+    "metadata": {
+        "collectorNumber": "123",
+        "artist": "Kev Walker",
+        "flavorText": "One thing's for sure—his fists are harder than your skull.",
+        "imageUri": "https://cards.scryfall.io/normal/front/c/c/cc17e5c1-a6b4-401b-95eb-1c01cd1da570.jpg?1783941073"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
+// Buried Ruin
+{
+    "name": "Buried Ruin",
+    "manaCost": "",
+    "typeLine": "Land",
+    "oracleText": "{T}: Add {C}.\n{2}, {T}, Sacrifice this land: Return target artifact card from your graveyard to your hand.",
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": "CostTap",
+                "effect": {
+                    "type": "AddColorlessMana",
+                    "amount": {
+                        "type": "Fixed",
+                        "amount": 1
+                    }
+                },
+                "timing": "ManaAbility",
+                "isManaAbility": true
+            },
+            {
+                "id": "ability_2",
+                "cost": {
+                    "type": "CostComposite",
+                    "costs": [
+                        {
+                            "type": "CostAtomWrapper",
+                            "atom": {
+                                "type": "AtomMana",
+                                "cost": "{2}"
+                            }
+                        },
+                        "CostTap",
+                        "CostSacrificeSelf"
+                    ]
+                },
+                "effect": {
+                    "type": "MoveToZone",
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "target artifact card in your graveyard"
+                    },
+                    "destination": "Hand"
+                },
+                "targetRequirements": [
+                    {
+                        "type": "TargetObject",
+                        "filter": {
+                            "baseFilter": "artifact own:you",
+                            "zone": "Graveyard"
+                        },
+                        "id": "target artifact card in your graveyard"
+                    }
+                ],
+                "descriptionOverride": "{2}, {T}, Sacrifice this land: Return target artifact card from your graveyard to your hand."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "224",
+        "rarity": "UNCOMMON",
+        "artist": "Franz Vohwinkel",
+        "flavorText": "History has buried its treasures deep.",
+        "imageUri": "https://cards.scryfall.io/normal/front/e/9/e910cf59-f7aa-44b1-bb8a-c2211179137c.jpg?1783941046"
+    },
+    "colorIdentityOverride": []
+}
+
+// Dark Favor
+{
+    "name": "Dark Favor",
+    "manaCost": "{1}{B}",
+    "typeLine": "Enchantment — Aura",
+    "oracleText": "Enchant creature\nWhen this Aura enters, you lose 1 life.\nEnchanted creature gets +3/+1.",
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "LoseLife",
+                    "amount": {
+                        "type": "Fixed",
+                        "amount": 1
+                    },
+                    "target": "Controller"
+                }
+            }
+        ],
+        "staticAbilities": [
+            {
+                "type": "ModifyStats",
+                "powerBonus": 3,
+                "toughnessBonus": 1
+            }
+        ],
+        "auraTarget": {
+            "type": "TargetObject",
+            "filter": {
+                "baseFilter": "creature"
+            }
+        }
+    },
+    "metadata": {
+        "collectorNumber": "89",
+        "artist": "Allen Williams",
+        "flavorText": "When he began to curse what he held holy, his strength grew unrivaled.",
+        "imageUri": "https://cards.scryfall.io/normal/front/a/2/a258a235-086e-429b-9ac1-3178f902658b.jpg"
+    },
+    "colorIdentityOverride": [
+        "BLACK"
+    ]
+}
+
+// Devouring Swarm
+{
+    "name": "Devouring Swarm",
+    "manaCost": "{1}{B}{B}",
+    "typeLine": "Creature — Insect",
+    "oracleText": "Flying\nSacrifice a creature: This creature gets +1/+1 until end of turn.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 1
+    },
+    "keywords": [
+        "FLYING"
+    ],
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": {
+                    "type": "CostAtomWrapper",
+                    "atom": {
+                        "type": "AtomSacrifice",
+                        "filter": "creature"
+                    }
+                },
+                "effect": {
+                    "type": "ModifyStats",
+                    "powerModifier": {
+                        "type": "Fixed",
+                        "amount": 1
+                    },
+                    "toughnessModifier": {
+                        "type": "Fixed",
+                        "amount": 1
+                    },
+                    "target": "Self"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "91",
+        "artist": "Wayne England",
+        "flavorText": "Their arrival is heralded by the deafening hum of ten thousand wings. Their departure is marked by the silence of the dead.",
+        "imageUri": "https://cards.scryfall.io/normal/front/7/3/735c2c79-9b4f-4f86-9dec-0749237fe9ce.jpg?1783941082"
+    },
+    "colorIdentityOverride": [
+        "BLACK"
+    ]
+}
+
+// Divine Favor
+{
+    "name": "Divine Favor",
+    "manaCost": "{1}{W}",
+    "typeLine": "Enchantment — Aura",
+    "oracleText": "Enchant creature\nWhen this Aura enters, you gain 3 life.\nEnchanted creature gets +1/+3.",
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "GainLife",
+                    "amount": {
+                        "type": "Fixed",
+                        "amount": 3
+                    }
+                },
+                "descriptionOverride": "When this Aura enters, you gain 3 life."
+            }
+        ],
+        "staticAbilities": [
+            {
+                "type": "ModifyStats",
+                "powerBonus": 1,
+                "toughnessBonus": 3
+            }
+        ],
+        "auraTarget": {
+            "type": "TargetObject",
+            "filter": {
+                "baseFilter": "creature"
+            }
+        }
+    },
+    "metadata": {
+        "collectorNumber": "14",
+        "artist": "Allen Williams",
+        "flavorText": "With an armory of light, even the squire may champion her people.",
+        "imageUri": "https://cards.scryfall.io/normal/front/1/f/1f44e053-95c2-410f-b35d-8ea3e3607e82.jpg?1783941103"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
+// Gideon's Lawkeeper
+{
+    "name": "Gideon's Lawkeeper",
+    "manaCost": "{W}",
+    "typeLine": "Creature — Human Soldier",
+    "oracleText": "{W}, {T}: Tap target creature.",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 1
+    },
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": {
+                    "type": "CostComposite",
+                    "costs": [
+                        {
+                            "type": "CostAtomWrapper",
+                            "atom": {
+                                "type": "AtomMana",
+                                "cost": "{W}"
+                            }
+                        },
+                        "CostTap"
+                    ]
+                },
+                "effect": {
+                    "type": "TapUntap",
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "creature"
+                    }
+                },
+                "targetRequirements": [
+                    {
+                        "type": "TargetObject",
+                        "filter": {
+                            "baseFilter": "creature"
+                        },
+                        "id": "creature"
+                    }
+                ]
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "18",
+        "artist": "Steve Prescott",
+        "flavorText": "\"The essence of a lawful society is swift deterrence.\"",
+        "imageUri": "https://cards.scryfall.io/normal/front/1/c/1c71eb81-a077-4c85-a4ce-4ad664486bee.jpg?1783941103"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
+// Gladecover Scout
+{
+    "name": "Gladecover Scout",
+    "manaCost": "{G}",
+    "typeLine": "Creature — Elf Scout",
+    "oracleText": "Hexproof (This creature can't be the target of spells or abilities your opponents control.)",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 1
+    },
+    "keywords": [
+        "HEXPROOF"
+    ],
+    "metadata": {
+        "collectorNumber": "178",
+        "artist": "Allen Williams",
+        "flavorText": "\"The forest is my cover and I hold it close. In such a tight embrace, there is no room for wickedness.\"",
+        "imageUri": "https://cards.scryfall.io/normal/front/2/6/26710d5c-01d1-498b-9f54-521dfd195843.jpg"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
 // Grand Abolisher
 {
     "name": "Grand Abolisher",
@@ -162,6 +574,80 @@
     "colorIdentityOverride": [
         "WHITE"
     ]
+}
+
+// Jade Mage
+{
+    "name": "Jade Mage",
+    "manaCost": "{1}{G}",
+    "typeLine": "Creature — Human Shaman",
+    "oracleText": "{2}{G}: Create a 1/1 green Saproling creature token.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 1
+    },
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": {
+                    "type": "CostAtomWrapper",
+                    "atom": {
+                        "type": "AtomMana",
+                        "cost": "{2}{G}"
+                    }
+                },
+                "effect": {
+                    "type": "CreateToken",
+                    "power": 1,
+                    "toughness": 1,
+                    "colors": [
+                        "GREEN"
+                    ],
+                    "creatureTypes": [
+                        "Saproling"
+                    ]
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "181",
+        "rarity": "UNCOMMON",
+        "artist": "Izzy",
+        "flavorText": "\"We are one with the wild things. Life blooms from our fingertips and nature responds to our summons.\"\n—Jade creed",
+        "imageUri": "https://cards.scryfall.io/normal/front/3/2/32d6c8d3-04a1-4b35-b7d1-18bed82beaf4.jpg"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
+// Manalith
+{
+    "name": "Manalith",
+    "manaCost": "{3}",
+    "typeLine": "Artifact",
+    "oracleText": "{T}: Add one mana of any color.",
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": "CostTap",
+                "effect": "AddManaOfChoice",
+                "timing": "ManaAbility",
+                "isManaAbility": true,
+                "descriptionOverride": "{T}: Add one mana of any color."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "212",
+        "artist": "Charles Urbach",
+        "flavorText": "Planeswalkers seek out great monuments throughout the Multiverse, knowing that their builders were unknowingly drawn by the convergence of mana in the area.",
+        "imageUri": "https://cards.scryfall.io/normal/front/1/7/17bf5f25-82b4-460c-94da-b84daa8a53d9.jpg"
+    },
+    "colorIdentityOverride": []
 }
 
 // Rune-Scarred Demon
@@ -294,15 +780,18 @@
                     "to": "Battlefield"
                 },
                 "effect": {
-                    "type": "MoveToZone",
-                    "target": {
-                        "type": "BoundVariable",
-                        "name": "target"
-                    },
-                    "destination": "Graveyard",
-                    "byDestruction": true
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "MoveToZone",
+                        "target": {
+                            "type": "BoundVariable",
+                            "name": "target"
+                        },
+                        "destination": "Graveyard",
+                        "byDestruction": true
+                    }
                 },
-                "optional": true,
                 "targetRequirement": {
                     "type": "TargetObject",
                     "filter": {
@@ -455,6 +944,54 @@
     ]
 }
 
+// Trollhide
+{
+    "name": "Trollhide",
+    "manaCost": "{2}{G}",
+    "typeLine": "Enchantment — Aura",
+    "oracleText": "Enchant creature\nEnchanted creature gets +2/+2 and has \"{1}{G}: Regenerate this creature.\" (The next time the creature would be destroyed this turn, instead tap it, remove it from combat, and heal all damage on it.)",
+    "script": {
+        "staticAbilities": [
+            {
+                "type": "ModifyStats",
+                "powerBonus": 2,
+                "toughnessBonus": 2
+            },
+            {
+                "type": "GrantActivatedAbility",
+                "ability": {
+                    "id": "ability_1",
+                    "cost": {
+                        "type": "CostAtomWrapper",
+                        "atom": {
+                            "type": "AtomMana",
+                            "cost": "{1}{G}"
+                        }
+                    },
+                    "effect": {
+                        "type": "Regenerate",
+                        "target": "Self"
+                    }
+                }
+            }
+        ],
+        "auraTarget": {
+            "type": "TargetObject",
+            "filter": {
+                "baseFilter": "creature"
+            }
+        }
+    },
+    "metadata": {
+        "collectorNumber": "199",
+        "artist": "Steven Belledin",
+        "imageUri": "https://cards.scryfall.io/normal/front/3/2/32c8d6ed-4764-433b-9617-363e46e5b250.jpg"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
 // Warstorm Surge
 {
     "name": "Warstorm Surge",
@@ -510,5 +1047,48 @@
     },
     "colorIdentityOverride": [
         "RED"
+    ]
+}
+
+// Wring Flesh
+{
+    "name": "Wring Flesh",
+    "manaCost": "{B}",
+    "typeLine": "Instant",
+    "oracleText": "Target creature gets -3/-1 until end of turn.",
+    "script": {
+        "spellEffect": {
+            "type": "ModifyStats",
+            "powerModifier": {
+                "type": "Fixed",
+                "amount": -3
+            },
+            "toughnessModifier": {
+                "type": "Fixed",
+                "amount": -1
+            },
+            "target": {
+                "type": "BoundVariable",
+                "name": "target creature"
+            }
+        },
+        "targetRequirements": [
+            {
+                "type": "TargetObject",
+                "filter": {
+                    "baseFilter": "creature"
+                },
+                "id": "target creature"
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "118",
+        "artist": "Izzy",
+        "flavorText": "\"Don't blame me. You're the one walking around with skin.\"\n—Zul Ashur, lich lord",
+        "imageUri": "https://cards.scryfall.io/normal/front/6/6/663df3e8-12e5-46cf-9da7-39961feaa7f9.jpg"
+    },
+    "colorIdentityOverride": [
+        "BLACK"
     ]
 }

@@ -1424,7 +1424,15 @@
                     {
                         "type": "TargetObject",
                         "filter": {
-                            "baseFilter": "land"
+                            "baseFilter": {
+                                "cardPredicates": [
+                                    "IsLand",
+                                    {
+                                        "type": "Not",
+                                        "predicate": "IsBasicLand"
+                                    }
+                                ]
+                            }
                         },
                         "id": "target"
                     }
@@ -2232,7 +2240,7 @@
                             "type": "CostAtomWrapper",
                             "atom": {
                                 "type": "AtomSacrifice",
-                                "filter": "creature Goblin"
+                                "filter": "permanent Goblin"
                             }
                         }
                     ]
@@ -4364,7 +4372,7 @@
                     "space": {
                         "type": "IterationSpace.Group",
                         "filter": {
-                            "baseFilter": "creature attacking"
+                            "baseFilter": "creature kw:flanking attacking"
                         }
                     },
                     "body": {
@@ -4481,19 +4489,34 @@
     "oracleText": "Destroy all non-Aura enchantments.",
     "script": {
         "spellEffect": {
-            "type": "ForEach",
-            "space": {
-                "type": "IterationSpace.Group",
-                "filter": {
-                    "baseFilter": "enchantment"
+            "type": "Composite",
+            "effects": [
+                {
+                    "type": "GatherCards",
+                    "source": {
+                        "type": "BattlefieldMatching",
+                        "filter": {
+                            "cardPredicates": [
+                                "IsEnchantment",
+                                {
+                                    "type": "NotSubtype",
+                                    "subtype": "Aura"
+                                }
+                            ]
+                        }
+                    },
+                    "storeAs": "destroyAll_gathered"
+                },
+                {
+                    "type": "MoveCollection",
+                    "from": "destroyAll_gathered",
+                    "destination": {
+                        "type": "ToZone",
+                        "zone": "Graveyard"
+                    },
+                    "moveType": "Destroy"
                 }
-            },
-            "body": {
-                "type": "MoveToZone",
-                "target": "Self",
-                "destination": "Graveyard",
-                "byDestruction": true
-            }
+            ]
         }
     },
     "metadata": {
@@ -5306,38 +5329,9 @@
         "FLANKING"
     ],
     "script": {
-        "triggeredAbilities": [
-            {
-                "id": "ability_1",
-                "trigger": {
-                    "type": "BecomesBlockedEvent",
-                    "filter": {
-                        "cardPredicates": [
-                            "IsCreature",
-                            {
-                                "type": "NotKeyword",
-                                "keyword": "FLANKING"
-                            }
-                        ]
-                    }
-                },
-                "effect": {
-                    "type": "ModifyStats",
-                    "powerModifier": {
-                        "type": "Fixed",
-                        "amount": -1
-                    },
-                    "toughnessModifier": {
-                        "type": "Fixed",
-                        "amount": -1
-                    },
-                    "target": "TriggeringEntity"
-                }
-            }
-        ],
         "activatedAbilities": [
             {
-                "id": "ability_2",
+                "id": "ability_1",
                 "cost": {
                     "type": "CostAtomWrapper",
                     "atom": {

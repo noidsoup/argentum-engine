@@ -1,6 +1,15 @@
 import React from 'react'
 import { TARGET_COLOR, TARGET_COLOR_BRIGHT } from '../../../styles/targetingColors'
 
+/**
+ * Frost palette for the "won't untap" cue — shared by the rime overlay on a locked-tapped
+ * permanent (`styles.untapLockedOverlay`) and by the padlock badge GameCard pins to the corner, so
+ * the two halves of one signal can't drift apart. Deliberately pale rather than the saturated cyan
+ * of `TARGET_COLOR`, which means "legal target" a few pixels away on the same card.
+ */
+export const UNTAP_FROST_RIM = 'rgba(206, 236, 255, 0.62)'
+export const UNTAP_FROST_FILL = 'rgba(188, 226, 250, 0.32)'
+
 export const styles: Record<string, React.CSSProperties> = {
   container: {
     position: 'absolute',
@@ -11,12 +20,14 @@ export const styles: Record<string, React.CSSProperties> = {
     // Five-row grid (template provided inline in GameBoard.tsx since rows 1
     // and 5 are sized from responsive values):
     //   1. opp-hand reservation     (px — keeps battlefield clear of fixed hand)
-    //   2. opp-board                (1fr — equal to row 4)
+    //   2. opp-board                (fr — weighted by what the opponent's rows need)
     //   3. center HUD               (auto — uncrossable partition)
-    //   4. player-board             (1fr — equal to row 2)
+    //   4. player-board             (fr — weighted by what the player's rows need)
     //   5. player-hand reservation  (px — keeps battlefield clear of fixed hand)
-    // Equal 1fr battlefield rows mean both players get the same card size
-    // via useSlotSizedResponsive, regardless of asymmetric hand sizes.
+    // Rows 2 and 4 are solved together (usePooledBattlefieldLayout): both
+    // players render at one card width, and each side gets the height its
+    // wrap lines need — equal until the first measurement, and clamped so
+    // the HUD stays near the middle (battlefieldLayout.ts, SLOT_SPLIT_MIN).
     display: 'grid',
     gridTemplateColumns: '100%',
     backgroundColor: '#0a0a15',
@@ -159,6 +170,24 @@ export const styles: Record<string, React.CSSProperties> = {
     position: 'relative',
     overflow: 'hidden',
     boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
+  },
+  // Applied on top of `deckPile` when the top library card is face up (Future Sight, Goblin Spy,
+  // "you may look at the top card of your library any time", or a fresh scry/surveil). The amber
+  // ring is the same accent the Library-order browser puts on position 0, so "top card" reads the
+  // same in both places.
+  deckPileTopRevealed: {
+    boxShadow: '0 0 0 2px #fde68a, 0 0 14px rgba(253, 230, 138, 0.45)',
+  },
+  deckTopRevealedBadge: {
+    position: 'absolute',
+    top: 2,
+    left: 2,
+    backgroundColor: 'rgba(40, 32, 8, 0.9)',
+    border: '1px solid rgba(253, 230, 138, 0.7)',
+    borderRadius: 4,
+    padding: '0 3px',
+    fontSize: 9,
+    lineHeight: '13px',
   },
   graveyardPile: {
     position: 'relative',
@@ -332,6 +361,25 @@ export const styles: Record<string, React.CSSProperties> = {
     boxShadow: '0 0 6px rgba(245, 215, 110, 0.85)',
     pointerEvents: 'none',
   } as React.CSSProperties,
+  // Stash-counter badge for a card in the exile browser grid (Tinybones, Bauble Burglar). Sits
+  // opposite the plotted badge so a plotted, stash-countered card shows both. Same amber palette as
+  // the on-card `stashCounterBadge`, so the counter reads the same wherever the card is rendered.
+  stashGridBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    borderRadius: 4,
+    padding: '2px 6px',
+    fontSize: 11,
+    fontWeight: 700,
+    color: '#f0a030',
+    backgroundColor: 'rgba(120, 50, 20, 0.95)',
+    border: '1px solid rgba(220, 120, 40, 0.6)',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 3,
+    pointerEvents: 'none',
+  } as React.CSSProperties,
   plottedOverlay: {
     position: 'fixed',
     top: 0,
@@ -428,6 +476,73 @@ export const styles: Record<string, React.CSSProperties> = {
     background: 'none',
     border: '1px solid #2f9f96',
     color: '#5fded0',
+    fontSize: 18,
+    cursor: 'pointer',
+    padding: '4px 10px',
+    borderRadius: 4,
+  } as React.CSSProperties,
+  // Suspended (CR 702.62) zone pile — violet-themed so it reads as a distinct, public countdown,
+  // separate from the gold Plotted pile and the teal Paradigm pile.
+  suspendedPile: {
+    position: 'relative',
+    overflow: 'hidden',
+    boxShadow: '0 0 10px rgba(154, 140, 239, 0.55)',
+    backgroundColor: '#211c33',
+    border: '1px solid #6a5fc9',
+  } as React.CSSProperties,
+  suspendedPileCount: {
+    background: 'linear-gradient(135deg, #5a4fb3, #9a8cef)',
+    color: '#150f2e',
+    fontWeight: 700,
+  } as React.CSSProperties,
+  suspendedZoneLabel: {
+    color: '#a89aef',
+    fontWeight: 700,
+  } as React.CSSProperties,
+  // Per-card "Suspended" badge inside the Suspended browser grid.
+  suspendedGridBadge: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    borderRadius: 4,
+    padding: '2px 6px',
+    fontSize: 11,
+    fontWeight: 700,
+    color: '#150f2e',
+    background: 'linear-gradient(135deg, #5a4fb3, #9a8cef)',
+    border: '1px solid #d5cdfb',
+    boxShadow: '0 0 6px rgba(154, 140, 239, 0.85)',
+    pointerEvents: 'none',
+  } as React.CSSProperties,
+  suspendedOverlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(15, 10, 30, 0.9)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2000,
+  } as React.CSSProperties,
+  suspendedBrowserContent: {
+    maxWidth: '90vw',
+    maxHeight: '80vh',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 16,
+  } as React.CSSProperties,
+  suspendedBrowserTitle: {
+    color: '#a89aef',
+    margin: 0,
+    fontSize: 18,
+    fontWeight: 600,
+  } as React.CSSProperties,
+  suspendedCloseButton: {
+    background: 'none',
+    border: '1px solid #6a5fc9',
+    color: '#a89aef',
     fontSize: 18,
     cursor: 'pointer',
     padding: '4px 10px',
@@ -558,7 +673,7 @@ export const styles: Record<string, React.CSSProperties> = {
     height: '100%',
     objectFit: 'cover',
   },
-  // Token card frame — art_crop image within a colored frame (MTG-style)
+  // Legacy token card frame — art_crop image within a colored frame (MTG-style)
   tokenFrame: {
     position: 'absolute',
     top: 0,
@@ -765,6 +880,28 @@ export const styles: Record<string, React.CSSProperties> = {
     backgroundColor: 'rgba(0, 0, 0, 0.3)',
     pointerEvents: 'none',
   },
+  /**
+   * A tapped permanent that won't untap (DOESNT_UNTAP / CANT_BECOME_UNTAPPED / exerted). Sits on
+   * top of `tappedOverlay`, so it only has to add the *cold* — a frost wash plus an inner rime
+   * ring — that distinguishes "frozen" from the plain darkening every tapped permanent gets.
+   */
+  untapLockedOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 8,
+    // Rime creeping in from the edges, not a flat film over the whole card: an even wash reads as
+    // "faded", which collides with the phased-out treatment (opacity + grayscale) and says the
+    // wrong thing anyway — the permanent isn't less relevant, it's frozen in place. Leaving the
+    // centre clear also keeps the art and the P/T box readable.
+    // Frost-white rather than the saturated cyan of TARGET_COLOR: both are blue, and the ice must
+    // not read as "this is a legal target". The rime is inset, targeting glows outward.
+    background: `radial-gradient(ellipse at 50% 50%, rgba(120, 190, 235, 0.04) 35%, ${UNTAP_FROST_FILL} 100%)`,
+    boxShadow: `inset 0 0 0 2px ${UNTAP_FROST_RIM}, inset 0 0 14px 3px rgba(170, 220, 245, 0.4)`,
+    pointerEvents: 'none',
+  } as React.CSSProperties,
   summoningSicknessOverlay: {
     position: 'absolute',
     top: 0,
@@ -899,6 +1036,65 @@ export const styles: Record<string, React.CSSProperties> = {
     boxShadow: '0 2px 4px rgba(0, 0, 0, 0.5)',
     zIndex: 10,
   } as React.CSSProperties,
+  stackCastProvenanceBadge: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    maxWidth: 'calc(100% - 8px)',
+    backgroundColor: 'rgba(52, 84, 148, 0.95)',
+    color: 'white',
+    padding: '2px 5px',
+    borderRadius: 4,
+    fontSize: 9,
+    fontWeight: 700,
+    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.5)',
+    zIndex: 10,
+    letterSpacing: 0.5,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  } as React.CSSProperties,
+  // What an alternative cost sacrificed (emerge — CR 702.119a). Same blue family as the provenance
+  // badge it sits under: both answer "how did this spell get here?".
+  stackCostSacrificeBadge: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    maxWidth: 'calc(100% - 8px)',
+    backgroundColor: 'rgba(38, 62, 110, 0.95)',
+    color: 'white',
+    padding: '2px 5px',
+    borderRadius: 4,
+    fontSize: 9,
+    fontWeight: 700,
+    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.5)',
+    zIndex: 10,
+    letterSpacing: 0.3,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  } as React.CSSProperties,
+  // The mana actually spent on an alternative-cost cast. Right-aligned (the caller sets `right`) so
+  // it shares the top row with the provenance badge — the only row a covered stack card still shows.
+  stackManaPaidBadge: {
+    position: 'absolute',
+    top: 4,
+    maxWidth: 'calc(60% - 8px)',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: 'rgba(38, 62, 110, 0.95)',
+    color: 'white',
+    padding: '2px 5px',
+    borderRadius: 4,
+    fontSize: 9,
+    fontWeight: 700,
+    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.5)',
+    zIndex: 10,
+    letterSpacing: 0.3,
+    overflow: 'hidden',
+    whiteSpace: 'nowrap',
+  } as React.CSSProperties,
   stackKickedBadge: {
     position: 'absolute',
     top: 4,
@@ -1005,11 +1201,14 @@ export const styles: Record<string, React.CSSProperties> = {
     zIndex: 12,
   } as React.CSSProperties,
   // Card preview styles
+  // Mobile fullscreen card preview. On the tooltip layer, and portalled to <body> by its
+  // renderer — the spectator/replay shells wrap the board in a z-index:1500 stacking context,
+  // which would otherwise clamp it below the <body>-portalled zone browsers.
   cardPreviewOverlay: {
     position: 'fixed',
     top: 20,
     left: 20,
-    zIndex: 2500,
+    zIndex: 'var(--z-tooltip)' as unknown as number,
     pointerEvents: 'none',
   } as React.CSSProperties,
   cardPreviewContainer: {
@@ -1026,6 +1225,41 @@ export const styles: Record<string, React.CSSProperties> = {
     width: '100%',
     height: '100%',
     objectFit: 'cover',
+  } as React.CSSProperties,
+  /** Full counter inventory panel in the hover preview — every type on the card, with counts. */
+  cardPreviewCounters: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 4,
+    backgroundColor: 'rgba(0, 0, 0, 0.88)',
+    padding: '10px 12px',
+    borderRadius: 8,
+    border: '1px solid rgba(255, 255, 255, 0.12)',
+  } as React.CSSProperties,
+  cardPreviewCountersHeading: {
+    color: '#888888',
+    fontSize: 11,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    marginBottom: 2,
+  } as React.CSSProperties,
+  cardPreviewCounterRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+    fontSize: 13,
+  } as React.CSSProperties,
+  cardPreviewCounterLabel: {
+    color: '#dddddd',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 5,
+  } as React.CSSProperties,
+  cardPreviewCounterValue: {
+    color: '#ffffff',
+    fontWeight: 700,
+    fontFamily: 'monospace',
   } as React.CSSProperties,
   cardPreviewKeywords: {
     display: 'flex',
@@ -1071,6 +1305,60 @@ export const styles: Record<string, React.CSSProperties> = {
     color: '#e8e8e8',
     fontSize: 13,
     lineHeight: 1.4,
+  } as React.CSSProperties,
+  // --- Hover-preview cost ladder: one row per way to play the hovered card ---
+  // A single mana value can't describe an adventure, a kicker, or a convoke spell, and the badge on
+  // the image only has room for the two ends of the range. This panel is where the actual options
+  // live, in the same order and with the same labels as the click-to-play action menu.
+  cardPreviewCostOptions: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    padding: 12,
+    borderRadius: 8,
+    border: '1px solid rgba(150, 200, 255, 0.25)',
+    minWidth: 220,
+  } as React.CSSProperties,
+  cardPreviewCostHeader: {
+    color: '#8fb8e8',
+    fontWeight: 700,
+    fontSize: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  } as React.CSSProperties,
+  cardPreviewCostRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  } as React.CSSProperties,
+  cardPreviewCostLabel: {
+    color: '#e8e8e8',
+    fontSize: 12,
+    lineHeight: 1.3,
+    minWidth: 0,
+  } as React.CSSProperties,
+  // Unaffordable right now — still listed, because "you can't pay for this yet" is the answer to
+  // half the questions a hover is asking.
+  cardPreviewCostRowUnavailable: {
+    opacity: 0.45,
+  } as React.CSSProperties,
+  cardPreviewCostValue: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 3,
+    flexShrink: 0,
+  } as React.CSSProperties,
+  // The asking price, dimmed, when the row also shows a floor it can be reduced to.
+  cardPreviewCostStruck: {
+    display: 'inline-flex',
+    opacity: 0.4,
+  } as React.CSSProperties,
+  cardPreviewCostHint: {
+    color: '#9aa4b8',
+    fontSize: 10,
+    lineHeight: 1.2,
   } as React.CSSProperties,
   cardPreviewRulings: {
     display: 'flex',
@@ -1269,6 +1557,22 @@ export const styles: Record<string, React.CSSProperties> = {
     zIndex: 5,
   } as React.CSSProperties,
   // Finality counter badge (reanimated permanents — exiled instead of dying)
+  // Offset one slot down the left edge from stunCounterBadge (top: 4): a stunned permanent can
+  // also carry a shield counter, and both need to stay readable at once.
+  shieldCounterBadge: {
+    position: 'absolute',
+    top: 32,
+    left: 4,
+    backgroundColor: 'rgba(30, 60, 100, 0.95)',
+    borderRadius: 4,
+    border: '1px solid rgba(120, 180, 255, 0.7)',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 2,
+    color: '#90c0ff',
+    fontWeight: 700,
+    zIndex: 5,
+  } as React.CSSProperties,
   finalityCounterBadge: {
     position: 'absolute',
     bottom: 34,
@@ -1579,6 +1883,34 @@ export const styles: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     zIndex: 5,
   } as React.CSSProperties,
+  hasteCounterBadge: {
+    position: 'absolute',
+    top: 200,
+    right: 4,
+    backgroundColor: 'rgba(120, 50, 30, 0.95)',
+    borderRadius: 4,
+    border: '1px solid rgba(240, 140, 80, 0.6)',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 2,
+    color: '#ffb070',
+    fontWeight: 700,
+    zIndex: 5,
+  } as React.CSSProperties,
+  menaceCounterBadge: {
+    position: 'absolute',
+    top: 228,
+    right: 4,
+    backgroundColor: 'rgba(60, 40, 60, 0.95)',
+    borderRadius: 4,
+    border: '1px solid rgba(180, 140, 190, 0.6)',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 2,
+    color: '#e0b0e8',
+    fontWeight: 700,
+    zIndex: 5,
+  } as React.CSSProperties,
   // Saga lore counter badge (shown in P/T position for sagas)
   sagaLoreBadge: {
     position: 'absolute',
@@ -1871,6 +2203,79 @@ export const styles: Record<string, React.CSSProperties> = {
     pointerEvents: 'none',
     zIndex: 6,
   } as React.CSSProperties,
+
+  // Saddle (CR 702.171) — a Mount's designation cue, in two states sharing one slot so the eye
+  // reads them as the same fact switching on and off.
+  //
+  // `saddledBadge` is the live one: warm saddle-leather, lit, readable across the board, because
+  // every Mount payoff is gated on it and it silently expires at cleanup — a saddled Mount and an
+  // unsaddled one are otherwise identical permanents.
+  saddledBadge: {
+    position: 'absolute',
+    bottom: 4,
+    left: 4,
+    borderRadius: 4,
+    padding: '1px 5px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 3,
+    fontWeight: 700,
+    fontSize: 10,
+    color: '#2b1706',
+    background: 'linear-gradient(135deg, #d99a4e, #f2c98a)',
+    border: '1px solid #ffe1b8',
+    boxShadow: '0 0 6px rgba(217, 154, 78, 0.9)',
+    textShadow: 'none',
+    pointerEvents: 'none',
+    zIndex: 6,
+  } as React.CSSProperties,
+
+  // `saddleAvailableBadge` is the dormant one: the printed Saddle N on a Mount nobody has saddled
+  // yet. Deliberately muted — it is a standing fact about the permanent, not an event — but present
+  // for every player, since how much power the controller needs to switch the Mount on is exactly
+  // what the rest of the table plays around.
+  saddleAvailableBadge: {
+    position: 'absolute',
+    bottom: 4,
+    left: 4,
+    borderRadius: 4,
+    padding: '1px 5px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 3,
+    fontWeight: 600,
+    fontSize: 10,
+    color: '#d8c0a4',
+    background: 'rgba(60, 40, 22, 0.78)',
+    border: '1px solid rgba(217, 154, 78, 0.55)',
+    textShadow: 'none',
+    pointerEvents: 'none',
+    zIndex: 6,
+  } as React.CSSProperties,
+
+  // Dash (CR 702.109, Khans of Tarkir) — a permanent cast for its dash cost: hasty and returned to
+  // its owner's hand at the next end step. Unlike warp (multi-turn exile-then-recast, cosmic ring
+  // treatment), dash resolves within the same turn, so a plain amber "hasty" badge is enough — no
+  // separate ring overlay.
+  dashedBadge: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    borderRadius: 4,
+    padding: '1px 5px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 3,
+    fontWeight: 700,
+    fontSize: 10,
+    color: '#2a1400',
+    background: 'linear-gradient(90deg, #ffb347, #ff7b1c)',
+    border: '1px solid #ffd9a0',
+    boxShadow: '0 0 6px rgba(255, 140, 30, 0.85)',
+    textShadow: 'none',
+    pointerEvents: 'none',
+    zIndex: 6,
+  } as React.CSSProperties,
 }
 
 /**
@@ -1890,6 +2295,7 @@ const passiveCounterPalette: Record<string, CounterBadgePalette> = {
   NEST: { bg: 'rgba(25, 55, 25, 0.95)', border: 'rgba(120, 200, 110, 0.65)', color: '#a8e090', glow: 'rgba(120, 200, 110, 0.55)' },
   PAGE: { bg: 'rgba(35, 30, 55, 0.95)', border: 'rgba(160, 150, 220, 0.65)', color: '#bcb4e8', glow: 'rgba(160, 150, 220, 0.5)' },
   REV: { bg: 'rgba(60, 30, 15, 0.95)', border: 'rgba(230, 140, 70, 0.7)', color: '#f0b070', glow: 'rgba(230, 140, 70, 0.55)' },
+  BLOODSTAIN: { bg: 'rgba(56, 14, 18, 0.95)', border: 'rgba(212, 78, 82, 0.72)', color: '#f0a0a2', glow: 'rgba(212, 78, 82, 0.55)' },
   SOUL: { bg: 'rgba(30, 20, 40, 0.95)', border: 'rgba(150, 110, 190, 0.7)', color: '#c0a0e0', glow: 'rgba(150, 110, 190, 0.55)' },
   DIVINITY: { bg: 'rgba(48, 38, 70, 0.95)', border: 'rgba(190, 165, 235, 0.75)', color: '#d8c8f5', glow: 'rgba(190, 165, 235, 0.6)' },
   POSSESSION: { bg: 'rgba(45, 20, 60, 0.95)', border: 'rgba(180, 110, 220, 0.7)', color: '#cda0e8', glow: 'rgba(180, 110, 220, 0.55)' },
@@ -1898,16 +2304,51 @@ const passiveCounterPalette: Record<string, CounterBadgePalette> = {
   INCUBATION: { bg: 'rgba(20, 45, 65, 0.95)', border: 'rgba(110, 190, 220, 0.65)', color: '#a0d4e8', glow: 'rgba(110, 190, 220, 0.5)' },
   FELLOWSHIP: { bg: 'rgba(58, 44, 20, 0.95)', border: 'rgba(214, 178, 96, 0.65)', color: '#e8d3a0', glow: 'rgba(214, 178, 96, 0.5)' },
   BAIT: { bg: 'rgba(18, 48, 62, 0.95)', border: 'rgba(96, 186, 214, 0.65)', color: '#9ed4e8', glow: 'rgba(96, 186, 214, 0.5)' },
+  BORE: { bg: 'rgba(44, 40, 34, 0.95)', border: 'rgba(190, 172, 140, 0.7)', color: '#ddd0b8', glow: 'rgba(190, 172, 140, 0.5)' },
   POINT: { bg: 'rgba(20, 55, 35, 0.95)', border: 'rgba(110, 210, 150, 0.7)', color: '#9ce0b8', glow: 'rgba(110, 210, 150, 0.55)' },
   WISH: { bg: 'rgba(35, 22, 48, 0.95)', border: 'rgba(170, 130, 210, 0.7)', color: '#c8a8e0', glow: 'rgba(170, 130, 210, 0.55)' },
   REVIVAL: { bg: 'rgba(22, 34, 30, 0.95)', border: 'rgba(120, 205, 165, 0.7)', color: '#9ee0c0', glow: 'rgba(120, 205, 165, 0.55)' },
+  INGENUITY: { bg: 'rgba(52, 20, 42, 0.95)', border: 'rgba(230, 120, 190, 0.7)', color: '#f0a8d4', glow: 'rgba(230, 120, 190, 0.55)' },
+  FILM: { bg: 'rgba(28, 28, 32, 0.95)', border: 'rgba(180, 185, 195, 0.7)', color: '#d0d4dc', glow: 'rgba(180, 185, 195, 0.5)' },
+  ICE: { bg: 'rgba(18, 42, 58, 0.95)', border: 'rgba(140, 210, 240, 0.7)', color: '#b8e4f5', glow: 'rgba(140, 210, 240, 0.55)' },
+  OMEN: { bg: 'rgba(26, 30, 50, 0.95)', border: 'rgba(190, 200, 245, 0.75)', color: '#dfe4ff', glow: 'rgba(190, 200, 245, 0.65)' },
+  HARNESS: { bg: 'rgba(48, 26, 12, 0.95)', border: 'rgba(240, 180, 80, 0.8)', color: '#ffc860', glow: 'rgba(240, 180, 80, 0.7)' },
+  PLAN: { bg: 'rgba(24, 40, 62, 0.95)', border: 'rgba(120, 175, 230, 0.7)', color: '#a8cdee', glow: 'rgba(120, 175, 230, 0.55)' },
+  INVASION: { bg: 'rgba(52, 22, 20, 0.95)', border: 'rgba(230, 110, 90, 0.7)', color: '#f0a090', glow: 'rgba(230, 110, 90, 0.55)' },
+  UNLOCK: { bg: 'rgba(44, 36, 16, 0.95)', border: 'rgba(214, 182, 96, 0.75)', color: '#efd694', glow: 'rgba(214, 182, 96, 0.6)' },
+  HONE: { bg: 'rgba(36, 42, 50, 0.95)', border: 'rgba(196, 214, 228, 0.8)', color: '#e4eef8', glow: 'rgba(196, 214, 228, 0.65)' },
+  STORAGE: { bg: 'rgba(34, 40, 52, 0.95)', border: 'rgba(150, 170, 200, 0.7)', color: '#c8d6ea', glow: 'rgba(150, 170, 200, 0.55)' },
+  HUNGER: { bg: 'rgba(48, 26, 26, 0.95)', border: 'rgba(200, 120, 100, 0.7)', color: '#e8b0a0', glow: 'rgba(200, 120, 100, 0.55)' },
+  DOOM: { bg: 'rgba(26, 18, 30, 0.95)', border: 'rgba(150, 100, 170, 0.7)', color: '#c8a0d8', glow: 'rgba(150, 100, 170, 0.55)' },
+  FIRE: { bg: 'rgba(58, 24, 12, 0.95)', border: 'rgba(240, 140, 60, 0.75)', color: '#ffb070', glow: 'rgba(240, 140, 60, 0.6)' },
+  CONQUEROR: { bg: 'rgba(50, 42, 18, 0.95)', border: 'rgba(220, 190, 100, 0.7)', color: '#eed890', glow: 'rgba(220, 190, 100, 0.55)' },
+  NET: { bg: 'rgba(20, 46, 42, 0.95)', border: 'rgba(110, 190, 175, 0.7)', color: '#a0dccc', glow: 'rgba(110, 190, 175, 0.5)' },
+  SILVER: { bg: 'rgba(42, 46, 52, 0.95)', border: 'rgba(200, 210, 220, 0.75)', color: '#e4ecf4', glow: 'rgba(200, 210, 220, 0.6)' },
+  FATE: { bg: 'rgba(24, 34, 54, 0.95)', border: 'rgba(130, 165, 225, 0.7)', color: '#b0c8ee', glow: 'rgba(130, 165, 225, 0.55)' },
+  AIM: { bg: 'rgba(46, 20, 24, 0.95)', border: 'rgba(220, 110, 110, 0.7)', color: '#eea0a0', glow: 'rgba(220, 110, 110, 0.55)' },
+  SPORE: { bg: 'rgba(26, 44, 26, 0.95)', border: 'rgba(140, 195, 130, 0.7)', color: '#b4dcaa', glow: 'rgba(140, 195, 130, 0.55)' },
   PLUS_ONE_PLUS_ZERO: { bg: 'rgba(20, 60, 25, 0.95)', border: 'rgba(120, 220, 130, 0.7)', color: '#9ce0a8' },
   PLUS_ZERO_PLUS_ONE: { bg: 'rgba(20, 60, 25, 0.95)', border: 'rgba(120, 220, 130, 0.7)', color: '#9ce0a8' },
+  PLUS_TWO_PLUS_ZERO: { bg: 'rgba(20, 60, 25, 0.95)', border: 'rgba(120, 220, 130, 0.7)', color: '#9ce0a8' },
+  PLUS_ZERO_PLUS_TWO: { bg: 'rgba(20, 60, 25, 0.95)', border: 'rgba(120, 220, 130, 0.7)', color: '#9ce0a8' },
   MINUS_ONE_MINUS_ZERO: { bg: 'rgba(60, 20, 20, 0.95)', border: 'rgba(220, 120, 120, 0.7)', color: '#e09c9c' },
+  PLUS_ONE_PLUS_TWO: { bg: 'rgba(20, 60, 25, 0.95)', border: 'rgba(120, 220, 130, 0.7)', color: '#9ce0a8' },
+  PLUS_TWO_PLUS_TWO: { bg: 'rgba(20, 60, 25, 0.95)', border: 'rgba(120, 220, 130, 0.7)', color: '#9ce0a8' },
+  MINUS_TWO_MINUS_TWO: { bg: 'rgba(60, 20, 20, 0.95)', border: 'rgba(220, 120, 120, 0.7)', color: '#e09c9c' },
+  TIDE: { bg: 'rgba(18, 38, 56, 0.95)', border: 'rgba(110, 180, 230, 0.7)', color: '#9fd0f0', glow: 'rgba(110, 180, 230, 0.55)' },
+  JAVELIN: { bg: 'rgba(44, 38, 26, 0.95)', border: 'rgba(210, 180, 120, 0.7)', color: '#e0cba0' },
+  CREDIT: { bg: 'rgba(48, 42, 18, 0.95)', border: 'rgba(226, 196, 96, 0.7)', color: '#ecd98a' },
+  CUBE: { bg: 'rgba(34, 30, 52, 0.95)', border: 'rgba(168, 150, 220, 0.7)', color: '#c6b6ea' },
+  JUDGMENT: { bg: 'rgba(52, 46, 24, 0.95)', border: 'rgba(232, 208, 132, 0.75)', color: '#f2e2a4', glow: 'rgba(232, 208, 132, 0.6)' },
   MINUS_ZERO_MINUS_ONE: { bg: 'rgba(60, 20, 20, 0.95)', border: 'rgba(220, 120, 120, 0.7)', color: '#e09c9c' },
 }
 
-const fallbackCounterPalette: CounterBadgePalette = { bg: 'rgba(40, 40, 40, 0.95)', border: 'rgba(180, 180, 180, 0.6)', color: '#e0e0e0' }
+/**
+ * Anonymous grey used when a counter type has no palette row. Exported so the passive-counter
+ * wiring test can assert that no counter we actually render falls through to it — a new passive
+ * counter is easy to add to `PASSIVE_COUNTER_TYPES` while forgetting its colors.
+ */
+export const fallbackCounterPalette: CounterBadgePalette = { bg: 'rgba(40, 40, 40, 0.95)', border: 'rgba(180, 180, 180, 0.6)', color: '#e0e0e0' }
 
 /**
  * Build the badge style for an LTR passive counter from its palette. These counters

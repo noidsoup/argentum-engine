@@ -118,22 +118,6 @@ data object SourceIsModified : Condition {
 }
 
 /**
- * Condition: "if you put a counter on this creature this turn".
- *
- * True iff one or more counters have been placed on the source permanent during the
- * current turn — tracked by the per-permanent `ReceivedCountersThisTurnComponent`, which
- * the counter-placement path stamps and the cleanup step clears each turn. Used by
- * Secrets of Strixhaven's Fractal Tender end-step trigger ("if you put a counter on this
- * creature this turn, …"), and reusable by any "if a counter was put on this permanent
- * this turn" intervening-if.
- */
-@SerialName("SourceReceivedCounterThisTurn")
-@Serializable
-data object SourceReceivedCounterThisTurn : Condition {
-    override val description: String = "you put a counter on this creature this turn"
-}
-
-/**
  * Condition: "If you cast this spell from your hand"
  * Used for Phage the Untouchable's ETB trigger condition.
  * Checks whether the source permanent was cast from the hand (as opposed to
@@ -205,6 +189,58 @@ data object NoManaSpentToCastEntered : Condition {
 }
 
 /**
+ * Condition: "if one or more of them entered from exile or was cast from exile."
+ *
+ * The batch-enters, any-of counterpart of
+ * [com.wingedsheep.sdk.scripting.conditions.TriggeringEntityEnteredOrWasCastFromGraveyard]:
+ * evaluated over the permanents a batch-enters trigger captured (the
+ * `Triggers.OneOrMorePermanentsEnter` batch, exposed as the `trigger.captured` pipeline
+ * collection), it is true iff **at least one** captured permanent came from exile — either put
+ * onto the battlefield directly from exile or cast from exile. An empty capture is false.
+ *
+ * Note the quantifier: [NoManaSpentToCastEntered] is an *every* over the batch ("if **none** of
+ * them …"), this one is an *any* ("if **one or more** of them …").
+ *
+ * Used by **Extraordinary Journey** as a real intervening-"if" (CR 603.4) rather than a
+ * resolution-time gate, which matters because the ability also carries `oncePerTurn`: a batch with
+ * no exile arrivals must not trigger at all, or it would burn the turn's single firing.
+ */
+@SerialName("AnyEnteredOrWasCastFromExile")
+@Serializable
+data object AnyEnteredOrWasCastFromExile : Condition {
+    override val description: String = "one or more of them entered from exile or was cast from exile"
+}
+
+/**
+ * Condition: "if this is in [zones]" — where the ability's source object sits *right now*.
+ *
+ * Distinct from [WasCastFromZone], which asks where a spell came *from* at cast time and is frozen
+ * for the rest of the spell's life. This one is a live lookup, so it answers differently before and
+ * after the source moves.
+ *
+ * Its reason for existing is CR 603.4's second half. An eminence ability reads "Whenever you cast
+ * another Vampire spell, **if Edgar is in the command zone or on the battlefield**, …": the zone
+ * test is an intervening-"if", so it is checked both when the trigger fires and again as the ability
+ * resolves, and the official Edgar Markov ruling spells out the consequence — if Edgar leaves that
+ * zone in between, the ability does nothing. Trigger-time is already covered by
+ * [com.wingedsheep.sdk.scripting.TriggeredAbility.activeZones]; gating the effect on this condition
+ * is what supplies the resolution-time half.
+ *
+ * Evaluates identically at resolution and during projection — it reads only zone membership.
+ */
+@SerialName("SourceInZone")
+@Serializable
+data class SourceInZone(val zones: Set<Zone>) : Condition {
+    init {
+        require(zones.isNotEmpty()) { "SourceInZone needs at least one zone" }
+    }
+
+    override val description: String =
+        "this is " + zones.sortedBy { it.ordinal }
+            .joinToString(" or ") { if (it == Zone.BATTLEFIELD) "on the battlefield" else "in ${it.displayName}" }
+}
+
+/**
  * Condition: "If this spell was cast from [zone]"
  * Used for flashback spells and other zone-dependent effects.
  * Checks whether the spell was cast from the specified zone.
@@ -240,6 +276,38 @@ data object WasKicked : Condition {
 @Serializable
 data object SneakCostWasPaid : Condition {
     override val description: String = "its sneak cost was paid"
+}
+
+/**
+ * Condition: "If this spell was cast using web-slinging" (CR 702.188).
+ *
+ * True when the source spell/permanent was cast for its
+ * [WebSlinging][com.wingedsheep.sdk.scripting.KeywordAbility.WebSlinging] cost (mana + returning a
+ * tapped creature you control to its owner's hand). Pairs with the durable
+ * [com.wingedsheep.sdk.scripting.ChoiceSlot.WEB_SLUNG] flag the engine stamps on a resolved
+ * permanent and the `wasWebSlung` flag carried in the resolution context for a non-permanent spell.
+ * Used by riders such as Spiders-Man, Heroic Horde and Scarlet Spider, Ben Reilly that change
+ * behavior when the web-slinging cost was paid.
+ */
+@SerialName("WebSlungCostWasPaid")
+@Serializable
+data object WebSlungCostWasPaid : Condition {
+    override val description: String = "it was cast using web-slinging"
+}
+
+/**
+ * Condition: "If this spell's Mayhem cost was paid" (CR 702.187, Marvel's Spider-Man).
+ *
+ * True when the source spell/permanent was cast from the graveyard for its
+ * [Mayhem][com.wingedsheep.sdk.scripting.KeywordAbility.Mayhem] cost. Pairs with the durable
+ * [com.wingedsheep.sdk.scripting.ChoiceSlot.MAYHEM_CAST] flag the engine stamps on a resolved
+ * permanent and the `wasMayhem` flag carried in the resolution context for a non-permanent spell.
+ * Used by riders such as Sandman's Quicksand that change behavior when the Mayhem cost was paid.
+ */
+@SerialName("MayhemCostWasPaid")
+@Serializable
+data object MayhemCostWasPaid : Condition {
+    override val description: String = "this spell's mayhem cost was paid"
 }
 
 /**
@@ -367,7 +435,20 @@ data class SourceChosenModeIs(val modeId: String) : Condition {
 @SerialName("CastChoiceMade")
 @Serializable
 data class CastChoiceMade(val slot: com.wingedsheep.sdk.scripting.ChoiceSlot) : Condition {
-    override val description: String = "if a ${slot.name.lowercase().replace('_', ' ')} was chosen"
+    // Flag-shaped slots record "this cost was paid / this thing was declared" rather than a chosen
+    // value, so "if a bargained was chosen" would read as nonsense — phrase those the way the cards
+    // do. Value slots keep the generic wording.
+    override val description: String = when (slot) {
+        com.wingedsheep.sdk.scripting.ChoiceSlot.KICKED -> "if this spell was kicked"
+        com.wingedsheep.sdk.scripting.ChoiceSlot.BARGAINED -> "if it was bargained"
+        com.wingedsheep.sdk.scripting.ChoiceSlot.EVIDENCE_COLLECTED -> "if evidence was collected"
+        com.wingedsheep.sdk.scripting.ChoiceSlot.SNEAK -> "if its sneak cost was paid"
+        com.wingedsheep.sdk.scripting.ChoiceSlot.WEB_SLUNG -> "if it was cast using web-slinging"
+        com.wingedsheep.sdk.scripting.ChoiceSlot.MAYHEM_CAST -> "if this spell's mayhem cost was paid"
+        com.wingedsheep.sdk.scripting.ChoiceSlot.WATERBEND_PAID -> "if its waterbend cost was paid"
+        com.wingedsheep.sdk.scripting.ChoiceSlot.GIFT_PROMISED -> "if the gift was promised"
+        else -> "if a ${slot.name.lowercase().replace('_', ' ')} was chosen"
+    }
 }
 
 /**
@@ -431,6 +512,47 @@ data class SacrificedPermanentHadSubtype(val subtype: String) : Condition {
 }
 
 /**
+ * True when the activated ability currently resolving has been activated at least [count] times
+ * this turn, counting the activation that is resolving right now.
+ *
+ * Fallen Empires' burnout mana creatures — Farrelite Priest and Initiates of the Ebon Hand — print
+ * "{1}: Add {W}. If this ability has been activated four or more times this turn, sacrifice this
+ * creature at the beginning of the next end step." (the Initiates add {B} rather than {W}; the
+ * burnout clause is identical). The clause reads a tally rather than imposing a limit, so the
+ * ability must opt into bookkeeping with
+ * [com.wingedsheep.sdk.scripting.ActivatedAbility.trackActivations]; without that the engine only
+ * counts activations for abilities gated by OncePerTurn / MaxPerTurn and this reads zero.
+ *
+ * Scoped to the resolving ability on its own source: two copies of Farrelite Priest each burn out
+ * on their own fourth activation.
+ */
+@SerialName("ThisAbilityActivatedThisTurnAtLeast")
+@Serializable
+data class ThisAbilityActivatedThisTurnAtLeast(val count: Int) : Condition {
+    override val description: String = "if this ability has been activated $count or more times this turn"
+}
+
+/**
+ * Condition: "if the exiled creature was a [subtype]" — reads what an **exile additional cost**
+ * (`Costs.additional.ExileCards`) just ate, for either a spell (Soul Exchange's "Put a +2/+2
+ * counter on that creature if the exiled creature was a Thrull") or an activated ability.
+ *
+ * The cost is paid as the spell is cast or the ability is activated (CR 601.2h), long before the
+ * effect resolves, so the answer is recorded at payment time. For a cost exiling from the
+ * battlefield the engine keeps a last-known-information snapshot (CR 113.7a), which is what makes
+ * an exiled *token* — a Breeding Pit Thrull, say — still count.
+ */
+@SerialName("ExiledAsCostHadSubtype")
+@Serializable
+data class ExiledAsCostHadSubtype(val subtype: String) : Condition {
+    override val description: String = "if a $subtype was exiled this way"
+    override fun applyTextReplacement(replacer: TextReplacer): Condition {
+        val newSubtype = replacer.replaceSubtype(Subtype(subtype))
+        return if (newSubtype.value == subtype) this else ExiledAsCostHadSubtype(newSubtype.value)
+    }
+}
+
+/**
  * Condition: "If the sacrificed permanent was legendary."
  *
  * Reads `EffectContext.sacrificedPermanents` (snapshots captured at cost-payment time
@@ -448,6 +570,26 @@ data class SacrificedPermanentHadSubtype(val subtype: String) : Condition {
 @Serializable
 data object SacrificedPermanentWasLegendary : Condition {
     override val description: String = "if the sacrificed creature was legendary"
+}
+
+/**
+ * Condition: "If the sacrificed creature was suspected." (CR 701.60a)
+ *
+ * The suspect sibling of [SacrificedPermanentWasLegendary], reading the same
+ * `EffectContext.sacrificedPermanents` snapshots — here the `wasSuspected` flag, frozen at
+ * cost-payment time. It has to be last-known information (CR 608.2h): the suspected designation is
+ * a floating effect keyed on the entity, and by the time the ability resolves the sacrificed
+ * creature and its floating effects are both gone.
+ *
+ * Asks specifically "was it *suspected*", not "did it have menace" — the menace and can't-block
+ * halves of `Effects.Suspect` are separate sub-effects that any number of other cards also grant.
+ *
+ * Used by MKM's Agency Coroner ("If the sacrificed creature was suspected, draw two cards instead").
+ */
+@SerialName("SacrificedPermanentWasSuspected")
+@Serializable
+data object SacrificedPermanentWasSuspected : Condition {
+    override val description: String = "if the sacrificed creature was suspected"
 }
 
 /**

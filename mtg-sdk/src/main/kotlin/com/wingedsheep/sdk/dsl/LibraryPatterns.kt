@@ -48,18 +48,26 @@ object LibraryPatterns {
         keepCount: Int,
         keepDestination: CardDestination = CardDestination.ToZone(Zone.HAND),
         restDestination: CardDestination = CardDestination.ToZone(Zone.GRAVEYARD),
-        revealed: Boolean = false
+        revealed: Boolean = false,
+        restOrder: CardOrder = CardOrder.Preserve,
+        keepFaceDown: FaceDownMode? = null
     ): CompositeEffect = lookAtTopAndKeep(
         count = DynamicAmount.Fixed(count),
         keepCount = DynamicAmount.Fixed(keepCount),
         keepDestination = keepDestination,
         restDestination = restDestination,
-        revealed = revealed
+        revealed = revealed,
+        restOrder = restOrder,
+        keepFaceDown = keepFaceDown
     )
 
     /**
      * "Look at the top [count], put [keepCount] in [keepDestination], rest to [restDestination]"
      * with optional [restOrder] (e.g. [CardOrder.Random] for "in a random order").
+     *
+     * Set [keepFaceDown] when the kept cards go to the battlefield face down — cloak
+     * ([FaceDownMode.CLOAK], "look at the top five cards of your library, cloak two of them") or
+     * manifest. It is the [MoveCollectionEffect.faceDown] mode of the keep move and nothing else.
      *
      * Labels are auto-derived from the destinations; override [selectedLabel]/[remainderLabel]
      * if a card's oracle text uses different wording.
@@ -71,6 +79,7 @@ object LibraryPatterns {
         restDestination: CardDestination = CardDestination.ToZone(Zone.GRAVEYARD),
         revealed: Boolean = false,
         restOrder: CardOrder = CardOrder.Preserve,
+        keepFaceDown: FaceDownMode? = null,
         selectedLabel: String = defaultDestinationLabel(keepDestination),
         remainderLabel: String = defaultDestinationLabel(restDestination)
     ): CompositeEffect = CompositeEffect(
@@ -90,7 +99,8 @@ object LibraryPatterns {
             ),
             MoveCollectionEffect(
                 from = "kept",
-                destination = keepDestination
+                destination = keepDestination,
+                faceDown = keepFaceDown
             ),
             MoveCollectionEffect(
                 from = "rest",
@@ -183,30 +193,53 @@ object LibraryPatterns {
             Zone.BATTLEFIELD -> "Put onto the battlefield"
             else -> "Move"
         }
+        is CardDestination.ToZoneExiledFrom -> "Put back where it came from"
     }
 
     /**
-     * "Look at the top [count] cards of your library. You may reveal a card matching [filter] from
-     * among them and put it into your hand. Put the rest [restDestination] (defaults to the bottom
-     * of your library) [restOrder] (defaults to a random order)." — Radagast the Brown / Star
-     * Charter shape. The reveal is optional ([SelectionMode.ChooseUpTo] of 1), filtered, and the
-     * selected card is revealed as it moves to hand.
+     * "[Look at|Reveal] the top [count] cards of your library. You may put [selection] card(s)
+     * matching [filter] from among them [keepDestination]. Put the rest [restDestination]
+     * [restOrder]." — Elvish Rejuvenator, Summoning Trap, Gather the Pack, Mayael the Anima, and
+     * the ~90 other printings of the most-printed shape in the whole look-at-the-top family.
+     *
+     * One pipeline, and **every printed word that varies between those cards is a parameter of it**:
+     *
+     * | Printed words | Parameter |
+     * |---|---|
+     * | "Look at" / "Reveal" the top N | [revealed] — a public reveal or a private look |
+     * | "a creature card" / "any number of Equipment cards" / "up to two permanent cards" | [selection] + [filter] |
+     * | "into your hand" / "onto the battlefield" / "onto the battlefield tapped" | [keepDestination] |
+     * | "and put **it**" — the kept card turned face up as it moves | [keepRevealed] |
+     * | "Put the rest into your graveyard" / "on the bottom … in a random order" | [restDestination] + [restOrder] |
+     *
+     * [lookAtTopRevealMatchingToHand] is one point in that space and delegates here; it is kept
+     * under its own name because "You may **reveal** a creature card from among them **and put it
+     * into your hand**" is a distinct printed sentence, not because it is a distinct recipe.
+     *
+     * Both halves of the choice are shown ([SelectFromCollectionEffect.showAllCards]): the card told
+     * the player to look at all [count] of them, so cards that do not match [filter] are displayed
+     * and merely unselectable.
      */
-    fun lookAtTopRevealMatchingToHand(
+    fun lookAtTopAndTakeMatching(
         count: DynamicAmount,
         filter: GameObjectFilter,
         prompt: String,
+        selection: SelectionMode = SelectionMode.ChooseUpTo(DynamicAmount.Fixed(1)),
+        revealed: Boolean = false,
+        keepDestination: CardDestination = CardDestination.ToZone(Zone.HAND),
+        keepRevealed: Boolean = false,
         restDestination: CardDestination = CardDestination.ToZone(Zone.LIBRARY, placement = ZonePlacement.Bottom),
         restOrder: CardOrder = CardOrder.Random
     ): CompositeEffect = CompositeEffect(
         listOf(
             GatherCardsEffect(
                 source = CardSource.TopOfLibrary(count),
-                storeAs = "looked"
+                storeAs = "looked",
+                revealed = revealed
             ),
             SelectFromCollectionEffect(
                 from = "looked",
-                selection = SelectionMode.ChooseUpTo(DynamicAmount.Fixed(1)),
+                selection = selection,
                 filter = filter,
                 storeSelected = "kept",
                 storeRemainder = "rest",
@@ -215,8 +248,8 @@ object LibraryPatterns {
             ),
             MoveCollectionEffect(
                 from = "kept",
-                destination = CardDestination.ToZone(Zone.HAND),
-                revealed = true
+                destination = keepDestination,
+                revealed = keepRevealed
             ),
             MoveCollectionEffect(
                 from = "rest",
@@ -224,6 +257,32 @@ object LibraryPatterns {
                 order = restOrder
             )
         )
+    )
+
+    /**
+     * "Look at the top [count] cards of your library. You may reveal a card matching [filter] from
+     * among them and put it into your hand. Put the rest [restDestination] (defaults to the bottom
+     * of your library) [restOrder] (defaults to a random order)." — Radagast the Brown / Star
+     * Charter shape. The reveal is optional ([SelectionMode.ChooseUpTo] of 1), filtered, and the
+     * selected card is revealed as it moves to hand.
+     *
+     * The "reveal it as it goes to hand" spelling of [lookAtTopAndTakeMatching], which is where
+     * every other word of the sentence is a parameter. It builds the identical pipeline it always
+     * has.
+     */
+    fun lookAtTopRevealMatchingToHand(
+        count: DynamicAmount,
+        filter: GameObjectFilter,
+        prompt: String,
+        restDestination: CardDestination = CardDestination.ToZone(Zone.LIBRARY, placement = ZonePlacement.Bottom),
+        restOrder: CardOrder = CardOrder.Random
+    ): CompositeEffect = lookAtTopAndTakeMatching(
+        count = count,
+        filter = filter,
+        prompt = prompt,
+        keepRevealed = true,
+        restDestination = restDestination,
+        restOrder = restOrder
     )
 
     /**
@@ -295,7 +354,7 @@ object LibraryPatterns {
     )
 
     /**
-     * "Scry [count]" (CR 701.18). Returns the compact [ScryEffect] macro node; the engine expands
+     * "Scry [count]" (CR 701.22). Returns the compact [ScryEffect] macro node; the engine expands
      * it to [scryPipeline] at execution time. A card whose effect *is* scry therefore serializes as
      * a single `{"type":"Scry"}` node rather than the unrolled pipeline (see [ScryEffect]).
      */
@@ -324,10 +383,20 @@ object LibraryPatterns {
     }
 
     /**
-     * "Surveil [count]" (CR 701.42). Returns the compact [SurveilEffect] macro node; the engine
+     * "Surveil [count]" (CR 701.25). Returns the compact [SurveilEffect] macro node; the engine
      * expands it to [surveilPipeline] at execution time (see [SurveilEffect]).
      */
     fun surveil(count: Int): SurveilEffect = SurveilEffect(count)
+
+    /**
+     * "Surveil X" with a dynamic count (CR 701.25) — e.g. Spider-Man Noir's "surveil X, where X is
+     * the number of counters on it." There is no compact macro node for a dynamic surveil (the
+     * [SurveilEffect] macro only carries a literal), so this expands straight to the same
+     * Gather → Select → Move graveyard/top → emit `SurveiledEvent` pipeline as [surveilPipeline],
+     * with the look/select amounts driven by [count]. Mirrors the dynamic [lookAtTopAndReorder]
+     * overload.
+     */
+    fun surveil(count: DynamicAmount): CompositeEffect = surveilPipeline(count)
 
     /**
      * Expand a library *macro effect* ([ScryEffect] / [SurveilEffect]) to its underlying
@@ -377,12 +446,12 @@ object LibraryPatterns {
                 destination = CardDestination.ToZone(Zone.LIBRARY, player, placement = ZonePlacement.Top),
                 order = CardOrder.ControllerChooses
             ),
-            // Fire "Whenever you scry" triggers (CR 701.18) after the pipeline finishes.
+            // Fire "Whenever you scry" triggers (CR 701.22) after the pipeline finishes.
             // The event count is the actual size of the "scried" gather collection at
             // resolution time, not the literal N (handles library-smaller-than-N). Per
-            // CR 701.18d the trigger still fires when the library was empty and zero
+            // CR 701.22d the trigger still fires when the library was empty and zero
             // cards were looked at, so the tail emits unconditionally — it is only
-            // omitted for a literal "scry 0" (CR 701.18b: no scry event occurs).
+            // omitted for a literal "scry 0" (CR 701.22b: no scry event occurs).
             if (count > 0) EmitScriedEventEffect() else null
         )
     )
@@ -415,13 +484,47 @@ object LibraryPatterns {
                 destination = CardDestination.ToZone(Zone.LIBRARY, placement = ZonePlacement.Top),
                 order = CardOrder.ControllerChooses
             ),
-            // Fire "Whenever you surveil" / "scry or surveil" triggers (CR 701.42) after the
+            // Fire "Whenever you surveil" / "scry or surveil" triggers (CR 701.25) after the
             // pipeline finishes. The event count is the actual size of the "surveiled" gather
             // collection at resolution time, not the literal N (handles library-smaller-than-N).
-            // Per CR 701.42d the trigger still fires when the library was empty and zero cards
+            // Per CR 701.25d the trigger still fires when the library was empty and zero cards
             // were looked at, so the tail emits unconditionally — it is only omitted for a literal
-            // "surveil 0" (CR 701.42c: no surveil event occurs).
+            // "surveil 0" (CR 701.25c: no surveil event occurs).
             if (count > 0) EmitSurveiledEventEffect() else null
+        )
+    )
+
+    /**
+     * The expanded surveil pipeline with a *dynamic* look count (Gather → Select → Move
+     * graveyard/top → emit `SurveiledEvent`). Twin of the literal [surveilPipeline]; the gather and
+     * the "put in graveyard" selection both use [count]. The `SurveiledEvent` is always emitted
+     * because the actual number of cards looked at is only known at resolution time — the event
+     * carries the real gathered size (which handles a library smaller than X, and X resolving to 0).
+     */
+    fun surveilPipeline(count: DynamicAmount): CompositeEffect = CompositeEffect(
+        listOf(
+            GatherCardsEffect(
+                source = CardSource.TopOfLibrary(count),
+                storeAs = "surveiled"
+            ),
+            SelectFromCollectionEffect(
+                from = "surveiled",
+                selection = SelectionMode.ChooseUpTo(count),
+                storeSelected = "toGraveyard",
+                storeRemainder = "toTop",
+                selectedLabel = "Put in graveyard",
+                remainderLabel = "Put on top"
+            ),
+            MoveCollectionEffect(
+                from = "toGraveyard",
+                destination = CardDestination.ToZone(Zone.GRAVEYARD)
+            ),
+            MoveCollectionEffect(
+                from = "toTop",
+                destination = CardDestination.ToZone(Zone.LIBRARY, placement = ZonePlacement.Top),
+                order = CardOrder.ControllerChooses
+            ),
+            EmitSurveiledEventEffect()
         )
     )
 

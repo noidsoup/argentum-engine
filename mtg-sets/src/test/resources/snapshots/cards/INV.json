@@ -940,8 +940,7 @@
                     ],
                     "creatureTypes": [
                         "Saproling"
-                    ],
-                    "imageUri": "/images/tokens/inv-saproling.jpeg"
+                    ]
                 }
             ]
         },
@@ -1030,7 +1029,8 @@
                 }
             }
         }
-    ]
+    ],
+    "hasNoManaCost": true
 }
 
 // Atalya, Samite Master
@@ -1141,8 +1141,7 @@
                     ],
                     "creatureTypes": [
                         "Saproling"
-                    ],
-                    "imageUri": "/images/tokens/inv-saproling.jpeg"
+                    ]
                 }
             ]
         },
@@ -1186,15 +1185,18 @@
                 },
                 "binding": "ANY",
                 "effect": {
-                    "type": "MoveToZone",
-                    "target": {
-                        "type": "BoundVariable",
-                        "name": "target"
-                    },
-                    "destination": "Graveyard",
-                    "byDestruction": true
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "MoveToZone",
+                        "target": {
+                            "type": "BoundVariable",
+                            "name": "target"
+                        },
+                        "destination": "Graveyard",
+                        "byDestruction": true
+                    }
                 },
-                "optional": true,
                 "targetRequirement": {
                     "type": "TargetObject",
                     "filter": {
@@ -1428,7 +1430,7 @@
                     },
                     "id": "land"
                 },
-                "triggerCondition": "WasKicked"
+                "interveningIf": "WasKicked"
             }
         ]
     },
@@ -1939,6 +1941,7 @@
                     "type": "AddMana",
                     "color": "BLACK"
                 },
+                "timing": "ManaAbility",
                 "isManaAbility": true
             }
         ]
@@ -2695,9 +2698,7 @@
                             }
                         }
                     ]
-                },
-                "timing": "ManaAbility",
-                "isManaAbility": true
+                }
             }
         ]
     },
@@ -3888,9 +3889,8 @@
                 },
                 "binding": "ANY",
                 "effect": {
-                    "type": "ForceSacrifice",
-                    "filter": "creature",
-                    "target": "Controller"
+                    "type": "Sacrifice",
+                    "filter": "creature"
                 }
             }
         ],
@@ -6430,7 +6430,7 @@
                     "amount": "XValue",
                     "target": "Self"
                 },
-                "triggerCondition": "WasKicked"
+                "interveningIf": "WasKicked"
             }
         ],
         "staticAbilities": [
@@ -6650,7 +6650,7 @@
                 "id": "ability_1",
                 "trigger": {
                     "type": "ZoneChangeEvent",
-                    "filter": "creature Kavu",
+                    "filter": "permanent Kavu",
                     "to": "Battlefield"
                 },
                 "binding": "OTHER",
@@ -6866,8 +6866,7 @@
                     "target": {
                         "type": "BoundVariable",
                         "name": "any target"
-                    },
-                    "damageSource": "Self"
+                    }
                 },
                 "targetRequirements": [
                     {
@@ -8259,6 +8258,7 @@
                     }
                 },
                 "effect": "AddManaOfChoice",
+                "timing": "ManaAbility",
                 "isManaAbility": true
             }
         ]
@@ -8741,7 +8741,8 @@
                 ]
             }
         }
-    ]
+    ],
+    "hasNoManaCost": true
 }
 
 // Phyrexian Altar
@@ -8762,6 +8763,7 @@
                     }
                 },
                 "effect": "AddManaOfChoice",
+                "timing": "ManaAbility",
                 "isManaAbility": true
             }
         ]
@@ -8968,6 +8970,7 @@
                     ]
                 },
                 "effect": "AddManaOfChoice",
+                "timing": "ManaAbility",
                 "isManaAbility": true
             }
         ]
@@ -9155,14 +9158,18 @@
                             }
                         },
                         {
-                            "type": "DealDamage",
-                            "amount": {
-                                "type": "Fixed",
-                                "amount": 1
+                            "type": "ForEach",
+                            "space": {
+                                "type": "IterationSpace.Players",
+                                "players": "Each"
                             },
-                            "target": {
-                                "type": "PlayerRef",
-                                "player": "Each"
+                            "body": {
+                                "type": "DealDamage",
+                                "amount": {
+                                    "type": "Fixed",
+                                    "amount": 1
+                                },
+                                "target": "Controller"
                             }
                         }
                     ]
@@ -9196,14 +9203,18 @@
                             }
                         },
                         {
-                            "type": "DealDamage",
-                            "amount": {
-                                "type": "Fixed",
-                                "amount": 1
+                            "type": "ForEach",
+                            "space": {
+                                "type": "IterationSpace.Players",
+                                "players": "Each"
                             },
-                            "target": {
-                                "type": "PlayerRef",
-                                "player": "Each"
+                            "body": {
+                                "type": "DealDamage",
+                                "amount": {
+                                    "type": "Fixed",
+                                    "amount": 1
+                                },
+                                "target": "Controller"
                             }
                         }
                     ]
@@ -9958,7 +9969,6 @@
                             "creatureTypes": [
                                 "Reflection"
                             ],
-                            "imageUri": "/images/tokens/inv-reflection.jpeg",
                             "controller": {
                                 "type": "PlayerRef",
                                 "player": "TriggeringPlayer"
@@ -10024,7 +10034,9 @@
                         "destination": "Hand"
                     }
                 },
-                "activeZone": "Graveyard"
+                "activeZones": [
+                    "Graveyard"
+                ]
             }
         ],
         "activatedAbilities": [
@@ -10094,6 +10106,7 @@
                     "type": "AddMana",
                     "color": "GREEN"
                 },
+                "timing": "ManaAbility",
                 "isManaAbility": true
             },
             {
@@ -10103,6 +10116,7 @@
                     "type": "AddManaOfChoice",
                     "colorSet": "ManaColorSet.SourceChosenColor"
                 },
+                "timing": "ManaAbility",
                 "isManaAbility": true
             }
         ],
@@ -10719,6 +10733,7 @@
                         "type": "ContextTarget",
                         "index": 0
                     },
+                    "scope": "CombatOnly",
                     "direction": "FromTarget"
                 },
                 {
@@ -11120,8 +11135,7 @@
                             ],
                             "creatureTypes": [
                                 "Saproling"
-                            ],
-                            "imageUri": "/images/tokens/inv-saproling.jpeg"
+                            ]
                         }
                     }
                 }
@@ -11239,7 +11253,9 @@
                     },
                     "descriptionOverride": "You may exile this creature. If you do, shuffle all creature cards from your graveyard into your library."
                 },
-                "activeZone": "Graveyard"
+                "activeZones": [
+                    "Graveyard"
+                ]
             }
         ]
     },
@@ -11640,8 +11656,7 @@
                     ],
                     "creatureTypes": [
                         "Saproling"
-                    ],
-                    "imageUri": "/images/tokens/inv-saproling.jpeg"
+                    ]
                 }
             }
         ]
@@ -11688,8 +11703,7 @@
             ],
             "creatureTypes": [
                 "Saproling"
-            ],
-            "imageUri": "/images/tokens/inv-saproling.jpeg"
+            ]
         }
     },
     "metadata": {
@@ -12312,7 +12326,7 @@
                     },
                     "id": "target nonblack creature"
                 },
-                "triggerCondition": "WasKicked"
+                "interveningIf": "WasKicked"
             }
         ]
     },
@@ -12582,7 +12596,7 @@
                 },
                 "binding": "ANY",
                 "effect": "SacrificeSelf",
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Not",
                     "condition": "WasKicked"
                 }
@@ -13210,7 +13224,8 @@
                 ]
             }
         }
-    ]
+    ],
+    "hasNoManaCost": true
 }
 
 // Spreading Plague
@@ -13438,7 +13453,8 @@
                 ]
             }
         }
-    ]
+    ],
+    "hasNoManaCost": true
 }
 
 // Stand or Fall
@@ -14423,12 +14439,15 @@
     "script": {
         "staticAbilities": [
             {
-                "type": "CantBeAttackedWithout",
-                "requiredKeyword": "FLYING",
+                "type": "CantBeAttackedBy",
                 "attackerFilter": {
                     "cardPredicates": [
                         "IsCreature",
-                        "SharesChosenColorWithSource"
+                        "SharesChosenColorWithSource",
+                        {
+                            "type": "NotKeyword",
+                            "keyword": "FLYING"
+                        }
                     ]
                 }
             }
@@ -14757,7 +14776,7 @@
                         ]
                     }
                 },
-                "triggerCondition": "WasKicked"
+                "interveningIf": "WasKicked"
             }
         ]
     },
@@ -15358,7 +15377,7 @@
                     },
                     "id": "enchantment"
                 },
-                "triggerCondition": "WasKicked"
+                "interveningIf": "WasKicked"
             }
         ]
     },
@@ -16298,7 +16317,7 @@
                     },
                     "id": "permanent"
                 },
-                "triggerCondition": "WasKicked"
+                "interveningIf": "WasKicked"
             }
         ]
     },
@@ -16602,6 +16621,7 @@
                 "id": "ability_1",
                 "cost": "CostTap",
                 "effect": "AddManaOfChoice",
+                "timing": "ManaAbility",
                 "isManaAbility": true
             }
         ]
@@ -16651,10 +16671,9 @@
                     ],
                     "creatureTypes": [
                         "Saproling"
-                    ],
-                    "imageUri": "/images/tokens/inv-saproling.jpeg"
+                    ]
                 },
-                "triggerCondition": "WasKicked"
+                "interveningIf": "WasKicked"
             }
         ],
         "staticAbilities": [
@@ -16740,7 +16759,7 @@
                     },
                     "id": "artifact"
                 },
-                "triggerCondition": "WasKicked"
+                "interveningIf": "WasKicked"
             }
         ]
     },
@@ -17557,7 +17576,8 @@
                 ]
             }
         }
-    ]
+    ],
+    "hasNoManaCost": true
 }
 
 // Wayfaring Giant

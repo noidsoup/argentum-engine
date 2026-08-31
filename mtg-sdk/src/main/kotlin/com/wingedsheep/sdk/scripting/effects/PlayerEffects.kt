@@ -1,6 +1,7 @@
 package com.wingedsheep.sdk.scripting.effects
 
 import com.wingedsheep.sdk.core.Keyword
+import com.wingedsheep.sdk.core.TurnPart
 import com.wingedsheep.sdk.scripting.Duration
 import com.wingedsheep.sdk.scripting.TriggeredAbility
 import com.wingedsheep.sdk.scripting.events.SourceFilter
@@ -58,6 +59,32 @@ data class SkipUntapEffect(
  * it would occur (the same turn when applied during that turn's upkeep, or the player's
  * next turn otherwise).
  */
+/**
+ * "Pay any amount of life" up to [maxAmount], as a permanent enters — Nameless Race. The chosen
+ * amount is both paid and **recorded on the entering permanent**, so a characteristic-defining
+ * ability can read it back later through
+ * [com.wingedsheep.sdk.scripting.values.EntityNumericProperty.ValueChosenAsEntered].
+ *
+ * Recording it on the permanent rather than in the effect pipeline is the whole point: the CDA is
+ * consulted during layer projection, long after the resolution that made the choice is gone.
+ *
+ * The ceiling is a [DynamicAmount] because the printed bound is usually a count of something
+ * ("can't be more than the total number of white nontoken permanents your opponents control plus
+ * the total number of white cards in their graveyards"). A ceiling of 0 pays nothing and records 0
+ * without prompting. The controller may always choose 0, and cannot choose more life than they
+ * have.
+ */
+@SerialName("PayAnyAmountOfLifeAsEnters")
+@Serializable
+data class PayAnyAmountOfLifeAsEntersEffect(
+    val maxAmount: DynamicAmount
+) : Effect {
+    override val description: String =
+        "pay any amount of life, no more than ${maxAmount.description}"
+
+    override fun applyTextReplacement(replacer: TextReplacer): Effect = this
+}
+
 @SerialName("SkipNextDrawStep")
 @Serializable
 data class SkipNextDrawStepEffect(
@@ -66,6 +93,34 @@ data class SkipNextDrawStepEffect(
     override val description: String = when (target) {
         EffectTarget.Controller -> "You skip your next draw step"
         else -> "${target.description.replaceFirstChar { it.uppercase() }} skips their next draw step"
+    }
+}
+
+/**
+ * The target player skips **every** instance of [part] for the rest of this turn — Fatespinner's
+ * "the player skips each instance of the chosen step or phase this turn".
+ *
+ * The duration is what separates this from the "skip your *next* X" family
+ * ([SkipNextDrawStepEffect], [SkipCombatPhasesEffect]): those are one-shot markers consumed by the
+ * first occurrence, this one stands until end of turn, so a second main phase or an additional
+ * combat phase created later in the turn is skipped too. [TurnPart] is the granularity printed
+ * cards use, so "main phase" is one value covering both main phases (CR 505.1) and "combat phase"
+ * is one value covering all five combat steps.
+ *
+ * Skipping is faithful to CR 500.11 / 614.10 — the engine proceeds past the step or phase as though
+ * it didn't exist, so no player receives priority in it and no "at the beginning of ..." ability
+ * triggers for it. Per CR 614.10 a step already under way can no longer be skipped; applying this
+ * during a player's upkeep (Fatespinner's trigger) reaches everything after the upkeep.
+ */
+@SerialName("SkipStepOrPhaseThisTurn")
+@Serializable
+data class SkipStepOrPhaseThisTurnEffect(
+    val part: TurnPart,
+    val target: EffectTarget = EffectTarget.PlayerRef(Player.TargetPlayer)
+) : Effect {
+    override val description: String = when (target) {
+        EffectTarget.Controller -> "You skip each ${part.displayName} this turn"
+        else -> "${target.description.replaceFirstChar { it.uppercase() }} skips each ${part.displayName} this turn"
     }
 }
 
@@ -187,22 +242,39 @@ data class AddAdditionalEndStepsEffect(
 }
 
 /**
- * Take an extra turn after this one, with a consequence at end of turn.
- * Used for Last Chance: "Take an extra turn after this one. At the beginning of that turn's end step, you lose the game."
+ * Take an extra turn after this one, optionally with a rider that applies **during that turn**.
+ *
+ * The riders live on this effect rather than as separate composable effects because "that turn" is
+ * the extra turn *this* effect creates: if the extra turn is never granted (a `PreventExtraTurns`
+ * source such as Ugin's Nexus is out), the rider must not apply either. A sibling effect in a
+ * `Composite` *could* re-check that condition, but only by duplicating a precondition that the
+ * extra-turn executor legitimately owns — and it would silently drift the moment this effect gains
+ * another way to fail (a targeted variant whose target is gone, say). Keeping "did a turn actually
+ * get created" in one place is the reason.
  *
  * @param loseAtEndStep If true, you lose the game at the beginning of that turn's end step
+ *   (Last Chance, Final Fortune).
  * @param target The player who takes the extra turn. Defaults to the controller.
+ * @param powerUpAbilitiesCantBeActivated If true, no player may activate a power-up ability
+ *   (CR 702.193) during the extra turn — Kang the Conqueror's "Take an extra turn after this one.
+ *   During that turn, power-up abilities can't be activated." The prohibition is global (it is not
+ *   scoped to the turn's controller) and outlasts the source leaving the battlefield, so the engine
+ *   records it against the turn rather than against a permanent or a player.
  */
 @SerialName("TakeExtraTurn")
 @Serializable
 data class TakeExtraTurnEffect(
     val loseAtEndStep: Boolean = false,
-    val target: EffectTarget = EffectTarget.Controller
+    val target: EffectTarget = EffectTarget.Controller,
+    val powerUpAbilitiesCantBeActivated: Boolean = false
 ) : Effect {
     override val description: String = buildString {
         append("Take an extra turn after this one")
         if (loseAtEndStep) {
             append(". At the beginning of that turn's end step, you lose the game")
+        }
+        if (powerUpAbilitiesCantBeActivated) {
+            append(". During that turn, power-up abilities can't be activated")
         }
     }
 }
@@ -229,6 +301,32 @@ data class TakeExtraTurnEffect(
 @Serializable
 data object EndTheTurnEffect : Effect {
     override val description: String = "End the turn"
+}
+
+/**
+ * "It becomes day" / "It becomes night" (CR 731.1) — set the game's day/night designation to
+ * [designation].
+ *
+ * Day and night are a *game*-level designation, not a player or permanent property, so this effect
+ * takes no target: it always sets the whole game's designation. It's the resolution-time counterpart
+ * to the untap-step turn-based action (CR 502.2) and the daybound/nightbound designation starts
+ * (CR 702.145d/g) — the text form other effects use, e.g. Into the Night's "It becomes night."
+ *
+ * Setting a designation the game already has is a no-op (CR 731.1 — once it's day or night the game
+ * always has exactly one), and the change cascades the daybound/nightbound transforms it entails
+ * (CR 702.145b/e): the engine's `DayNightService` — the single writer for `GameState.dayNight` — both
+ * flips the designation and emits the resulting `TransformedEvent`s in one batch. Use the
+ * [com.wingedsheep.sdk.dsl.Effects.BecomeDay] / [com.wingedsheep.sdk.dsl.Effects.BecomeNight] facades.
+ */
+@SerialName("SetDayNight")
+@Serializable
+data class SetDayNightEffect(
+    val designation: com.wingedsheep.sdk.core.DayNight
+) : Effect {
+    override val description: String = when (designation) {
+        com.wingedsheep.sdk.core.DayNight.DAY -> "It becomes day"
+        com.wingedsheep.sdk.core.DayNight.NIGHT -> "It becomes night"
+    }
 }
 
 /**
@@ -563,6 +661,25 @@ data object GiftGivenEffect : Effect {
     override val description: String = "Give a gift"
 }
 
+// =============================================================================
+// Forage Effects
+// =============================================================================
+
+/**
+ * Signals that a forage was taken (CR 701.59a) so that "Whenever you forage" triggers fire.
+ *
+ * A marker with no state change of its own, exactly like [GiftGivenEffect] — and it exists for the
+ * same reason: the keyword action's *effect* form lowers to generic gather/select/move and sacrifice
+ * effects, so there is no forage-shaped executor for the event to come out of.
+ * `Patterns.Mechanic.forage` appends this to each of its two modes; the three *cost* contexts emit
+ * the event from their shared payment implementation instead, and never reach this.
+ */
+@SerialName("Foraged")
+@Serializable
+data object ForagedEffect : Effect {
+    override val description: String = "Forage"
+}
+
 /**
  * Grant a keyword to spells of a certain type that the controller casts.
  * Used for emblems like Ral's "Instant and sorcery spells you cast have storm."
@@ -663,19 +780,29 @@ data class GrantSpellsCantBeCounteredEffect(
  *
  * Composes with `Effects.Composite(ChooseCreatureTypeEffect, CreatePermanentEmblem(...))`.
  *
- * @property groupFilter Which permanents the emblem affects.
+ * An emblem whose text affects its **controller** rather than a group of permanents ("You may cast
+ * spells from your hand without paying their mana costs" — Tamiyo, Field Researcher's −7) carries
+ * that wording in [ownedStaticAbilities] instead, and leaves [groupFilter] at its default. The
+ * emblem entity then reads as a source of those statics exactly as a battlefield permanent printing
+ * them would, so no separate "player permission" concept is needed.
+ *
+ * @property groupFilter Which permanents the emblem affects. Unused — and so left at its default —
+ *   by an emblem that carries no group modification at all, only [ownedStaticAbilities].
  * @property powerBonus Power modification applied to each affected creature.
  * @property toughnessBonus Toughness modification applied to each affected creature.
  * @property grantedKeywords Keywords granted to each affected creature.
+ * @property ownedStaticAbilities Static abilities the *emblem itself* has, as though printed on it.
  * @property emblemDescription Human-readable description of the emblem (without the "You get an emblem with" prefix).
  */
 @SerialName("CreatePermanentEmblem")
 @Serializable
 data class CreatePermanentEmblemEffect(
-    val groupFilter: GroupFilter,
+    val groupFilter: GroupFilter = GroupFilter(GameObjectFilter.Any),
     val powerBonus: Int = 0,
     val toughnessBonus: Int = 0,
     val grantedKeywords: List<String> = emptyList(),
+    val grantedActivatedAbilities: List<com.wingedsheep.sdk.scripting.ActivatedAbility> = emptyList(),
+    val ownedStaticAbilities: List<com.wingedsheep.sdk.scripting.StaticAbility> = emptyList(),
     val emblemDescription: String
 ) : Effect {
     override val description: String = "You get an emblem with \"$emblemDescription\""
@@ -700,6 +827,60 @@ data class GainCitysBlessingEffect(
     val target: EffectTarget = EffectTarget.Controller
 ) : Effect {
     override val description: String = "${target.description.replaceFirstChar { it.uppercase() }} gets the city's blessing"
+}
+
+/**
+ * Changes the target player's **speed** by a signed [amount] (Aetherdrift, CR 702.179).
+ *
+ * One effect covers both directions because the set needs both: the inherent speed trigger raises
+ * speed ("your speed increases by 1", CR 702.179d) while Spikeshell Harrier lowers it ("reduce that
+ * opponent's speed by 1. This effect can't reduce their speed below 1"). Splitting them would mean two
+ * near-identical types and executors over one concept, so a negative [amount] plus [minimum] expresses
+ * the reducing half. Reach for the [com.wingedsheep.sdk.dsl.Effects.IncreaseSpeed] /
+ * [com.wingedsheep.sdk.dsl.Effects.ReduceSpeed] facades rather than constructing this directly — they
+ * keep the call site reading like the card.
+ *
+ * Speed is a player designation like the city's blessing: it survives the source leaving play, so it
+ * lives on the player, not the permanent. Three rules are folded into the executor rather than the
+ * call site:
+ *
+ * - CR 702.179c — a player who has *no* speed and is told to increase it simply ends up at that
+ *   amount. Since [com.wingedsheep.sdk.core.Speed.NONE] is 0 this falls out of plain addition.
+ * - CR 702.179e — "max speed" is a speed of exactly 4, so the result is clamped to
+ *   [com.wingedsheep.sdk.core.Speed.MAX]. Changing a player already at max speed by a positive amount
+ *   is a no-op.
+ * - A change never moves speed the *wrong* way. A reduction can't push a player who has no speed up to
+ *   [minimum] (that would hand them the designation they don't have), and can't be turned into a gain
+ *   by a floor above their current speed.
+ *
+ * @param target The player whose speed changes. Defaults to the ability's controller ("your speed").
+ * @param amount The signed change, before clamping. Positive raises, negative reduces.
+ * @param minimum Floor for a reduction — Spikeshell Harrier's "can't reduce their speed below 1"
+ *   passes [com.wingedsheep.sdk.core.Speed.STARTING]. Ignored when [amount] is positive.
+ */
+@SerialName("ChangeSpeed")
+@Serializable
+data class ChangeSpeedEffect(
+    val target: EffectTarget = EffectTarget.Controller,
+    val amount: DynamicAmount = DynamicAmount.Fixed(1),
+    val minimum: Int = 0
+) : Effect {
+    override val description: String = buildString {
+        append(if (target == EffectTarget.Controller) "Your" else "${target.description}'s")
+        val fixed = (amount as? DynamicAmount.Fixed)?.amount
+        when {
+            fixed != null && fixed < 0 -> append(" speed decreases by ${-fixed}")
+            else -> append(" speed increases by ${amount.description}")
+        }
+        if (minimum > 0 && (fixed == null || fixed < 0)) {
+            append(", but not below $minimum")
+        }
+    }
+
+    override fun applyTextReplacement(replacer: TextReplacer): Effect {
+        val newAmount = amount.applyTextReplacement(replacer)
+        return if (newAmount !== amount) copy(amount = newAmount) else this
+    }
 }
 
 /**
@@ -896,4 +1077,44 @@ data class ChooseOpponentForSourceEffect(
     val prompt: String = "Choose an opponent"
 ) : Effect {
     override val description: String = "choose an opponent"
+}
+
+/**
+ * The controller chooses a card type (CR 205.2a); the choice is written durably onto the source
+ * entity's cast-choices bag under [com.wingedsheep.sdk.scripting.ChoiceSlot.CARD_TYPE], where a
+ * static ability reads it back at cost-calculation / projection time through
+ * [com.wingedsheep.sdk.scripting.predicates.CardPredicate.CardTypeEqualsChosenComponent].
+ *
+ * The on-resolution, durable-slot analogue of an as-enters card-type choice — the same relationship
+ * [ChooseNumberForSourceEffect] has to the `NUMBER` [com.wingedsheep.sdk.scripting.ReplacementEffect
+ * .ChoiceType]. Modeled as a `When ~ enters` triggered ability rather than a replacement because the
+ * chosen type only feeds a continuous tax, so it need not be locked in strictly *during* entry.
+ *
+ * When [lookAtOpponentHand] is true the controller first sees an opponent's hand (a durable reveal,
+ * CR 402.3) before choosing — the "look at an opponent's hand, then choose a card type" clause of
+ * Arachne, Psionic Weaver. The look is purely informational.
+ *
+ * @property allowedCardTypes Restrict the offered set to these card types (values from CR 205.2a:
+ *   "Artifact", "Battle", "Creature", "Enchantment", "Instant", "Land", "Planeswalker", "Sorcery").
+ *   `null` offers all of them. Arachne passes the seven non-creature types ("other than creature").
+ * @property lookAtOpponentHand Reveal an opponent's hand to the controller before the choice.
+ * @property slot Durable cast-choices slot to write (default
+ *   [com.wingedsheep.sdk.scripting.ChoiceSlot.CARD_TYPE]).
+ * @property prompt Player-facing prompt text.
+ */
+@SerialName("ChooseCardTypeForSource")
+@Serializable
+data class ChooseCardTypeForSourceEffect(
+    val allowedCardTypes: List<String>? = null,
+    val lookAtOpponentHand: Boolean = false,
+    val slot: com.wingedsheep.sdk.scripting.ChoiceSlot = com.wingedsheep.sdk.scripting.ChoiceSlot.CARD_TYPE,
+    val prompt: String = "Choose a card type"
+) : Effect {
+    override val description: String = buildString {
+        if (lookAtOpponentHand) append("look at an opponent's hand, then ")
+        append("choose a card type")
+        if (allowedCardTypes != null && !allowedCardTypes.contains("Creature")) {
+            append(" other than creature")
+        }
+    }
 }

@@ -57,8 +57,9 @@ data class DealDamageEffect(
         if (cantBePrevented) append(". This damage can't be prevented")
     }
 
-    override fun runtimeDescription(resolver: (DynamicAmount) -> Int): String = buildString {
-        val resolved = resolver(amount)
+    override fun runtimeDescription(resolver: (DynamicAmount) -> Int?): String = buildString {
+        // Undeterminable amount ("damage equal to target's power", pre-choice) reads by name.
+        val resolved: String = resolver(amount)?.toString() ?: amount.description
         if (damageSource != null) {
             append("${damageSource.description} deals $resolved damage to ${target.description}")
         } else {
@@ -98,9 +99,9 @@ data class AmplifyNoncombatDamageThisTurnEffect(
         "Until end of turn, if a source you control would deal noncombat damage to a permanent or " +
             "player, it deals that much damage plus ${bonus.description} instead"
 
-    override fun runtimeDescription(resolver: (DynamicAmount) -> Int): String =
+    override fun runtimeDescription(resolver: (DynamicAmount) -> Int?): String =
         "Until end of turn, if a source you control would deal noncombat damage to a permanent or " +
-            "player, it deals that much damage plus ${resolver(bonus)} instead"
+            "player, it deals that much damage plus ${resolver(bonus) ?: bonus.description} instead"
 
     override fun applyTextReplacement(replacer: TextReplacer): Effect {
         val newBonus = bonus.applyTextReplacement(replacer)
@@ -159,6 +160,28 @@ data class DoubleDamageToPlayerEffect(
 @Serializable
 data object DamageCantBePreventedThisTurnEffect : Effect {
     override val description: String = "Damage can't be prevented this turn"
+}
+
+/**
+ * "Damage that would be dealt to [target] this turn can't be prevented or dealt instead to another
+ * permanent or player." — the *per-recipient* form of [DamageCantBePreventedThisTurnEffect]
+ * (Whippoorwill).
+ *
+ * Both halves of the printed clause come from one marker on the recipient: prevention shields,
+ * prevention replacements and protection's prevention clause stop applying to damage aimed at it,
+ * and redirection ("dealt instead to another permanent or player") is skipped for it too.
+ *
+ * Scoped rather than global on purpose — the global effect would blank every prevention effect in
+ * the game for the turn, which is a very different card.
+ */
+@SerialName("DamageToTargetCantBePreventedThisTurn")
+@Serializable
+data class DamageToTargetCantBePreventedThisTurnEffect(
+    val target: EffectTarget = EffectTarget.ContextTarget(0)
+) : Effect {
+    override val description: String =
+        "Damage that would be dealt to ${target.description} this turn can't be prevented or " +
+            "dealt instead to another permanent or player"
 }
 
 /**

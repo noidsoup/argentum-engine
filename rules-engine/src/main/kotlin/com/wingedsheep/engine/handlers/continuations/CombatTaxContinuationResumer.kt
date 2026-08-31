@@ -44,7 +44,62 @@ class CombatTaxContinuationResumer(
         resumer(BlockTaxManaSelectionContinuation::class) { state, continuation, response, _ ->
             resumeBlockTaxSelection(state, continuation, response)
         },
+        resumer(com.wingedsheep.engine.core.AttackSacrificeSelectionContinuation::class) { state, continuation, response, _ ->
+            resumeAttackSacrificeSelection(state, continuation, response)
+        },
     )
+
+    /**
+     * Sacrifice the chosen permanents for one attacker's `CantAttackUnlessSacrifice` cost, then
+     * either ask for the next attacker's cost or commit the declaration.
+     *
+     * The sacrifice reuses `ForceSacrificeExecutor.sacrificePermanents`, so it emits
+     * `PermanentsSacrificedEvent`, snapshots the sacrificed permanents' characteristics, and lets
+     * dies/sacrifice triggers fire — a hand-rolled zone move here would silently skip all three.
+     */
+    private fun resumeAttackSacrificeSelection(
+        state: GameState,
+        continuation: com.wingedsheep.engine.core.AttackSacrificeSelectionContinuation,
+        response: DecisionResponse,
+    ): ExecutionResult {
+        if (response !is com.wingedsheep.engine.core.CardsSelectedResponse) {
+            return ExecutionResult.error(state, "Expected card selection response for attack sacrifice")
+        }
+        if (response.selectedCards.size != continuation.count) {
+            return ExecutionResult.error(
+                state,
+                "Must sacrifice exactly ${continuation.count} permanents to attack"
+            )
+        }
+
+        val sacrificeResult = com.wingedsheep.engine.handlers.effects.zones.ForceSacrificeExecutor()
+            .sacrificePermanents(state, continuation.attackingPlayer, response.selectedCards)
+            .toExecutionResult()
+        if (!sacrificeResult.isSuccess) return sacrificeResult
+
+        val next = continuation.remaining.firstOrNull()
+        if (next != null) {
+            return services.combatManager.attackPhase.pauseForNextAttackSacrifice(
+                state = sacrificeResult.state,
+                attackingPlayer = continuation.attackingPlayer,
+                attackers = continuation.attackers,
+                payingAttacker = next.attackerId,
+                count = next.count,
+                remaining = continuation.remaining.drop(1),
+                bands = continuation.bands,
+                carryEvents = sacrificeResult.events.toList(),
+            )
+        }
+
+        return services.combatManager.attackPhase.commitAttackDeclaration(
+            state = sacrificeResult.state,
+            attackingPlayer = continuation.attackingPlayer,
+            attackers = continuation.attackers,
+            projected = sacrificeResult.state.projectedState,
+            taxEvents = sacrificeResult.events.toList(),
+            bands = continuation.bands,
+        )
+    }
 
     private fun resumeAttackTaxSelection(
         state: GameState,
@@ -54,7 +109,7 @@ class CombatTaxContinuationResumer(
         if (response !is ManaSourcesSelectedResponse) {
             return ExecutionResult.error(state, "Expected mana sources selected response for attack tax")
         }
-        if (!response.autoPay && response.selectedSources.isEmpty()) {
+        if (response.isDecline(floatingCovers(state, continuation.attackingPlayer, continuation.manaCost))) {
             // Decline: no mana tapped, no AttackingComponent applied. Drop back into
             // DECLARE_ATTACKERS as a clean no-op (no error banner).
             return ExecutionResult.success(state)
@@ -81,7 +136,7 @@ class CombatTaxContinuationResumer(
         if (response !is ManaSourcesSelectedResponse) {
             return ExecutionResult.error(state, "Expected mana sources selected response for block tax")
         }
-        if (!response.autoPay && response.selectedSources.isEmpty()) {
+        if (response.isDecline(floatingCovers(state, continuation.blockingPlayer, continuation.manaCost))) {
             return ExecutionResult.success(state)
         }
 
@@ -165,4 +220,12 @@ class CombatTaxContinuationResumer(
         }
         return TaxPayment(currentState, events)
     }
+
+    /**
+     * Whether [playerId]'s floating mana already covers [cost] — see
+     * [ManaSourcesSelectedResponse.isDecline]. A player who taps their own sources during the
+     * payment window (CR 605.3a) confirms with an empty selection, which must not read as a refusal.
+     */
+    private fun floatingCovers(state: GameState, playerId: EntityId, cost: ManaCost): Boolean =
+        com.wingedsheep.engine.mechanics.mana.ManaPaymentWindow.floatingManaCovers(state, playerId, cost)
 }

@@ -130,6 +130,27 @@ sealed interface EffectTarget {
     }
 
     /**
+     * MULTI-ENTITY REFERENCE: every **opponent and planeswalker the effect's source has dealt
+     * damage to this game** — The Fallen's "each opponent and planeswalker it has dealt damage to
+     * this game".
+     *
+     * Backed by the source's accumulating `DealtDamageToThisGameComponent`, filtered at resolution
+     * to recipients still in the game: players always are, a planeswalker must still be on the
+     * battlefield. Players are narrowed to the source's *opponents* because that is what the
+     * printed line says — a source that somehow damaged its own controller does not come back
+     * around on them.
+     *
+     * Like [PlayerRef] with `Player.EachOpponent`, this resolves to a *set*, so it is only
+     * meaningful to effects that iterate their target; `DealDamageEffect` does.
+     */
+    @SerialName("EachDamagedBySourceThisGame")
+    @Serializable
+    data object EachDamagedBySourceThisGame : EffectTarget {
+        override val description: String =
+            "each opponent and planeswalker it has dealt damage to this game"
+    }
+
+    /**
      * GROUP REFERENCE: Refers to a group of permanents for mass effects.
      *
      * Usage:
@@ -226,12 +247,15 @@ sealed interface EffectTarget {
 
     /**
      * ATTACHED-TO TRIGGERING PERMANENT: the permanent that the triggering attachment (Aura/
-     * Equipment) became attached to. Only meaningful inside a
-     * [com.wingedsheep.sdk.scripting.EventPattern.BecomesAttachedEvent] trigger, where the
-     * triggering entity is the attachment and this resolves to the thing it attached to.
+     * Equipment) became attached to — or, for the unattach mirror, came off of. Only meaningful
+     * inside a [com.wingedsheep.sdk.scripting.EventPattern.BecomesAttachedEvent] or
+     * [com.wingedsheep.sdk.scripting.EventPattern.BecomesUnattachedEvent] trigger, where the
+     * triggering entity is the attachment and this resolves to the host on the other end.
      *
-     * Used by Eriette, the Beguiler ("gain control of that permanent") and Assimilation Aegis
-     * ("that creature becomes a copy …").
+     * Used by Eriette, the Beguiler ("gain control of that permanent"), Assimilation Aegis
+     * ("that creature becomes a copy …"), and Stitcher's Graft ("sacrifice that permanent"). On the
+     * unattach side the host may already have left the battlefield — it then resolves to nothing and
+     * the payoff is a no-op, which is exactly what Stitcher's Graft's ruling calls for.
      */
     @SerialName("AttachedToTriggeringPermanent")
     @Serializable
@@ -258,6 +282,50 @@ sealed interface EffectTarget {
     @Serializable
     data class DiscardedAsCost(val index: Int = 0) : EffectTarget {
         override val description: String = "the discarded card"
+    }
+
+    /**
+     * TAPPED AS COST: a permanent tapped to pay this activation's cost — the tap counterpart of
+     * [DiscardedAsCost], reading `EffectContext.tappedPermanents`.
+     *
+     * Vodalian War Machine (FEM) is the card that needs it: each of its abilities taps an untapped
+     * Merfolk, and its death trigger destroys the Merfolk that paid. Each activation schedules its
+     * own delayed trigger naming *its* Merfolk, so the reference is baked into a concrete id when
+     * the trigger is created and the whole set is destroyed when the War Machine dies.
+     *
+     * @property index Which tapped permanent to reference; every printed use taps exactly one.
+     */
+    @SerialName("TappedAsCost")
+    @Serializable
+    data class TappedAsCost(val index: Int = 0) : EffectTarget {
+        override val description: String = "the tapped permanent"
+    }
+
+    /**
+     * LINKED EXILED CARD: a card exiled *with* the source permanent — its `LinkedExileComponent`,
+     * the pile every imprint / "exiled with this" mechanic writes. This is the [EffectTarget] role
+     * counterpart of [com.wingedsheep.sdk.scripting.values.EntityReference.LinkedExiledCard], which
+     * is the *value-read* spelling of the same object (`EntityProperty(LinkedExiledCard(), Power)`).
+     *
+     * **Dual-mode** — resolvable at resolution *and* during static-ability projection, because it
+     * is anchored to the source permanent exactly like [Self] and needs no resolution context. That
+     * is what makes it usable as the entity of an
+     * [com.wingedsheep.sdk.scripting.conditions.EntityMatches] gating a
+     * [com.wingedsheep.sdk.scripting.ConditionalStaticAbility] — Duplicant's "as long as a card
+     * exiled with this creature is a creature card", built via
+     * `Conditions.LinkedExiledCardMatches(filter)`.
+     *
+     * Resolves to nothing when the source has no linked-exile pile (the imprint was declined, or
+     * the card has since left exile), so a condition over it reads false and the gated static
+     * simply stops applying.
+     *
+     * @property index Which exiled card to reference. Imprint exiles exactly one card, so this is a
+     *   completeness parameter rather than something Mirrodin's cards need.
+     */
+    @SerialName("LinkedExiledCard")
+    @Serializable
+    data class LinkedExiledCard(val index: Int = 0) : EffectTarget {
+        override val description: String = "the exiled card"
     }
 
     /**

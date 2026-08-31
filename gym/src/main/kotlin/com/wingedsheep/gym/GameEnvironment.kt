@@ -1,8 +1,10 @@
 package com.wingedsheep.gym
 
+import com.wingedsheep.ai.engine.AutomaticResolutionLimitException
 import com.wingedsheep.ai.engine.DecisionResponder
 import com.wingedsheep.ai.engine.GameSimulator
 import com.wingedsheep.ai.engine.SimulationResult
+import com.wingedsheep.ai.engine.requireNoAutomaticResolutionStop
 import com.wingedsheep.ai.engine.evaluation.BoardEvaluator
 import com.wingedsheep.ai.engine.evaluation.CompositeBoardEvaluator
 import com.wingedsheep.ai.engine.evaluation.BoardPresence
@@ -77,7 +79,7 @@ import com.wingedsheep.sdk.model.EntityId
  * ```
  */
 class GameEnvironment private constructor(
-    private val cardRegistry: CardRegistry,
+    internal val cardRegistry: CardRegistry,
     private val processor: ActionProcessor,
     private val enumerator: LegalActionEnumerator,
     private val evaluator: BoardEvaluator,
@@ -105,6 +107,18 @@ class GameEnvironment private constructor(
 
     /** Total number of actions submitted since [reset]. */
     var stepCount: Int = 0
+        private set
+
+    /**
+     * Why the engine rejected the most recent [step], or `null` when it was accepted.
+     *
+     * An illegal action leaves the state untouched, which on its own is indistinguishable from an
+     * action that legitimately changed nothing (declaring no attackers, passing priority). Callers
+     * that must not swallow a rejection read this: the HTTP transport turns it into a 400, and MCTS
+     * asserts on it, since a rejected decision edge would otherwise become a child node identical to
+     * its parent and be searched as if it were progress.
+     */
+    var lastRejection: String? = null
         private set
 
     // =========================================================================
@@ -144,6 +158,7 @@ class GameEnvironment private constructor(
         playerIds = initResult.playerIds
         events = initResult.events
         lastStepEvents = initResult.events
+        lastRejection = null
         stepCount = 0
         return buildStepResult(initResult.events)
     }
@@ -161,6 +176,8 @@ class GameEnvironment private constructor(
      *               or a [SubmitDecision] when responding to a [pendingDecision].
      * @return [StepResult] with the new state, events, rewards, and termination flag.
      * @throws IllegalStateException if the game hasn't been started via [reset].
+     * @throws AutomaticResolutionLimitException if automatic resolution exhausts its progress
+     * guard; the environment is left at the pre-step state.
      */
     fun step(action: GameAction): StepResult {
         check(playerIds.isNotEmpty()) { "Call reset() before step()" }
@@ -169,11 +186,12 @@ class GameEnvironment private constructor(
             simulator.simulateDecision(state, action.response)
         } else {
             simulator.simulate(state, action)
-        }
+        }.requireNoAutomaticResolutionStop("Gym step")
 
         state = simResult.state
         events = events + simResult.events
         lastStepEvents = simResult.events
+        lastRejection = (simResult as? SimulationResult.Illegal)?.reason
         stepCount++
 
         return buildStepResult(simResult.events)

@@ -1,9 +1,11 @@
 package com.wingedsheep.sdk.scripting.effects
 
+import com.wingedsheep.sdk.core.CounterType
 import com.wingedsheep.sdk.core.Zone
 import com.wingedsheep.sdk.scripting.GameObjectFilter
 import com.wingedsheep.sdk.scripting.references.Player
 import com.wingedsheep.sdk.scripting.targets.EffectTarget
+import com.wingedsheep.sdk.scripting.targets.selfNounToken
 import com.wingedsheep.sdk.scripting.text.TextReplacer
 import com.wingedsheep.sdk.scripting.values.DynamicAmount
 import kotlinx.serialization.SerialName
@@ -119,7 +121,11 @@ data class SacrificeEffect(
     override val description: String = buildString {
         append("sacrifice ")
         when {
-            any -> append("any number of ${filter.description}s")
+            any -> {
+                append("any number of ")
+                if (excludeSource) append("other ")
+                append("${filter.description}s")
+            }
             count == 1 -> {
                 if (excludeSource) append("another ") else append("a ")
                 append(filter.description)
@@ -170,8 +176,12 @@ data object SacrificeSelfEffect : Effect {
 data class SacrificeTargetEffect(
     val target: EffectTarget = EffectTarget.ContextTarget(0),
     val sacrificedByItsController: Boolean = false
-) : Effect {
-    override val description: String = "sacrifice ${target.description}"
+) : Effect, SelfReferentialDescription {
+    // `EffectTarget.Self.description` is the legacy "this creature", which is wrong the moment a
+    // land or artifact sacrifices itself (Safe Haven's upkeep trigger read "you may sacrifice this
+    // creature"). Route Self through the self-noun token so the render layer can say "this land".
+    override val descriptionTemplate: String = "sacrifice ${target.selfNounToken}"
+    override val description: String get() = defaultResolvedDescription
 }
 
 /**
@@ -353,7 +363,14 @@ data class MoveToZoneEffect(
      * 0 = top, 1 = second from top, 2 = third from top, etc.
      * Takes precedence over [placement] when destination is LIBRARY.
      */
-    val positionFromTop: Int? = null
+    val positionFromTop: Int? = null,
+    /**
+     * When non-null, one counter of this type is put on the card after it lands in its destination
+     * zone — "exile it with a stash counter on it" (Tinybones, Bauble Burglar), "with a dream
+     * counter on it" (Goliath Daydreamer). The single-target counterpart of
+     * [MoveCollectionEffect.addCounterType]; skipped along with the move when [fromZone] gates it out.
+     */
+    val addCounterType: CounterType? = null
 ) : Effect {
     override val description: String = buildString {
         when {
@@ -589,4 +606,27 @@ data class WarpExileEffect(
     val enteredBattlefieldTimestamp: Long? = null
 ) : Effect {
     override val description: String = "Exile ${target.description} (warp)"
+}
+
+/**
+ * Move one specifically tracked battlefield object to a zone.
+ *
+ * The optional [enteredBattlefieldTimestamp] identifies the object represented by [target], not
+ * merely its entity ID. At resolution, the move is skipped unless the target is still on the
+ * battlefield with that same entry timestamp. This is the reusable delayed-movement primitive for
+ * effects such as dash's return-to-hand clause: a permanent that left and returned is a new object
+ * and must not be moved by the old delayed trigger (CR 603.7c / 400.7).
+ *
+ * When nested in [CreateDelayedTriggerEffect], the delayed-trigger executor resolves [target] and
+ * snapshots its entry timestamp when the trigger is created.
+ */
+@SerialName("MoveTrackedBattlefieldObject")
+@Serializable
+data class MoveTrackedBattlefieldObjectEffect(
+    val target: EffectTarget,
+    val destination: Zone,
+    val enteredBattlefieldTimestamp: Long? = null
+) : Effect {
+    override val description: String =
+        "Move ${target.description} to its owner's ${destination.displayName}"
 }

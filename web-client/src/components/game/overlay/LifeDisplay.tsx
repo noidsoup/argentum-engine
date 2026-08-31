@@ -6,6 +6,7 @@ import { styles } from '../board/styles'
 import { HoverCardPreview } from '../../ui/HoverCardPreview'
 import { AbilityText } from '../../ui/ManaSymbols'
 import { TheRingBadge } from './TheRingBadge'
+import { isLoneTargetRequirement } from '@/utils/targeting.ts'
 
 /**
  * Life total display - interactive when in targeting mode or when a pending decision requires player targeting.
@@ -17,9 +18,12 @@ export function LifeDisplay({
   playerName,
   spectatorMode = false,
   poisonCounters = 0,
+  energyCounters = 0,
   commanderDamage,
   seatColor,
   isAlly = false,
+  teamName,
+  teamMembers,
   handSize,
   maxHandSize,
 }: {
@@ -29,6 +33,8 @@ export function LifeDisplay({
   playerName?: string
   spectatorMode?: boolean
   poisonCounters?: number
+  /** Current energy counter total (Kaladesh block onward, CR 107.14). No badge when 0. */
+  energyCounters?: number
   commanderDamage?: readonly ClientCommanderDamage[]
   /** Current hand size — paired with [maxHandSize] to show the hand-limit badge when it changed. */
   handSize?: number | undefined
@@ -47,6 +53,15 @@ export function LifeDisplay({
    * their board is viewed). The role tag reads "Ally" so it never reads as an opponent.
    */
   isAlly?: boolean
+  /**
+   * Two-Headed Giant (CR 810): print the *team's* name here instead of the player's. Both
+   * teammates share one life total, so the center HUD reads team-vs-team — one orb per team,
+   * one life total per team — and the individual seats keep their identity on the rail chips
+   * and board name plates. Undefined outside a shared-life team game.
+   */
+  teamName?: string
+  /** Team members behind [teamName], for the orb's tooltip ("Bob & Carol"). */
+  teamMembers?: string
 }) {
   const responsive = useResponsiveContext()
   const targetingState = useGameStore((state) => state.targetingState)
@@ -82,10 +97,13 @@ export function LifeDisplay({
   const isValidTargetingTarget = targetingState?.validTargets.includes(playerId) ?? false
   const isTargetingSelected = targetingState?.selectedTargets.includes(playerId) ?? false
 
-  // Check if this player is a valid target in a pending ChooseTargetsDecision (single-requirement only)
+  // Check if this player can be click-to-submitted for a pending ChooseTargetsDecision. Only a lone
+  // single-target requirement uses this immediate-submit path; a multi-target player slot (e.g.
+  // Parker Luck's "two target players") routes to BattlefieldTargetingUI and is picked via the
+  // decisionSelectionState toggle path below, so it must NOT match here.
   const isChooseTargetsDecision = pendingDecision?.type === 'ChooseTargetsDecision'
-  const isSingleRequirementDecision = isChooseTargetsDecision && pendingDecision.targetRequirements.length === 1
-  const decisionLegalTargets = isSingleRequirementDecision
+  const isLoneTargetDecision = isChooseTargetsDecision && isLoneTargetRequirement(pendingDecision)
+  const decisionLegalTargets = isLoneTargetDecision
     ? (pendingDecision.legalTargets[0] ?? [])
     : []
   const isValidDecisionTarget = decisionLegalTargets.includes(playerId)
@@ -189,11 +207,20 @@ export function LifeDisplay({
             ? '0 0 16px rgba(255, 68, 68, 0.7), 0 0 32px rgba(255, 68, 68, 0.4)'
             : 'none'
 
-  const nameText = playerName ? playerName.toUpperCase() : (isPlayer ? 'YOU' : 'OPPONENT')
+  // A team orb stands for the whole team, so it may only carry team-scoped facts. Life and
+  // poison are pooled in Two-Headed Giant (CR 810.4, CR 810.10) and stay; the hand-limit badge
+  // is one player's (CR 402.2) and would read as the team's, so it stands down — the seat's own
+  // rail chip still carries it.
+  const effectiveMaxHandSize = teamName ? undefined : maxHandSize
+
+  const nameText = teamName
+    ? teamName.toUpperCase()
+    : playerName ? playerName.toUpperCase() : (isPlayer ? 'YOU' : 'OPPONENT')
   // Only show the "YOU" / "OPPONENT" role tag when a custom name is rendered
   // (otherwise the name itself already carries the same information) and when
-  // not spectating (there's no "you" in spectator mode).
-  const showRoleTag = !spectatorMode && !!playerName
+  // not spectating (there's no "you" in spectator mode). A team name already says
+  // "yours" or "theirs", so it replaces the tag rather than doubling it.
+  const showRoleTag = !spectatorMode && !!playerName && !teamName
   // Seat-tinted in multiplayer (SEAT_COLORS are 6-digit hex, so appending an alpha byte gives the
   // translucent variants the tag uses). A supplied seatColor wins for both roles; otherwise fall
   // back to the fixed 2-player blue (player) / orange (opponent).
@@ -232,7 +259,7 @@ export function LifeDisplay({
           textOverflow: 'ellipsis',
           textShadow: '0 1px 2px rgba(0, 0, 0, 0.6)',
         }}
-        title={playerName}
+        title={teamName ? `${teamName}${teamMembers ? ` — ${teamMembers}` : ''}` : playerName}
       >
         {nameText}
       </span>
@@ -422,7 +449,28 @@ export function LifeDisplay({
           POISON {poisonCounters}/10
         </div>
       )}
-      <MaxHandSizeBadge handSize={handSize} maxHandSize={maxHandSize} />
+      {energyCounters > 0 && (
+        <div
+          title={`${energyCounters} energy counter${energyCounters === 1 ? '' : 's'}`}
+          style={{
+            marginTop: 4,
+            minHeight: 18,
+            padding: '2px 7px',
+            borderRadius: 4,
+            border: '1px solid rgba(250, 204, 21, 0.55)',
+            backgroundColor: 'rgba(43, 33, 4, 0.92)',
+            color: '#fde68a',
+            fontSize: 11,
+            fontWeight: 800,
+            lineHeight: '14px',
+            fontVariantNumeric: 'tabular-nums',
+            boxShadow: '0 0 10px rgba(250, 204, 21, 0.25)',
+          }}
+        >
+          ⚡ {energyCounters}
+        </div>
+      )}
+      <MaxHandSizeBadge handSize={handSize} maxHandSize={effectiveMaxHandSize} />
       <CommanderDamageBadges entries={commanderDamage ?? []} />
     </div>
   )

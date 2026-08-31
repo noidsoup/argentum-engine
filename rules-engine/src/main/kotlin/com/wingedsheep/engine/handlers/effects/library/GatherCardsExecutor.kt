@@ -52,7 +52,7 @@ class GatherCardsExecutor(
         effect: GatherCardsEffect,
         context: EffectContext
     ): EffectResult {
-        val cards = when (val source = effect.source) {
+        val gathered = when (val source = effect.source) {
             is CardSource.TopOfLibrary -> {
                 val count = amountEvaluator.evaluate(state, source.count, context)
                 val playerIds = resolvePlayers(source.player, context, state)
@@ -118,6 +118,18 @@ class GatherCardsExecutor(
 
             is CardSource.TappedAsCost -> {
                 context.tappedPermanents
+            }
+
+            // The cards exiled to pay this ability's activation cost, recorded at payment time.
+            // Restricted to cards still in exile: a copy effect or another player's response can
+            // move one out between activation and resolution, and "those exiled cards" can only
+            // mean the ones that are still there to act on.
+            is CardSource.ExiledAsCost -> {
+                context.exiledAsCostCards.filter { cardId ->
+                    val ownerId = state.getEntity(cardId)?.get<OwnerComponent>()?.playerId
+                        ?: context.controllerId
+                    cardId in state.getZone(ZoneKey(ownerId, Zone.EXILE))
+                }
             }
 
             is CardSource.ControlledPermanents -> {
@@ -238,7 +250,7 @@ class GatherCardsExecutor(
 
             is CardSource.CraftedMaterials -> {
                 // The cards exiled to Craft this permanent (CraftedFromExiledComponent), filtered to
-                // those still in exile — the gather-pipeline twin of ExiledCardsSource.CRAFTED.
+                // those still in exile — the gather-pipeline twin of DonorCards.CRAFT_MATERIALS.
                 // Backs The Grim Captain's "put an exiled creature card used to craft it" clause.
                 val sourceId = context.sourceId
                     ?: return EffectResult.error(state, "No source entity for CraftedMaterials")
@@ -297,7 +309,7 @@ class GatherCardsExecutor(
             }
 
             is CardSource.LastKnownEquipmentAttachedToSource -> {
-                // CR 112.7a — the Equipment attached to the source captured before a self-sacrifice /
+                // CR 113.7a — the Equipment attached to the source captured before a self-sacrifice /
                 // self-exile cost moved it off the battlefield. Restrict to permanents still on the
                 // battlefield that are still Equipment: one that has since left (or stopped being an
                 // Equipment) can't be attached. Last-known info identifies them, it doesn't resurrect
@@ -324,6 +336,8 @@ class GatherCardsExecutor(
                 }
             }
         }
+
+        val cards = gathered
 
         if (cards.isEmpty()) {
             return EffectResult.success(state).copy(

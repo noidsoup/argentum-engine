@@ -72,6 +72,33 @@ sealed interface EntityReference {
         override val description: String = "enchanted creature"
     }
 
+    /**
+     * A card **exiled with the ability's source** — the source's linked-exile pile (CR 607 linked
+     * abilities), which on Mirrodin's *Imprint* cards holds "the exiled card". (Imprint has no rule
+     * number of its own: it used to be a keyword ability and is now only an ability word, with the
+     * linkage carried by CR 607 and each card's own errata'd text.)
+     *
+     * This is the read-side companion to the `linkToSource = true` exile that puts a card there:
+     * it turns the imprinted card into an ordinary entity reference, so every existing
+     * `…With(entity)` predicate and `DynamicAmount.EntityProperty` reads its characteristics
+     * without new vocabulary — `CardPredicate.SharesColorWith(LinkedExiledCard())` for Thought
+     * Prison and Mourner's Shield, `SharesCreatureTypeWith`, `EntityProperty(…, ManaValue)`.
+     *
+     * Resolution walks the pile in exile order and skips ids that have since left exile, so
+     * [index] `0` is the *oldest card still exiled*. An empty (or fully departed) pile resolves to
+     * null, which every consumer already treats as "no match" / zero — the correct reading of an
+     * imprint the controller declined at ETB.
+     *
+     * Only resolvable where the evaluating context knows the source permanent (predicate
+     * evaluation, dynamic amounts, target resolution). Imprint exiles exactly one card, so
+     * [index] is a completeness parameter rather than something Mirrodin's cards need.
+     */
+    @SerialName("LinkedExiledCard")
+    @Serializable
+    data class LinkedExiledCard(val index: Int = 0) : EntityReference {
+        override val description: String = "the exiled card"
+    }
+
     /** A permanent tapped as cost, by index. */
     @SerialName("TappedAsCost")
     @Serializable
@@ -102,7 +129,7 @@ sealed interface EntityReference {
      * When paired with `DynamicAmount.EntityProperty(...)`, the evaluator
      * consults `EffectContext.chosenEntitySnapshots` for last-known-info
      * fallback if the entity has left the battlefield since cost-pay time
-     * (Rule 112.7a / 608.2h), mirroring the existing
+     * (Rule 113.7a / 608.2h), mirroring the existing
      * [Sacrificed] / [TappedAsCost] LKI paths.
      *
      * @property collectionName The `storeAs` key under which the cost step

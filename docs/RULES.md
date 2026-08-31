@@ -6,8 +6,8 @@ can reuse existing rules. Update this file whenever a new rule lands on `main`.
 
 The bullets below are evidence-based: each entry corresponds to a DSL primitive
 that is wired through the rules engine and exercised by at least one implemented
-card under `mtg-sets/src/main/kotlin/com/wingedsheep/mtg/sets/definitions/` or a
-passing scenario test under `rules-engine/src/test/kotlin/.../scenarios/`. When in
+card under `mtg-sets/<era>/src/main/kotlin/com/wingedsheep/mtg/sets/definitions/` or a
+passing scenario test under `mtg-sets/<era>/tests/src/test/kotlin/.../scenarios/`. When in
 doubt, leave it out — the planner will conservatively schedule a rule-plan.
 
 ## Keywords
@@ -77,7 +77,9 @@ doubt, leave it out — the planner will conservatively schedule a rule-plan.
 
 ### Numeric keywords (printed text + payload; engine wires them where used)
 - Annihilator N, Bushido N, Rampage N, Absorb N, Afflict N, Modular N,
-  Fading N, Vanishing N, Renown N, Fabricate N, Tribute N
+  Fading N, Renown N, Fabricate N, Tribute N
+- Vanishing N — fully wired (CR 702.62): declaring the keyword ability is the whole
+  implementation; the engine supplies the enters-with-counters replacement and both triggers.
   (catalog entries with display text and N; only the ones above with their own
   bullets have full mechanical wiring beyond what `KeywordAbility.Numeric` carries.
   When a card's only behaviour is the keyword itself, prefer to confirm via an
@@ -243,7 +245,7 @@ doubt, leave it out — the planner will conservatively schedule a rule-plan.
 ## Triggered abilities
 
 - When this enters the battlefield (basic ETB shape, no extra conditions)
-- ETB with a condition (`triggerCondition` slot, e.g. `Conditions.Void`, "if you cast it")
+- ETB with a condition (`interveningIf` slot, e.g. `Conditions.Void`, "if you cast it")
 - ETB on any permanent / another creature / another permanent you control
 - ETB on a land you control (Landfall)
 - ETB on an enchantment you control (Eerie)

@@ -2,10 +2,10 @@ package com.wingedsheep.ai.engine.advisor.modules
 
 import com.wingedsheep.ai.engine.advisor.*
 import com.wingedsheep.ai.engine.evaluation.BoardPresence
+import com.wingedsheep.ai.engine.scoreOrRankLast
 import com.wingedsheep.engine.core.*
 import com.wingedsheep.engine.state.components.identity.CardComponent
-import com.wingedsheep.engine.state.components.identity.LifeTotalComponent
-import com.wingedsheep.ai.engine.soleOpponent
+import com.wingedsheep.ai.engine.anyOpponent
 import com.wingedsheep.engine.state.GameState
 import com.wingedsheep.engine.mechanics.layers.ProjectedState
 import com.wingedsheep.sdk.core.Keyword
@@ -29,7 +29,6 @@ class BloomburrowAdvisorModule : CardAdvisorModule {
         registry.register(SpellgyreAdvisor)
         registry.register(BoardWipeAdvisor)
         registry.register(GiftRemovalAdvisor)
-        registry.register(GiftBoardWipeAdvisor)
         registry.register(GiftCombatTrickAdvisor)
         registry.register(GiftCounterspellAdvisor)
         registry.register(GiftCardDrawAdvisor)
@@ -53,11 +52,11 @@ private fun isCombatStep(state: GameState): Boolean =
 
 /** True when it's the AI's own main phase. */
 private fun isOwnMainPhase(state: GameState, playerId: EntityId): Boolean =
-    state.activePlayerId == playerId && state.step.isMainPhase
+    state.isActiveTurnFor(playerId) && state.step.isMainPhase
 
 /** True when it's the opponent's turn. */
 private fun isOpponentsTurn(state: GameState, playerId: EntityId): Boolean =
-    state.activePlayerId != playerId
+    !state.isActiveTurnFor(playerId)
 
 /** Sum of creature board value for a player. */
 private fun creatureBoardValue(state: GameState, projected: ProjectedState, playerId: EntityId): Double {
@@ -73,9 +72,8 @@ private fun creatureBoardValue(state: GameState, projected: ProjectedState, play
 private fun creatureCount(projected: ProjectedState, playerId: EntityId): Int =
     projected.getBattlefieldControlledBy(playerId).count { projected.isCreature(it) }
 
-/** Get player's life total. */
-private fun lifeTotal(state: GameState, playerId: EntityId): Int =
-    state.getEntity(playerId)?.get<LifeTotalComponent>()?.life ?: 0
+/** Get player's life total — the team's shared pool in a team format (CR 810.9a). */
+private fun lifeTotal(state: GameState, playerId: EntityId): Int = state.lifeTotal(playerId)
 
 /** Get player's hand size. */
 private fun handSize(state: GameState, playerId: EntityId): Int =
@@ -86,7 +84,7 @@ private fun handSize(state: GameState, playerId: EntityId): Int =
  * is devastating; giving one to an opponent with 5+ cards barely matters.
  */
 private fun giftPenalty(state: GameState, playerId: EntityId): Double {
-    val opponentId = state.soleOpponent(playerId) ?: return 1.5
+    val opponentId = state.anyOpponent(playerId) ?: return 1.5
     val oppHand = handSize(state, opponentId)
     return when {
         oppHand == 0 -> 4.0   // hellbent opponent — huge cost to give them a card
@@ -110,7 +108,9 @@ private fun pickBestGiftMode(context: AdvisorDecisionContext, decision: ChooseMo
             context.state,
             ModesChosenResponse(decision.id, listOf(mode.index))
         )
-        val score = context.evaluator.evaluate(result.state, result.state.projectedState, context.playerId)
+        val score = result.scoreOrRankLast {
+            context.evaluator.evaluate(it, it.projectedState, context.playerId)
+        }
         // Apply gift penalty to mode 2 (gift mode is always index 1)
         val adjusted = if (mode.index == 1) score - penalty else score
         mode to adjusted
@@ -138,7 +138,8 @@ object CombatTrickAdvisor : CardAdvisor {
         "Scales of Shale",
         "Might of the Meek",
         "Rabbit Response",
-        "Valley Rally",
+        // "Valley Rally" is a gift trick — owned by GiftCombatTrickAdvisor, which
+        // delegates its cast timing back here.
     )
 
     override fun evaluateCast(context: CastContext): Double? {
@@ -311,7 +312,7 @@ object CounterspellAdvisor : CardAdvisor {
         if (isOpponentsTurn(state, playerId) && state.stack.isNotEmpty()) return null
 
         // Own turn: heavily penalize — hold it
-        if (state.activePlayerId == playerId) {
+        if (state.isActiveTurnFor(playerId)) {
             return context.passScore - 2.0
         }
 
@@ -367,6 +368,10 @@ object SpellgyreAdvisor : CardAdvisor {
  * Board wipes destroy our own creatures too. Worthwhile when:
  * - Opponent's board is significantly better than ours, OR
  * - We have cards in hand to rebuild and opponent doesn't
+ *
+ * Both BLB wipes are also gift cards, so this advisor owns the gift-mode choice
+ * too: prefer gift mode when far behind (the extra value outweighs the card),
+ * base mode when the wipe alone is sufficient.
  */
 object BoardWipeAdvisor : CardAdvisor {
     override val cardNames = setOf(
@@ -377,7 +382,7 @@ object BoardWipeAdvisor : CardAdvisor {
     override fun evaluateCast(context: CastContext): Double? {
         val state = context.state
         val playerId = context.playerId
-        val opponentId = state.soleOpponent(playerId) ?: return null
+        val opponentId = state.anyOpponent(playerId) ?: return null
         val projected = context.projected
 
         val myBoardValue = creatureBoardValue(state, projected, playerId)
@@ -398,6 +403,11 @@ object BoardWipeAdvisor : CardAdvisor {
         // Behind on board: bonus scales with deficit + hand edge
         val deficit = oppBoardValue - myBoardValue
         return context.defaultScore + deficit * 0.3 + handEdge
+    }
+
+    override fun respondToDecision(context: AdvisorDecisionContext): DecisionResponse? {
+        val decision = context.decision as? ChooseModeDecision ?: return null
+        return pickBestGiftMode(context, decision)
     }
 }
 
@@ -425,7 +435,7 @@ object GiftRemovalAdvisor : CardAdvisor {
         // For Parting Gust: permanent exile (gift) is almost always better
         // than temporary exile (base), unless opponent is hellbent
         if (context.sourceCardName == "Parting Gust") {
-            val opponentId = state.soleOpponent(playerId) ?: return null
+            val opponentId = state.anyOpponent(playerId) ?: return null
             val oppHand = handSize(state, opponentId)
             if (oppHand == 0) {
                 // Don't give a hellbent opponent a card for marginal upside
@@ -438,7 +448,7 @@ object GiftRemovalAdvisor : CardAdvisor {
         // Consider both life and opponent hand
         if (context.sourceCardName == "Nocturnal Hunger") {
             val myLife = lifeTotal(state, playerId)
-            val opponentId = state.soleOpponent(playerId) ?: return null
+            val opponentId = state.anyOpponent(playerId) ?: return null
             val oppHand = handSize(state, opponentId)
 
             val preferGift = when {
@@ -454,24 +464,6 @@ object GiftRemovalAdvisor : CardAdvisor {
         }
 
         // For others: simulate both with context-sensitive gift penalty
-        return pickBestGiftMode(context, decision)
-    }
-}
-
-/**
- * Gift board wipes (Starfall Invocation, Wildfire Howl).
- *
- * Prefer gift mode when far behind (the extra value outweighs the card),
- * use base mode when the wipe alone is sufficient.
- */
-object GiftBoardWipeAdvisor : CardAdvisor {
-    override val cardNames = setOf(
-        "Starfall Invocation",
-        "Wildfire Howl",
-    )
-
-    override fun respondToDecision(context: AdvisorDecisionContext): DecisionResponse? {
-        val decision = context.decision as? ChooseModeDecision ?: return null
         return pickBestGiftMode(context, decision)
     }
 }
@@ -767,9 +759,9 @@ object BiteSpellAdvisor : CardAdvisor {
                     mapOf(req0.index to listOf(mine), req1.index to listOf(theirs))
                 )
                 val result = context.simulator.simulateDecision(context.state, response)
-                val score = context.evaluator.evaluate(
-                    result.state, result.state.projectedState, context.playerId
-                )
+                val score = result.scoreOrRankLast {
+                    context.evaluator.evaluate(it, it.projectedState, context.playerId)
+                }
                 if (score > bestScore) {
                     bestScore = score
                     bestMine = mine

@@ -1,6 +1,8 @@
 package com.wingedsheep.sdk.dsl
 
+import com.wingedsheep.sdk.core.Color
 import com.wingedsheep.sdk.core.Counters
+import com.wingedsheep.sdk.core.Subtype
 import com.wingedsheep.sdk.core.Zone
 import com.wingedsheep.sdk.scripting.GameObjectFilter
 import com.wingedsheep.sdk.scripting.effects.AddCountersEffect
@@ -15,6 +17,9 @@ import com.wingedsheep.sdk.scripting.effects.ChooseActionEffect
 import com.wingedsheep.sdk.scripting.effects.ChooseOpponentForSourceEffect
 import com.wingedsheep.sdk.scripting.effects.CollectionFilter
 import com.wingedsheep.sdk.scripting.effects.CompositeEffect
+import com.wingedsheep.sdk.scripting.effects.ConditionalOnCollectionEffect
+import com.wingedsheep.sdk.scripting.effects.CreateTokenEffect
+import com.wingedsheep.sdk.scripting.effects.DrawCardsEffect
 import com.wingedsheep.sdk.scripting.effects.Effect
 import com.wingedsheep.sdk.scripting.effects.EffectChoice
 import com.wingedsheep.sdk.scripting.conditions.CollectionContainsMatch
@@ -27,17 +32,19 @@ import com.wingedsheep.sdk.scripting.effects.GatherCardsEffect
 import com.wingedsheep.sdk.scripting.effects.ModalEffect
 import com.wingedsheep.sdk.scripting.effects.Mode
 import com.wingedsheep.sdk.scripting.effects.MoveCollectionEffect
+import com.wingedsheep.sdk.scripting.effects.MoveType
 import com.wingedsheep.sdk.scripting.effects.SacrificeEffect
-import com.wingedsheep.sdk.scripting.effects.SearchDestination
 import com.wingedsheep.sdk.scripting.effects.SelectFromCollectionEffect
 import com.wingedsheep.sdk.scripting.effects.SelectionMode
 import com.wingedsheep.sdk.scripting.references.Player
 import com.wingedsheep.sdk.scripting.targets.EffectTarget
 import com.wingedsheep.sdk.scripting.values.DynamicAmount
 import com.wingedsheep.sdk.scripting.values.EntityReference
+import com.wingedsheep.sdk.scripting.effects.SearchDestination
 
 /**
- * Named MTG keyword-mechanic recipes (Blight, Bolster, Explore, Forage, Gift, Incubate).
+ * Named MTG keyword-mechanic recipes (Blight, Bolster, Explore, Forage, Gift, Incubate, Learn,
+ * Recruit).
  *
  * Reached through the [Patterns] index — `Patterns.Mechanic.blight(...)`. Each composes existing
  * atomic effects into the printed keyword behaviour; they live here (rather than a zone-based
@@ -191,12 +198,28 @@ object MechanicPatterns {
     )
 
     /**
-     * Forage — exile three cards from your graveyard or sacrifice a Food.
+     * Forage — CR 701.59a, "Exile three cards from your graveyard or sacrifice a Food."
      *
      * Returns a [ChooseActionEffect] with feasibility checks so the choice is only
      * offered when the player can actually fulfill at least one option.
      *
-     * @param afterEffect optional effect appended to each mode (e.g., add counters)
+     * **Each mode ends by emitting the foraged event** ([Effects.Foraged]), which is what makes
+     * "Whenever you forage" (`Triggers.WheneverYouForage`) see a forage taken as an *effect*. The
+     * three *cost* contexts — an activated-ability cost, a cast-time additional cost, the
+     * graveyard-cast permission — emit it from their shared payment implementation instead, because
+     * they never come through here. That split is waterbend's: a keyword action that is sometimes a
+     * cost and sometimes an effect cannot be observed from one place.
+     *
+     * The marker sits **inside** each mode rather than after the choice, which is what gives the
+     * "only if it actually happened" property for free: forage has no "even if you can't" clause, so
+     * a declined forage — or one where neither mode is feasible — runs no mode and emits nothing.
+     * It also goes *before* [afterEffect], so the event is emitted the moment the forage completes
+     * and an "If you do, …" rider reads as the separate thing it is.
+     *
+     * @param afterEffect optional effect appended to each mode (e.g., add counters) — the "If you
+     *   do, …" half of "you may forage. If you do, …". Note that "**When** you do, …" is a
+     *   different card: that one is a reflexive trigger (CR 603.12) and belongs in
+     *   `ReflexiveTriggerEffect`, not here.
      */
     fun forage(afterEffect: Effect? = null): ChooseActionEffect {
         val exileFromGraveyard = CompositeEffect(
@@ -221,26 +244,25 @@ object MechanicPatterns {
                         destination = CardDestination.ToZone(Zone.EXILE)
                     )
                 )
+                add(Effects.Foraged())
                 if (afterEffect != null) add(afterEffect)
             }
         )
 
-        val sacrificeFood = if (afterEffect != null) {
-            CompositeEffect(
-                listOf(
+        // No empty-composite branch any more: every mode now carries the marker, so the sacrifice
+        // mode is a composite whether or not there is an `afterEffect`.
+        val sacrificeFood = CompositeEffect(
+            buildList {
+                add(
                     SacrificeEffect(
                         filter = GameObjectFilter.Any.withSubtype("Food"),
                         count = 1
-                    ),
-                    afterEffect
+                    )
                 )
-            )
-        } else {
-            SacrificeEffect(
-                filter = GameObjectFilter.Any.withSubtype("Food"),
-                count = 1
-            )
-        }
+                add(Effects.Foraged())
+                if (afterEffect != null) add(afterEffect)
+            }
+        )
 
         return ChooseActionEffect(
             choices = listOf(
@@ -305,11 +327,11 @@ object MechanicPatterns {
         )
 
     // =========================================================================
-    // Incubate Pattern (CR 701.53)
+    // Incubate Pattern (CR 701.51)
     // =========================================================================
 
     /**
-     * Incubate N (CR 701.53). Atomic composition: create the (DFC) Incubator token, then
+     * Incubate N (CR 701.51). Atomic composition: create the (DFC) Incubator token, then
      * place N +1/+1 counters on it via the pipeline-published entity ID.
      *
      * The Incubator's `{2}: Transform this token` activated ability is declared on the
@@ -328,7 +350,7 @@ object MechanicPatterns {
     )
 
     /**
-     * Incubate X (CR 701.53), where X is a [DynamicAmount] resolved at trigger/spell
+     * Incubate X (CR 701.51), where X is a [DynamicAmount] resolved at trigger/spell
      * resolution time (e.g., the triggering spell's mana value for Chrome Host Seedshark).
      *
      * Same shape as [incubate] but uses [AddDynamicCountersEffect] so the +1/+1 counter
@@ -345,12 +367,128 @@ object MechanicPatterns {
         )
     )
 
+    // =========================================================================
+    // Recruit Pattern (The Hobbit)
+    // =========================================================================
+
+    /**
+     * **Learn** (CR 701.48) — the Strixhaven keyword action, printed as a bare "Learn." with
+     * reminder text.
+     *
+     * CR 701.48a spells it out, and the order is load-bearing rather than a "choose one":
+     *
+     * > "Learn" means "You may discard a card. If you do, draw a card. If you didn't discard a
+     * > card, you may reveal a Lesson card you own from outside the game and put it into your
+     * > hand."
+     *
+     * So the discard is offered *first*, and taking it forecloses the Lesson — a player who
+     * discards never gets the sideboard option. The composition follows that shape literally:
+     *
+     * 1. Gather the controller's hand and let them choose **up to one** card to discard. The
+     *    `ChooseUpTo(1)` is where the printed "you may" lives: choosing none is declining, and an
+     *    empty hand auto-resolves to none without a prompt.
+     * 2. If they discarded, draw a card; if they didn't, run a Lesson-restricted
+     *    [SideboardPatterns.wish], whose own `ChooseUpTo(1)` carries the second "may" — declining,
+     *    or owning no Lesson at all, simply does nothing.
+     *
+     * The discard is a real discard ([MoveType.Discard]), so madness and "whenever you discard a
+     * card" triggers see it.
+     *
+     * Collection names are `learn_`-prefixed so a Learn nested inside another pipeline can't
+     * collide with that pipeline's own `hand` / `discarded` collections.
+     */
+    fun learn(): CompositeEffect = CompositeEffect(
+        listOf(
+            GatherCardsEffect(
+                source = CardSource.FromZone(Zone.HAND, Player.You),
+                storeAs = "learn_hand"
+            ),
+            SelectFromCollectionEffect(
+                from = "learn_hand",
+                selection = SelectionMode.ChooseUpTo(DynamicAmount.Fixed(1)),
+                chooser = Chooser.Controller,
+                storeSelected = "learn_discarded",
+                prompt = "Learn — you may discard a card to draw a card"
+            ),
+            MoveCollectionEffect(
+                from = "learn_discarded",
+                destination = CardDestination.ToZone(Zone.GRAVEYARD, Player.You),
+                moveType = MoveType.Discard
+            ),
+            ConditionalOnCollectionEffect(
+                collection = "learn_discarded",
+                ifNotEmpty = DrawCardsEffect(1, EffectTarget.Controller),
+                ifEmpty = SideboardPatterns.wish(
+                    filter = GameObjectFilter.Any.withSubtype(Subtype.LESSON),
+                    storeAs = "learn_lessons"
+                )
+            )
+        ),
+        descriptionOverride = "Learn"
+    )
+
+    /**
+     * Recruit (The Hobbit) — "Draw a card, then discard a card. If you discarded a nonland card,
+     * create a 1/1 white Human Soldier creature token."
+     *
+     * A keyword *action* with fixed reminder text (like explore or amass), not a keyword ability,
+     * so it needs no `Keyword` entry. Mechanically it is connive (CR 701.50) with a token payoff
+     * instead of a +1/+1 counter, and it reuses that proven pipeline shape exactly: Draw →
+     * Gather(hand) → Select(1) → Move(Discard) → ConditionalOnCollection(Nonland). See
+     * [HandPatterns.connive].
+     *
+     * Two details the shape is load-bearing for:
+     *
+     * - The discard is a real discard ([MoveType.Discard]), not a bare move to the graveyard, so
+     *   madness and "whenever you discard a card" triggers see it.
+     * - The payoff is gated on the discarded card being a *nonland*, never on "no land was
+     *   discarded": with an empty hand nothing is discarded at all, and CR's "if you discarded a
+     *   nonland card" is then false. `ChooseExactly(1)` auto-resolves on an empty or single-card
+     *   hand, leaving the collection empty so no token is created.
+     *
+     * The draw comes first and is unconditional, so an empty library still sets up the usual
+     * draw-from-empty loss at the next state-based check.
+     *
+     * Token art is left to the set-scoped resolver (`MtgSet.tokenArt`, keyed off the creating
+     * card's printing) rather than baked in here — ten HOB cards share this facade.
+     */
+    fun recruit(): CompositeEffect = CompositeEffect(
+        listOf(
+            DrawCardsEffect(1, EffectTarget.Controller),
+            GatherCardsEffect(
+                source = CardSource.FromZone(Zone.HAND, Player.You),
+                storeAs = "recruit_hand"
+            ),
+            SelectFromCollectionEffect(
+                from = "recruit_hand",
+                selection = SelectionMode.ChooseExactly(DynamicAmount.Fixed(1)),
+                chooser = Chooser.Controller,
+                storeSelected = "recruit_discarded",
+                prompt = "Recruit — choose a card to discard"
+            ),
+            MoveCollectionEffect(
+                from = "recruit_discarded",
+                destination = CardDestination.ToZone(Zone.GRAVEYARD, Player.You),
+                moveType = MoveType.Discard
+            ),
+            ConditionalOnCollectionEffect(
+                collection = "recruit_discarded",
+                filter = GameObjectFilter.Nonland,
+                ifNotEmpty = CreateTokenEffect(
+                    count = DynamicAmount.Fixed(1),
+                    power = 1,
+                    toughness = 1,
+                    colors = setOf(Color.WHITE),
+                    creatureTypes = setOf("Human", "Soldier")
+                )
+            )
+        ),
+        descriptionOverride = "Recruit"
+    )
+
     /**
      * Ravnica transmute search leg: search your library for a card with the same mana value as
      * [reference] (default [EntityReference.Source]), reveal it, put it into your hand, shuffle.
-     *
-     * Wire on an activated ability from hand with [com.wingedsheep.sdk.dsl.Costs.DiscardSelf],
-     * [com.wingedsheep.sdk.scripting.TimingRule.SorcerySpeed], and the printed transmute mana cost.
      */
     fun transmuteSearch(reference: EntityReference = EntityReference.Source): CompositeEffect =
         LibraryPatterns.searchLibrary(

@@ -10,34 +10,76 @@ default:
 build:
     scripts/gradle-locked build
 
-# Run all tests
+# Run all tesats
 [group: 'build']
 test:
     scripts/gradle-locked test
 
-# Run tests for rules-engine only
+# Card scenarios now live in the per-era `:mtg-sets:<era>:tests` modules, which `:mtg-sets:scenarioTest`
+# fans out to, so both are run here — same coverage as before the split.
+# Run the engine's own tests plus every card scenario
 [group: 'build']
 test-rules:
-    scripts/gradle-locked :rules-engine:test
+    scripts/gradle-locked :rules-engine:test :mtg-sets:scenarioTest
+
+# Run only the card scenario suite, or one era of it (e.g. just test-scenarios 2024)
+[group: 'build']
+test-scenarios ERA="":
+    scripts/gradle-locked {{ if ERA == "" { ":mtg-sets:scenarioTest" } else { ":mtg-sets:" + ERA + ":tests:test" } }}
 
 # Run tests for game-server only
 [group: 'build']
 test-server:
     scripts/gradle-locked :game-server:test
 
+# Run tests for the AI module only (advisors, deckbuild/draft heuristics)
+[group: 'build']
+test-ai:
+    scripts/gradle-locked :ai:test
+
 # Run tests for gym only
 [group: 'build']
 test-gym:
     scripts/gradle-locked :gym:test
 
+# Card definitions and their scenario tests are split across per-era modules so no single Kotlin
+# compilation holds the whole corpus. Nobody has to remember which year a set shipped — ask.
+#   just where MRD                 just where "Myr Incubator"
+# Locate a set or card: which module holds its cards and its tests
+[group: 'build']
+where QUERY:
+    scripts/where "{{QUERY}}"
+
+# Tests live in several modules now — scripts/test-class finds the file and runs only its module's
+# test task, which is also the fast path: just that module's compilation has to be up to date.
 # Run a specific test class (e.g., just test-class CreatureStatsTest)
 [group: 'build']
-test-class CLASS:
-    scripts/gradle-locked :rules-engine:test --tests "{{CLASS}}"
+test-class CLASS *ARGS:
+    scripts/test-class "{{CLASS}}" {{ARGS}}
+
+# Re-bless per-set card snapshot goldens after an intentional change (review the diff: only your cards should move)
+[group: 'build']
+rebless-cards:
+    scripts/gradle-locked :mtg-sets:test --tests "*CardDefinitionSnapshotTest" -DupdateSnapshots=true
+
+# List every token our cards create that has no set-scoped art, so it renders with generic
+# stand-in art. Writes backlog/token-art-gaps.md with a suggested image path and a paste-ready
+# TokenPrinting row per gap. Mostly pre-2001 sets, which have no Scryfall token set to sync.
+[group: 'build']
+token-art-gaps:
+    scripts/gradle-locked :mtg-sets:tokenArtGaps
+
+# Refresh mtg-sets/src/main/resources/tokens.json from Scryfall's token sets (t<code>). Hand-authored
+# art belongs in a set's `tokenArt` (which wins over synced rows) — this file is regenerated wholesale.
+[group: 'build']
+token-art-sync:
+    scripts/gradle-locked :mtg-sets:syncTokenArt
 
 # CLASS options (all in :ai): AdvisorBenchmark   - AI advisor vs random, per-card timing
 #                             GameBenchmark      - full AI-vs-AI games, sealed decks
 #                             RandomActionBenchmark - raw engine throughput (see benchmark-random)
+#                             SimulationThroughputBenchmark - AI-game process/simulate/projection rates
+#                                                     and branching factor (see benchmark-throughput)
 #                             StateCloneBenchmark   - GameState clone speed (uses -DbenchmarkIterations, not GAMES)
 # Run an engine benchmark (e.g., just benchmark, just benchmark GameBenchmark 50)
 [group: 'build']
@@ -49,10 +91,125 @@ benchmark CLASS="AdvisorBenchmark" GAMES="100":
 benchmark-random GAMES="100" SET="POR":
     ./gradlew :ai:test --tests "*.RandomActionBenchmark" -Dbenchmark=true -DbenchmarkGames={{GAMES}} -DbenchmarkSet={{SET}}
 
+# Measure what a rollout evaluator can afford: process()/simulate()/projection rates
+# and branching factor over real AI games (e.g., just benchmark-throughput 40 BLB).
+# Baseline numbers live in docs/ai/baseline-metrics.md.
+[group: 'build']
+benchmark-throughput GAMES="20" SET="BLB":
+    ./gradlew :ai:test --tests "*.SimulationThroughputBenchmark" -Dbenchmark=true -DbenchmarkGames={{GAMES}} -DbenchmarkSet={{SET}}
+
+# Play two AI agents head-to-head over paired-swap games and report a win rate with a confidence
+# interval (e.g., just arena v0 blb-advisors 1000). Agents: v0, current, production, blb-advisors,
+# ons-advisors, v0-blind. 1000 games is the merge gate; 300 is directional; 100 is a smoke test.
+# Results land in benchmarks/arena/. How to read one: docs/ai/measurement.md.
+[group: 'ai']
+arena A B GAMES="300" SET="BLB" SEED="20260727" ARTIFACT_DIR="":
+    scripts/gradle-locked :ai:test --tests "*.ArenaBenchmark" -Dbenchmark=true -Darena=true \
+        -DarenaA={{A}} -DarenaB={{B}} -DarenaGames={{GAMES}} -DarenaSet={{SET}} -DarenaSeed={{SEED}} \
+        -Dargentum.ai.apprentice.dir={{ARTIFACT_DIR}}
+
+# ECL apprentice promotion ladder. Artifacts are installed outside the repository and selected with
+# -Dargentum.ai.apprentice.dir; missing or invalid files safely use the production evaluator.
+[group: 'ai']
+arena-ecl-smoke ARTIFACT_DIR GAMES="100" SEED="20260801":
+    just arena ecl-apprentice production {{GAMES}} ECL {{SEED}} {{ARTIFACT_DIR}}
+
+[group: 'ai']
+arena-ecl-directional ARTIFACT_DIR GAMES="300" SEED="20260801":
+    just arena ecl-apprentice production {{GAMES}} ECL {{SEED}} {{ARTIFACT_DIR}}
+
+# Fit the dependency-free linear apprentice from a pairwise-example JSON file.
+[group: 'ai']
+train-ecl-apprentice EXAMPLES OUTPUT:
+    python3 scripts/train_ecl_apprentice.py {{EXAMPLES}} {{OUTPUT}}
+
+# Collect clean ECL games. Failed/recovered games are quarantined and never appended.
+[group: 'ai']
+collect-ecl-training OUTPUT GAMES="100" SEED="20260801" RUN_ID="ecl-{{SEED}}":
+    scripts/gradle-locked :ai:test --tests "*.EclTrainingBenchmark" -Dbenchmark=true -DeclCollect=true \
+        -DeclCollectGames={{GAMES}} -DeclCollectSeed={{SEED}} -DeclCollectOutput={{OUTPUT}} \
+        -DeclCollectBaseDir={{justfile_directory()}} -DeclCollectRunId={{RUN_ID}}
+
+# Play the rollout evaluator against itself at 4 / 8 / 16 / 32 playouts per decision. Same claim as
+# arena-budget-scaling one level down: strength must never FALL with more playouts, or the search is
+# generating noise. Measured: it rises to ~8 and then plateaus, which is why NORMAL_PLAYOUTS is 16.
+# Also how you afford a rollout arena at all — a rollout game is ~50x a v0 game.
+# Pick rungs far apart: 4-vs-8 is below this harness's resolution (see docs/ai/measurement.md).
+[group: 'ai']
+arena-rollout-scaling A="v0-rollout-4" B="v0-rollout-32" GAMES="100" SET="BLB" SEED="20260727":
+    just arena {{A}} {{B}} {{GAMES}} {{SET}} {{SEED}}
+
+# Run the 66-puzzle tactical suite (11 categories x 6). Seconds, not minutes: the arena says *that*
+# the AI regressed, a puzzle category says *what*. The gate is "the failing set equals
+# KNOWN_FAILURES", so an unexpected fix fails the test too. Baseline: docs/ai/baseline-metrics.md.
+[group: 'ai']
+arena-puzzles:
+    scripts/gradle-locked :ai:test --tests "*.PuzzleSuiteTest"
+
+# Same 66 puzzles across AI profiles (v0, production) with a side-by-side per-category table.
+[group: 'ai']
+arena-puzzles-compare:
+    scripts/gradle-locked :ai:test --tests "*.PuzzleComparisonBenchmark" -Dbenchmark=true
+
+# Play one agent against a field of another at a multiplayer table and report a win share with a
+# confidence interval (e.g. just arena-pod ffa3 current v0-blind 300). Tables: ffa3, ffa4, 2hg.
+# NOTE the null hypothesis is 1/teams — 33% at ffa3, 25% at ffa4, 50% at 2hg — not 50% everywhere.
+# Results land in benchmarks/arena/. How to read one: docs/ai/measurement.md.
+[group: 'ai']
+arena-pod TABLE A B GAMES="300" SET="BLB" SEED="20260727":
+    scripts/gradle-locked :ai:test --tests "*.ArenaBenchmark" -Dbenchmark=true -DarenaPod=true \
+        -DarenaTable={{TABLE}} -DarenaA={{A}} -DarenaB={{B}} -DarenaGames={{GAMES}} \
+        -DarenaSet={{SET}} -DarenaSeed={{SEED}}
+
+# Run every agent in ai/src/test/resources/arena/gauntlet.json against every other and print the
+# full pairwise matrix plus Bradley-Terry Elo. The matrix is the deliverable — MTG agents are
+# frequently non-transitive, and a single rating erases exactly that.
+[group: 'ai']
+arena-gauntlet GAMES="200" SET="BLB" SEED="20260727":
+    scripts/gradle-locked :ai:test --tests "*.ArenaBenchmark" -Dbenchmark=true -DarenaGauntlet=true \
+        -DarenaGames={{GAMES}} -DarenaSet={{SET}} -DarenaSeed={{SEED}}
+
+# Play the same agent against itself at 100 / 1000 / 3000 ms of decision budget. Strength must be
+# MONOTONE in the budget; if it isn't, the search is generating noise and the fix is a better leaf
+# evaluator (phases 6 and 9), not more samples. Runs four matchups, so budget 4x GAMES.
+[group: 'ai']
+arena-budget-scaling GAMES="300" SET="BLB" SEED="20260727":
+    scripts/gradle-locked :ai:test --tests "*.ArenaBudgetScalingTest" -Dbenchmark=true \
+        -DarenaBudgetScaling=true -DarenaGames={{GAMES}} -DarenaSet={{SET}} -DarenaSeed={{SEED}}
+
 # Clean build artifacts
 [group: 'build']
 clean:
     ./gradlew clean
+
+# Cache retention governs the shared Gradle user home, so Gradle refuses to let a project set it —
+# it has to be a machine-level opt-in. Without it nothing ever expires build-cache entries from
+# branches merged weeks ago; the local cache had reached 19 GB.
+# Install the Gradle cache-retention init script into ~/.gradle/init.d
+[group: 'env']
+install-gradle-init:
+    @mkdir -p ~/.gradle/init.d
+    cp gradle/init.d/argentum-cache-retention.init.gradle.kts ~/.gradle/init.d/
+    @echo "Installed ~/.gradle/init.d/argentum-cache-retention.init.gradle.kts (applies to every Gradle build on this machine)."
+
+# Skips the current worktree, anything whose sources changed within DAYS, anything a running
+# java/gradle process references, and refuses to run at all while a gradle-locked slot is held.
+#   just prune-worktrees                 # what would go, 7-day threshold
+#   just prune-worktrees 14 --apply      # delete it
+# Reclaim disk from build/ + .gradle/ in stale worktrees (DRY RUN unless --apply)
+[group: 'env']
+prune-worktrees DAYS="7" *ARGS:
+    scripts/prune-worktree-builds.sh --days {{DAYS}} {{ARGS}}
+
+# `org.gradle.daemon.idletimeout` covers only the Gradle daemon; the Kotlin compile daemon is a
+# separate 6g JVM that outlives it, and a handful of hours-old idle ones is what pushes the box
+# into swap and makes the next compile OOM. Never touches kotlin-lsp.
+#   just kill-daemons                    # what would be reaped, 60-minute threshold
+#   just kill-daemons 30 --apply         # kill anything idle for 30m+
+# Reap idle Kotlin/Gradle compile daemons (DRY RUN unless --apply)
+[group: 'env']
+kill-daemons MIN_AGE="60" *ARGS:
+    scripts/kill-stale-daemons.sh --min-age {{MIN_AGE}} {{ARGS}}
 
 # Format and check code
 [group: 'build']
@@ -88,6 +245,15 @@ coverage *ARGS: _coverage-tool
 [group: 'build']
 coverage-dashboard *ARGS: _coverage-tool
     @mtgish-tooling/build/install/mtgish-tooling/bin/mtgish-tooling dashboard {{ARGS}}
+
+# Cross-set capability index, non-interactively — the same ranking as the dashboard's `c` view
+# ("what engine work unlocks the most cards everywhere"), printed as a plain table so it can be
+# piped, diffed, or pasted into a backlog doc. Use the TUI when you want to DRILL into the cards.
+#   just coverage-cross              # every capability, ranked by blocked cards it would unlock
+#   just coverage-cross --top 50     # just the head of the ranking
+[group: 'build']
+coverage-cross *ARGS: _coverage-tool
+    @mtgish-tooling/build/install/mtgish-tooling/bin/mtgish-tooling dashboard --cross {{ARGS}}
 
 # Generation fidelity — could we AUTO-AUTHOR a card from mtgish? Diffs the bridge's output
 # against each card's compiled golden snapshot, tiering AUTO / SCAFFOLD / MISS.
@@ -165,6 +331,72 @@ coverage-verify-all: _coverage-tool
         just coverage-verify "$s"
     done
 
+# Build the Argentum Assay CLI once so the recipes below can call it (fast no-op when up to date).
+# Assay is the first-party Oracle-text parser (docs/oracle-assay.md); it depends on :mtg-sdk only.
+_assay-tool:
+    @scripts/gradle-locked -q --console=plain :oracle-assay:installDist
+
+# Argentum Assay CLI passthrough — parse / explain / gate / report / corpus.
+#   just assay parse "Serra Angel"        normalized lines + the SDK model each parses to
+#   just assay explain "Wall of Omens"    the same, with a caret on the token a decline died on
+#   just assay corpus --refresh           re-download the Scryfall Oracle bulk (~24 MB, cached 7d)
+[group: 'build']
+assay *ARGS: _assay-tool
+    @oracle-assay/build/install/oracle-assay/bin/oracle-assay {{ARGS}}
+
+# TOUCHSTONE GATE — print(parse(normalize(t))) == normalize(t) over every Oracle text in the bulk.
+# Fails (exit 1) on ambiguity, print mismatch, or non-invertible normalization. Declines are NOT
+# failures: they are the coverage number and the ranked backlog.
+#   just assay-gate                 whole corpus
+#   just assay-gate --limit 2000    fast smoke run
+#   just assay-gate --set POR       one set
+[group: 'build']
+assay-gate *ARGS: _assay-tool
+    @oracle-assay/build/install/oracle-assay/bin/oracle-assay gate {{ARGS}}
+
+# The fineness report — the same numbers as the gate, always exit 0, for reading rather than gating.
+# The bottom table ("top declines, ranked by cards blocked") is a continuously-updated SDK gap
+# report: a card that cannot be expressed does not parse, and the decline names the gap.
+#   just assay-report --top 40
+[group: 'build']
+assay-report *ARGS: _assay-tool
+    @oracle-assay/build/install/oracle-assay/bin/oracle-assay report {{ARGS}}
+
+# DIFFERENTIAL GATE — Assay's reading of a card against the definition a human wrote from the same
+# text, using the committed card goldens as the semantic oracle. This is the gate the touchstone
+# structurally cannot be: it catches readings that are reversible but mean the wrong thing.
+# Fails (exit 1) only on a golden that will not decode. A DIVERGENT row is a finding to classify as
+# parser bug / card bug / known fold — read every one.
+#   just assay-differential              whole hand-written corpus
+#   just assay-differential --set POR    one set's goldens
+#   just assay-differential --top 200    show more divergences
+[group: 'build']
+assay-differential *ARGS: _assay-tool
+    @oracle-assay/build/install/oracle-assay/bin/oracle-assay differential {{ARGS}}
+
+# THE EXPLORER — all of the above in a browser, against the grammar on this classpath rather than a
+# snapshot of it. Serves on loopback and opens a tab; Ctrl-C to stop. The corpus sweep runs in the
+# background, so the live parser and the rule tree are usable before the numbers land.
+#   just assay-explore                   http://127.0.0.1:7345
+#   just assay-explore --port 0          pick any free port
+#   just assay-explore --no-open         don't open a browser
+[group: 'dev']
+assay-explore *ARGS: _assay-tool
+    @oracle-assay/build/install/oracle-assay/bin/oracle-assay explore {{ARGS}}
+
+# THE VERDICT LEDGER — one sorted line per card: read whole, or the decline that stopped it.
+# Two readers, and both matter. `game-server` serves it as the "Assay reads this card" badge on the
+# Set Completion view (production has no Scryfall cache, so the answer has to be baked); and `git
+# diff` reads it as the regression check the corpus totals can't give you — a card that moves out of
+# `whole` is a rule that broke, visible per card instead of hidden in a total that went up.
+# Re-bless it deliberately, in its own commit, after a grammar change:
+#   just assay-bake                      -> game-server/src/main/resources/coverage/assay-verdicts.json
+#   just assay-bake --refresh            re-download the Scryfall bulk first
+#   just assay-bake --out /tmp/l.json    somewhere else (a smoke run; don't commit it)
+[group: 'dev']
+assay-bake *ARGS: _assay-tool
+    @oracle-assay/build/install/oracle-assay/bin/oracle-assay bake {{ARGS}}
+
 # Verify backlog/sets/*/cards.md headers match actual [x] / [x]+[ ] counts
 [group: 'build']
 check-backlog:
@@ -193,10 +425,36 @@ fix-backlog-implementations:
 check-card-printing CARD:
     scripts/check-card-printing.py "{{CARD}}"
 
+# THE ASSAY-READY WORKLIST — the cards Argentum Assay reads whole that this set has not authored,
+# split by where the work lands: author here / author in the earlier set + a row here / row only /
+# basic land. The split is the point: `assayReady` counts a card as done when it appears in the
+# set's cards + basicLands + printings, so a missing reprint row badges a card exactly like a
+# missing canonical does, and a sweep that only authors canonicals leaves half the badge behind.
+# Needs a baked ledger (`just assay-bake`). The `assay-ready-sweep` skill drives the whole job.
+#   just assay-ready MH2                 the split, as a table
+#   just assay-ready MH2 --names         ... and every card name under its bucket
+#   just assay-ready MH2 --tail          ... and the Printing rows owed in OTHER sets
+#   just assay-ready MH2 --json          machine-readable, for generating agent briefs
+[group: 'build']
+assay-ready SET *ARGS:
+    scripts/assay-ready.py --set {{SET}} {{ARGS}}
+
 # Start the game server (loads .env if present)
 [group: 'dev']
 server:
     @if [ -f .env ]; then set -a && . ./.env && set +a; fi && ./gradlew :game-server:bootRun --args='--spring.profiles.active=local'
+
+# Start the game server and web client together
+[group: 'dev']
+dev:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    just server &
+    server_pid=$!
+    just client &
+    client_pid=$!
+    trap 'kill "$server_pid" "$client_pid" 2>/dev/null || true; wait "$server_pid" "$client_pid" 2>/dev/null || true' EXIT INT TERM
+    wait "$server_pid" "$client_pid"
 
 # Start the game server with Onslaught set enabled
 [group: 'dev']

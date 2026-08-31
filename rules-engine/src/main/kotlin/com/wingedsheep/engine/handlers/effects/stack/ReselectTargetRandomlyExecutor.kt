@@ -70,8 +70,10 @@ class ReselectTargetRandomlyExecutor : EffectExecutor<ReselectTargetRandomlyEffe
             ?: return EffectResult.success(stateAfterPick)
 
         // 6. Update the target on the stack entity
-        val newTargetsComponent = targetsComponent.copy(
-            targets = listOf(newTarget)
+        val newTargetsComponent = TargetsComponent.capture(
+            stateAfterPick,
+            listOf(newTarget),
+            targetsComponent.targetRequirements
         )
         val newState = stateAfterPick.updateEntity(triggeringEntityId) { container ->
             container.with(newTargetsComponent)
@@ -130,6 +132,17 @@ class ReselectTargetRandomlyExecutor : EffectExecutor<ReselectTargetRandomlyEffe
                 }
                 val players = state.turnOrder.filter { state.hasEntity(it) }
                 creatures + players
+            }
+
+            requirement is TargetPermanentOrPlayer -> {
+                val predContext = PredicateContext(controllerId = controllerId)
+                val permanents = state.getBattlefield().filter { entityId ->
+                    predicateEvaluator.matches(
+                        state, projected, entityId, requirement.permanentFilter.baseFilter, predContext
+                    )
+                }
+                val players = state.turnOrder.filter { state.hasEntity(it) }
+                permanents + players
             }
 
             requirement is TargetOpponentOrPlaneswalker -> {

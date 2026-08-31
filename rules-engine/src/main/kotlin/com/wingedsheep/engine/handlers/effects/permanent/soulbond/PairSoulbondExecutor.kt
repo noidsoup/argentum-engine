@@ -5,7 +5,7 @@ import com.wingedsheep.engine.core.EffectResult
 import com.wingedsheep.engine.handlers.EffectContext
 import com.wingedsheep.engine.handlers.effects.EffectExecutor
 import com.wingedsheep.engine.state.GameState
-import com.wingedsheep.engine.state.components.battlefield.SoulbondPairComponent
+import com.wingedsheep.engine.state.components.battlefield.PairedComponent
 import com.wingedsheep.engine.state.components.identity.CardComponent
 import com.wingedsheep.sdk.model.EntityId
 import com.wingedsheep.sdk.scripting.effects.PairWithSoulbondEffect
@@ -16,7 +16,7 @@ import kotlin.reflect.KClass
  *
  * On resolution rechecks CR 702.95c/d: both objects must still be creatures on the battlefield
  * under the ability's controller, and both must be unpaired (or already paired *to each other*).
- * Then writes [SoulbondPairComponent] symmetrically and emits [CreaturesPairedEvent].
+ * Then writes [PairedComponent] symmetrically and emits [CreaturesPairedEvent].
  */
 class PairSoulbondExecutor : EffectExecutor<PairWithSoulbondEffect> {
 
@@ -39,8 +39,8 @@ class PairSoulbondExecutor : EffectExecutor<PairWithSoulbondEffect> {
         }
 
         var newState = state
-            .updateEntity(sourceId) { it.with(SoulbondPairComponent(partnerId)) }
-            .updateEntity(partnerId) { it.with(SoulbondPairComponent(sourceId)) }
+            .updateEntity(sourceId) { it.with(PairedComponent(partnerId)) }
+            .updateEntity(partnerId) { it.with(PairedComponent(sourceId)) }
 
         val sourceName = newState.getEntity(sourceId)?.get<CardComponent>()?.name ?: "Creature"
         val partnerName = newState.getEntity(partnerId)?.get<CardComponent>()?.name ?: "Creature"
@@ -76,8 +76,8 @@ class PairSoulbondExecutor : EffectExecutor<PairWithSoulbondEffect> {
             if (projected.getController(a) != controllerId) return false
             if (projected.getController(b) != controllerId) return false
 
-            val aPair = state.getEntity(a)?.get<SoulbondPairComponent>()
-            val bPair = state.getEntity(b)?.get<SoulbondPairComponent>()
+            val aPair = state.getEntity(a)?.get<PairedComponent>()
+            val bPair = state.getEntity(b)?.get<PairedComponent>()
             // Already paired to each other — allow (idempotent).
             if (aPair?.partnerId == b && bPair?.partnerId == a) return true
             // Either already paired to someone else — fail (CR 702.95d).

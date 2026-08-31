@@ -9,6 +9,7 @@ import com.wingedsheep.sdk.scripting.ControlChangeDirection
 import com.wingedsheep.sdk.scripting.EventPattern.*
 import com.wingedsheep.sdk.scripting.ExploreReveal
 import com.wingedsheep.sdk.scripting.GameObjectFilter
+import com.wingedsheep.sdk.scripting.TapReason
 import com.wingedsheep.sdk.scripting.TriggerBinding
 import com.wingedsheep.sdk.scripting.TriggerSpec
 import com.wingedsheep.sdk.scripting.events.AbilityTargetMatch
@@ -33,6 +34,21 @@ import com.wingedsheep.sdk.scripting.references.Player
  * ```
  */
 object Triggers {
+
+    /** Combines trigger atoms that use the same binding into one disjunctive trigger. */
+    fun or(first: TriggerSpec, second: TriggerSpec, vararg others: TriggerSpec): TriggerSpec {
+        val triggers = listOf(first, second) + others
+        require(triggers.all { it.binding == first.binding }) {
+            "Triggers.or requires every trigger to use the same binding"
+        }
+        return TriggerSpec(
+            event = AnyOf(triggers.flatMap {
+                val event = it.event
+                if (event is AnyOf) event.events else listOf(event)
+            }),
+            binding = first.binding
+        )
+    }
 
     // =========================================================================
     // Zone Change Triggers
@@ -68,14 +84,23 @@ object Triggers {
 
     /**
      * Landfall — whenever a land you control enters the battlefield.
-     * (OTHER binding, filter = Land.youControl().)
+     * (ANY binding, filter = Land.youControl().)
+     *
+     * `ANY` and not `OTHER`, because no landfall ability prints the word "another": every one of the
+     * 29 cards using this spells "Whenever a land you control enters". The distinction is invisible
+     * on a creature or an enchantment — neither can be the land that entered — and load-bearing on a
+     * *land* with a landfall trigger, which under `OTHER` would silently not see itself enter. Found
+     * by the Assay differential once the ability-word prefix stopped blocking these lines.
+     *
+     * A card that does print "another land you control" wants
+     * [entersBattlefield] with `binding = TriggerBinding.OTHER`, not this constant.
      */
     val LandYouControlEnters: TriggerSpec = TriggerSpec(
         event = ZoneChangeEvent(
             filter = GameObjectFilter.Land.youControl(),
             to = Zone.BATTLEFIELD
         ),
-        binding = TriggerBinding.OTHER
+        binding = TriggerBinding.ANY
     )
 
     /**
@@ -343,6 +368,29 @@ object Triggers {
     )
 
     /**
+     * When you play a land (CR 305.1). Pass [fromZoneOtherThan] to restrict to lands played from a
+     * zone other than that one — Shadow of the Goblin: "whenever you play a land … from anywhere
+     * other than your hand" is `youPlayLand(fromZoneOtherThan = Zone.HAND)`. Fires only for the
+     * land-play action, not for a land an effect puts onto the battlefield.
+     */
+    fun youPlayLand(fromZoneOtherThan: com.wingedsheep.sdk.core.Zone? = null): TriggerSpec = TriggerSpec(
+        event = LandPlayedEvent(fromZoneOtherThan = fromZoneOtherThan),
+        binding = TriggerBinding.ANY
+    )
+
+    /**
+     * When *any* player plays a land (CR 305.1) — "whenever a player plays a land …" (Cemetery
+     * Gatekeeper). The any-player scope of [youPlayLand]; the land-play counterpart of
+     * [AnyPlayerCastsSpell], so the two compose under [or] for the printed "plays a land or casts
+     * a spell" ability.
+     */
+    fun anyPlayerPlaysLand(fromZoneOtherThan: com.wingedsheep.sdk.core.Zone? = null): TriggerSpec =
+        TriggerSpec(
+            event = LandPlayedEvent(fromZoneOtherThan = fromZoneOtherThan, player = Player.Each),
+            binding = TriggerBinding.ANY
+        )
+
+    /**
      * When one or more creatures attack you.
      * Fires once per combat (not per attacker) when the trigger's controller is
      * declared as defender for at least one creature.
@@ -440,12 +488,32 @@ object Triggers {
      * When this creature blocks or becomes blocked by a creature matching the filter.
      * TriggerContext.triggeringEntityId = the combat partner.
      * Sole consumer of [BlocksOrBecomesBlockedByEvent].
+     *
+     * Fires **once per matching partner** by default, which is what the singular printed wording
+     * ("blocks or becomes blocked by *a* creature", Corrosive Ooze) asks for. Set [oncePerCombat]
+     * for the "by **one or more** Orcs" wording (Dwarven Soldier), which is a single trigger
+     * however many partners match — the same distinction [BlocksOrBecomesBlocked] draws for the
+     * partner-less wording, but with a filter.
      */
     fun BlocksOrBecomesBlockedBy(
         filter: GameObjectFilter,
+        binding: TriggerBinding = TriggerBinding.SELF,
+        oncePerCombat: Boolean = false
+    ): TriggerSpec = TriggerSpec(
+        event = BlocksOrBecomesBlockedByEvent(partnerFilter = filter, oncePerCombat = oncePerCombat),
+        binding = binding
+    )
+
+    /**
+     * When this creature blocks or becomes blocked — the partner-less printed wording, which is a
+     * *single* trigger however many creatures it ends up paired with (Spitting Slug), unlike
+     * [BlocksOrBecomesBlockedBy] which fires once per matching partner.
+     * TriggerContext.triggeringEntityId = the first combat partner.
+     */
+    fun BlocksOrBecomesBlocked(
         binding: TriggerBinding = TriggerBinding.SELF
     ): TriggerSpec = TriggerSpec(
-        event = BlocksOrBecomesBlockedByEvent(partnerFilter = filter),
+        event = BlocksOrBecomesBlockedByEvent(oncePerCombat = true),
         binding = binding
     )
 
@@ -488,6 +556,22 @@ object Triggers {
     )
 
     /**
+     * Whenever a creature dealt damage by the *attached* permanent this turn dies — the Soul Collector
+     * shape read one object further out, for an Equipment or Aura whose text says "equipped creature" /
+     * "enchanted creature" (Scythe of the Wretched). Binding ATTACHED, which is the only difference from
+     * [CreatureDealtDamageByThisDies]: the damage tracker is read off the attachment target instead of
+     * off the permanent bearing the trigger.
+     *
+     * The attachment is resolved when the creature *dies*, not when the damage was dealt — so the
+     * Equipment can move between the two moments and still fire (Scythe of the Wretched's ruling), and
+     * an unattached Equipment never fires.
+     */
+    val CreatureDealtDamageByAttachedDies: TriggerSpec = TriggerSpec(
+        event = CreatureDealtDamageBySourceDiesEvent(),
+        binding = TriggerBinding.ATTACHED
+    )
+
+    /**
      * Whenever a creature dealt damage this turn by a source matching [sourceFilter] dies
      * (Shelob, Child of Ungoliant: "by a Spider you controlled"). Binding ANY — any creature on the
      * battlefield can be the dying creature; the damaging source is matched against [sourceFilter]
@@ -527,6 +611,7 @@ object Triggers {
         binding: TriggerBinding = TriggerBinding.SELF,
         requireExcess: Boolean = false,
         batch: Boolean = false,
+        requires: Set<com.wingedsheep.sdk.scripting.events.DamagePredicate> = emptySet(),
     ): TriggerSpec = TriggerSpec(
         event = DealsDamageEvent(
             damageType = damageType,
@@ -534,6 +619,7 @@ object Triggers {
             sourceFilter = sourceFilter,
             requireExcess = requireExcess,
             batch = batch,
+            requires = requires,
         ),
         binding = binding,
     )
@@ -690,10 +776,17 @@ object Triggers {
 
     /**
      * Whenever a creature is turned face up (any controller).
-     * Use [player] to filter: Player.You (default), Player.Any, etc.
+     * Use [player] to filter whose creature: Player.You (default), Player.Any, etc.
+     * Use [filter] to narrow which creature — evaluated against the permanent's post-flip
+     * (face-up) characteristics, so "whenever a Detective you control is turned face up"
+     * (Perimeter Enforcer) is
+     * `CreatureTurnedFaceUp(filter = GameObjectFilter.Creature.withSubtype(Subtype.DETECTIVE))`.
      */
-    fun CreatureTurnedFaceUp(player: Player = Player.You): TriggerSpec = TriggerSpec(
-        event = CreatureTurnedFaceUpEvent(player),
+    fun CreatureTurnedFaceUp(
+        player: Player = Player.You,
+        filter: GameObjectFilter = GameObjectFilter.Any,
+    ): TriggerSpec = TriggerSpec(
+        event = CreatureTurnedFaceUpEvent(player, filter),
         binding = TriggerBinding.ANY
     )
 
@@ -789,12 +882,47 @@ object Triggers {
      * Batching trigger — fires at most once per event batch regardless of how many cards left,
      * and regardless of where they went (cast/exiled/reanimated/returned to hand, etc.).
      *
-     * Pair with `triggerCondition = Conditions.IsYourTurn` for the common
+     * Pair with `triggerRestriction = Conditions.IsYourTurn` for the common
      * "leave your graveyard during your turn" wording, and `oncePerTurn = true`
      * for "this ability triggers only once each turn" (e.g. Kishla Skimmer).
      */
     fun CardsLeaveYourGraveyard(filter: GameObjectFilter = GameObjectFilter.Any): TriggerSpec = TriggerSpec(
         event = CardsLeftYourGraveyardEvent(filter = filter),
+        binding = TriggerBinding.ANY
+    )
+
+    // =========================================================================
+    // Exile Batching Triggers
+    // =========================================================================
+
+    /**
+     * Whenever one or more cards matching [filter] are put into exile from [fromZones].
+     * Batching trigger — fires at most once per event batch regardless of how many cards were
+     * exiled or which of the watched zones each came from. Unfiltered it is *not* scoped to one
+     * player's zones ("graveyards", plural, and anyone's battlefield permanents); give [filter] a
+     * controller predicate to narrow it ("creatures **you control** and/or creature cards in
+     * **your** graveyard" — Kaya, Spirits' Justice).
+     *
+     * The matching objects reach the payoff as the ability's captured collection
+     * ([com.wingedsheep.sdk.scripting.effects.IterationSpace.TRIGGER_CAPTURED_COLLECTION]), which is
+     * what "from among them" refers to.
+     *
+     * Pass [includeTokens] for a wording whose battlefield noun is *permanents* rather than *cards*
+     * — see [CardsPutIntoExileEvent.includeTokens].
+     *
+     * Pair with `triggerRestriction = Conditions.IsYourTurn` for the common "during your turn"
+     * wording (Ketramose, the New Dawn).
+     */
+    fun CardsPutIntoExile(
+        fromZones: Set<Zone> = setOf(Zone.GRAVEYARD, Zone.BATTLEFIELD),
+        filter: GameObjectFilter = GameObjectFilter.Any,
+        includeTokens: Boolean = false
+    ): TriggerSpec = TriggerSpec(
+        event = CardsPutIntoExileEvent(
+            fromZones = fromZones,
+            filter = filter,
+            includeTokens = includeTokens
+        ),
         binding = TriggerBinding.ANY
     )
 
@@ -1080,6 +1208,19 @@ object Triggers {
     )
 
     /**
+     * When *you* discard **this** card (Edgar's Awakening). The ability functions while the card
+     * is in your hand and fires as it is discarded, wherever the discard sends it — the graveyard
+     * normally, exile if the card also has madness.
+     *
+     * The self-bound counterpart to [YouDiscard]: that one is an observer on a permanent watching
+     * your discards, this one belongs to the discarded card itself.
+     */
+    val YouDiscardThis: TriggerSpec = TriggerSpec(
+        event = DiscardEvent(player = Player.You),
+        binding = TriggerBinding.SELF
+    )
+
+    /**
      * Whenever you discard one or more cards — batch wording (CR 603.2c): fires once per
      * discard event no matter how many cards it contained (Inti, Seneschal of the Sun).
      * Sequential discards in the same resolution are separate events and fire separately.
@@ -1143,6 +1284,74 @@ object Triggers {
     val YouActivateAbility: TriggerSpec = TriggerSpec(
         event = AbilityActivatedEvent(player = Player.You),
         binding = TriggerBinding.ANY
+    )
+
+    /**
+     * Whenever [player] activates an ability *of a permanent matching [sourceFilter]* — the
+     * source-scoped sibling of [YouActivateAbility].
+     *
+     * By default this keeps that trigger's "isn't a mana ability" gate (CR 605 / 606) and only adds
+     * the requirement that the activated ability's source permanent match. Set
+     * [includeManaAbilities] for the unqualified Oracle wording — Elrond, Moon-Reader's "whenever
+     * you activate an ability of a creature", whose ruling confirms a creature's "{T}: Add {G}"
+     * triggers it, since a mana ability is still an activated ability (CR 605.3).
+     *
+     * Unlike [activatesAbilityWithoutTap], which keys on the literal "{T} in its activation cost"
+     * wording, this leaves the tap cost alone — a {T} ability fires it just as a costless one does.
+     */
+    fun activatesAbilityOf(
+        sourceFilter: GameObjectFilter,
+        player: Player = Player.You,
+        includeManaAbilities: Boolean = false
+    ): TriggerSpec = TriggerSpec(
+        event = AbilityActivatedEvent(
+            player = player,
+            sourceFilter = sourceFilter,
+            includeManaAbilities = includeManaAbilities
+        ),
+        binding = TriggerBinding.ANY
+    )
+
+    /**
+     * Whenever you activate an exhaust ability (CR 702.177). The plain Aetherdrift wording —
+     * Adrenaline Jockey, Rangers' Refueler, Rangers' Aetherhive, Afterburner Expert — which counts
+     * an exhaust *mana* ability as well. For the "that isn't a mana ability" variant see
+     * [YouActivateNonManaExhaustAbility].
+     */
+    val YouActivateExhaustAbility: TriggerSpec = TriggerSpec(
+        event = AbilityActivatedEvent(player = Player.You, requireExhaust = true),
+        binding = TriggerBinding.ANY
+    )
+
+    /**
+     * Whenever you activate an exhaust ability that isn't a mana ability — Pit Automaton, whose
+     * Oracle text was updated so its "copy it" payoff can never latch onto a mana ability. The
+     * activated ability is exposed as
+     * [com.wingedsheep.sdk.scripting.targets.EffectTarget.TriggeringEntity], so
+     * [com.wingedsheep.sdk.dsl.Effects.CopyTargetSpellOrAbility] can copy it.
+     */
+    val YouActivateNonManaExhaustAbility: TriggerSpec = TriggerSpec(
+        event = AbilityActivatedEvent(
+            player = Player.You,
+            requireExhaust = true,
+            excludeManaAbilities = true
+        ),
+        binding = TriggerBinding.ANY
+    )
+
+    /**
+     * Whenever this creature crews a Vehicle. The Vehicle is available to the effect as
+     * `EffectTarget.TriggeringEntity`.
+     */
+    val Crews: TriggerSpec = TriggerSpec(
+        event = CrewsEvent,
+        binding = TriggerBinding.SELF
+    )
+
+    /** Whenever this creature saddles a Mount. */
+    val Saddles: TriggerSpec = TriggerSpec(
+        event = SaddlesEvent,
+        binding = TriggerBinding.SELF
     )
 
     /**
@@ -1229,11 +1438,24 @@ object Triggers {
      * Successor shape. Pass a different [filter] or `firstTimeEachTurn = false` to reuse for
      * other "counters placed" payoffs. The triggering permanent is available via
      * [com.wingedsheep.sdk.scripting.targets.EffectTarget.TriggeringEntity].
+     *
+     * [batch] switches from the per-permanent template to the "on **one or more** <permanents>"
+     * batch template (CR 603.2c): one effect placing counters on several matching permanents then
+     * fires the ability once instead of once per permanent — see
+     * [CountersPlacedEvent.batch] for what the batch does and does not collapse.
+     *
+     * [firstTimeEachTurn] therefore defaults to `!batch`, not to a constant: the per-permanent
+     * default is the Stalwart Successor shape ("… for the first time this turn"), while a batch
+     * template essentially never carries that printed rider, and inheriting `true` there would
+     * silently narrow the batch to placements that were each the first on their recipient this
+     * turn. The combination is still expressible — pass `firstTimeEachTurn = true` alongside
+     * `batch = true` deliberately — it just isn't what you get by forgetting to.
      */
     fun countersPlacedOn(
         filter: GameObjectFilter = GameObjectFilter.Creature.youControl(),
         counterType: String = Counters.ANY,
-        firstTimeEachTurn: Boolean = true,
+        batch: Boolean = false,
+        firstTimeEachTurn: Boolean = !batch,
         binding: TriggerBinding = TriggerBinding.ANY,
         placedBy: Player? = null,
     ): TriggerSpec = TriggerSpec(
@@ -1242,6 +1464,7 @@ object Triggers {
             filter = filter,
             firstTimeEachTurn = firstTimeEachTurn,
             placedBy = placedBy,
+            batch = batch,
         ),
         binding = binding
     )
@@ -1259,6 +1482,31 @@ object Triggers {
             firstTimeEachTurn = false,
         ),
         binding = TriggerBinding.SELF
+    )
+
+    /**
+     * Whenever one or more counters of [counterType] are removed from a permanent matching
+     * [filter] — the mirror of [countersPlacedOn].
+     *
+     * With [lastRemoved] this is the "when the last counter is removed" shape the counter-countdown
+     * mechanics share; bound [TriggerBinding.SELF] it reads "when the last [counterType] counter is
+     * removed from this permanent" (CR 310.12b). The permanent the counters left is available via
+     * [com.wingedsheep.sdk.scripting.targets.EffectTarget.TriggeringEntity].
+     */
+    fun countersRemovedFrom(
+        filter: GameObjectFilter = GameObjectFilter.Any,
+        counterType: String = Counters.ANY,
+        lastRemoved: Boolean = false,
+        byDamagePrevention: Boolean = false,
+        binding: TriggerBinding = TriggerBinding.ANY,
+    ): TriggerSpec = TriggerSpec(
+        event = CountersRemovedEvent(
+            counterType = counterType,
+            filter = filter,
+            lastRemoved = lastRemoved,
+            byDamagePrevention = byDamagePrevention,
+        ),
+        binding = binding
     )
 
     /**
@@ -1306,6 +1554,47 @@ object Triggers {
         binding = binding,
     )
 
+    /**
+     * Whenever **you** (this permanent's controller) are dealt damage, by any source at all —
+     * creature, burn spell, artifact, planeswalker (Sun Droplet). The player-recipient sibling of
+     * [TakesDamage], which watches the permanent itself.
+     *
+     * The trigger context carries the damage amount, so "put that many counters" payoffs read
+     * `DynamicAmount.ContextProperty(ContextPropertyKey.TRIGGER_DAMAGE_AMOUNT)`; the triggering
+     * entity is the damage *source*.
+     *
+     * Use [damageDealtToYou] to restrict which sources count.
+     */
+    val YouAreDealtDamage: TriggerSpec = TriggerSpec(
+        event = DealsDamageEvent(recipient = RecipientFilter.You),
+        binding = TriggerBinding.ANY
+    )
+
+    /**
+     * "Whenever [a source matching sourceFilter] deals damage to you" — the source-restricted
+     * factory behind [YouAreDealtDamage].
+     *
+     * Examples:
+     * - Aurification, "whenever a creature deals damage to you":
+     *   `damageDealtToYou(GameObjectFilter.Creature)`
+     * - Farsight Mask, "whenever a source an opponent controls deals damage to you":
+     *   `damageDealtToYou(GameObjectFilter.Any.opponentControls())`
+     *
+     * "You" is the controller of the permanent bearing the trigger, and the filter's
+     * controller-relative predicates resolve against that same player.
+     */
+    fun damageDealtToYou(
+        sourceFilter: GameObjectFilter? = null,
+        damageType: DamageType = DamageType.Any,
+    ): TriggerSpec = TriggerSpec(
+        event = DealsDamageEvent(
+            damageType = damageType,
+            recipient = RecipientFilter.You,
+            sourceFilter = sourceFilter,
+        ),
+        binding = TriggerBinding.ANY
+    )
+
     // -------------------------------------------------------------------------
     // Aura / Equipment binding (TriggerBinding.ATTACHED)
     //
@@ -1324,6 +1613,8 @@ object Triggers {
     //     turnedFaceUp(binding = TriggerBinding.ATTACHED)
     // - "At the beginning of enchanted creature's controller's <step>":
     //     phase(step, Player.You, binding = TriggerBinding.ATTACHED)
+    // - "Enchanted creature becomes the target of an Aura spell":
+    //     BecomesTargetOfAuraSpell(binding = TriggerBinding.ATTACHED)
     // -------------------------------------------------------------------------
 
     // =========================================================================
@@ -1335,6 +1626,17 @@ object Triggers {
      */
     val BecomesTapped: TriggerSpec = TriggerSpec(
         event = TapEvent(),
+        binding = TriggerBinding.SELF
+    )
+
+    /**
+     * Whenever this permanent becomes tapped **to pay a teamwork cost** (CR 702.194a) — Agent
+     * Maria Hill. Fires only for a creature tapped to pay a spell's teamwork additional cost, never
+     * for the same creature tapped to attack, to crew, for mana, or by an opponent's effect; see
+     * [TapReason].
+     */
+    val BecomesTappedForTeamwork: TriggerSpec = TriggerSpec(
+        event = TapEvent(reason = TapReason.TEAMWORK),
         binding = TriggerBinding.SELF
     )
 
@@ -1363,12 +1665,27 @@ object Triggers {
      * tapped", Uncontrolled Infestation) or other bindings. Pass [filter] with
      * [TriggerBinding.ANY] for "whenever a creature or land becomes tapped"
      * (Temporal Distortion).
+     *
+     * [reason] restricts *why* the permanent became tapped — null (the default) is the
+     * cause-agnostic wording, [TapReason.TEAMWORK] the "to pay a teamwork cost" one. Use
+     * [BecomesTappedForTeamwork] for the SELF teamwork shape.
+     *
+     * [firstTimeEachTurn] restricts to the first time *that permanent* became tapped this turn
+     * ("if it's the first time that creature has become tapped this turn" — Captain America, Living
+     * Legend). Per-permanent, so with `TriggerBinding.ANY` it fires once for each creature's first
+     * tap; the per-*ability* cap is `oncePerTurn` on the triggered ability instead, and the two mean
+     * different things. See [TapEvent.firstTimeEachTurn].
      */
     fun becomesTapped(
         binding: TriggerBinding = TriggerBinding.SELF,
-        filter: GameObjectFilter? = null
+        filter: GameObjectFilter? = null,
+        reason: TapReason? = null,
+        firstTimeEachTurn: Boolean = false
     ): TriggerSpec =
-        TriggerSpec(event = TapEvent(filter), binding = binding)
+        TriggerSpec(
+            event = TapEvent(filter, reason = reason, firstTimeEachTurn = firstTimeEachTurn),
+            binding = binding
+        )
 
     /**
      * Generic "becomes untapped" factory — use [BecomesUntapped] for SELF; reach for this factory
@@ -1387,9 +1704,48 @@ object Triggers {
      *
      * Distinct from [becomesTapped] (per-permanent — fires once for each tapped permanent). ANY
      * binding; scope with the filter's `youControl` for "you control".
+     *
+     * [reason] restricts *why* the permanents became tapped, exactly as on [becomesTapped] — null
+     * (the default) is the cause-agnostic wording. A batch mixing causes is *narrowed* to the taps
+     * matching [reason] rather than discarded, the same way [YouTap]'s batch narrows by tapper, so
+     * the trigger still fires once on the matching subset.
+     *
+     * There is deliberately no `firstTimeEachTurn` here: that rider is per-*permanent* and has no
+     * settled reading against a batch, so [TapEvent] rejects the combination outright rather than
+     * guess. See [TapEvent.firstTimeEachTurn].
      */
-    fun OneOrMoreBecomeTapped(filter: GameObjectFilter): TriggerSpec =
-        TriggerSpec(event = TapEvent(filter = filter, batch = true), binding = TriggerBinding.ANY)
+    fun OneOrMoreBecomeTapped(
+        filter: GameObjectFilter,
+        reason: TapReason? = null,
+    ): TriggerSpec =
+        TriggerSpec(
+            event = TapEvent(filter = filter, batch = true, reason = reason),
+            binding = TriggerBinding.ANY
+        )
+
+    /**
+     * Whenever **you tap** an untapped permanent matching [filter] — the active wording of the
+     * Wilds of Eldraine "tap an opponent's creature" cluster (Hylda of the Icy Crown, Icewrought
+     * Sentry, Solitary Sanctuary), typically with
+     * `GameObjectFilter.Creature.opponentControls()`.
+     *
+     * Different from [becomesTapped] on two axes:
+     * - **Attribution.** Only a tap *you* caused fires it (CR has no "you tap" rule; the printed
+     *   rulings define it as "an effect instructs you to tap"). An opponent tapping their own
+     *   creature — including as the resolution of a spell *you* control that instructs *them* to
+     *   tap, e.g. Tangle Wire — is their tap, not yours, and does not fire.
+     * - **"Untapped".** Intrinsic, not a condition: tapping is a transition (CR 603.2f), so a
+     *   permanent that is already tapped never emits a tap event.
+     *
+     * Per-permanent (ANY binding): tapping two of an opponent's creatures at once fires it twice.
+     * For the "whenever you tap **one or more** …" batch wording (Sharae of Numbing Depths) pass
+     * `batch = true`, which fires it once per simultaneous tap batch instead.
+     */
+    fun YouTap(filter: GameObjectFilter, batch: Boolean = false): TriggerSpec =
+        TriggerSpec(
+            event = TapEvent(filter = filter, batch = batch, tapper = Player.You),
+            binding = TriggerBinding.ANY
+        )
 
     /**
      * Whenever you untap one or more permanents matching [filter] **during your untap step** — a
@@ -1405,7 +1761,7 @@ object Triggers {
      * `youControl()` for "you untap". The "during your untap step" restriction is intrinsic —
      * `TriggerDetector.detectUntapBatchTriggers` fires it only for the active player's untap-step
      * untaps (not instant-speed untaps, nor an opponent-turn Seedborn Muse untap of your
-     * permanents) — so no `triggerCondition` is needed. (An untap-step untap advances straight to
+     * permanents) — so no `triggerRestriction` is needed. (An untap-step untap advances straight to
      * upkeep before any player gets priority, so an `IsInStep(UNTAP)` intervening-if would read
      * false at detection time; the restriction lives in the detector instead.)
      */
@@ -1506,6 +1862,21 @@ object Triggers {
         binding = binding
     )
 
+    /**
+     * Whenever a permanent becomes renowned (CR 702.112b).
+     *
+     * SELF binding (default) = "when this creature becomes renowned" (Relic Seeker). Pass
+     * [binding] = [TriggerBinding.ANY] with a [filter] for "whenever a [filter] becomes renowned"
+     * (Valeron Wardens).
+     */
+    fun becomesRenowned(
+        filter: GameObjectFilter = GameObjectFilter.Any,
+        binding: TriggerBinding = TriggerBinding.SELF,
+    ): TriggerSpec = TriggerSpec(
+        event = BecameRenownedEvent(filter = filter),
+        binding = binding
+    )
+
     // =========================================================================
     // Attachment Triggers
     // =========================================================================
@@ -1536,6 +1907,39 @@ object Triggers {
             attachmentFilter = attachmentFilter,
             attachmentController = attachmentController,
             attachedToFilter = attachedToFilter,
+        ),
+        binding = binding
+    )
+
+    /**
+     * Whenever an Aura/Equipment becomes **unattached** from a permanent (CR 701.3d) — the mirror
+     * of [becomesAttached].
+     *
+     * Fires on every unattach path: an explicit unattach effect, re-equipping to a different
+     * permanent, the attachment leaving the battlefield, the host leaving the battlefield, and the
+     * CR 704.5n state-based unattach when the pairing turns illegal.
+     *
+     * SELF binding (default) = "whenever this Equipment becomes unattached from a permanent"
+     * (Stitcher's Graft). The triggering entity is the attachment; the permanent it came off is
+     * reachable via [com.wingedsheep.sdk.scripting.targets.EffectTarget.AttachedToTriggeringPermanent]
+     * ("that permanent"). Both the attachment and its former host may already be gone by resolution —
+     * a payoff acting on either simply does nothing then.
+     *
+     * @param attachmentFilter which attachment qualifies (e.g. Aura, Equipment).
+     * @param attachmentController who must control the attachment.
+     * @param unattachedFromFilter what it must have come off (matched against the former host, with
+     *   the attachment as the comparison reference for relative predicates).
+     */
+    fun becomesUnattached(
+        attachmentFilter: GameObjectFilter = GameObjectFilter.Any,
+        attachmentController: Player = Player.Any,
+        unattachedFromFilter: GameObjectFilter = GameObjectFilter.Any,
+        binding: TriggerBinding = TriggerBinding.SELF,
+    ): TriggerSpec = TriggerSpec(
+        event = BecomesUnattachedEvent(
+            attachmentFilter = attachmentFilter,
+            attachmentController = attachmentController,
+            unattachedFromFilter = unattachedFromFilter,
         ),
         binding = binding
     )
@@ -1581,6 +1985,23 @@ object Triggers {
         binding = TriggerBinding.SELF
     )
 
+    /**
+     * Generic "transforms" factory — use [Transforms] / [TransformsToBack] / [TransformsToFront]
+     * for the SELF forms; reach for this factory to bind the trigger elsewhere.
+     *
+     * `binding = TriggerBinding.ATTACHED` is "when **equipped/enchanted** creature transforms"
+     * (Neglected Heirloom: "When equipped creature transforms, transform this Equipment"), routed
+     * through `AttachmentTriggerDetector` like every other ATTACHED trigger. [intoBackFace] filters
+     * direction: `true` = to back, `false` = to front, `null` = either.
+     */
+    fun transforms(
+        binding: TriggerBinding = TriggerBinding.SELF,
+        intoBackFace: Boolean? = null
+    ): TriggerSpec = TriggerSpec(
+        event = TransformEvent(intoBackFace = intoBackFace),
+        binding = binding
+    )
+
     // =========================================================================
     // Targeting Triggers
     // =========================================================================
@@ -1604,6 +2025,17 @@ object Triggers {
     )
 
     /**
+     * Whenever this permanent becomes the target of a **spell you control** (Stormchaser Drake).
+     * Self-bound; abilities you control don't count, which is the `spellsOnly` half, and an
+     * opponent's spell doesn't either, which is the `byYou` half. The unrestricted-timing sibling
+     * of [Valiant], which is the same trigger limited to the first time each turn.
+     */
+    val BecomesTargetOfYourSpell: TriggerSpec = TriggerSpec(
+        event = BecomesTargetEvent(byYou = true, spellsOnly = true),
+        binding = TriggerBinding.SELF
+    )
+
+    /**
      * Whenever a creature you control with a specific filter becomes the target
      * of a spell or ability.
      */
@@ -1620,6 +2052,52 @@ object Triggers {
      */
     fun BecomesTargetOfSpell(filter: GameObjectFilter): TriggerSpec = TriggerSpec(
         event = BecomesTargetEvent(targetFilter = filter, spellsOnly = true),
+        binding = TriggerBinding.ANY
+    )
+
+    /**
+     * Whenever the bound permanent becomes the target of an **Aura spell** (Brine Comber's front
+     * face; its back face is the same wording bound to the enchanted creature, hence [binding]).
+     *
+     * "Aura spell" narrows the *targeting* object, not the targeted one, so it rides
+     * [BecomesTargetEvent.sourceFilter] rather than `targetFilter`. `spellsOnly` is part of the
+     * printed wording and not redundant with the filter: an Aura already on the battlefield could
+     * target with an activated ability and match the same card types.
+     *
+     * An Aura spell targets exactly once, as it is cast (CR 303.4a), so this never fires for the
+     * Aura the bound permanent is already enchanted by — only for a *new* one being cast at it.
+     */
+    fun BecomesTargetOfAuraSpell(binding: TriggerBinding = TriggerBinding.SELF): TriggerSpec =
+        TriggerSpec(
+            event = BecomesTargetEvent(
+                spellsOnly = true,
+                sourceFilter = GameObjectFilter.Enchantment.withSubtype(Subtype.AURA)
+            ),
+            binding = binding
+        )
+
+    /**
+     * Mirror of [BecomesTargetOfSpell]: whenever something becomes the target of an **ability**
+     * (not a spell) — Loki, God of Mischief: "Whenever a player or permanent becomes the target of
+     * an ability you control". Both activated and triggered abilities count; only spells are
+     * excluded.
+     *
+     * [includePlayerTargets] widens the trigger to targeted players as well, which is opt-in because
+     * every other becomes-target wording is about objects; it requires [filter] to stay
+     * `GameObjectFilter.Any` (a player has no card data for a filter to read) and throws otherwise.
+     * [byYou] is the "an ability **you control**" half. ANY-bound.
+     */
+    fun BecomesTargetOfAbility(
+        filter: GameObjectFilter = GameObjectFilter.Any,
+        byYou: Boolean = false,
+        includePlayerTargets: Boolean = false
+    ): TriggerSpec = TriggerSpec(
+        event = BecomesTargetEvent(
+            targetFilter = filter,
+            byYou = byYou,
+            abilitiesOnly = true,
+            includePlayerTargets = includePlayerTargets
+        ),
         binding = TriggerBinding.ANY
     )
 
@@ -1717,7 +2195,7 @@ object Triggers {
 
     /**
      * Whenever a player loses the game (CR 104.3). Fires for every player's loss; pair with a
-     * `triggerCondition` to narrow to a specific player (e.g. Shinryu, Transcendent Rival's
+     * `triggerRestriction` to narrow to a specific player (e.g. Shinryu, Transcendent Rival's
      * "When the chosen player loses the game, you win the game" gates on
      * [com.wingedsheep.sdk.dsl.Conditions.TriggeringPlayerIs]`(Player.ChosenOpponent)`).
      * `Player.TriggeringPlayer` inside the effect resolves to the player who lost.
@@ -1732,7 +2210,7 @@ object Triggers {
      * (CR "whenever" per-event templating). The lost amount is exposed via
      * [com.wingedsheep.sdk.scripting.values.ContextPropertyKey.TRIGGER_LIFE_LOST].
      * Used by cards like Bloodthirsty Conqueror and Kefka, Ruler of Ruin (pair with a
-     * `triggerCondition = Conditions.IsYourTurn` gate for "during your turn" riders).
+     * `triggerRestriction = Conditions.IsYourTurn` gate for "during your turn" riders).
      */
     val AnOpponentLosesLife: TriggerSpec = TriggerSpec(
         event = LifeLossEvent(Player.EachOpponent),
@@ -1765,12 +2243,30 @@ object Triggers {
     )
 
     /**
+     * Whenever you sacrifice **a** permanent matching the filter.
+     * Per-permanent trigger — fires once for EACH matching permanent sacrificed, even when several
+     * are sacrificed simultaneously (CR 603.2c). The bare-article template ([TriggerBinding.ANY])
+     * counts the source sacrificing itself, unlike [YouSacrificeAnother].
+     *
+     * Distinct from [YouSacrificeOneOrMore] (batch — one Rat for three Foods instead of three).
+     * Template: Experimental Confectioner ("Whenever you sacrifice a Food").
+     *
+     * Example: "Whenever you sacrifice a Food"
+     * → YouSacrificeA(GameObjectFilter.Artifact.withSubtype("Food"))
+     */
+    fun YouSacrificeA(filter: GameObjectFilter = GameObjectFilter.Any): TriggerSpec = TriggerSpec(
+        event = PermanentsSacrificedEvent(filter = filter, perPermanent = true),
+        binding = TriggerBinding.ANY
+    )
+
+    /**
      * Whenever you sacrifice another permanent matching the filter.
      * Per-permanent trigger — fires once for EACH matching permanent sacrificed, even when several
      * are sacrificed simultaneously (CR 603.2c). "Another" ([TriggerBinding.OTHER]) excludes the
      * source, so the source sacrificing itself doesn't fire it.
      *
-     * Distinct from [YouSacrificeOneOrMore] (batch — fires once per event batch). Template:
+     * Distinct from [YouSacrificeOneOrMore] (batch — fires once per event batch) and from
+     * [YouSacrificeA] (same per-permanent multiplicity, but counts the source). Template:
      * Mazirek, Kraul Death Priest; Savra, Queen of the Golgari; Zhao, Ruthless Admiral.
      *
      * Example: "Whenever you sacrifice another permanent"
@@ -1779,6 +2275,38 @@ object Triggers {
     fun YouSacrificeAnother(filter: GameObjectFilter = GameObjectFilter.Any): TriggerSpec = TriggerSpec(
         event = PermanentsSacrificedEvent(filter = filter, perPermanent = true),
         binding = TriggerBinding.OTHER
+    )
+
+    /**
+     * Whenever an opponent sacrifices **a** permanent matching the filter.
+     * Per-permanent trigger — fires once for EACH matching permanent that opponent sacrificed, even
+     * when several go at once (CR 603.2c) — and once per opponent when several opponents sacrifice
+     * in the same batch. The sacrificing player is bound as [Player.TriggeringPlayer], so "deals
+     * damage to them" / "they lose life" payoffs resolve against the right opponent.
+     *
+     * The opponent-scoped sibling of [YouSacrificeA]. Use [OpponentSacrificesOneOrMore] for the
+     * "one or more" batch wording.
+     *
+     * Example: "Whenever an opponent sacrifices an artifact"
+     * → OpponentSacrificesA(GameObjectFilter.Artifact)   (Vengeful Tracker)
+     */
+    fun OpponentSacrificesA(filter: GameObjectFilter = GameObjectFilter.Any): TriggerSpec = TriggerSpec(
+        event = PermanentsSacrificedEvent(
+            filter = filter,
+            sacrificedBy = Player.EachOpponent,
+            perPermanent = true
+        ),
+        binding = TriggerBinding.ANY
+    )
+
+    /**
+     * Whenever an opponent sacrifices one or more permanents matching the filter.
+     * Batching trigger — fires at most once per opponent per event batch. The opponent-scoped
+     * sibling of [YouSacrificeOneOrMore]; see [OpponentSacrificesA] for the per-permanent wording.
+     */
+    fun OpponentSacrificesOneOrMore(filter: GameObjectFilter = GameObjectFilter.Any): TriggerSpec = TriggerSpec(
+        event = PermanentsSacrificedEvent(filter = filter, sacrificedBy = Player.EachOpponent),
+        binding = TriggerBinding.ANY
     )
 
     /**
@@ -1929,21 +2457,30 @@ object Triggers {
      * Whenever a player casts their Nth spell each turn.
      * Example: "Whenever a player casts their second spell each turn" → NthSpellCast(2)
      *
+     * [spellFilter] makes the ordinal per-kind — "their first noncreature spell each turn" (The
+     * Queen of Dale) is `NthSpellCast(1, Player.EachOpponent, GameObjectFilter.Noncreature)`. The
+     * count runs over the caster's cast history, so it counts casts rather than resolutions.
+     *
      * @param n The spell number (e.g., 2 for "second spell")
      * @param player Which player's spell count to track (default: any player)
+     * @param spellFilter Restricts which spells are counted; null (default) counts every spell
      */
-    fun NthSpellCast(n: Int, player: Player = Player.Each): TriggerSpec = TriggerSpec(
-        event = NthSpellCastEvent(nthSpell = n, player = player),
+    fun NthSpellCast(
+        n: Int,
+        player: Player = Player.Each,
+        spellFilter: GameObjectFilter? = null
+    ): TriggerSpec = TriggerSpec(
+        event = NthSpellCastEvent(nthSpell = n, player = player, spellFilter = spellFilter),
         binding = TriggerBinding.ANY
     )
 
     /**
      * When you cast this spell — a "cast trigger" that fires on the spell's own cast while it is
      * still on the stack, distinct from [SpellCast] (which observes *other* spells from the
-     * battlefield). Pair with `triggerCondition` for an intervening "if" (CR 603.4).
+     * battlefield). Pair with `interveningIf` for an intervening "if" (CR 603.4).
      *
      * Example: Sage of the Skies — "When you cast this spell, if you've cast another spell this
-     * turn, copy this spell." (`triggerCondition = Conditions.YouCastSpellsThisTurn(atLeast = 2)`,
+     * turn, copy this spell." (`interveningIf = Conditions.YouCastSpellsThisTurn(atLeast = 2)`,
      * since the spell itself is already counted when its cast trigger is checked.)
      */
     fun WhenYouCastThisSpell(): TriggerSpec = TriggerSpec(
@@ -1988,7 +2525,7 @@ object Triggers {
     )
 
     // =========================================================================
-    // Scry Triggers (CR 701.18)
+    // Scry Triggers (CR 701.22)
     // =========================================================================
 
     /**
@@ -2003,7 +2540,7 @@ object Triggers {
     )
 
     /**
-     * Whenever you surveil (CR 701.42). The surveil twin of [WheneverYouScry] — fires once per
+     * Whenever you surveil (CR 701.25). The surveil twin of [WheneverYouScry] — fires once per
      * surveil resolution, after the kept/graveyard moves resolve. Pair with TRIGGER_SCRY_COUNT to
      * scale by "the number of cards looked at." Used by Golbez and similar surveil payoffs.
      */
@@ -2013,7 +2550,7 @@ object Triggers {
     )
 
     /**
-     * Whenever you scry **or** surveil (CR 701.18 / 701.42) — the combined look-at-top trigger
+     * Whenever you scry **or** surveil (CR 701.22 / 701.25) — the combined look-at-top trigger
      * (Matoya, Archon Elder). Fires once per scry and once per surveil.
      */
     val WheneverYouScryOrSurveil: TriggerSpec = TriggerSpec(
@@ -2031,6 +2568,48 @@ object Triggers {
      */
     val WheneverYouDiscover: TriggerSpec = TriggerSpec(
         event = DiscoveredEvent(Player.You),
+        binding = TriggerBinding.ANY
+    )
+
+    /**
+     * Whenever you collect evidence (CR 701.57). Fires once per collection, after the cards are
+     * exiled — never for a declined collection, nor for one CR 701.57b made impossible.
+     *
+     * Fires for a collection made in *any* context, including this permanent's own: Surveillance
+     * Monitor's "when this creature enters, you may collect evidence 4" feeds its own "whenever you
+     * collect evidence, create a Thopter".
+     */
+    val WheneverYouCollectEvidence: TriggerSpec = TriggerSpec(
+        event = EvidenceCollectedEvent(Player.You),
+        binding = TriggerBinding.ANY
+    )
+
+    /**
+     * Whenever you forage (CR 701.59a). Fires once per forage, after the three cards are exiled or
+     * the Food is sacrificed — never for a declined forage, and never for one no mode was feasible
+     * for, since forage has no "even if you can't" clause.
+     *
+     * Fires for a forage taken in *any* context, including this permanent's own: Corpseberry
+     * Cultivator's "at the beginning of combat on your turn, you may forage" feeds its own "whenever
+     * you forage, put a +1/+1 counter on this creature", and so does a forage paid as somebody
+     * else's ability cost.
+     */
+    val WheneverYouForage: TriggerSpec = TriggerSpec(
+        event = ForagedEvent(Player.You),
+        binding = TriggerBinding.ANY
+    )
+
+    /**
+     * Whenever you solve a Case (CR 719.3a). Fires as the Case's own "To solve" trigger resolves and
+     * stamps the designation — Case File Auditor's ruling words it as "whenever a 'to solve' ability
+     * you control resolves". Binding is [TriggerBinding.ANY]: the event subject is the *Case*, not
+     * the permanent bearing this trigger, and "you" is the solving player.
+     *
+     * Fires once per Case, ever: the designation is sticky and one-way (CR 719.3b), so a Case can't
+     * be re-solved. This includes the Case that carries the payoff, if it is itself a Case.
+     */
+    val WheneverYouSolveACase: TriggerSpec = TriggerSpec(
+        event = CaseSolvedEvent(Player.You),
         binding = TriggerBinding.ANY
     )
 
@@ -2059,6 +2638,23 @@ object Triggers {
     /** "Whenever a creature you control explores a nonland card" (Nicanzil, second ability). */
     val WheneverCreatureYouControlExploresNonland: TriggerSpec =
         creatureExplores(revealedType = ExploreReveal.NONLAND)
+
+    /**
+     * Whenever a permanent matching [filter] connives (CR 701.50). Binding is
+     * [TriggerBinding.ANY] — the observer watches every matching permanent, so
+     * `filter.youControl()` resolves "you" to the observer's controller. Fires once per connive,
+     * including when the draw or the discard was impossible (CR 701.50f), and only for a real
+     * connive: the Teo, Spirited Glider looting shape (`Effects.ConniveTargeting`) is not one.
+     */
+    fun creatureConnives(
+        filter: GameObjectFilter = GameObjectFilter.Creature.youControl()
+    ): TriggerSpec = TriggerSpec(
+        event = ConnivedEvent(filter = filter),
+        binding = TriggerBinding.ANY
+    )
+
+    /** "Whenever a creature you control connives" (CR 701.50). */
+    val WheneverCreatureYouControlConnives: TriggerSpec = creatureConnives()
 
     /**
      * "Whenever you waterbend, earthbend, firebend, or airbend, …" (CR 701.65b / 701.66b /
@@ -2099,6 +2695,28 @@ object Triggers {
      */
     val WheneverAnOpponentSearchesTheirLibrary: TriggerSpec = TriggerSpec(
         event = SearchLibraryEvent(Player.EachOpponent),
+        binding = TriggerBinding.ANY
+    )
+
+    // =========================================================================
+    // Library Shuffle Triggers (CR 701.24)
+    // =========================================================================
+
+    /**
+     * Whenever a spell or ability causes a player to shuffle their library (CR 701.24) — the
+     * shuffle twin of [WheneverYouSearchYourLibrary], used by Psychogenic Probe. Emitted by every
+     * shuffle the engine performs on behalf of an effect, so tutors, fetches, "shuffle it into its
+     * owner's library" replacement effects, and bare `Effects.ShuffleLibrary` all drive it.
+     *
+     * Scope it with [Player.You] / [Player.EachOpponent]; the default [Player.Any] is the printed
+     * "a player", which includes the ability's own controller. `Player.TriggeringPlayer` inside the
+     * effect resolves to the player who shuffled, so "that player" is reachable.
+     *
+     * The game-rules shuffles — setting up the game (CR 103.2) and mulliganing (CR 103.5) — are
+     * caused by neither a spell nor an ability and never fire this.
+     */
+    val WheneverAPlayerShufflesTheirLibrary: TriggerSpec = TriggerSpec(
+        event = ShuffleLibraryEvent(Player.Any),
         binding = TriggerBinding.ANY
     )
 

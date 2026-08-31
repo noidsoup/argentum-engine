@@ -433,6 +433,53 @@
     ]
 }
 
+// Foundry Street Denizen
+{
+    "name": "Foundry Street Denizen",
+    "manaCost": "{R}",
+    "typeLine": "Creature — Goblin Warrior",
+    "oracleText": "Whenever another red creature you control enters, this creature gets +1/+0 until end of turn.",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 1
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "filter": "creature red ctrl:you",
+                    "to": "Battlefield"
+                },
+                "binding": "OTHER",
+                "effect": {
+                    "type": "ModifyStats",
+                    "powerModifier": {
+                        "type": "Fixed",
+                        "amount": 1
+                    },
+                    "toughnessModifier": {
+                        "type": "Fixed",
+                        "amount": 0
+                    },
+                    "target": "Self"
+                },
+                "descriptionOverride": "Whenever another red creature you control enters, this creature gets +1/+0 until end of turn."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "92",
+        "artist": "Raoul Vitale",
+        "flavorText": "After the Foundry Street riot, Arrester Hulbein tried to ban bludgeons. Which, inevitably, resulted in another riot.",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/b/0befed63-07ba-4728-9078-57bbccbeeeb1.jpg?1783940125"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
 // Gruul Guildgate
 {
     "name": "Gruul Guildgate",
@@ -475,6 +522,78 @@
     "colorIdentityOverride": [
         "RED",
         "GREEN"
+    ]
+}
+
+// Gutter Skulk
+{
+    "name": "Gutter Skulk",
+    "manaCost": "{1}{B}",
+    "typeLine": "Creature — Zombie Rat",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 2
+    },
+    "metadata": {
+        "collectorNumber": "67",
+        "artist": "Mark Winters",
+        "flavorText": "Upon finding his warehouse infested, Gaven didn't know whether to get an exterminator or an exorcist.",
+        "imageUri": "https://cards.scryfall.io/normal/front/8/3/830c7c77-20c4-429f-88c7-b85ab7a0e38b.jpg?1783940131"
+    },
+    "colorIdentityOverride": [
+        "BLACK"
+    ]
+}
+
+// High Priest of Penance
+{
+    "name": "High Priest of Penance",
+    "manaCost": "{W}{B}",
+    "typeLine": "Creature — Human Cleric",
+    "oracleText": "Whenever this creature is dealt damage, you may destroy target nonland permanent.",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 1
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": "DamageReceivedEvent",
+                "effect": {
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "MoveToZone",
+                        "target": {
+                            "type": "BoundVariable",
+                            "name": "target nonland permanent"
+                        },
+                        "destination": "Graveyard",
+                        "byDestruction": true
+                    }
+                },
+                "targetRequirement": {
+                    "type": "TargetObject",
+                    "filter": {
+                        "baseFilter": "nonland permanent"
+                    },
+                    "id": "target nonland permanent"
+                },
+                "descriptionOverride": "Whenever this creature is dealt damage, you may destroy target nonland permanent."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "171",
+        "rarity": "RARE",
+        "artist": "Mark Zug",
+        "flavorText": "\"All I require is faith, loyalty, obedience, trust, and complete and utter devotion.\"",
+        "imageUri": "https://cards.scryfall.io/normal/front/8/4/84a3ff8d-6d7e-49f0-8d30-7f8c23db568b.jpg?1783940106"
+    },
+    "colorIdentityOverride": [
+        "BLACK",
+        "WHITE"
     ]
 }
 
@@ -667,6 +786,27 @@
     ]
 }
 
+// Ruination Wurm
+{
+    "name": "Ruination Wurm",
+    "manaCost": "{4}{R}{G}",
+    "typeLine": "Creature — Wurm",
+    "creatureStats": {
+        "power": 7,
+        "toughness": 6
+    },
+    "metadata": {
+        "collectorNumber": "192",
+        "artist": "Dave Kendall",
+        "flavorText": "When the architects of Ravnica claim a structure will stand against a wurm, they never mention for how long.",
+        "imageUri": "https://cards.scryfall.io/normal/front/c/e/ce04d1ee-2605-472d-b3ee-24800342e9af.jpg?1783940101"
+    },
+    "colorIdentityOverride": [
+        "RED",
+        "GREEN"
+    ]
+}
+
 // Simic Guildgate
 {
     "name": "Simic Guildgate",
@@ -708,6 +848,94 @@
     },
     "colorIdentityOverride": [
         "BLUE",
+        "GREEN"
+    ]
+}
+
+// Totally Lost
+{
+    "name": "Totally Lost",
+    "manaCost": "{4}{U}",
+    "typeLine": "Instant",
+    "oracleText": "Put target nonland permanent on top of its owner's library.",
+    "script": {
+        "spellEffect": {
+            "type": "MoveToZone",
+            "target": {
+                "type": "BoundVariable",
+                "name": "target"
+            },
+            "destination": "Library",
+            "placement": "Top"
+        },
+        "targetRequirements": [
+            {
+                "type": "TargetObject",
+                "filter": {
+                    "baseFilter": "nonland permanent"
+                },
+                "id": "target"
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "54",
+        "artist": "David Palumbo",
+        "flavorText": "Fblthp had always hated crowds.",
+        "imageUri": "https://cards.scryfall.io/normal/front/e/c/ec8e4142-7c46-4d2f-aaa6-6410f323d9f0.jpg"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
+
+// Tower Defense
+{
+    "name": "Tower Defense",
+    "manaCost": "{1}{G}",
+    "typeLine": "Instant",
+    "oracleText": "Creatures you control get +0/+5 and gain reach until end of turn.",
+    "script": {
+        "spellEffect": {
+            "type": "ForEach",
+            "space": {
+                "type": "IterationSpace.Group",
+                "filter": {
+                    "baseFilter": "creature ctrl:you"
+                }
+            },
+            "body": {
+                "type": "Composite",
+                "effects": [
+                    {
+                        "type": "ModifyStats",
+                        "powerModifier": {
+                            "type": "Fixed",
+                            "amount": 0
+                        },
+                        "toughnessModifier": {
+                            "type": "Fixed",
+                            "amount": 5
+                        },
+                        "target": "Self"
+                    },
+                    {
+                        "type": "GrantKeyword",
+                        "keyword": "REACH",
+                        "target": "Self"
+                    }
+                ]
+            }
+        }
+    },
+    "metadata": {
+        "collectorNumber": "137",
+        "rarity": "UNCOMMON",
+        "artist": "Seb McKinnon",
+        "flavorText": "\"The drakes are practice. We may one day need to bring down a sky swallower, or maybe even Rakdos himself.\"\n—Korun Nar, Rubblebelt hunter",
+        "imageUri": "https://cards.scryfall.io/normal/front/8/5/857e1eb2-f3f2-4c7f-9965-da9d7e385223.jpg"
+    },
+    "colorIdentityOverride": [
         "GREEN"
     ]
 }

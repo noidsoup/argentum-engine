@@ -192,7 +192,7 @@
                     "space": {
                         "type": "IterationSpace.Group",
                         "filter": {
-                            "baseFilter": "creature Wizard ctrl:you"
+                            "baseFilter": "permanent Wizard ctrl:you"
                         }
                     },
                     "body": {
@@ -277,7 +277,8 @@
                     "destination": {
                         "type": "ToZone",
                         "zone": "Hand"
-                    }
+                    },
+                    "revealed": true
                 },
                 {
                     "type": "MoveCollection",
@@ -286,7 +287,8 @@
                         "type": "ToZone",
                         "zone": "Library",
                         "placement": "Bottom"
-                    }
+                    },
+                    "order": "ControllerChooses"
                 }
             ]
         }
@@ -1043,7 +1045,8 @@
                     }
                 ],
                 "timing": "SorcerySpeed",
-                "descriptionOverride": "Equip legendary creature {3}"
+                "isEquipAbility": true,
+                "equipQuality": "legendary"
             },
             {
                 "id": "ability_2",
@@ -1071,7 +1074,7 @@
                     }
                 ],
                 "timing": "SorcerySpeed",
-                "descriptionOverride": "Equip {7}"
+                "isEquipAbility": true
             }
         ],
         "staticAbilities": [
@@ -1094,6 +1097,7 @@
             }
         ]
     },
+    "equipCost": "{7}",
     "metadata": {
         "collectorNumber": "211",
         "rarity": "RARE",
@@ -1766,7 +1770,7 @@
                         ]
                     }
                 },
-                "triggerCondition": "WasKicked"
+                "interveningIf": "WasKicked"
             }
         ]
     },
@@ -2516,7 +2520,7 @@
                         "amount": 2
                     }
                 },
-                "triggerCondition": "TriggeringEntityWasHistoric"
+                "interveningIf": "TriggeringEntityWasHistoric"
             }
         ],
         "staticAbilities": [
@@ -2738,8 +2742,10 @@
                         }
                     ]
                 },
-                "activeZone": "Exile",
-                "triggerCondition": {
+                "activeZones": [
+                    "Exile"
+                ],
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "EntityProperty",
@@ -2821,16 +2827,19 @@
                     "to": "Battlefield"
                 },
                 "effect": {
-                    "type": "MoveToZone",
-                    "target": {
-                        "type": "BoundVariable",
-                        "name": "target"
-                    },
-                    "destination": "Hand"
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "MoveToZone",
+                        "target": {
+                            "type": "BoundVariable",
+                            "name": "target"
+                        },
+                        "destination": "Hand"
+                    }
                 },
                 "targetRequirement": {
                     "type": "TargetObject",
-                    "optional": true,
                     "filter": {
                         "baseFilter": "artifact own:you",
                         "zone": "Graveyard"
@@ -3640,7 +3649,7 @@
                         "cost": "{4}"
                     }
                 },
-                "effect": "ExchangeLifeAndPower"
+                "effect": "ExchangeLifeAndStat"
             }
         ]
     },
@@ -3696,7 +3705,7 @@
                     },
                     "id": "target"
                 },
-                "triggerCondition": "WasKicked"
+                "interveningIf": "WasKicked"
             }
         ]
     },
@@ -4525,7 +4534,7 @@
                     "type": "CostAtomWrapper",
                     "atom": {
                         "type": "AtomSacrifice",
-                        "filter": "creature Saproling",
+                        "filter": "permanent Saproling",
                         "count": 2
                     }
                 },
@@ -4636,7 +4645,9 @@
                         }
                     ]
                 },
-                "activeZone": "Graveyard"
+                "activeZones": [
+                    "Graveyard"
+                ]
             }
         ]
     },
@@ -4772,7 +4783,7 @@
                     },
                     "id": "instant or sorcery card in your graveyard"
                 },
-                "triggerCondition": "WasKicked"
+                "interveningIf": "WasKicked"
             }
         ]
     },
@@ -4816,7 +4827,7 @@
                         "player": "EachOpponent"
                     }
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "AggregateBattlefield",
@@ -4926,58 +4937,6 @@
     ]
 }
 
-// Gideon's Reproach
-{
-    "name": "Gideon's Reproach",
-    "manaCost": "{1}{W}",
-    "typeLine": "Instant",
-    "oracleText": "Gideon's Reproach deals 4 damage to target attacking or blocking creature.",
-    "script": {
-        "spellEffect": {
-            "type": "DealDamage",
-            "amount": {
-                "type": "Fixed",
-                "amount": 4
-            },
-            "target": {
-                "type": "BoundVariable",
-                "name": "target"
-            }
-        },
-        "targetRequirements": [
-            {
-                "type": "TargetObject",
-                "filter": {
-                    "baseFilter": {
-                        "cardPredicates": [
-                            "IsCreature"
-                        ],
-                        "statePredicates": [
-                            {
-                                "type": "StateOr",
-                                "predicates": [
-                                    "IsAttacking",
-                                    "IsBlocking"
-                                ]
-                            }
-                        ]
-                    }
-                },
-                "id": "target"
-            }
-        ]
-    },
-    "metadata": {
-        "collectorNumber": "19",
-        "artist": "Izzy",
-        "flavorText": "\"On Amonkhet, Gideon lost both his sural and his faith in himself. But he can still throw a punch.\"",
-        "imageUri": "https://cards.scryfall.io/normal/front/7/b/7b771f44-ce32-41a2-b219-738924b7f42d.jpg?1562738270"
-    },
-    "colorIdentityOverride": [
-        "WHITE"
-    ]
-}
-
 // Gift of Growth
 {
     "name": "Gift of Growth",
@@ -5059,39 +5018,6 @@
     "colorIdentityOverride": [
         "GREEN"
     ]
-}
-
-// Gilded Lotus
-{
-    "name": "Gilded Lotus",
-    "manaCost": "{5}",
-    "typeLine": "Artifact",
-    "oracleText": "{T}: Add three mana of any one color.",
-    "script": {
-        "activatedAbilities": [
-            {
-                "id": "ability_1",
-                "cost": "CostTap",
-                "effect": {
-                    "type": "AddManaOfChoice",
-                    "amount": {
-                        "type": "Fixed",
-                        "amount": 3
-                    }
-                },
-                "timing": "ManaAbility",
-                "isManaAbility": true
-            }
-        ]
-    },
-    "metadata": {
-        "collectorNumber": "215",
-        "rarity": "RARE",
-        "artist": "Volkan Baǵa",
-        "flavorText": "\"The perfection of the lotus reminds me of my hopes for this world . . . and my failures. I will not rest until I've atoned for them.\" —Karn",
-        "imageUri": "https://cards.scryfall.io/normal/front/a/4/a487e208-8493-4bca-8c44-284d89c66b15.jpg?1562740681"
-    },
-    "colorIdentityOverride": []
 }
 
 // Goblin Barrage
@@ -5528,14 +5454,17 @@
                     "to": "Battlefield"
                 },
                 "effect": {
-                    "type": "MoveToZone",
-                    "target": {
-                        "type": "BoundVariable",
-                        "name": "historic"
-                    },
-                    "destination": "Hand"
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "MoveToZone",
+                        "target": {
+                            "type": "BoundVariable",
+                            "name": "historic"
+                        },
+                        "destination": "Hand"
+                    }
                 },
-                "optional": true,
                 "targetRequirement": {
                     "type": "TargetObject",
                     "filter": {
@@ -5743,7 +5672,7 @@
                         }
                     ]
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "AggregateBattlefield",
@@ -7202,7 +7131,7 @@
                     "type": "AnyTarget",
                     "id": "any target"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Exists",
                     "player": "You",
                     "zone": "Battlefield",
@@ -7376,7 +7305,7 @@
                     },
                     "id": "target creature"
                 },
-                "triggerCondition": "WasKicked"
+                "interveningIf": "WasKicked"
             }
         ]
     },
@@ -7681,7 +7610,7 @@
                         "amount": 10
                     }
                 },
-                "triggerCondition": "WasKicked"
+                "interveningIf": "WasKicked"
             }
         ]
     },
@@ -7854,10 +7783,13 @@
                     "then": {
                         "type": "MoveToZone",
                         "target": "Self",
-                        "destination": "Hand"
+                        "destination": "Hand",
+                        "fromZone": "Graveyard"
                     }
                 },
-                "activeZone": "Graveyard"
+                "activeZones": [
+                    "Graveyard"
+                ]
             }
         ]
     },
@@ -7895,6 +7827,7 @@
                     }
                 },
                 "effect": "AddManaOfChoice",
+                "timing": "ManaAbility",
                 "isManaAbility": true
             }
         ]
@@ -8096,6 +8029,7 @@
                         "numericProperty": "Power"
                     }
                 },
+                "timing": "ManaAbility",
                 "isManaAbility": true
             }
         ]
@@ -8570,7 +8504,7 @@
 {
     "name": "Mishra's Self-Replicator",
     "manaCost": "{5}",
-    "typeLine": "Artifact Creature — Assembly",
+    "typeLine": "Artifact Creature — Assembly-Worker",
     "oracleText": "Whenever you cast a historic spell, you may pay {1}. If you do, create a token that's a copy of Mishra's Self-Replicator. (Artifacts, legendaries, and Sagas are historic.)",
     "creatureStats": {
         "power": 2,
@@ -9079,46 +9013,49 @@
                     "to": "Battlefield"
                 },
                 "effect": {
-                    "type": "Composite",
-                    "effects": [
-                        {
-                            "type": "GatherCards",
-                            "source": {
-                                "type": "FromMultipleZones",
-                                "zones": [
-                                    "Library",
-                                    "Graveyard"
-                                ],
-                                "filter": "name:Teferi, Timebender"
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "Composite",
+                        "effects": [
+                            {
+                                "type": "GatherCards",
+                                "source": {
+                                    "type": "FromMultipleZones",
+                                    "zones": [
+                                        "Library",
+                                        "Graveyard"
+                                    ],
+                                    "filter": "name:Teferi, Timebender"
+                                },
+                                "storeAs": "searchable"
                             },
-                            "storeAs": "searchable"
-                        },
-                        {
-                            "type": "SelectFromCollection",
-                            "from": "searchable",
-                            "selection": {
-                                "type": "ChooseUpTo",
-                                "count": {
-                                    "type": "Fixed",
-                                    "amount": 1
-                                }
+                            {
+                                "type": "SelectFromCollection",
+                                "from": "searchable",
+                                "selection": {
+                                    "type": "ChooseUpTo",
+                                    "count": {
+                                        "type": "Fixed",
+                                        "amount": 1
+                                    }
+                                },
+                                "storeSelected": "found"
                             },
-                            "storeSelected": "found"
-                        },
-                        {
-                            "type": "MoveCollection",
-                            "from": "found",
-                            "destination": {
-                                "type": "ToZone",
-                                "zone": "Hand"
+                            {
+                                "type": "MoveCollection",
+                                "from": "found",
+                                "destination": {
+                                    "type": "ToZone",
+                                    "zone": "Hand"
+                                },
+                                "revealed": true
                             },
-                            "revealed": true
-                        },
-                        "ShuffleLibrary",
-                        "EmitLibrarySearchedEvent"
-                    ]
-                },
-                "optional": true
+                            "ShuffleLibrary",
+                            "EmitLibrarySearchedEvent"
+                        ]
+                    }
+                }
             }
         ]
     },
@@ -10154,15 +10091,18 @@
                     "to": "Battlefield"
                 },
                 "effect": {
-                    "type": "MoveToZone",
-                    "target": {
-                        "type": "BoundVariable",
-                        "name": "historic card in your graveyard"
-                    },
-                    "destination": "Exile",
-                    "linkToSource": true
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "MoveToZone",
+                        "target": {
+                            "type": "BoundVariable",
+                            "name": "historic card in your graveyard"
+                        },
+                        "destination": "Exile",
+                        "linkToSource": true
+                    }
                 },
-                "optional": true,
                 "targetRequirement": {
                     "type": "TargetObject",
                     "filter": {
@@ -12539,7 +12479,7 @@
                     },
                     "id": "another target creature"
                 },
-                "triggerCondition": "WasKicked"
+                "interveningIf": "WasKicked"
             }
         ]
     },
@@ -12597,7 +12537,8 @@
                         "type": "BoundVariable",
                         "name": "target"
                     },
-                    "destination": "Battlefield"
+                    "destination": "Battlefield",
+                    "fromZone": "Graveyard"
                 },
                 "targetRequirement": {
                     "type": "TargetObject",
@@ -12648,7 +12589,7 @@
     "script": {
         "staticAbilities": [
             {
-                "type": "GrantCantBeBlockedToSmallCreatures",
+                "type": "CantBeBlockedWhilePropertyAtMost",
                 "maxValue": 1
             }
         ]
@@ -14841,7 +14782,9 @@
                         "placement": "TappedAndAttacking"
                     }
                 },
-                "activeZone": "Graveyard"
+                "activeZones": [
+                    "Graveyard"
+                ]
             }
         ]
     },
@@ -15118,7 +15061,8 @@
                         "type": "BoundVariable",
                         "name": "creature card in your graveyard"
                     },
-                    "destination": "Battlefield"
+                    "destination": "Battlefield",
+                    "fromZone": "Graveyard"
                 },
                 "targetRequirements": [
                     {

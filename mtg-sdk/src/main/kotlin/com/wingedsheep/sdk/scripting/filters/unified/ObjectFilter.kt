@@ -61,18 +61,33 @@ data class GameObjectFilter(
 
     /**
      * The English indefinite article ("a" or "an") for this filter's type name.
-     * Derived from the card predicates' type word (e.g. "artifact", "equipment"),
+     * Derived from the card predicates' leading type word (e.g. "artifact", "equipment"),
      * not from the full [description] — which may include "you control" prefixes
      * that would give the wrong first letter.
+     *
+     * Reads the predicates in [orderedCardPredicates] order, the same order [description] renders
+     * them in, so the article always agrees with the word it precedes: "**an** Elf creature", not
+     * "a Elf creature". The only consumer pairs the two directly (`CostAtom`'s
+     * "from <article> <description> you control").
      */
     val indefiniteArticle: String
         get() {
-            val typeWord = cardPredicates.firstOrNull()?.description?.trim()
-                ?: if (anyOf.isNotEmpty()) anyOf.first().indefiniteArticle
+            val typeWord = orderedCardPredicates().firstOrNull()?.description?.trim()
+                ?: if (anyOf.isNotEmpty()) return anyOf.first().indefiniteArticle
                 else description.trim()
             val first = typeWord.firstOrNull()?.lowercaseChar() ?: return "a"
             return if (first in "aeiou") "an" else "a"
         }
+
+    /**
+     * Card predicates in rendering order: subtypes ahead of the card type, because Magic templates
+     * them that way — "Wolf creature", "Equipment artifact", never "creature Wolf". A stable
+     * partition, so every other pairing keeps its original insertion order.
+     */
+    private fun orderedCardPredicates(): List<CardPredicate> {
+        val (subtypes, rest) = cardPredicates.partition { it is CardPredicate.HasSubtype }
+        return subtypes + rest
+    }
 
     private fun buildDescription(): String = buildString {
         controllerPredicate?.let {
@@ -85,7 +100,7 @@ data class GameObjectFilter(
             append(predicate.description)
             append(" ")
         }
-        cardPredicates.forEach { predicate ->
+        orderedCardPredicates().forEach { predicate ->
             append(predicate.description)
             append(" ")
         }
@@ -108,6 +123,25 @@ data class GameObjectFilter(
         val BasicLand = GameObjectFilter(cardPredicates = listOf(CardPredicate.IsBasicLand))
         val NonbasicLand = GameObjectFilter(
             cardPredicates = listOf(CardPredicate.IsLand, CardPredicate.Not(CardPredicate.IsBasicLand))
+        )
+        /**
+         * A land with one of the five basic land types (CR 205.3i) — Boseiju, Who Endures' "a
+         * land card with a basic land type". Deliberately *not* [BasicLand]: a shockland
+         * (`Land — Forest Island`) or Dryad Arbor qualifies, and a basic is only the common case.
+         */
+        val LandWithBasicLandType = GameObjectFilter(
+            cardPredicates = listOf(
+                CardPredicate.IsLand,
+                CardPredicate.Or(
+                    listOf(
+                        CardPredicate.HasBasicLandType(Subtype.PLAINS.value),
+                        CardPredicate.HasBasicLandType(Subtype.ISLAND.value),
+                        CardPredicate.HasBasicLandType(Subtype.SWAMP.value),
+                        CardPredicate.HasBasicLandType(Subtype.MOUNTAIN.value),
+                        CardPredicate.HasBasicLandType(Subtype.FOREST.value),
+                    )
+                )
+            )
         )
         val Artifact = GameObjectFilter(cardPredicates = listOf(CardPredicate.IsArtifact))
         val Enchantment = GameObjectFilter(cardPredicates = listOf(CardPredicate.IsEnchantment))
@@ -165,6 +199,24 @@ data class GameObjectFilter(
                 CardPredicate.Or(listOf(CardPredicate.IsArtifact, CardPredicate.IsEnchantment))
             )
         )
+
+        /**
+         * Artifact, enchantment, or token — the permanents bargain lets you sacrifice
+         * (CR 702.166a). "Token" is not a card type, so it's an independent alternative here:
+         * a Food artifact token, an Aura, and a plain 1/1 creature token all qualify, while a
+         * nontoken creature does not.
+         */
+        val ArtifactEnchantmentOrToken = GameObjectFilter(
+            cardPredicates = listOf(
+                CardPredicate.Or(
+                    listOf(
+                        CardPredicate.IsArtifact,
+                        CardPredicate.IsEnchantment,
+                        CardPredicate.IsToken,
+                    )
+                )
+            )
+        )
         val CreatureOrArtifact = GameObjectFilter(
             cardPredicates = listOf(
                 CardPredicate.Or(listOf(CardPredicate.IsCreature, CardPredicate.IsArtifact))
@@ -181,9 +233,27 @@ data class GameObjectFilter(
         /** Enchantment Aura cards that could enchant [host] (library search / tutor filter). */
         fun auraThatCouldEnchant(host: EntityReference = EntityReference.Source) =
             Enchantment.withSubtype(Subtype.AURA).canEnchant(host)
+
         val ArtifactOrLand = GameObjectFilter(
             cardPredicates = listOf(
                 CardPredicate.Or(listOf(CardPredicate.IsArtifact, CardPredicate.IsLand))
+            )
+        )
+
+        /**
+         * Artifact, enchantment, or land — the "flexible Naturalize" target family
+         * (Creeping Mold, Fade from History). Sits alongside [ArtifactOrEnchantment]
+         * and [ArtifactOrLand] as the third member of the same union family.
+         */
+        val ArtifactEnchantmentOrLand = GameObjectFilter(
+            cardPredicates = listOf(
+                CardPredicate.Or(
+                    listOf(
+                        CardPredicate.IsArtifact,
+                        CardPredicate.IsEnchantment,
+                        CardPredicate.IsLand,
+                    )
+                )
             )
         )
         val ArtifactCreature = GameObjectFilter(
@@ -289,6 +359,16 @@ data class GameObjectFilter(
     )
 
     /**
+     * Restrict to activated/triggered abilities on the stack whose *source* (CR 113.7) matches
+     * [subfilter] — "from a creature source" (Echo, Perceptive Prodigy), "from an artifact source"
+     * (Scientist Supreme of A.I.M.). Read with last known information when the source has already
+     * left the battlefield. See [CardPredicate.AbilitySourceMatches].
+     */
+    fun abilitySourceMatches(subfilter: GameObjectFilter) = copy(
+        cardPredicates = cardPredicates + CardPredicate.AbilitySourceMatches(subfilter)
+    )
+
+    /**
      * Add an arbitrary [CardPredicate] requirement. General-purpose combinator for predicates that
      * don't have a dedicated helper — e.g. `GameObjectFilter.Nonland.withCardPredicate(
      * CardPredicate.HasActivatedAbility)` for The Enigma Jewel's craft materials.
@@ -331,6 +411,21 @@ data class GameObjectFilter(
         cardPredicates = cardPredicates + CardPredicate.NameNotSharedWithControlledRoom
     )
 
+    /** Match permanents whose name isn't shared with a token the evaluating player controls. */
+    fun nameNotSharedWithControlledToken() = copy(
+        cardPredicates = cardPredicates + CardPredicate.NameNotSharedWithControlledToken
+    )
+
+    /**
+     * Match permanents whose name isn't shared with *another* permanent the evaluating player
+     * controls — "that doesn't have the same name as another permanent you control" (Yenna,
+     * Redtooth Regent). The candidate itself is excluded from the comparison; see
+     * [CardPredicate.NameNotSharedWithAnotherControlledPermanent].
+     */
+    fun nameNotSharedWithAnotherControlledPermanent() = copy(
+        cardPredicates = cardPredicates + CardPredicate.NameNotSharedWithAnotherControlledPermanent
+    )
+
     /**
      * Match cards whose name equals the name durably chosen by the *source permanent* as it
      * entered (its [com.wingedsheep.engine.state.components.battlefield.CastChoicesComponent] under
@@ -339,6 +434,16 @@ data class GameObjectFilter(
      */
     fun namedFromChosenComponent(slot: com.wingedsheep.sdk.scripting.ChoiceSlot = com.wingedsheep.sdk.scripting.ChoiceSlot.CARD_NAME) = copy(
         cardPredicates = cardPredicates + CardPredicate.NameEqualsChosenComponent(slot)
+    )
+
+    /**
+     * Match cards whose *card type* equals the card type durably chosen by the *source permanent*
+     * as it entered (its [com.wingedsheep.engine.state.components.battlefield.CastChoicesComponent]
+     * under [slot]). Static-projection / cost-calculation safe — use this in cost-static filters
+     * (Arachne, Psionic Weaver's "spells of the chosen type cost {1} more").
+     */
+    fun ofChosenCardTypeComponent(slot: com.wingedsheep.sdk.scripting.ChoiceSlot = com.wingedsheep.sdk.scripting.ChoiceSlot.CARD_TYPE) = copy(
+        cardPredicates = cardPredicates + CardPredicate.CardTypeEqualsChosenComponent(slot)
     )
 
     /** Mana value equals */
@@ -391,6 +496,18 @@ data class GameObjectFilter(
         cardPredicates = cardPredicates + CardPredicate.ManaValueAtMostDynamic(amount)
     )
 
+    /**
+     * Mana value **exactly** a resolved [DynamicAmount] — "a creature card with mana value equal to
+     * the number of harmony counters on this artifact" (Instrument of the Bards).
+     *
+     * The equality sibling of [manaValueAtMostDynamic]. Oracle marks the difference with the word in
+     * front of the clause rather than after it: "equal to …" is this, "less than or equal to …" is
+     * the cap.
+     */
+    fun manaValueEqualsDynamic(amount: DynamicAmount) = copy(
+        cardPredicates = cardPredicates + CardPredicate.ManaValueEqualsDynamic(amount)
+    )
+
     /** Mana value is even (zero is even). */
     fun manaValueIsEven() = copy(
         cardPredicates = cardPredicates + CardPredicate.ManaValueIsEven
@@ -404,6 +521,21 @@ data class GameObjectFilter(
     /** Printed mana cost contains an {X} symbol (Paradox Surveyor). */
     fun hasXInManaCost() = copy(
         cardPredicates = cardPredicates + CardPredicate.HasXInManaCost
+    )
+
+    /**
+     * Printed mana cost contains at least [min] mana symbols of [colors] — "with one or more blue
+     * mana symbols in its mana cost" (Namor the Sub-Mariner), or every colour at `min = 3` for
+     * Omnath, Locus of All's "three or more colored mana symbols in its mana cost". Hybrid and
+     * Phyrexian pips count for their colour(s); this is the printed cost, not the object's colour
+     * (see [CardPredicate.ColoredManaSymbolsAtLeast]).
+     *
+     * Colours are varargs to match the amount-side facade
+     * [com.wingedsheep.sdk.dsl.DynamicAmounts.coloredManaSymbolsOf], so the gate and the count
+     * read the same way at a card's two call sites; [min] follows them and must be named.
+     */
+    fun coloredManaSymbolsAtLeast(vararg colors: Color, min: Int = 1) = copy(
+        cardPredicates = cardPredicates + CardPredicate.ColoredManaSymbolsAtLeast(colors.toList(), min)
     )
 
     /** Power equals */
@@ -424,6 +556,11 @@ data class GameObjectFilter(
     /** Power at least */
     fun powerAtLeast(min: Int) = copy(
         cardPredicates = cardPredicates + CardPredicate.PowerAtLeast(min)
+    )
+
+    /** Power at least the X chosen for the source spell/ability (Expel the Interlopers). */
+    fun powerAtLeastX() = copy(
+        cardPredicates = cardPredicates + CardPredicate.PowerAtLeastX
     )
 
     /** Power strictly greater than the projected power of a referenced entity (source, triggering, etc.) */
@@ -568,9 +705,43 @@ data class GameObjectFilter(
         cardPredicates = cardPredicates + CardPredicate.SharesCreatureTypeWith(entity)
     )
 
+    /**
+     * Must share a **card type** with the referenced entity (Confusion in the Ranks: "target
+     * permanent another player controls that shares a card type with it"). The card-type sibling
+     * of [sharingCreatureTypeWith] — see [CardPredicate.SharesCardTypeWith] for why the two axes
+     * stay apart.
+     */
+    /**
+     * Must share a card type with **any** card exiled with the filtering ability's source — "shares
+     * a card type with a card exiled with this creature" (Cemetery Illuminator). The pile-wide form
+     * of [sharingCardTypeWith]`(EntityReference.LinkedExiledCard())`; see
+     * [CardPredicate.SharesCardTypeWithLinkedExile].
+     */
+    fun sharingCardTypeWithLinkedExile() = copy(
+        cardPredicates = cardPredicates + CardPredicate.SharesCardTypeWithLinkedExile
+    )
+
+    fun sharingCardTypeWith(entity: EntityReference) = copy(
+        cardPredicates = cardPredicates + CardPredicate.SharesCardTypeWith(entity)
+    )
+
     /** Must share a color with the referenced entity */
     fun sharingColorWith(entity: EntityReference) = copy(
         cardPredicates = cardPredicates + CardPredicate.SharesColorWith(entity)
+    )
+
+    /**
+     * Must have the same name as the referenced entity (Extraplanar Lens: "a land with the same
+     * name as the exiled card"). The entity-referencing counterpart of
+     * [sharingNameWithPermanentYouControl].
+     */
+    fun sharingNameWith(entity: EntityReference) = copy(
+        cardPredicates = cardPredicates + CardPredicate.SharesNameWith(entity)
+    )
+
+    /** Must have the same mana value as the referenced entity */
+    fun sharingManaValueWith(entity: EntityReference) = copy(
+        cardPredicates = cardPredicates + CardPredicate.SharesManaValueWith(entity)
     )
 
     /**
@@ -588,6 +759,15 @@ data class GameObjectFilter(
      */
     fun sharingColorWithPermanentYouControl(filter: GameObjectFilter) = copy(
         cardPredicates = cardPredicates + CardPredicate.SharesColorWithPermanentYouControl(filter)
+    )
+
+    /**
+     * Must have the same name as at least one permanent the evaluating player controls matching
+     * [filter] (Key to the Side-Door: "a legendary card with the same name as a legendary permanent
+     * you control").
+     */
+    fun sharingNameWithPermanentYouControl(filter: GameObjectFilter) = copy(
+        cardPredicates = cardPredicates + CardPredicate.SharesNameWithPermanentYouControl(filter)
     )
 
     /**
@@ -627,9 +807,50 @@ data class GameObjectFilter(
         statePredicates = statePredicates + StatePredicate.HasLockedDoor
     )
 
+    /**
+     * Must be on the battlefield right now. Pair with a predicate that carries a last-known-info
+     * fallback to force a live reading — `onBattlefield().attacking()` is "is attacking", where a
+     * bare `attacking()` is "is or was attacking" for an object that has already left.
+     */
+    fun onBattlefield() = copy(
+        statePredicates = statePredicates + StatePredicate.IsOnBattlefield
+    )
+
     /** Must be attacking */
     fun attacking() = copy(
         statePredicates = statePredicates + StatePredicate.IsAttacking
+    )
+
+    /** Must be attacking, with no other creature attacking (CR 506.5). */
+    fun attackingAlone() = copy(
+        statePredicates = statePredicates + StatePredicate.IsAttackingAlone
+    )
+
+    /**
+     * Must be attacking one of *your* opponents — the player themselves, so an attacker pointed at
+     * an opponent's planeswalker or battle doesn't match. Narrower than [attacking]; "you" is the
+     * controller of whatever ability applies the filter.
+     */
+    fun attackingAnOpponent() = copy(
+        statePredicates = statePredicates + StatePredicate.IsAttackingAnOpponent
+    )
+
+    /**
+     * The defender-side mirror of [attackingAnOpponent]: must be attacking *you* or a planeswalker
+     * *you* control (Tomik, Wielder of Law). "You" is the controller of whatever ability applies
+     * the filter, so this matches regardless of who controls the attacker. Battles are excluded.
+     */
+    fun attackingYouOrYourPlaneswalkers() = copy(
+        statePredicates = statePredicates + StatePredicate.IsAttackingYouOrYourPlaneswalkers
+    )
+
+    /**
+     * Must be attacking the player the filtering ability's source is attached to — "creatures
+     * attacking enchanted player" (Curse of Hospitality). The attachment-scoped sibling of
+     * [attackingAnOpponent]; only meaningful on an Aura that enchants a player.
+     */
+    fun attackingEnchantedPlayer() = copy(
+        statePredicates = statePredicates + StatePredicate.IsAttackingEnchantedPlayer
     )
 
     /**
@@ -638,6 +859,39 @@ data class GameObjectFilter(
      */
     fun attackedThisTurn() = copy(
         statePredicates = statePredicates + StatePredicate.AttackedThisTurn
+    )
+
+    /** Was **not** declared as an attacker at any point this turn. Negation of [attackedThisTurn]. */
+    fun didntAttackThisTurn() = copy(
+        statePredicates = statePredicates + StatePredicate.Not(StatePredicate.AttackedThisTurn)
+    )
+
+    /**
+     * Could **not** have been declared as an attacker this turn — its controller wasn't the one
+     * declaring attackers, no Declare Attackers Step happened at all, or it has defender, can't
+     * attack, or is summoning sick. "Except for creatures that couldn't attack" (Season of the
+     * Witch). See [StatePredicate.CouldNotHaveAttackedThisTurn] for exactly what it covers.
+     */
+    fun couldNotHaveAttackedThisTurn() = copy(
+        statePredicates = statePredicates + StatePredicate.CouldNotHaveAttackedThisTurn
+    )
+
+    /** The complement: the creature *could* have been declared as an attacker this turn. */
+    fun couldHaveAttackedThisTurn() = copy(
+        statePredicates = statePredicates + StatePredicate.Not(StatePredicate.CouldNotHaveAttackedThisTurn)
+    )
+
+    /**
+     * Was declared as an attacker during its controller's **most recent own turn** — the one-turn-back
+     * sibling of [attackedThisTurn]. False on the turn it actually attacked, true on the next one.
+     */
+    fun attackedLastTurn() = copy(
+        statePredicates = statePredicates + StatePredicate.AttackedLastTurn
+    )
+
+    /** Was declared as a blocker at least once this turn (CR 509.1). */
+    fun blockedThisTurn() = copy(
+        statePredicates = statePredicates + StatePredicate.BlockedThisTurn
     )
 
     /**
@@ -659,12 +913,70 @@ data class GameObjectFilter(
     )
 
     /**
-     * Must have been dealt damage this turn (marked-damage *history*, not current marked damage).
-     * Survives damage removal / leaving combat; cleared at end-of-turn cleanup. Used by
-     * "...that was dealt damage this turn" (Rooftop Assassin, Unsparing Boltcaster).
+     * Must have become tapped **exactly once so far this turn** — the live reading of "if it's the
+     * first time that creature has become tapped this turn" (Captain America, Living Legend), backed
+     * by [StatePredicate.BecameTappedOnlyOnceThisTurn].
+     *
+     * Answers from the permanent's current tap count, so it is the half of that printed intervening
+     * "if" that CR 603.4 re-checks at resolution; the trigger-time half rides on the tap event as
+     * `Triggers.becomesTapped(firstTimeEachTurn = true)`. `Conditions
+     * .TriggeringPermanentBecameTappedOnlyOnceThisTurn` is this predicate aimed at the triggering
+     * permanent.
      */
-    fun dealtDamageThisTurn() = copy(
+    fun becameTappedOnlyOnceThisTurn() = copy(
+        statePredicates = statePredicates + StatePredicate.BecameTappedOnlyOnceThisTurn
+    )
+
+    /**
+     * Must have had one or more counters put on it this turn — the counter-history counterpart of
+     * [wasDealtDamageThisTurn]. Recorded at placement time, so it survives the counters being removed
+     * again; cleared at end-of-turn cleanup.
+     *
+     * [counterType] scopes it to one kind ("one or more **+1/+1** counters") and
+     * [placedByController] to counters the permanent's own controller put on ("**you've** put").
+     * Used by Kid Loki's "each creature you control that you've put one or more +1/+1 counters on
+     * this turn"; `Conditions.SourceReceivedCounterThisTurn` is this predicate under `SourceMatches`.
+     */
+    fun receivedCounterThisTurn(
+        counterType: String? = null,
+        placedByController: Boolean = false
+    ) = copy(
+        statePredicates = statePredicates +
+            StatePredicate.ReceivedCounterThisTurn(counterType, placedByController)
+    )
+
+    /**
+     * Must have been dealt damage this turn — the **passive** voice (damage *received*), marked-damage
+     * *history* rather than current marked damage. Survives damage removal / leaving combat; cleared at
+     * end-of-turn cleanup. Used by "...that was dealt damage this turn" (Rooftop Assassin, Unsparing
+     * Boltcaster). The active-voice counterpart is [hasDealtDamageThisTurn].
+     */
+    fun wasDealtDamageThisTurn() = copy(
         statePredicates = statePredicates + StatePredicate.WasDealtDamageThisTurn
+    )
+
+    /**
+     * Must have **dealt** damage this turn — the active voice, and the mirror of
+     * [wasDealtDamageThisTurn]. Combat and noncombat damage both count, to any recipient. Used by
+     * "target creature an opponent controls that dealt damage this turn" (Red Guardian,
+     * Super-Soldier).
+     *
+     * Named `hasDealtDamageThisTurn`, not the shorter `dealtDamageThisTurn`, deliberately: the short
+     * name used to mean the *passive* predicate above. Retiring it outright turns any un-rebased
+     * caller into a compile error at the exact line instead of a silent flip to the opposite set of
+     * permanents. It also pairs with [hasDealtDamage], the same predicate's lifetime window.
+     */
+    fun hasDealtDamageThisTurn() = copy(
+        statePredicates = statePredicates + StatePredicate.HasDealtDamage(thisTurnOnly = true)
+    )
+
+    /**
+     * Must have dealt damage at least once since entering the battlefield — [hasDealtDamageThisTurn]
+     * widened to the permanent's whole lifetime as the current object. `Conditions.SourceHasDealtDamage`
+     * is this predicate under `SourceMatches` (Karakyk Guardian).
+     */
+    fun hasDealtDamage() = copy(
+        statePredicates = statePredicates + StatePredicate.HasDealtDamage()
     )
 
     /**
@@ -694,6 +1006,15 @@ data class GameObjectFilter(
         statePredicates = statePredicates + StatePredicate.ControllerDealtCombatDamageBySourceThisTurn
     )
 
+    /**
+     * The candidate's controller controls at least one permanent matching [subfilter] — Seasinger's
+     * "target creature whose controller controls an Island". The subfilter's "you" is the
+     * *candidate's* controller, not the ability's.
+     */
+    fun controllerControls(subfilter: GameObjectFilter) = copy(
+        statePredicates = statePredicates + StatePredicate.ControllerControls(subfilter)
+    )
+
     /** Must be blocking */
     fun blocking() = copy(
         statePredicates = statePredicates + StatePredicate.IsBlocking
@@ -705,6 +1026,22 @@ data class GameObjectFilter(
      */
     fun blockingSource() = copy(
         statePredicates = statePredicates + StatePredicate.IsBlockingSource
+    )
+
+    /**
+     * Must be blocking the effect's source **or** blocked by it (CR 509), read live from combat
+     * state. Source-relative. "Each creature blocking or blocked by this creature" (Spitting Slug).
+     */
+    fun blockingOrBlockedBySource() = copy(
+        statePredicates = statePredicates + StatePredicate.IsCombatPairedWithSource
+    )
+
+    /**
+     * Blocking the entity the enclosing `ForEachInGroup` is iterating over — Tidal Flats'
+     * "creatures you control blocking that creature".
+     */
+    fun blockingIterationEntity() = copy(
+        statePredicates = statePredicates + StatePredicate.IsBlockingIterationEntity
     )
 
     /**
@@ -833,19 +1170,33 @@ data class GameObjectFilter(
         statePredicates = statePredicates + StatePredicate.PutIntoGraveyardFromBattlefieldThisTurn
     )
 
+    /**
+     * Must currently be in a graveyard *and* have been put there during the current turn,
+     * from any zone. The zone-agnostic sibling of [putIntoGraveyardFromBattlefieldThisTurn],
+     * used by FDN's Abyssal Harvester. See [StatePredicate.PutIntoGraveyardThisTurn].
+     */
+    fun putIntoGraveyardThisTurn() = copy(
+        statePredicates = statePredicates + StatePredicate.PutIntoGraveyardThisTurn
+    )
+
     /** Must be saddled (CR 702.171b) */
     fun saddled() = copy(
         statePredicates = statePredicates + StatePredicate.IsSaddled
     )
 
-    /** Must currently be paired via Soulbond (CR 702.95b). */
-    fun paired() = copy(
-        statePredicates = statePredicates + StatePredicate.IsPaired
+    /** Must be suspected (CR 701.60a) — see [StatePredicate.IsSuspected]. */
+    fun suspected() = copy(
+        statePredicates = statePredicates + StatePredicate.IsSuspected
     )
 
-    /** Must not currently be paired via Soulbond (CR 702.95b — an "unpaired" creature). */
-    fun unpaired() = copy(
-        statePredicates = statePredicates + StatePredicate.Not(StatePredicate.IsPaired)
+    /** Must have the solved designation (CR 719.3b) — see [StatePredicate.IsSolved]. */
+    fun solved() = copy(
+        statePredicates = statePredicates + StatePredicate.IsSolved
+    )
+
+    /** Must have the renowned designation (CR 702.112b) — see [StatePredicate.IsRenowned]. */
+    fun renowned() = copy(
+        statePredicates = statePredicates + StatePredicate.IsRenowned
     )
 
     /**
@@ -880,9 +1231,22 @@ data class GameObjectFilter(
         statePredicates = statePredicates + StatePredicate.HasMorphAbility
     )
 
+    /**
+     * Must have a printed disguise ability (CR 702.168) — see [StatePredicate.HasDisguiseAbility].
+     * Zone-independent, and independent of whether the object is currently face down.
+     */
+    fun withDisguise() = copy(
+        statePredicates = statePredicates + StatePredicate.HasDisguiseAbility
+    )
+
     /** Must have a counter of the specified type */
     fun withCounter(counterType: String) = copy(
         statePredicates = statePredicates + StatePredicate.HasCounter(counterType)
+    )
+
+    /** Must not have a counter of the specified type. Other counter types are allowed. */
+    fun withoutCounter(counterType: String) = copy(
+        statePredicates = statePredicates + StatePredicate.Not(StatePredicate.HasCounter(counterType))
     )
 
     /** Must have any counter of any type */
@@ -909,6 +1273,11 @@ data class GameObjectFilter(
         statePredicates = statePredicates + StatePredicate.HasLeastPowerAmongAllCreatures
     )
 
+    /** Must have the least mana value among battlefield permanents matching [candidates]. */
+    fun hasLeastManaValueAmong(candidates: GameObjectFilter) = copy(
+        statePredicates = statePredicates + StatePredicate.HasLeastManaValueAmong(candidates)
+    )
+
     /** Must have the least power among creatures its controller controls */
     fun hasLeastPower() = copy(
         statePredicates = statePredicates + StatePredicate.HasLeastPower
@@ -919,6 +1288,16 @@ data class GameObjectFilter(
         statePredicates = statePredicates + StatePredicate.IsRingBearer
     )
 
+    /** Must be soulbond-paired with another creature (CR 702.95b). */
+    fun paired() = copy(
+        statePredicates = statePredicates + StatePredicate.IsPaired
+    )
+
+    /** Must **not** be soulbond-paired — the "unpaired creature" of CR 702.95b. */
+    fun unpaired() = copy(
+        statePredicates = statePredicates + StatePredicate.Not(StatePredicate.IsPaired)
+    )
+
     /** Must have blocked, or been blocked by, a legendary creature this turn (You Cannot Pass!). */
     fun blockedOrWasBlockedByLegendaryThisTurn() = copy(
         statePredicates = statePredicates + StatePredicate.BlockedOrWasBlockedByLegendaryThisTurn
@@ -927,6 +1306,25 @@ data class GameObjectFilter(
     /** Must have at least one Equipment attached */
     fun equipped() = copy(
         statePredicates = statePredicates + StatePredicate.IsEquipped
+    )
+
+    /**
+     * Must have at least one Aura attached — "enchanted creature" as a group adjective. Compose with
+     * [youControl] for "enchanted creatures you control" (A Tale for the Ages); the Aura's own
+     * controller is irrelevant. See [StatePredicate.IsEnchanted].
+     */
+    fun enchanted() = copy(
+        statePredicates = statePredicates + StatePredicate.IsEnchanted
+    )
+
+    /**
+     * Must have at least one attached Aura controlled by [auraController] — the aura-control-scoped
+     * form of [enchanted] ("enchanted by Auras you control", Archon of the Wild Rose). Compose with
+     * [youControl] to constrain the enchanted permanent's controller too; the two bind to different
+     * objects. See [StatePredicate.IsEnchantedByAura].
+     */
+    fun enchantedByAura(auraController: ControllerPredicate = ControllerPredicate.ControlledByYou) = copy(
+        statePredicates = statePredicates + StatePredicate.IsEnchantedByAura(auraController)
     )
 
     /**

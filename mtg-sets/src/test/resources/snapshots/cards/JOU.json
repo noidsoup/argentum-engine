@@ -111,6 +111,90 @@
     ]
 }
 
+// Eagle of the Watch
+{
+    "name": "Eagle of the Watch",
+    "manaCost": "{2}{W}",
+    "typeLine": "Creature — Bird",
+    "oracleText": "Flying, vigilance",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 1
+    },
+    "keywords": [
+        "FLYING",
+        "VIGILANCE"
+    ],
+    "metadata": {
+        "collectorNumber": "9",
+        "artist": "Scott Murphy",
+        "flavorText": "\"Even from miles away, I could see our eagles circling. That's when I gave the command to pick up the pace. I knew we were needed at home.\"\n—Kanlos, Akroan captain",
+        "imageUri": "https://cards.scryfall.io/normal/front/d/c/dc4b6fb1-dc06-48f4-aae2-aa8bbb573548.jpg"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
+// Flurry of Horns
+{
+    "name": "Flurry of Horns",
+    "manaCost": "{4}{R}",
+    "typeLine": "Sorcery",
+    "oracleText": "Create two 2/3 red Minotaur creature tokens with haste.",
+    "script": {
+        "spellEffect": {
+            "type": "CreateToken",
+            "count": {
+                "type": "Fixed",
+                "amount": 2
+            },
+            "power": 2,
+            "toughness": 3,
+            "colors": [
+                "RED"
+            ],
+            "creatureTypes": [
+                "Minotaur"
+            ],
+            "keywords": [
+                "HASTE"
+            ]
+        }
+    },
+    "metadata": {
+        "collectorNumber": "96",
+        "artist": "Phill Simmer",
+        "flavorText": "A minotaur does not distinguish between human, satyr, and triton. They are all meat.",
+        "imageUri": "https://cards.scryfall.io/normal/front/3/3/333ff270-4bc7-48ee-9738-f8c70b8a7e40.jpg?1783939424"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
+// Gold-Forged Sentinel
+{
+    "name": "Gold-Forged Sentinel",
+    "manaCost": "{6}",
+    "typeLine": "Artifact Creature — Chimera",
+    "oracleText": "Flying",
+    "creatureStats": {
+        "power": 4,
+        "toughness": 4
+    },
+    "keywords": [
+        "FLYING"
+    ],
+    "metadata": {
+        "collectorNumber": "161",
+        "rarity": "UNCOMMON",
+        "artist": "James Zapata",
+        "flavorText": "Blessed by the gods. Coveted by mortals. Beholden to neither.",
+        "imageUri": "https://cards.scryfall.io/normal/front/4/e/4e154012-5922-45d1-8e20-d2a2b1de0785.jpg"
+    }
+}
+
 // Heroes' Bane
 {
     "name": "Heroes' Bane",
@@ -164,6 +248,63 @@
     ]
 }
 
+// Lightning Diadem
+{
+    "name": "Lightning Diadem",
+    "manaCost": "{5}{R}",
+    "typeLine": "Enchantment — Aura",
+    "oracleText": "Enchant creature\nWhen this Aura enters, it deals 2 damage to any target.\nEnchanted creature gets +2/+2.",
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "DealDamage",
+                    "amount": {
+                        "type": "Fixed",
+                        "amount": 2
+                    },
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "any target"
+                    }
+                },
+                "targetRequirement": {
+                    "type": "AnyTarget",
+                    "id": "any target"
+                },
+                "descriptionOverride": "When this Aura enters, it deals 2 damage to any target."
+            }
+        ],
+        "staticAbilities": [
+            {
+                "type": "ModifyStats",
+                "powerBonus": 2,
+                "toughnessBonus": 2
+            }
+        ],
+        "auraTarget": {
+            "type": "TargetObject",
+            "filter": {
+                "baseFilter": "creature"
+            }
+        }
+    },
+    "metadata": {
+        "collectorNumber": "102",
+        "artist": "Ryan Alexander Lee",
+        "flavorText": "\"I fight for Keranos and for mortals. I see no contradiction.\"",
+        "imageUri": "https://cards.scryfall.io/normal/front/4/c/4ce3f1c6-2e6f-4087-8619-a01fdcc6d4a3.jpg?1783939422"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
 // Mana Confluence
 {
     "name": "Mana Confluence",
@@ -201,6 +342,100 @@
         "imageUri": "https://cards.scryfall.io/normal/front/5/0/504a69eb-3c2d-4bb1-b117-252b15acf0c2.jpg"
     },
     "colorIdentityOverride": []
+}
+
+// Oreskos Swiftclaw
+{
+    "name": "Oreskos Swiftclaw",
+    "manaCost": "{1}{W}",
+    "typeLine": "Creature — Cat Warrior",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 1
+    },
+    "metadata": {
+        "collectorNumber": "20",
+        "artist": "James Ryman",
+        "flavorText": "After the Battle of Pharagax Bridge, the Champion spent many months among the leonin of Oreskos. She found that they were quick to take offense, not because they were thin-skinned, but because they were always eager for a fight.\n—*The Theriad*",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/3/03c67b91-7f05-44b1-9e99-3e2094434f6a.jpg?1783939456"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
+// Pensive Minotaur
+{
+    "name": "Pensive Minotaur",
+    "manaCost": "{2}{R}",
+    "typeLine": "Creature — Minotaur Warrior",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 3
+    },
+    "metadata": {
+        "collectorNumber": "105",
+        "artist": "Svetlin Velinov",
+        "flavorText": "The Champion and her companions marched through the night, but the battle was over before they arrived. In the middle of the carnage sat a solitary minotaur, lost in what seemed to the Champion to be thought.\n—*The Theriad*",
+        "imageUri": "https://cards.scryfall.io/normal/front/9/0/902b462a-a552-42d4-91f0-bd33cd9cb719.jpg?1783939421"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
+// Rotted Hulk
+{
+    "name": "Rotted Hulk",
+    "manaCost": "{3}{B}",
+    "typeLine": "Creature — Elemental",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 5
+    },
+    "metadata": {
+        "collectorNumber": "81",
+        "artist": "Raymond Swanland",
+        "flavorText": "The hulk rose from the sea and loomed over the Champion. Pinned beneath the twisting, rotted planks of wood was the body of Kaliaros, the helmsman of her former crew, and beside him the captain, Photine.\n—*The Theriad*",
+        "imageUri": "https://cards.scryfall.io/normal/front/1/0/1066644a-ac62-4809-805c-607c645613c5.jpg?1783939431"
+    },
+    "colorIdentityOverride": [
+        "BLACK"
+    ]
+}
+
+// Sigiled Starfish
+{
+    "name": "Sigiled Starfish",
+    "manaCost": "{1}{U}",
+    "typeLine": "Creature — Starfish",
+    "oracleText": "{T}: Scry 1. (Look at the top card of your library. You may put that card on the bottom.)",
+    "creatureStats": {
+        "power": 0,
+        "toughness": 3
+    },
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": "CostTap",
+                "effect": {
+                    "type": "Scry",
+                    "count": 1
+                },
+                "descriptionOverride": "{T}: Scry 1."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "52",
+        "artist": "Nils Hamm",
+        "flavorText": "Kruphix hid the most dire prophecies about humankind where humans would never find them and tritons wouldn't care to read them.",
+        "imageUri": "https://cards.scryfall.io/normal/front/8/5/85a61f99-44f8-4a2b-b7f2-7899a694552d.jpg?1783939442"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
 }
 
 // Temple of Epiphany
@@ -316,5 +551,29 @@
     "colorIdentityOverride": [
         "BLACK",
         "GREEN"
+    ]
+}
+
+// Triton Shorestalker
+{
+    "name": "Triton Shorestalker",
+    "manaCost": "{U}",
+    "typeLine": "Creature — Merfolk Rogue",
+    "oracleText": "This creature can't be blocked.",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 1
+    },
+    "flags": [
+        "CANT_BE_BLOCKED"
+    ],
+    "metadata": {
+        "collectorNumber": "56",
+        "artist": "Svetlin Velinov",
+        "flavorText": "\"Who will miss you, drywalker? A wife? A child? Perhaps they will blame the sea for your fate, and teach future generations to stay far away from it.\"",
+        "imageUri": "https://cards.scryfall.io/normal/front/8/8/881c554e-2324-41e2-89f1-db9f4017bc31.jpg?1783939440"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
     ]
 }

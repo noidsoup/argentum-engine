@@ -59,7 +59,10 @@ export function KeywordIcons({
   protections,
   hexproofFromColors,
   hexproofFromMonocolored,
+  hexproofFromMulticolored,
   isSuspected,
+  isSolved,
+  isRenowned,
   topOffset,
   size,
 }: {
@@ -69,8 +72,14 @@ export function KeywordIcons({
   hexproofFromColors?: readonly Color[]
   /** Hexproof from monocolored (CR 105.2) — an uncolored hexproof-quality shield. */
   hexproofFromMonocolored?: boolean
+  /** Hexproof from multicolored (CR 105.2b) — an uncolored hexproof-quality shield. */
+  hexproofFromMulticolored?: boolean
   /** Whether the permanent currently has the suspected status (CR 701.60). */
   isSuspected?: boolean
+  /** Whether the permanent is a solved Case (CR 719.3b). */
+  isSolved?: boolean
+  /** Whether the creature has the renowned designation (CR 702.112b). */
+  isRenowned?: boolean
   /** Override the column's top offset (px) so it can clear the ring-bearer badge in the same corner. */
   topOffset?: number
   size: number
@@ -80,8 +89,11 @@ export function KeywordIcons({
   // already convey the protection set, and showing an uncolored shield alongside misleads the player.
   const hexproofFromList = hexproofFromColors ?? []
   const hasHexproofFromMonocolored = hexproofFromMonocolored === true
-  // Any "hexproof from [quality]" — per-color or monocolored — that conveys the protection set.
-  const hasScopedHexproof = hexproofFromList.length > 0 || hasHexproofFromMonocolored
+  const hasHexproofFromMulticolored = hexproofFromMulticolored === true
+  // Any "hexproof from [quality]" — per-color, monocolored, or multicolored — that conveys the
+  // protection set.
+  const hasScopedHexproof =
+    hexproofFromList.length > 0 || hasHexproofFromMonocolored || hasHexproofFromMulticolored
   const hasFullHexproof = keywords.includes('HEXPROOF' as Keyword)
   const hasDoubleStrike = keywords.includes('DOUBLE_STRIKE' as Keyword)
   const filteredKeywords = keywords.filter(k =>
@@ -95,14 +107,26 @@ export function KeywordIcons({
   const hasHexproofFrom = hasScopedHexproof
   const hasKeywords = filteredKeywords.length > 0 || displayableFlags.length > 0
   const hasSuspected = isSuspected === true
+  const hasSolved = isSolved === true
+  const hasRenowned = isRenowned === true
 
-  if (!hasKeywords && !hasProtections && !hasHexproofFrom && !hasSuspected) return null
+  if (!hasKeywords && !hasProtections && !hasHexproofFrom && !hasSuspected && !hasSolved && !hasRenowned) return null
 
   return (
     <div style={topOffset === undefined ? styles.keywordIconsContainer : { ...styles.keywordIconsContainer, top: topOffset }}>
       {hasSuspected && (
         <div key="suspected" style={styles.keywordIconWrapper} title="Suspected (has menace and can't block)">
           <KeywordGlyph name="SUSPECTED" size={size} />
+        </div>
+      )}
+      {hasSolved && (
+        <div key="solved" style={styles.keywordIconWrapper} title="Solved (its Solved — ability is active)">
+          <KeywordGlyph name="SOLVED" size={size} />
+        </div>
+      )}
+      {hasRenowned && (
+        <div key="renowned" style={styles.keywordIconWrapper} title="Renowned (its renown has resolved and can't trigger again)">
+          <KeywordGlyph name="RENOWNED" size={size} />
         </div>
       )}
       {filteredKeywords.map((keyword) => (
@@ -176,6 +200,28 @@ export function KeywordIcons({
           />
         </div>
       )}
+      {hasHexproofFromMulticolored && (
+        <div
+          key="hexproof-multicolored"
+          style={{
+            ...styles.keywordIconWrapper,
+            // Same neutral quality ring as the monocolored chip; the tooltip tells them apart.
+            border: `1px solid ${HEXPROOF_QUALITY_TINT}`,
+            boxShadow: `0 0 4px ${HEXPROOF_QUALITY_TINT}`,
+          }}
+          title="Hexproof from multicolored"
+        >
+          <i
+            className="ms ms-ability-hexproof"
+            style={{
+              fontSize: size,
+              color: HEXPROOF_QUALITY_TINT,
+              display: 'block',
+              lineHeight: 1,
+            }}
+          />
+        </div>
+      )}
     </div>
   )
 }
@@ -234,6 +280,14 @@ function getBadgeStyle(icon?: string): React.CSSProperties {
         backgroundColor: 'rgba(180, 130, 40, 0.9)',
         border: '1px solid rgba(255, 210, 100, 0.5)',
       }
+    // Damage this creature deals is doubled (Mjölnir, Hammer of Thor). Hot red-orange rather than
+    // the neutral default: it is a threat readout, and it should read at a glance the way the
+    // prevent-damage shield does in the other direction.
+    case 'double-damage':
+      return {
+        backgroundColor: 'rgba(190, 70, 30, 0.9)',
+        border: '1px solid rgba(255, 160, 100, 0.5)',
+      }
     case 'lost-abilities':
       return {
         backgroundColor: 'rgba(70, 70, 90, 0.9)',
@@ -243,6 +297,14 @@ function getBadgeStyle(icon?: string): React.CSSProperties {
       return {
         backgroundColor: 'rgba(80, 110, 160, 0.9)',
         border: '1px solid rgba(160, 200, 255, 0.5)',
+      }
+    // A creature type this permanent has noted (Long List of the Ents) or secretly chosen
+    // (A Killer Among Us). Muted parchment — it is a memo the permanent is carrying, not a
+    // change to the board, and the secret variant is only ever shown to the player who wrote it.
+    case 'creature-type':
+      return {
+        backgroundColor: 'rgba(90, 78, 55, 0.92)',
+        border: '1px dashed rgba(225, 205, 155, 0.6)',
       }
     case 'color-change':
       // Dark badge with a five-color rainbow border — text stays legible while the
@@ -288,8 +350,12 @@ function getTooltipBorderColor(icon?: string): string {
       return 'rgba(120, 60, 140, 0.5)'
     case 'redirect':
       return 'rgba(180, 130, 40, 0.5)'
+    case 'double-damage':
+      return 'rgba(255, 160, 100, 0.5)'
     case 'lost-abilities':
       return 'rgba(160, 160, 200, 0.5)'
+    case 'creature-type':
+      return 'rgba(225, 205, 155, 0.5)'
     case 'type-change':
       return 'rgba(160, 200, 255, 0.5)'
     case 'color-change':

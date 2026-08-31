@@ -99,6 +99,23 @@ sealed interface Player {
         override val description: String = "target player"
     }
 
+    /**
+     * **Every** player among the spell or ability's chosen targets — "those players" after
+     * "choose any number of target players" (Officious Interrogation). The plural sibling of
+     * [TargetPlayer], which resolves to a single targeted player and so silently reads only the
+     * first when a spell targets several.
+     *
+     * Counting primitives sum over the resolved list, which is what makes "the total number of
+     * creatures those players control" one [DynamicAmount] instead of a per-target loop. A target
+     * that has become illegal by resolution is already gone from the context's target list, so it
+     * contributes nothing — exactly what Officious Interrogation's 2024-02-02 ruling requires.
+     */
+    @SerialName("EachTargetedPlayer")
+    @Serializable
+    data object EachTargetedPlayer : Player {
+        override val description: String = "those players"
+    }
+
     /** A targeted opponent (resolved at effect execution) */
     @SerialName("TargetOpponent")
     @Serializable
@@ -177,11 +194,67 @@ sealed interface Player {
         override val description: String = "its controller"
     }
 
+    /**
+     * Controller of the entity the enclosing `ForEachInGroup` is currently iterating over — "for
+     * each attacking red creature, … unless **its controller** pays {2}{R}" (Heroism, Tidal Flats).
+     *
+     * Distinct from [ControllerOfSource], which stays the enchantment's controller inside such a
+     * loop, and from [ControllerOf], which reads the effect's first *chosen target*. Null outside a
+     * ForEach-over-entities.
+     */
+    @SerialName("ControllerOfIterationEntity")
+    @Serializable
+    data object ControllerOfIterationEntity : Player {
+        override val description: String = "its controller"
+    }
+
     /** Owner of a permanent (used with EffectTarget) */
     @SerialName("OwnerOf")
     @Serializable
     data class OwnerOf(val targetDescription: String) : Player {
         override val description: String = "its owner"
+    }
+
+    /**
+     * The owner of the effect's **source** — the card the ability is printed on, not whoever
+     * currently controls it.
+     *
+     * [OwnerOf] reads the owner of the effect's first *chosen target*, so it is unusable for an
+     * ability that names its own source without targeting it. This is that missing case:
+     * *"[This creature]'s owner shuffles it into their library and draws three cards"*
+     * (Gandalf, Wandering Wizard). It matters exactly when control and ownership diverge — a stolen
+     * permanent's ability still acts on the *owner*, per the printed text.
+     */
+    @SerialName("OwnerOfSource")
+    @Serializable
+    data object OwnerOfSource : Player {
+        override val description: String = "its owner"
+    }
+
+    /**
+     * The controller of the effect's **source** — read off the source permanent rather than off
+     * the resolution context's `controllerId`.
+     *
+     * Ordinarily that is the same player [You] names, and [You] stays the right reference. This
+     * one exists for the case where the context's controller has been **rebound to some other
+     * player**, which is exactly what the per-player loops do:
+     * [com.wingedsheep.sdk.scripting.values.DynamicAmount.CountPlayersWith] and
+     * `ForEach`-over-players evaluate their inner condition once per candidate with
+     * `controllerId` set to that candidate, so `You` inside the loop means "the player being
+     * tested". A comparison against the ability's *own* controller then has no reference left to
+     * reach for — the shape of "for each opponent who has more cards in hand **than you**"
+     * (Wojek Investigator), which is `CountPlayersWith(EachOpponent, Compare(Count(You, HAND),
+     * GT, Count(ControllerOfSource, HAND)))`.
+     *
+     * Outside such a loop, prefer [You]. Note the pairing with [OwnerOfSource]: that one reads the
+     * source's *owner* (right when control and ownership diverge and the card says "its owner");
+     * this one follows control, so a stolen permanent's ability compares against whoever controls
+     * it now, as "you" always does.
+     */
+    @SerialName("ControllerOfSource")
+    @Serializable
+    data object ControllerOfSource : Player {
+        override val description: String = "you"
     }
 
     /**
@@ -203,6 +276,30 @@ sealed interface Player {
         override val description: String = "the exiled card's owner"
     }
 
+    /**
+     * The controller of the spell or ability that **targeted** the source — the other end of a
+     * "becomes the target of a spell or ability" trigger.
+     *
+     * [TriggeringPlayer] cannot name it: a becomes-target trigger binds the *targeted object* as
+     * the triggering entity, and its trigger context deliberately leaves the triggering player
+     * null unless the thing targeted was itself a player. What the context does carry is the
+     * targeting stack object, and this reference reads that object's controller — the caster of a
+     * spell, or the controller of an activated/triggered ability.
+     *
+     * Used by Fractured Loyalty: *"Whenever enchanted creature becomes the target of a spell or
+     * ability, that spell or ability's controller gains control of that creature."*
+     *
+     * The trigger goes on the stack above the spell that caused it, so ordinarily the targeting
+     * object is still on the stack when this resolves. If it left in the meantime (it was
+     * countered in response), resolution falls back to that object's last-known controller and
+     * finally its owner, per CR 608.2h.
+     */
+    @SerialName("ControllerOfTargetingSource")
+    @Serializable
+    data object ControllerOfTargetingSource : Player {
+        override val description: String = "that spell or ability's controller"
+    }
+
     // =============================================================================
     // Possessive Forms (for descriptions)
     // =============================================================================
@@ -215,6 +312,8 @@ sealed interface Player {
             DefendingPlayer -> "defending player's"
             TargetOpponent -> "target opponent's"
             TargetPlayer -> "target player's"
+            ControllerOfIterationEntity -> "its controller's"
+            EachTargetedPlayer -> "those players'"
             Each -> "each player's"
             ActivePlayerFirst -> "each player's"
             EachOpponent -> "each opponent's"
@@ -226,6 +325,10 @@ sealed interface Player {
             EnchantedPlayer -> "enchanted player's"
             is ControllerOf -> "its controller's"
             is OwnerOf -> "its owner's"
+            OwnerOfSource -> "its owner's"
+            // Names the same player [You] does; the difference is only where it reads from.
+            ControllerOfSource -> "your"
             OwnersOfLinkedExile -> "the exiled card's owner's"
+            ControllerOfTargetingSource -> "that spell or ability's controller's"
         }
 }

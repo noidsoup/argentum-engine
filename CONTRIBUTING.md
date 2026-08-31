@@ -5,6 +5,14 @@ PRs, ideas, bug reports, forks, custom sets, agents trained against the gym.
 This document is the short version of "what makes a contribution likely to get
 merged" and "how I work on it myself, in case that's useful."
 
+**If you've never contributed to a project like this before**, start with the
+[contributor guide](https://magic.wingedsheep.com/contribute) instead — a
+step-by-step walkthrough that assumes no prior programming experience, from
+installing Git and Java through to opening your first card PR, with every term
+explained and every step numbered. It covers Windows and macOS, and has a
+troubleshooting section for the installs that usually go wrong. Come back here
+once you're set up; this document assumes you already are.
+
 Most day-to-day discussion happens in the [Discord](https://discord.gg/dy6eSRPWzu):
 
 - `#dev` — contribution chat, "would you accept a PR for X?", review pings,
@@ -67,7 +75,9 @@ for, roughly in order:
 
 This is the workflow that has produced the cards already in the repo. You
 don't have to follow it exactly, but the steps map well onto what reviewers
-check.
+check. The [contributor guide](https://magic.wingedsheep.com/contribute) walks
+this same pipeline at a much slower pace — Parts 17–19 cover it click by click
+if the summary below moves too fast.
 
 1. **Implement** — run the `add-card` skill with the card name and set code.
    It handles Scryfall lookup, oracle errata, set registration, and a starter
@@ -101,8 +111,10 @@ These come up often enough to be worth calling out:
   instead. New effect types are sometimes the right answer, but the bar is
   high.
 - **Bypassing the projection layer.** Battlefield filtering by type,
-  subtype, color, keyword, or P/T must go through projected state
-  (`matchesWithProjection`, `projected.isCreature(...)`). The base state
+  subtype, color, keyword, or P/T must go through projected state —
+  `predicateEvaluator.matches(state, projected, ...)` with
+  `state.projectedState`, and `projected.isCreature(...)` instead of
+  reading the card's own type line. The base state
   doesn't see continuous effects. This is in
   [`AGENTS.md`](AGENTS.md) and the architecture doc — it's the single most
   common correctness bug.

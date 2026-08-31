@@ -20,6 +20,8 @@ import com.wingedsheep.sdk.scripting.effects.CreateTokenEffect
 import com.wingedsheep.sdk.scripting.effects.ManaExpiry
 import com.wingedsheep.sdk.scripting.effects.Effect
 import com.wingedsheep.sdk.scripting.effects.GrantKeywordEffect
+import com.wingedsheep.sdk.scripting.effects.MayEffect
+import com.wingedsheep.sdk.scripting.effects.ownsConsentGate
 import com.wingedsheep.sdk.scripting.effects.ModalEffect
 import com.wingedsheep.sdk.scripting.effects.Mode
 import com.wingedsheep.sdk.scripting.effects.AttachEquipmentEffect
@@ -249,6 +251,12 @@ class CardBuilder(private val name: String) {
     var startingLoyalty: Int? = null
 
     /**
+     * Printed defense (for battles) — the number in the card's lower right corner (CR 310.4a).
+     * The battle enters with that many defense counters (CR 310.4b).
+     */
+    var startingDefense: Int? = null
+
+    /**
      * Oracle text (rules text).
      */
     var oracleText: String = ""
@@ -279,12 +287,49 @@ class CardBuilder(private val name: String) {
     var morphFaceUpEffect: Effect? = null
 
     /**
+     * Disguise cost as a mana cost string (e.g., "{1}{W}") — CR 702.168.
+     * When set, the card gains the Disguise keyword ability with a mana cost: it may be cast face
+     * down for {3} as a 2/2 with ward {2}, and turned face up for this cost.
+     * For non-mana disguise costs, use [disguiseCost] instead.
+     */
+    var disguise: String? = null
+
+    /**
+     * Disguise cost as a [PayCost] for non-mana disguise costs.
+     * When set, the card gains the Disguise keyword ability.
+     * For mana-based disguise, the simpler [disguise] string property is preferred.
+     */
+    var disguiseCost: PayCost? = null
+
+    /**
+     * Effect applied as part of the turn-face-up action for a disguise creature — the "As this
+     * creature is turned face up, …" replacement clause (Bubble Smuggler). Sibling of
+     * [morphFaceUpEffect]; unlike a `Triggers.TurnedFaceUp` ability it doesn't use the stack.
+     */
+    var disguiseFaceUpEffect: Effect? = null
+
+    /**
+     * "This cost is reduced by {1} for each …" on the card's own disguise cost — Fugitive
+     * Codebreaker's "reduced by {1} for each instant and sorcery card in your graveyard".
+     * See [KeywordAbility.Disguise.costReduction]; applies to both [disguise] and [disguiseCost].
+     */
+    var disguiseCostReduction: CostReductionSource? = null
+
+    /**
      * Warp cost as a mana cost string (e.g., "{1}{R}").
      * When set, the card gains the Warp keyword ability.
      * Warp allows casting for an alternative cost; the permanent is exiled at end of turn
      * and can be re-cast from exile using the warp cost on future turns.
      */
     var warp: String? = null
+
+    /**
+     * Dash cost as a mana cost string (e.g., "{1}{R}").
+     * When set, the card gains the Dash keyword ability.
+     * Dash allows casting for an alternative cost; the permanent gains haste and is returned
+     * to its owner's hand at the beginning of the next end step.
+     */
+    var dash: String? = null
 
     /**
      * If set, the caster must choose a creature type during casting.
@@ -336,6 +381,14 @@ class CardBuilder(private val name: String) {
      * [leyline] DSL helper rather than by hand.
      */
     var mayStartOnBattlefield: Boolean = false
+
+    /**
+     * Meld-result marker (CR 701.42). Set on the permanent two meld cards combine into —
+     * Chittering Host, Brisela, Voice of Nightmares, Hanweir, the Writhing Township — never on the
+     * meld parts, which are ordinary cards. A flagged card is defined for the corpus but kept out
+     * of every pool a player can draw a deck from; see [CardDefinition.meldResult].
+     */
+    var meldResult: Boolean = false
 
     // The `mayBeginGameOnBattlefield()` helper lives in `dsl/mechanics/BeginGameOnBattlefieldDsl.kt`; it sets this flag.
 
@@ -542,27 +595,74 @@ class CardBuilder(private val name: String) {
     /**
      * Add an equip ability with the specified cost.
      * This sets the equipCost metadata and generates the activated ability
-     * (Equip: attach to target creature you control, sorcery speed).
+     * (Equip: attach to target creature you control, sorcery speed) — CR 702.6a.
      *
      * [genericCostReduction] optionally reduces the generic portion of the equip cost by a
      * dynamic amount evaluated when the ability is activated. Reductions that read the chosen
      * equip target (e.g. `DynamicAmounts.targetColorCount()` for "costs {1} less to activate
      * for each color of the creature it targets" — Dragonfire Blade) resolve against the
      * selected target creature; the engine locks the reduction in before the cost is paid.
+     *
+     * ## "Equip [quality]" variants (CR 702.6c)
+     *
+     * An equip ability may further restrict which creatures are legal targets — printed as
+     * "Equip [quality]" or "Equip [quality] creature" (Dúnedain Blade's *Equip Human {1}*,
+     * Blackblade Reforged's *Equip legendary creature {3}*, Mjölnir, Hammer of Thor's
+     * *Equip worthy {1}*). Pass [quality] plus the matching [targetFilter]:
+     *
+     * ```kotlin
+     * equipAbility(
+     *     "{1}",
+     *     quality = "Human",
+     *     targetFilter = TargetFilter.CreatureYouControl.withSubtype(Subtype.HUMAN),
+     * )
+     * ```
+     *
+     * [quality] only supplies the wording. It lands in two places: as
+     * [ActivatedAbility.equipQuality], which makes the ability render as its printed line
+     * ("Equip Human {1}" — see [ActivatedAbility.describeWithCost]); and as the target
+     * requirement's id, the label the targeting prompt shows. The prompt label is normalised to
+     * "[quality] creature you control" even where the printed reminder omits the noun (Bilbo's Ring
+     * prints "Attach to target Halfling you control"); the two denote the same set, and one template
+     * beats per-card wording now that the *ability* line carries the printed text.
+     *
+     * [targetFilter] is the rules half and must stay controlled-by-you: CR 702.6c allows an equip
+     * ability to target "only a creature that's controlled by the player activating the ability and
+     * that has the chosen quality". Build it off [TargetFilter.CreatureYouControl] (or a
+     * `GameObjectFilter` ending in `.youControl()`) so that holds.
+     *
+     * **The two halves are unchecked against each other.** Nothing links the [quality] wording to
+     * what [targetFilter] actually admits, so `quality = "Human"` next to a filter matching Pirates
+     * compiles and ships a prompt that lies; likewise the controlled-by-you rule above is enforced
+     * only by `EquipQualityVariantTest` (mtg-sets), which asserts it catalog-wide at build time.
+     * That test is the guard — keep the pair honest by hand.
+     *
+     * The restriction is a *targeting* restriction only. Per CR 702.6c the additional quality
+     * "[doesn't] restrict what the Equipment may be attached to", so an Equipment that stops
+     * matching stays attached; it comes off only under CR 704.5n (attached to an illegal
+     * permanent).
+     *
+     * Prefer this over hand-rolling `activatedAbility { isEquipAbility = true }` — a hand-rolled
+     * variant is easy to leave unflagged, and an unflagged equip ability is invisible to every
+     * engine rule that keys off `ActivatedAbility.isEquipAbility` (Forge Anew's free first equip,
+     * Eowyn's equip discount, instant-speed-equip permissions like Leonin Shikari).
      */
-    fun equipAbility(cost: String, genericCostReduction: DynamicAmount? = null) {
+    fun equipAbility(
+        cost: String,
+        genericCostReduction: DynamicAmount? = null,
+        quality: String? = null,
+        targetFilter: TargetFilter = TargetFilter.CreatureYouControl,
+    ) {
         equipCost = ManaCost.parse(cost)
+        // The lowering itself is `ActivatedAbility.equip`, not spelled out here, because Argentum
+        // Assay reads the printed "Equip {1}" line back into the same ability and compares it against
+        // the card — two copies of one lowering is precisely the drift that comparison exists to
+        // catch. The label that links the requirement to the bound variable lives there too.
         activatedAbilities.add(
-            ActivatedAbility(
-                id = AbilityId.generate(),
-                cost = AbilityCost.Atom(CostAtom.Mana(ManaCost.parse(cost))),
-                effect = AttachEquipmentEffect(EffectTarget.BoundVariable("creature you control")),
-                targetRequirements = listOf(
-                    TargetCreature(filter = TargetFilter.CreatureYouControl, id = "creature you control")
-                ),
-                isManaAbility = false,
-                isEquipAbility = true,
-                timing = TimingRule.SorcerySpeed,
+            ActivatedAbility.equip(
+                cost = ManaCost.parse(cost),
+                quality = quality,
+                targetFilter = targetFilter,
                 genericCostReduction = genericCostReduction,
             )
         )
@@ -825,6 +925,7 @@ class CardBuilder(private val name: String) {
         } else {
             rawSpellEffect
         }
+        spellBuilder?.validateResolutionDestination(name)
         val script = CardScript(
             spellEffect = spellEffect,
             targetRequirements = spellBuilder?.targetRequirements ?: emptyList(),
@@ -848,6 +949,7 @@ class CardBuilder(private val name: String) {
             classLevels = classLevelsList.toList(),
             sagaChapters = sagaChaptersList.toList(),
             selfExileOnResolve = spellBuilder?.exilesOnResolve ?: false,
+            selfShuffleIntoLibraryOnResolve = spellBuilder?.shufflesIntoLibraryOnResolve ?: false,
             paradigm = spellBuilder?.isParadigm ?: false,
             returnTransformedFromGraveyardOnResolve = spellBuilder?.returnTransformedFromGraveyardMarker,
             selfAlternativeCost = selfAlternativeCost,
@@ -866,7 +968,20 @@ class CardBuilder(private val name: String) {
                 morph != null -> add(KeywordAbility.Morph(PayCost.Atom(CostAtom.Mana(ManaCost.parse(morph!!))), morphFaceUpEffect))
                 morphCost != null -> add(KeywordAbility.Morph(morphCost!!, morphFaceUpEffect))
             }
+            when {
+                disguise != null -> add(
+                    KeywordAbility.Disguise(
+                        PayCost.Atom(CostAtom.Mana(ManaCost.parse(disguise!!))),
+                        disguiseFaceUpEffect,
+                        disguiseCostReduction
+                    )
+                )
+                disguiseCost != null -> add(
+                    KeywordAbility.Disguise(disguiseCost!!, disguiseFaceUpEffect, disguiseCostReduction)
+                )
+            }
             if (warp != null) add(KeywordAbility.Warp(ManaCost.parse(warp!!)))
+            if (dash != null) add(KeywordAbility.Dash(ManaCost.parse(dash!!)))
             if (evoke != null) add(KeywordAbility.Evoke(ManaCost.parse(evoke!!)))
         }
 
@@ -895,11 +1010,17 @@ class CardBuilder(private val name: String) {
             script = script,
             equipCost = equipCost,
             startingLoyalty = startingLoyalty,
+            startingDefense = startingDefense,
             metadata = metadata,
             colorIdentityOverride = parsedColorIdentity,
             colorIndicator = parsedColorIndicator,
             layout = layout,
-            cardFaces = cardFaceList.toList()
+            cardFaces = cardFaceList.toList(),
+            // Lands are never *cast* at all (CR 305 — they're played), so a blank mana cost
+            // there carries none of CR 202.1b/118.6's "can't be cast normally" implication;
+            // scoping the flag to non-lands keeps every land's golden snapshot untouched.
+            hasNoManaCost = manaCost.isBlank() && !parsedTypeLine.isLand,
+            meldResult = meldResult
         )
     }
 }
@@ -952,6 +1073,42 @@ class SpellBuilder {
 
     internal val exilesOnResolve: Boolean get() = selfExileOnResolve
 
+    private var selfShuffleIntoLibraryOnResolve: Boolean = false
+
+    /**
+     * Mark this spell to shuffle itself into its owner's library on resolution instead of going to
+     * the graveyard. Used for cards that say "Shuffle <card name> into its owner's library."
+     *
+     * The sibling of [selfExile]; both replace the CR 608.2n destination. A card prints one clause
+     * or the other, so don't set both — setting both is rejected at card-construction time.
+     *
+     * Does not outrank flashback (CR 702.34a) or harmonize (CR 702.180a): those replace "anywhere
+     * else any time it would leave the stack" rather than naming the graveyard, so a flashbacked
+     * spell with this clause is exiled. See [com.wingedsheep.sdk.model.CardScript.selfShuffleIntoLibraryOnResolve].
+     */
+    fun selfShuffleIntoLibrary() {
+        selfShuffleIntoLibraryOnResolve = true
+    }
+
+    internal val shufflesIntoLibraryOnResolve: Boolean get() = selfShuffleIntoLibraryOnResolve
+
+    /**
+     * A card prints "Exile <card name>." or "Shuffle <card name> into its owner's library.", never
+     * both — they are two spellings of the same slot, the CR 608.2n destination. Setting both is a
+     * card-authoring mistake, and without this it resolves silently to whichever clause
+     * `StackResolver` happens to check first. Order-independent, so it also catches
+     * [paradigm] (which implies [selfExile]) paired with [selfShuffleIntoLibrary] either way round.
+     *
+     * [com.wingedsheep.sdk.model.CardScript]'s own `init` rejects the same pair; this one runs first
+     * for anything built through the DSL, purely so the message can name the offending card.
+     */
+    internal fun validateResolutionDestination(cardName: String) {
+        require(!(selfExileOnResolve && selfShuffleIntoLibraryOnResolve)) {
+            "$cardName sets both selfExile() and selfShuffleIntoLibrary(); a spell has one " +
+                "CR 608.2n destination, so pick the clause the card actually prints"
+        }
+    }
+
     private var paradigm: Boolean = false
 
     /**
@@ -988,13 +1145,15 @@ class SpellBuilder {
         get() = returnTransformedFromGraveyard
 
     /**
-     * Alternate effect used when kicker is paid. When set along with [kickerTarget],
-     * the kicked version uses completely different targeting and effect resolution.
+     * Alternate effect used when an optional additional cost was declared. When set along with
+     * [kickerTarget], that branch uses completely different targeting and effect resolution.
+     * Shared by every mechanic on the optional-additional-cost rail — kicker and bargain
+     * (CR 702.166d) both land here; the kicker naming is historical and serialized.
      */
     var kickerEffect: Effect? = null
 
     /**
-     * Alternate target used when kicker is paid. When set, the kicked version
+     * Alternate target used when an optional additional cost was declared. When set, that branch
      * uses this target requirement instead of the normal [target].
      */
     var kickerTarget: TargetRequirement? = null
@@ -1003,8 +1162,9 @@ class SpellBuilder {
     private val namedKickerTargets: MutableList<Pair<String, TargetRequirement>> = mutableListOf()
 
     /**
-     * Declare a named kicker target and get an EffectTarget reference to use in kickerEffect.
-     * Use this when the kicked version needs multiple targets (e.g., Goblin Barrage).
+     * Declare a named target for the optional-additional-cost branch and get an EffectTarget
+     * reference to use in [kickerEffect]. Use this when that branch needs multiple targets
+     * (e.g., Goblin Barrage), or is the only branch with a target at all (CR 702.166d).
      *
      * @param name A descriptive name for the target
      * @param requirement The target requirement specification
@@ -1169,11 +1329,23 @@ class SpellBuilder {
         chooseCount: Int = 1,
         minChooseCount: Int = chooseCount,
         allowRepeat: Boolean = false,
+        additionalManaCostPerExtraMode: String? = null,
+        additionalCostPerExtraMode: com.wingedsheep.sdk.scripting.costs.CostAtom? = null,
         chooseAllIfBlightPaid: Boolean = false,
         dynamicChooseCount: com.wingedsheep.sdk.scripting.values.DynamicAmount? = null,
+        dynamicMinChooseCount: com.wingedsheep.sdk.scripting.values.DynamicAmount? = null,
         init: ModalBuilder.() -> Unit
     ) {
-        val builder = ModalBuilder(chooseCount, minChooseCount, allowRepeat, chooseAllIfBlightPaid, dynamicChooseCount)
+        val builder = ModalBuilder(
+            chooseCount,
+            minChooseCount,
+            allowRepeat,
+            additionalManaCostPerExtraMode,
+            additionalCostPerExtraMode,
+            chooseAllIfBlightPaid,
+            dynamicChooseCount,
+            dynamicMinChooseCount
+        )
         builder.init()
         effect = builder.build()
     }
@@ -1228,8 +1400,11 @@ class ModalBuilder(
     private val chooseCount: Int,
     private val minChooseCount: Int = chooseCount,
     private val allowRepeat: Boolean = false,
+    private val additionalManaCostPerExtraMode: String? = null,
+    private val additionalCostPerExtraMode: com.wingedsheep.sdk.scripting.costs.CostAtom? = null,
     private val chooseAllIfBlightPaid: Boolean = false,
-    private val dynamicChooseCount: com.wingedsheep.sdk.scripting.values.DynamicAmount? = null
+    private val dynamicChooseCount: com.wingedsheep.sdk.scripting.values.DynamicAmount? = null,
+    private val dynamicMinChooseCount: com.wingedsheep.sdk.scripting.values.DynamicAmount? = null
 ) {
     private val modes: MutableList<Mode> = mutableListOf()
 
@@ -1255,8 +1430,11 @@ class ModalBuilder(
             chooseCount = chooseCount,
             minChooseCount = minChooseCount,
             allowRepeat = allowRepeat,
+            additionalManaCostPerExtraMode = additionalManaCostPerExtraMode,
+            additionalCostPerExtraMode = additionalCostPerExtraMode,
             chooseAllIfBlightPaid = chooseAllIfBlightPaid,
-            dynamicChooseCount = dynamicChooseCount
+            dynamicChooseCount = dynamicChooseCount,
+            dynamicMinChooseCount = dynamicMinChooseCount
         )
 }
 
@@ -1340,15 +1518,70 @@ class TriggeredAbilityBuilder {
 
     var effect: Effect? = null
     var target: TargetRequirement? = null
+
+    /**
+     * `you may …` — authoring shorthand for wrapping [effect] in a [Gate.MayDecide].
+     *
+     * **The model has no `optional` flag; [build] lowers this one.** `TriggeredAbility.optional`
+     * used to exist beside the gate and the engine read it and built the gate anyway, so the two
+     * spellings were one fact and a card could be written either way. The shorthand survives because
+     * `optional = true` beside `effect = Effects.Destroy(…)` reads better than nesting the effect,
+     * but it produces exactly one model: `MayEffect(effect, otherwise = elseEffect)`.
+     *
+     * Consequences of it being a lowering rather than a flag:
+     *
+     *  - [elseEffect] moves *inside* the gate, becoming the branch taken when the controller
+     *    declines. That is where a "you may … If you don't, …" ability's else belongs; the field
+     *    itself stays for the announcement-time decline (see [TriggeredAbility.elseEffect]).
+     *  - Setting this on an effect that already owns a consent gate is rejected here rather than
+     *    silently double-prompting.
+     */
     var optional: Boolean = false
     var elseEffect: Effect? = null
-    var triggerZone: Zone = Zone.BATTLEFIELD
-    /** Intervening-if condition (Rule 603.4): checked when trigger would fire AND at resolution. */
-    var triggerCondition: Condition? = null
+    /**
+     * The zones this ability's trigger condition functions in (CR 113.6b). Defaults to the
+     * battlefield. Use the set form when an ability functions in more than one zone at once — an
+     * *eminence* ability is `setOf(Zone.BATTLEFIELD, Zone.COMMAND)`.
+     */
+    var triggerZones: Set<Zone> = setOf(Zone.BATTLEFIELD)
+
+    /**
+     * Single-zone shorthand for [triggerZones] — `triggerZone = Zone.GRAVEYARD`. Reading it back
+     * yields the first zone, so prefer [triggerZones] for an ability that functions in several.
+     */
+    var triggerZone: Zone
+        get() = triggerZones.first()
+        set(value) { triggerZones = setOf(value) }
+
+    /**
+     * The intervening-"if" of CR 603.4 — an `if` printed immediately after the trigger event:
+     * "When/Whenever/At [event], **if** [condition], [effect]." Checked when the trigger would
+     * fire *and* again as the ability resolves, where a false condition removes it from the stack.
+     *
+     * See [com.wingedsheep.sdk.scripting.TriggeredAbility.interveningIf]; for a "while" clause or
+     * any other trigger-time-only gate use [triggerRestriction].
+     */
+    var interveningIf: Condition? = null
+
+    /**
+     * A CR 603.2 restriction on the trigger event, checked when the trigger would fire and never
+     * again — a "while" clause, a "during your turn" narrowing, or a mechanic's own gate.
+     *
+     * See [com.wingedsheep.sdk.scripting.TriggeredAbility.triggerRestriction]; for an "if" clause
+     * printed straight after the trigger event use [interveningIf].
+     */
+    var triggerRestriction: Condition? = null
     /** When true, the triggered ability is controlled by the triggering entity's controller. */
     var controlledByTriggeringEntityController: Boolean = false
-    /** When true, this triggered ability triggers at most once each turn. */
+    /** When true, this triggered ability triggers at most once each turn ("This ability triggers
+     * only once each turn"). A *trigger* cap — later matching events don't trigger at all. For the
+     * "Do this only once each turn" rider use [effectOncePerTurn] instead. */
     var oncePerTurn: Boolean = false
+    /** When true, this ability carries the "Do this only once each turn" rider: per CR 603.2h it
+     * triggers on every matching event while its controller has not yet taken the indicated action
+     * that turn, and stops triggering once they have. Declining an optional instance does not spend
+     * it. See [com.wingedsheep.sdk.scripting.TriggeredAbility.effectOncePerTurn]. */
+    var effectOncePerTurn: Boolean = false
     /** When true, this triggered ability triggers at most once over the source's lifetime on the
      * battlefield ("This ability triggers only once"). Unlike [oncePerTurn] it is never reset. */
     var triggersOnce: Boolean = false
@@ -1371,7 +1604,12 @@ class TriggeredAbilityBuilder {
     }
 
     fun build(): TriggeredAbility {
-        requireNotNull(effect) { "Triggered ability must have an effect" }
+        val declared = requireNotNull(effect) { "Triggered ability must have an effect" }
+        require(!optional || !declared.ownsConsentGate()) {
+            "Triggered ability sets optional = true on an effect that already asks — the lowering " +
+                "would wrap a second 'you may' around it and prompt twice. Drop one of them. " +
+                "Effect: $declared"
+        }
         val allTargets = if (namedTargets.isNotEmpty()) {
             namedTargets.map { it.second }
         } else {
@@ -1382,15 +1620,41 @@ class TriggeredAbilityBuilder {
         return TriggeredAbility.create(
             trigger = trigger.event,
             binding = trigger.binding,
-            effect = effect!!,
-            optional = optional,
+            // The authored `description` is the "may" prompt too, not just catalog text. A gate
+            // whose prompt is derived from the effect tree reads as pipeline plumbing once the
+            // effect is a composition — Safe Haven asked "You may sacrifice this permanent. If you
+            // do, look at cards exiled by this permanent. Put those cards onto the battlefield"
+            // where the card says "you may sacrifice this land. If you do, return each card exiled
+            // with this land to the battlefield under its owner's control".
+            //
+            // It is deliberately stamped in **two** places — here on the gate, and below on the
+            // ability — because two layers read it and neither can reach the other's copy:
+            //
+            //  - `GatedEffectExecutor` renders the yes/no from `effect.description` and is handed
+            //    only the effect, so the gate must carry its own copy. Scoping it to the gate is
+            //    also what keeps a *nested* "you may" inside the same trigger asking its own
+            //    question instead of inheriting the whole trigger's sentence.
+            //  - `ClientStateTransformer` and `TriggerProcessor` read
+            //    `TriggeredAbility.descriptionOverride` for the ability list and the stack item.
+            //
+            // The two are never equal — the gate's own fallback is "You may <effect>", with no
+            // trigger clause — so this is not a value that can be derived from one side at
+            // runtime. Removing either copy silently degrades that layer's text rather than
+            // failing a build; if you are here to de-duplicate, that is the trap.
+            effect = if (optional) {
+                MayEffect(declared, descriptionOverride = description, otherwise = elseEffect)
+            } else {
+                declared
+            },
             targetRequirement = primaryTarget,
             additionalTargetRequirements = additionalTargets,
-            elseEffect = elseEffect,
-            activeZone = triggerZone,
-            triggerCondition = triggerCondition,
+            elseEffect = if (optional) null else elseEffect,
+            activeZones = triggerZones,
+            interveningIf = interveningIf,
+            triggerRestriction = triggerRestriction,
             controlledByTriggeringEntityController = controlledByTriggeringEntityController,
             oncePerTurn = oncePerTurn,
+            effectOncePerTurn = effectOncePerTurn,
             triggersOnce = triggersOnce,
             descriptionOverride = description
         )
@@ -1431,6 +1695,22 @@ class ActivatedAbilityBuilder {
     var cost: AbilityCost = AbilityCost.Tap
     var effect: Effect? = null
     var target: TargetRequirement? = null
+    /**
+     * When true, this is a mana ability (CR 605.1a) — it doesn't use the stack and may be activated
+     * during the payment of a cost. Not an authoring preference: 605.1a decides it from the ability,
+     * and `CardLinter` fails the build in both directions. An ability that could add mana is one
+     * unless it targets, is a loyalty ability, or its cost or effect moves a card to or from a
+     * library.
+     *
+     * Setting this also settles [timing], which is the same fact written twice: `TimingRule` calls
+     * its `ManaAbility` case "special timing that does NOT use the stack", so an ability that is one
+     * and whose timing says "instant speed" contradicts itself. [build] derives the timing rather
+     * than leaving it to the author, because half the corpus set both (`land { }` and the engine's
+     * intrinsic abilities always did) and half set only this flag — and the AI's
+     * `ExpiringGrantWindow` branches on `timing == InstantSpeed`, so which half a card fell in
+     * changed behaviour. Found by Argentum Assay's differential, which derives both from the printed
+     * line and reported every card that carried only one.
+     */
     var manaAbility: Boolean = false
     /**
      * When true, this is an equip ability (CR 702.6): it attaches an Equipment to a creature and
@@ -1440,10 +1720,16 @@ class ActivatedAbilityBuilder {
      * `equipAbility(cost)` helper already sets it.
      */
     var isEquipAbility: Boolean = false
+
+    /**
+     * Bookkeep this ability's per-turn activation count so its effect can read it back with
+     * `Conditions.ThisAbilityActivatedThisTurnAtLeast` (Farrelite Priest, Initiates of the Ebon
+     * Hand). Off by default — see [ActivatedAbility.trackActivations].
+     */
+    var trackActivations: Boolean = false
     var timing: TimingRule = TimingRule.InstantSpeed
     var restrictions: List<ActivationRestriction> = emptyList()
     var activateFromZone: Zone = Zone.BATTLEFIELD
-    var promptOnDraw: Boolean = false
     var description: String? = null
     var hasConvoke: Boolean = false
     /**
@@ -1459,12 +1745,35 @@ class ActivatedAbilityBuilder {
      * enforcement), so an author only writes `isExhaust = true`. See [ActivatedAbility.isExhaust].
      */
     var isExhaust: Boolean = false
+    /**
+     * When true, this is a *power-up* ability (CR 702.193): "Power-up — [cost]: [effect]" =
+     * "[cost]: [effect]. If this permanent entered this turn, this ability's cost is reduced by this
+     * permanent's mana cost. Activate this ability only once." Setting this renders the
+     * "Power-up — " prefix, automatically adds [ActivationRestriction.Once], and switches on the
+     * engine's pip-wise self cost reduction. See [ActivatedAbility.isPowerUp].
+     */
+    var isPowerUp: Boolean = false
+    /**
+     * When true, this is a *boast* ability (CR 702.142): "Boast — [cost]: [effect]" =
+     * "[cost]: [effect]. Activate only if this creature attacked this turn and only once each
+     * turn." Setting this renders the "Boast — " prefix and automatically adds both rules clauses
+     * to [restrictions] — [ActivationRestriction.OncePerTurn] and an
+     * [ActivationRestriction.OnlyIfCondition] over [Conditions.SourceAttackedThisTurn] — so an
+     * author only writes `isBoast = true`. See [ActivatedAbility.isBoast].
+     */
+    var isBoast: Boolean = false
     var holdPriority: Boolean = false
     var genericCostReduction: DynamicAmount? = null
     /** Colors that may be spent on the `{X}` portion of this ability's cost (empty = any). */
     var xManaRestriction: Set<Color> = emptySet()
     /** Minimum legal value for `{X}` in this ability's cost (set to 1 for "X can't be 0"). */
     var minimumXValue: Int = 0
+    /**
+     * Defines the `{X}` in this ability's cost from game state instead of asking the controller
+     * for a number (CR 107.3c) — Soul Foundry's "X is the mana value of that card."
+     * See [ActivatedAbility.xDefinedAs].
+     */
+    var xDefinedAs: DynamicAmount? = null
     /** When true, this ability can't be copied by copy-ability effects (CR 707.10e). */
     var cantBeCopied: Boolean = false
 
@@ -1493,12 +1802,26 @@ class ActivatedAbilityBuilder {
 
     fun build(): ActivatedAbility {
         requireNotNull(effect) { "Activated ability must have an effect" }
-        // An exhaust ability is "Activate only once" (CR 702.177a): ensure the once-per-object
-        // restriction is present so the keyword marker and its enforcement can't drift apart.
-        val effectiveRestrictions =
-            if (isExhaust && restrictions.none { it == ActivationRestriction.Once })
+        // Exhaust (CR 702.177a) and power-up (CR 702.193a) both mean "Activate only once": ensure
+        // the once-per-object restriction is present so the keyword marker and its enforcement
+        // can't drift apart.
+        var effectiveRestrictions =
+            if ((isExhaust || isPowerUp) && restrictions.none { it == ActivationRestriction.Once })
                 restrictions + ActivationRestriction.Once
             else restrictions
+        // Boast (CR 702.142a) is "activate only if this creature attacked this turn and only once
+        // each turn" — two ordinary restrictions, added here so the keyword marker and its
+        // enforcement can't drift apart (the same arrangement exhaust and power-up use above).
+        // Boast is once *each turn*, not exhaust's once ever, so it never adds `Once`.
+        if (isBoast) {
+            if (effectiveRestrictions.none { it == ActivationRestriction.OncePerTurn }) {
+                effectiveRestrictions = effectiveRestrictions + ActivationRestriction.OncePerTurn
+            }
+            val attackedGate = ActivationRestriction.OnlyIfCondition(Conditions.SourceAttackedThisTurn)
+            if (effectiveRestrictions.none { it == attackedGate }) {
+                effectiveRestrictions = effectiveRestrictions + attackedGate
+            }
+        }
         return ActivatedAbility(
             id = AbilityId.generate(),
             cost = cost,
@@ -1506,18 +1829,22 @@ class ActivatedAbilityBuilder {
             targetRequirements = targetRequirements,
             isManaAbility = manaAbility,
             isEquipAbility = isEquipAbility,
-            timing = timing,
+            // A mana ability's timing is not a separate authoring choice — see [manaAbility].
+            timing = if (manaAbility) TimingRule.ManaAbility else timing,
             restrictions = effectiveRestrictions,
             activateFromZone = activateFromZone,
-            promptOnDraw = promptOnDraw,
+            trackActivations = trackActivations,
             descriptionOverride = description,
             hasConvoke = hasConvoke,
             hasWaterbend = hasWaterbend,
             isExhaust = isExhaust,
+            isPowerUp = isPowerUp,
+            isBoast = isBoast,
             holdPriority = holdPriority,
             genericCostReduction = genericCostReduction,
             xManaRestriction = xManaRestriction,
             minimumXValue = minimumXValue,
+            xDefinedAs = xDefinedAs,
             cantBeCopied = cantBeCopied
         )
     }
@@ -1705,6 +2032,7 @@ class MetadataBuilder {
     var artist: String? = null
     var flavorText: String? = null
     var imageUri: String? = null
+    var imageUriByCreatureSubtype: Map<String, String> = emptyMap()
     var inBooster: Boolean = true
 
     /**
@@ -1730,6 +2058,7 @@ class MetadataBuilder {
         artist = artist,
         flavorText = flavorText,
         imageUri = imageUri,
+        imageUriByCreatureSubtype = imageUriByCreatureSubtype,
         rulings = _rulings.toList(),
         inBooster = inBooster,
         imageRotation = imageRotation
@@ -1823,6 +2152,7 @@ class CardFaceBuilder(private val name: String) {
         } else {
             rawSpellEffect
         }
+        spellBuilder?.validateResolutionDestination(name)
         val script = CardScript(
             spellEffect = spellEffect,
             targetRequirements = spellBuilder?.targetRequirements ?: emptyList(),
@@ -1832,6 +2162,7 @@ class CardFaceBuilder(private val name: String) {
             staticAbilities = staticAbilities.toList(),
             additionalCosts = additionalCostsList.toList(),
             selfExileOnResolve = spellBuilder?.exilesOnResolve ?: false,
+            selfShuffleIntoLibraryOnResolve = spellBuilder?.shufflesIntoLibraryOnResolve ?: false,
             paradigm = spellBuilder?.isParadigm ?: false,
         )
         return CardFace(

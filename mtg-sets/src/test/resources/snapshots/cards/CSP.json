@@ -110,6 +110,120 @@
     ]
 }
 
+// Krovikan Scoundrel
+{
+    "name": "Krovikan Scoundrel",
+    "manaCost": "{1}{B}",
+    "typeLine": "Creature — Human Rogue",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 1
+    },
+    "metadata": {
+        "collectorNumber": "64",
+        "artist": "Ralph Horsley",
+        "flavorText": "The few surviving humans of Krov would have welcomed the return of winter and its sterilizing cold. They often peered northward, hoping that the snow's edge had reached their infested city-tomb.",
+        "imageUri": "https://cards.scryfall.io/normal/front/b/d/bd9f046c-b416-4d80-8998-047b98361352.jpg?1783943348"
+    },
+    "colorIdentityOverride": [
+        "BLACK"
+    ]
+}
+
+// Ronom Unicorn
+{
+    "name": "Ronom Unicorn",
+    "manaCost": "{1}{W}",
+    "typeLine": "Creature — Unicorn",
+    "oracleText": "Sacrifice this creature: Destroy target enchantment.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 2
+    },
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": "CostSacrificeSelf",
+                "effect": {
+                    "type": "MoveToZone",
+                    "target": {
+                        "type": "ContextTarget",
+                        "index": 0
+                    },
+                    "destination": "Graveyard",
+                    "byDestruction": true
+                },
+                "targetRequirements": [
+                    {
+                        "type": "TargetObject",
+                        "filter": {
+                            "baseFilter": "enchantment"
+                        }
+                    }
+                ],
+                "descriptionOverride": "Sacrifice this creature: Destroy target enchantment."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "16",
+        "artist": "Carl Critchlow",
+        "flavorText": "The aberrant magic of the Rimewind drew the unicorns back from the northern wastes to do battle once again.",
+        "imageUri": "https://cards.scryfall.io/normal/front/a/e/ae4764e1-e47c-4934-86a5-9b432c29a158.jpg?1783943367"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
+// Simian Brawler
+{
+    "name": "Simian Brawler",
+    "manaCost": "{3}{G}",
+    "typeLine": "Creature — Ape Warrior",
+    "oracleText": "Discard a land card: This creature gets +1/+1 until end of turn.",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 3
+    },
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": {
+                    "type": "CostAtomWrapper",
+                    "atom": {
+                        "type": "AtomDiscard",
+                        "filter": "land"
+                    }
+                },
+                "effect": {
+                    "type": "ModifyStats",
+                    "powerModifier": {
+                        "type": "Fixed",
+                        "amount": 1
+                    },
+                    "toughnessModifier": {
+                        "type": "Fixed",
+                        "amount": 1
+                    },
+                    "target": "Self"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "122",
+        "artist": "Warren Mahy",
+        "flavorText": "\"It's odd to see the apes rip down trees to arm themselves in defense of their forests.\" —Taaveti of Kelsinko, elvish hunter",
+        "imageUri": "https://cards.scryfall.io/normal/front/d/f/df2ed9f3-50b1-493b-9c14-0f8ddb4d8c57.jpg?1783943326"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
 // Zur the Enchanter
 {
     "name": "Zur the Enchanter",
@@ -129,41 +243,45 @@
                 "id": "ability_1",
                 "trigger": "AttackEvent",
                 "effect": {
-                    "type": "Composite",
-                    "effects": [
-                        {
-                            "type": "GatherCards",
-                            "source": {
-                                "type": "FromZone",
-                                "zone": "Library"
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "Composite",
+                        "effects": [
+                            {
+                                "type": "GatherCards",
+                                "source": {
+                                    "type": "FromZone",
+                                    "zone": "Library",
+                                    "filter": "enchantment mv<=3"
+                                },
+                                "storeAs": "searchable"
                             },
-                            "storeAs": "searchable"
-                        },
-                        {
-                            "type": "SelectFromCollection",
-                            "from": "searchable",
-                            "selection": {
-                                "type": "ChooseUpTo",
-                                "count": {
-                                    "type": "Fixed",
-                                    "amount": 3
+                            {
+                                "type": "SelectFromCollection",
+                                "from": "searchable",
+                                "selection": {
+                                    "type": "ChooseUpTo",
+                                    "count": {
+                                        "type": "Fixed",
+                                        "amount": 1
+                                    }
+                                },
+                                "storeSelected": "found"
+                            },
+                            {
+                                "type": "MoveCollection",
+                                "from": "found",
+                                "destination": {
+                                    "type": "ToZone",
+                                    "zone": "Battlefield"
                                 }
                             },
-                            "storeSelected": "found"
-                        },
-                        {
-                            "type": "MoveCollection",
-                            "from": "found",
-                            "destination": {
-                                "type": "ToZone",
-                                "zone": "Battlefield"
-                            }
-                        },
-                        "ShuffleLibrary",
-                        "EmitLibrarySearchedEvent"
-                    ]
-                },
-                "optional": true
+                            "ShuffleLibrary",
+                            "EmitLibrarySearchedEvent"
+                        ]
+                    }
+                }
             }
         ]
     },

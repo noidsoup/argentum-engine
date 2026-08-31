@@ -149,7 +149,7 @@
             "count": {
                 "type": "AggregateBattlefield",
                 "player": "Each",
-                "filter": "creature Bird"
+                "filter": "permanent Bird"
             }
         }
     },
@@ -335,7 +335,7 @@
                     "atom": {
                         "type": "AtomTapPermanents",
                         "count": 5,
-                        "filter": "creature Cleric"
+                        "filter": "permanent Cleric"
                     }
                 },
                 "effect": {
@@ -613,7 +613,7 @@
                     "atom": {
                         "type": "AtomTapPermanents",
                         "count": 2,
-                        "filter": "creature Wizard"
+                        "filter": "permanent Wizard"
                     }
                 },
                 "effect": {
@@ -670,15 +670,18 @@
                     "to": "Graveyard"
                 },
                 "effect": {
-                    "type": "MoveToZone",
-                    "target": {
-                        "type": "BoundVariable",
-                        "name": "target"
-                    },
-                    "destination": "Library",
-                    "placement": "Top"
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "MoveToZone",
+                        "target": {
+                            "type": "BoundVariable",
+                            "name": "target"
+                        },
+                        "destination": "Library",
+                        "placement": "Top"
+                    }
                 },
-                "optional": true,
                 "targetRequirement": {
                     "type": "TargetObject",
                     "filter": {
@@ -963,7 +966,8 @@
                 "id": "ability_1",
                 "trigger": {
                     "type": "DealsDamageEvent",
-                    "recipient": "You"
+                    "recipient": "You",
+                    "sourceFilter": "creature"
                 },
                 "binding": "ANY",
                 "effect": {
@@ -1597,10 +1601,11 @@
                     "atom": {
                         "type": "AtomTapPermanents",
                         "count": 2,
-                        "filter": "creature Elf"
+                        "filter": "permanent Elf"
                     }
                 },
                 "effect": "AddManaOfChoice",
+                "timing": "ManaAbility",
                 "isManaAbility": true
             }
         ]
@@ -1970,7 +1975,7 @@
                     {
                         "type": "TargetObject",
                         "filter": {
-                            "baseFilter": "creature Zombie"
+                            "baseFilter": "permanent Zombie"
                         },
                         "id": "target"
                     }
@@ -2166,7 +2171,7 @@
                             "type": "CostAtomWrapper",
                             "atom": {
                                 "type": "AtomSacrifice",
-                                "filter": "creature Cleric"
+                                "filter": "permanent Cleric"
                             }
                         }
                     ]
@@ -2423,7 +2428,7 @@
                     "atom": {
                         "type": "AtomTapPermanents",
                         "count": 5,
-                        "filter": "creature Soldier"
+                        "filter": "permanent Soldier"
                     }
                 },
                 "effect": {
@@ -2477,7 +2482,7 @@
                     "atom": {
                         "type": "AtomTapPermanents",
                         "count": 2,
-                        "filter": "creature Soldier"
+                        "filter": "permanent Soldier"
                     }
                 },
                 "effect": {
@@ -2956,13 +2961,16 @@
                 "id": "ability_1",
                 "trigger": "CycleEvent",
                 "effect": {
-                    "type": "TapUntap",
-                    "target": {
-                        "type": "BoundVariable",
-                        "name": "target"
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "TapUntap",
+                        "target": {
+                            "type": "BoundVariable",
+                            "name": "target"
+                        }
                     }
                 },
-                "optional": true,
                 "targetRequirement": {
                     "type": "TargetObject",
                     "filter": {
@@ -3249,43 +3257,25 @@
                 },
                 "binding": "ANY",
                 "effect": {
-                    "type": "Gated",
-                    "gate": {
-                        "type": "Gate.WhenCondition",
-                        "condition": {
-                            "type": "Compare",
-                            "left": {
-                                "type": "LifeTotal",
-                                "player": "You"
-                            },
-                            "operator": "LTE",
-                            "right": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "GainLife",
+                            "amount": {
                                 "type": "Fixed",
-                                "amount": 5
+                                "amount": 3
+                            }
+                        },
+                        {
+                            "type": "DrawCards",
+                            "count": {
+                                "type": "Fixed",
+                                "amount": 1
                             }
                         }
-                    },
-                    "then": {
-                        "type": "Composite",
-                        "effects": [
-                            {
-                                "type": "GainLife",
-                                "amount": {
-                                    "type": "Fixed",
-                                    "amount": 3
-                                }
-                            },
-                            {
-                                "type": "DrawCards",
-                                "count": {
-                                    "type": "Fixed",
-                                    "amount": 1
-                                }
-                            }
-                        ]
-                    }
+                    ]
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "LifeTotal",
@@ -4270,7 +4260,7 @@
                 "targetRequirement": {
                     "type": "TargetObject",
                     "filter": {
-                        "baseFilter": "enchantment ctrl:opponent"
+                        "baseFilter": "enchantment ctrl:triggering-player"
                     },
                     "id": "target"
                 }
@@ -5805,25 +5795,32 @@
                 },
                 "binding": "ANY",
                 "effect": {
-                    "type": "Composite",
-                    "effects": [
-                        {
-                            "type": "MoveToZone",
-                            "target": {
-                                "type": "BoundVariable",
-                                "name": "target"
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "Composite",
+                        "effects": [
+                            {
+                                "type": "MoveToZone",
+                                "target": {
+                                    "type": "BoundVariable",
+                                    "name": "target"
+                                },
+                                "destination": "Exile"
                             },
-                            "destination": "Exile"
-                        },
-                        {
-                            "type": "AddCounters",
-                            "counterType": "+1/+1",
-                            "count": 1,
-                            "target": "Self"
-                        }
-                    ]
+                            {
+                                "type": "AddCounters",
+                                "counterType": "+1/+1",
+                                "count": 1,
+                                "target": "Self"
+                            }
+                        ]
+                    },
+                    "otherwise": {
+                        "type": "TapUntap",
+                        "target": "Self"
+                    }
                 },
-                "optional": true,
                 "targetRequirement": {
                     "type": "TargetObject",
                     "filter": {
@@ -5831,10 +5828,6 @@
                         "zone": "Graveyard"
                     },
                     "id": "target"
-                },
-                "elseEffect": {
-                    "type": "TapUntap",
-                    "target": "Self"
                 }
             }
         ]
@@ -6892,13 +6885,14 @@
                     "atom": {
                         "type": "AtomTapPermanents",
                         "count": 3,
-                        "filter": "creature Cleric"
+                        "filter": "permanent Cleric"
                     }
                 },
                 "effect": {
                     "type": "MoveToZone",
                     "target": "Self",
-                    "destination": "Hand"
+                    "destination": "Hand",
+                    "fromZone": "Graveyard"
                 },
                 "activateFromZone": "Graveyard"
             }
@@ -7064,7 +7058,9 @@
                         "destination": "Hand"
                     }
                 },
-                "activeZone": "Graveyard"
+                "activeZones": [
+                    "Graveyard"
+                ]
             }
         ]
     },
@@ -7578,7 +7574,7 @@
                     "type": "CostAtomWrapper",
                     "atom": {
                         "type": "AtomSacrifice",
-                        "filter": "creature Goblin"
+                        "filter": "permanent Goblin"
                     }
                 },
                 "effect": {
@@ -8707,7 +8703,7 @@
             "source": {
                 "type": "AggregateBattlefield",
                 "player": "Each",
-                "filter": "creature Elf"
+                "filter": "permanent Elf"
             }
         },
         "toughness": {
@@ -8715,7 +8711,7 @@
             "source": {
                 "type": "AggregateBattlefield",
                 "player": "Each",
-                "filter": "creature Elf"
+                "filter": "permanent Elf"
             }
         }
     },
@@ -9533,17 +9529,17 @@
                     }
                 },
                 "effect": {
-                    "type": "Composite",
-                    "effects": [
-                        {
-                            "type": "ForEach",
-                            "space": {
-                                "type": "IterationSpace.Group",
-                                "filter": {
-                                    "baseFilter": "creature ctrl:you"
-                                }
-                            },
-                            "body": {
+                    "type": "ForEach",
+                    "space": {
+                        "type": "IterationSpace.Group",
+                        "filter": {
+                            "baseFilter": "creature ctrl:you"
+                        }
+                    },
+                    "body": {
+                        "type": "Composite",
+                        "effects": [
+                            {
                                 "type": "ModifyStats",
                                 "powerModifier": {
                                     "type": "Fixed",
@@ -9554,23 +9550,14 @@
                                     "amount": 3
                                 },
                                 "target": "Self"
-                            }
-                        },
-                        {
-                            "type": "ForEach",
-                            "space": {
-                                "type": "IterationSpace.Group",
-                                "filter": {
-                                    "baseFilter": "creature ctrl:you"
-                                }
                             },
-                            "body": {
+                            {
                                 "type": "GrantKeyword",
                                 "keyword": "TRAMPLE",
                                 "target": "Self"
                             }
-                        }
-                    ]
+                        ]
+                    }
                 },
                 "descriptionOverride": "{2}{G}{G}{G}: Creatures you control get +3/+3 and gain trample until end of turn."
             }
@@ -10153,7 +10140,7 @@
                         {
                             "type": "TargetObject",
                             "filter": {
-                                "baseFilter": "creature Cleric"
+                                "baseFilter": "permanent Cleric"
                             },
                             "id": "target"
                         }
@@ -10685,7 +10672,7 @@
             "source": {
                 "type": "AggregateBattlefield",
                 "player": "Each",
-                "filter": "creature Wizard"
+                "filter": "permanent Wizard"
             }
         },
         "toughness": {
@@ -10693,7 +10680,7 @@
             "source": {
                 "type": "AggregateBattlefield",
                 "player": "Each",
-                "filter": "creature Wizard"
+                "filter": "permanent Wizard"
             }
         }
     },
@@ -10887,19 +10874,26 @@
                     ]
                 },
                 "effect": {
-                    "type": "ForEach",
-                    "space": {
-                        "type": "IterationSpace.Group",
-                        "filter": {
-                            "baseFilter": "enchantment"
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "GatherCards",
+                            "source": {
+                                "type": "BattlefieldMatching",
+                                "filter": "enchantment"
+                            },
+                            "storeAs": "destroyAll_gathered"
+                        },
+                        {
+                            "type": "MoveCollection",
+                            "from": "destroyAll_gathered",
+                            "destination": {
+                                "type": "ToZone",
+                                "zone": "Graveyard"
+                            },
+                            "moveType": "Destroy"
                         }
-                    },
-                    "body": {
-                        "type": "MoveToZone",
-                        "target": "Self",
-                        "destination": "Graveyard",
-                        "byDestruction": true
-                    }
+                    ]
                 }
             }
         ]
@@ -10990,23 +10984,7 @@
                 "binding": "ANY",
                 "effect": {
                     "type": "Gated",
-                    "gate": {
-                        "type": "Gate.WhenCondition",
-                        "condition": {
-                            "type": "Compare",
-                            "left": {
-                                "type": "Count",
-                                "player": "You",
-                                "zone": "Graveyard",
-                                "filter": "creature"
-                            },
-                            "operator": "GTE",
-                            "right": {
-                                "type": "Fixed",
-                                "amount": 4
-                            }
-                        }
-                    },
+                    "gate": "Gate.MayDecide",
                     "then": {
                         "type": "MoveToZone",
                         "target": {
@@ -11016,7 +10994,6 @@
                         "destination": "Hand"
                     }
                 },
-                "optional": true,
                 "targetRequirement": {
                     "type": "TargetObject",
                     "filter": {
@@ -11025,7 +11002,7 @@
                     },
                     "id": "target"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "Count",
@@ -11829,7 +11806,7 @@
                     "type": "CostAtomWrapper",
                     "atom": {
                         "type": "AtomSacrifice",
-                        "filter": "creature Beast"
+                        "filter": "permanent Beast"
                     }
                 },
                 "effect": {
@@ -11987,7 +11964,7 @@
             "source": {
                 "type": "AggregateBattlefield",
                 "player": "Each",
-                "filter": "creature Goblin"
+                "filter": "permanent Goblin"
             }
         },
         "toughness": {
@@ -11995,7 +11972,7 @@
             "source": {
                 "type": "AggregateBattlefield",
                 "player": "Each",
-                "filter": "creature Goblin"
+                "filter": "permanent Goblin"
             }
         }
     },
@@ -12384,7 +12361,7 @@
                     {
                         "type": "TargetObject",
                         "filter": {
-                            "baseFilter": "creature Wizard ctrl:you"
+                            "baseFilter": "permanent Wizard ctrl:you"
                         },
                         "id": "target"
                     }
@@ -13175,7 +13152,7 @@
                             "type": "CostAtomWrapper",
                             "atom": {
                                 "type": "AtomSacrifice",
-                                "filter": "creature Bird"
+                                "filter": "permanent Bird"
                             }
                         }
                     ]
@@ -13926,7 +13903,7 @@
                     "atom": {
                         "type": "AtomTapPermanents",
                         "count": 5,
-                        "filter": "creature Goblin"
+                        "filter": "permanent Goblin"
                     }
                 },
                 "effect": {
@@ -13950,14 +13927,18 @@
                             }
                         },
                         {
-                            "type": "DealDamage",
-                            "amount": {
-                                "type": "Fixed",
-                                "amount": 10
+                            "type": "ForEach",
+                            "space": {
+                                "type": "IterationSpace.Players",
+                                "players": "Each"
                             },
-                            "target": {
-                                "type": "PlayerRef",
-                                "player": "Each"
+                            "body": {
+                                "type": "DealDamage",
+                                "amount": {
+                                    "type": "Fixed",
+                                    "amount": 10
+                                },
+                                "target": "Controller"
                             }
                         }
                     ]
@@ -13995,7 +13976,7 @@
                     "type": "CostAtomWrapper",
                     "atom": {
                         "type": "AtomSacrifice",
-                        "filter": "creature Goblin"
+                        "filter": "permanent Goblin"
                     }
                 },
                 "effect": {
@@ -14737,7 +14718,7 @@
                     "atom": {
                         "type": "AtomTapPermanents",
                         "count": 2,
-                        "filter": "creature Beast"
+                        "filter": "permanent Beast"
                     }
                 },
                 "effect": {
@@ -15475,43 +15456,58 @@
             "type": "Composite",
             "effects": [
                 {
-                    "type": "GatherCards",
-                    "source": {
-                        "type": "FromZone",
-                        "zone": "Hand",
-                        "player": "AnOpponent"
+                    "type": "ForEach",
+                    "space": {
+                        "type": "IterationSpace.Players",
+                        "players": "EachOpponent"
                     },
-                    "storeAs": "hand"
-                },
-                {
-                    "type": "SelectFromCollection",
-                    "from": "hand",
-                    "selection": {
-                        "type": "ChooseExactly",
-                        "count": {
-                            "type": "Fixed",
-                            "amount": 1
-                        }
+                    "body": {
+                        "type": "Composite",
+                        "effects": [
+                            {
+                                "type": "GatherCards",
+                                "source": {
+                                    "type": "FromZone",
+                                    "zone": "Hand"
+                                },
+                                "storeAs": "hand"
+                            },
+                            {
+                                "type": "SelectFromCollection",
+                                "from": "hand",
+                                "selection": {
+                                    "type": "ChooseExactly",
+                                    "count": {
+                                        "type": "Fixed",
+                                        "amount": 1
+                                    }
+                                },
+                                "storeSelected": "discarded",
+                                "prompt": "Choose a card to discard"
+                            },
+                            {
+                                "type": "MoveCollection",
+                                "from": "discarded",
+                                "destination": {
+                                    "type": "ToZone",
+                                    "zone": "Graveyard"
+                                },
+                                "moveType": "Discard",
+                                "storeMovedAs": "discarded_this_opponent"
+                            }
+                        ]
                     },
-                    "chooser": "Opponent",
-                    "storeSelected": "discarded",
-                    "prompt": "Choose a card to discard"
-                },
-                {
-                    "type": "MoveCollection",
-                    "from": "discarded",
-                    "destination": {
-                        "type": "ToZone",
-                        "zone": "Graveyard",
-                        "player": "AnOpponent"
-                    },
-                    "moveType": "Discard"
+                    "collectCollections": {
+                        "discarded_this_opponent": "discarded_by_opponents"
+                    }
                 },
                 {
                     "type": "DrawCards",
                     "count": {
-                        "type": "VariableReference",
-                        "variableName": "discarded_count"
+                        "type": "DistinctEntitiesInCollections",
+                        "collections": [
+                            "discarded_by_opponents"
+                        ]
                     }
                 }
             ]
@@ -15521,7 +15517,7 @@
         "collectorNumber": "175",
         "artist": "Jeff Easley",
         "flavorText": "When tempers run high, it's easy to lose your head.",
-        "imageUri": "https://cards.scryfall.io/normal/front/0/b/0b0d8543-78c9-4d7f-b45e-44ecf023d276.jpg?1562897508"
+        "imageUri": "https://cards.scryfall.io/normal/front/0/b/0b0d8543-78c9-4d7f-b45e-44ecf023d276.jpg?1783945062"
     },
     "colorIdentityOverride": [
         "BLACK"
@@ -15759,7 +15755,7 @@
                         }
                     },
                     "then": {
-                        "type": "GainControlByMost",
+                        "type": "GainControlByRank",
                         "metric": {
                             "type": "CreaturesOfSubtype",
                             "subtype": "Wizard"
@@ -15926,15 +15922,19 @@
                     }
                 },
                 {
-                    "type": "DealDamage",
-                    "amount": {
-                        "type": "AggregateBattlefield",
-                        "player": "Each",
-                        "filter": "creature Beast"
+                    "type": "ForEach",
+                    "space": {
+                        "type": "IterationSpace.Players",
+                        "players": "Each"
                     },
-                    "target": {
-                        "type": "PlayerRef",
-                        "player": "Each"
+                    "body": {
+                        "type": "DealDamage",
+                        "amount": {
+                            "type": "AggregateBattlefield",
+                            "player": "Each",
+                            "filter": "creature Beast"
+                        },
+                        "target": "Controller"
                     }
                 }
             ]
@@ -16440,7 +16440,8 @@
                 "effect": {
                     "type": "MoveToZone",
                     "target": "Self",
-                    "destination": "Hand"
+                    "destination": "Hand",
+                    "fromZone": "Graveyard"
                 },
                 "restrictions": [
                     {
@@ -16704,13 +16705,25 @@
                 "id": "ability_1",
                 "cost": "CostTap",
                 "effect": {
-                    "type": "MoveToZone",
-                    "target": {
-                        "type": "BoundVariable",
-                        "name": "target"
-                    },
-                    "destination": "Graveyard",
-                    "byDestruction": true
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "CantBeRegenerated",
+                            "target": {
+                                "type": "BoundVariable",
+                                "name": "target"
+                            }
+                        },
+                        {
+                            "type": "MoveToZone",
+                            "target": {
+                                "type": "BoundVariable",
+                                "name": "target"
+                            },
+                            "destination": "Graveyard",
+                            "byDestruction": true
+                        }
+                    ]
                 },
                 "targetRequirements": [
                     {
@@ -16812,7 +16825,7 @@
                         {
                             "type": "TargetObject",
                             "filter": {
-                                "baseFilter": "creature Beast"
+                                "baseFilter": "permanent Beast"
                             },
                             "id": "target"
                         }
@@ -16852,7 +16865,7 @@
                     "atom": {
                         "type": "AtomTapPermanents",
                         "count": 5,
-                        "filter": "creature Elf"
+                        "filter": "permanent Elf"
                     }
                 },
                 "effect": {
@@ -16925,7 +16938,7 @@
                             "type": "CostAtomWrapper",
                             "atom": {
                                 "type": "AtomSacrifice",
-                                "filter": "creature Wizard"
+                                "filter": "permanent Wizard"
                             }
                         }
                     ]
@@ -17049,7 +17062,7 @@
                             "type": "CostAtomWrapper",
                             "atom": {
                                 "type": "AtomSacrifice",
-                                "filter": "creature Wall"
+                                "filter": "permanent Wall"
                             }
                         }
                     ]
@@ -17300,7 +17313,7 @@
                     "amount": {
                         "type": "AggregateBattlefield",
                         "player": "Each",
-                        "filter": "creature Elf"
+                        "filter": "permanent Elf"
                     }
                 }
             }
@@ -17557,6 +17570,7 @@
                     "type": "AddMana",
                     "color": "GREEN"
                 },
+                "timing": "ManaAbility",
                 "isManaAbility": true
             }
         ]
@@ -17694,7 +17708,7 @@
                     {
                         "type": "TargetObject",
                         "filter": {
-                            "baseFilter": "creature Elf"
+                            "baseFilter": "permanent Elf"
                         },
                         "id": "target"
                     }
@@ -17725,12 +17739,12 @@
             "powerModifier": {
                 "type": "AggregateBattlefield",
                 "player": "Each",
-                "filter": "creature Elf"
+                "filter": "permanent Elf"
             },
             "toughnessModifier": {
                 "type": "AggregateBattlefield",
                 "player": "Each",
-                "filter": "creature Elf"
+                "filter": "permanent Elf"
             },
             "target": {
                 "type": "BoundVariable",
@@ -17991,8 +18005,7 @@
                         "type": "AnyTarget",
                         "id": "any target"
                     }
-                ],
-                "promptOnDraw": true
+                ]
             }
         ]
     },
@@ -18068,8 +18081,7 @@
                             ]
                         }
                     }
-                },
-                "promptOnDraw": true
+                }
             }
         ]
     },
@@ -18115,8 +18127,7 @@
                             "Bear"
                         ]
                     }
-                },
-                "promptOnDraw": true
+                }
             }
         ]
     },
@@ -18151,8 +18162,7 @@
                 "effect": {
                     "type": "ReplaceNextDrawWith",
                     "replacementEffect": "EachPlayerReturnsPermanentToHand"
-                },
-                "promptOnDraw": true
+                }
             }
         ]
     },
@@ -18194,8 +18204,7 @@
                             "amount": 5
                         }
                     }
-                },
-                "promptOnDraw": true
+                }
             }
         ]
     },

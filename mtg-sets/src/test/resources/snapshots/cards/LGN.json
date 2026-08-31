@@ -371,7 +371,7 @@
                 "id": "ability_1",
                 "trigger": {
                     "type": "BecomesBlockedEvent",
-                    "filter": "creature Beast"
+                    "filter": "permanent Beast"
                 },
                 "binding": "ANY",
                 "effect": {
@@ -603,8 +603,11 @@
             {
                 "id": "ability_1",
                 "trigger": "AttackEvent",
-                "effect": "Provoke",
-                "optional": true,
+                "effect": {
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": "Provoke"
+                },
                 "targetRequirement": {
                     "type": "TargetObject",
                     "filter": {
@@ -648,18 +651,21 @@
                         "recipient": "AnyPlayer"
                     },
                     "effect": {
-                        "type": "CreateToken",
-                        "power": 1,
-                        "toughness": 1,
-                        "colors": [],
-                        "creatureTypes": [
-                            "Sliver"
-                        ]
-                    },
-                    "optional": true
+                        "type": "Gated",
+                        "gate": "Gate.MayDecide",
+                        "then": {
+                            "type": "CreateToken",
+                            "power": 1,
+                            "toughness": 1,
+                            "colors": [],
+                            "creatureTypes": [
+                                "Sliver"
+                            ]
+                        }
+                    }
                 },
                 "filter": {
-                    "baseFilter": "creature Sliver"
+                    "baseFilter": "permanent Sliver"
                 }
             }
         ]
@@ -960,17 +966,20 @@
                 "id": "ability_1",
                 "trigger": "TurnFaceUpEvent",
                 "effect": {
-                    "type": "ExchangeControl",
-                    "target1": {
-                        "type": "BoundVariable",
-                        "name": "creature you control"
-                    },
-                    "target2": {
-                        "type": "BoundVariable",
-                        "name": "creature an opponent controls"
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "ExchangeControl",
+                        "target1": {
+                            "type": "BoundVariable",
+                            "name": "creature you control"
+                        },
+                        "target2": {
+                            "type": "BoundVariable",
+                            "name": "creature an opponent controls"
+                        }
                     }
                 },
-                "optional": true,
                 "targetRequirement": {
                     "type": "TargetObject",
                     "filter": {
@@ -1036,7 +1045,7 @@
                     "type": "CostAtomWrapper",
                     "atom": {
                         "type": "AtomSacrifice",
-                        "filter": "creature Goblin"
+                        "filter": "permanent Goblin"
                     }
                 },
                 "effect": {
@@ -1103,7 +1112,7 @@
                     "type": "Exists",
                     "player": "You",
                     "zone": "Battlefield",
-                    "filter": "creature Bird"
+                    "filter": "permanent Bird"
                 }
             },
             {
@@ -1120,7 +1129,7 @@
                     "type": "Exists",
                     "player": "You",
                     "zone": "Battlefield",
-                    "filter": "creature Bird"
+                    "filter": "permanent Bird"
                 }
             }
         ]
@@ -1213,7 +1222,7 @@
                                     "source": {
                                         "type": "FromZone",
                                         "zone": "Library",
-                                        "filter": "Swamp"
+                                        "filter": "land Swamp"
                                     },
                                     "storeAs": "searchable"
                                 },
@@ -1306,8 +1315,11 @@
             {
                 "id": "ability_1",
                 "trigger": "AttackEvent",
-                "effect": "Provoke",
-                "optional": true,
+                "effect": {
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": "Provoke"
+                },
                 "targetRequirement": {
                     "type": "TargetObject",
                     "filter": {
@@ -1350,7 +1362,7 @@
                     "atom": {
                         "type": "AtomTapPermanents",
                         "count": 2,
-                        "filter": "creature Bird"
+                        "filter": "permanent Bird"
                     }
                 },
                 "effect": {
@@ -1368,7 +1380,7 @@
                     "atom": {
                         "type": "AtomTapPermanents",
                         "count": 2,
-                        "filter": "creature Wizard"
+                        "filter": "permanent Wizard"
                     }
                 },
                 "effect": {
@@ -1430,13 +1442,13 @@
                         {
                             "type": "TargetObject",
                             "filter": {
-                                "baseFilter": "creature Sliver"
+                                "baseFilter": "permanent Sliver"
                             }
                         }
                     ]
                 },
                 "filter": {
-                    "baseFilter": "creature Sliver"
+                    "baseFilter": "permanent Sliver"
                 }
             }
         ]
@@ -1474,7 +1486,7 @@
                             "type": "CostAtomWrapper",
                             "atom": {
                                 "type": "AtomSacrifice",
-                                "filter": "creature Cleric",
+                                "filter": "permanent Cleric",
                                 "count": 3
                             }
                         }
@@ -1766,7 +1778,7 @@
                             "type": "CostAtomWrapper",
                             "atom": {
                                 "type": "AtomSacrifice",
-                                "filter": "creature Zombie"
+                                "filter": "permanent Zombie"
                             }
                         }
                     ]
@@ -1928,8 +1940,11 @@
             {
                 "id": "ability_1",
                 "trigger": "AttackEvent",
-                "effect": "Provoke",
-                "optional": true,
+                "effect": {
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": "Provoke"
+                },
                 "targetRequirement": {
                     "type": "TargetObject",
                     "filter": {
@@ -2250,7 +2265,7 @@
                             "type": "CostAtomWrapper",
                             "atom": {
                                 "type": "AtomSacrifice",
-                                "filter": "creature Goblin"
+                                "filter": "permanent Goblin"
                             }
                         }
                     ]
@@ -2520,7 +2535,7 @@
                     }
                 },
                 "filter": {
-                    "baseFilter": "creature Sliver"
+                    "baseFilter": "permanent Sliver"
                 }
             }
         ]
@@ -2556,8 +2571,11 @@
             {
                 "id": "ability_1",
                 "trigger": "AttackEvent",
-                "effect": "Provoke",
-                "optional": true,
+                "effect": {
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": "Provoke"
+                },
                 "targetRequirement": {
                     "type": "TargetObject",
                     "filter": {
@@ -2618,7 +2636,7 @@
                 },
                 "targetRequirements": [
                     {
-                        "type": "TargetPlayer",
+                        "type": "TargetPlayerOrPlaneswalker",
                         "id": "target player or planeswalker"
                     }
                 ]
@@ -2651,7 +2669,7 @@
             {
                 "type": "CantBlock",
                 "filter": {
-                    "baseFilter": "creature Beast"
+                    "baseFilter": "permanent Beast"
                 }
             }
         ]
@@ -2710,17 +2728,17 @@
                 "id": "ability_1",
                 "trigger": "CycleEvent",
                 "effect": {
-                    "type": "Composite",
-                    "effects": [
-                        {
-                            "type": "ForEach",
-                            "space": {
-                                "type": "IterationSpace.Group",
-                                "filter": {
-                                    "baseFilter": "creature Soldier"
-                                }
-                            },
-                            "body": {
+                    "type": "ForEach",
+                    "space": {
+                        "type": "IterationSpace.Group",
+                        "filter": {
+                            "baseFilter": "creature Soldier"
+                        }
+                    },
+                    "body": {
+                        "type": "Composite",
+                        "effects": [
+                            {
                                 "type": "ModifyStats",
                                 "powerModifier": {
                                     "type": "Fixed",
@@ -2731,23 +2749,14 @@
                                     "amount": 1
                                 },
                                 "target": "Self"
-                            }
-                        },
-                        {
-                            "type": "ForEach",
-                            "space": {
-                                "type": "IterationSpace.Group",
-                                "filter": {
-                                    "baseFilter": "creature Soldier"
-                                }
                             },
-                            "body": {
+                            {
                                 "type": "GrantKeyword",
                                 "keyword": "FIRST_STRIKE",
                                 "target": "Self"
                             }
-                        }
-                    ]
+                        ]
+                    }
                 }
             }
         ]
@@ -2791,7 +2800,7 @@
                         "amount": {
                             "type": "AggregateBattlefield",
                             "player": "Each",
-                            "filter": "creature Goblin"
+                            "filter": "permanent Goblin"
                         },
                         "target": {
                             "type": "BoundVariable",
@@ -2849,7 +2858,7 @@
                         "amount": {
                             "type": "AggregateBattlefield",
                             "player": "Each",
-                            "filter": "creature Zombie"
+                            "filter": "permanent Zombie"
                         },
                         "target": {
                             "type": "BoundVariable",
@@ -3016,7 +3025,9 @@
                         "destination": "Hand"
                     }
                 },
-                "activeZone": "Graveyard"
+                "activeZones": [
+                    "Graveyard"
+                ]
             }
         ],
         "replacementEffects": [
@@ -3365,9 +3376,8 @@
                     "from": "Battlefield"
                 },
                 "effect": {
-                    "type": "ForceSacrifice",
-                    "filter": "land",
-                    "target": "Controller"
+                    "type": "Sacrifice",
+                    "filter": "land"
                 },
                 "descriptionOverride": "When Goblin Firebug leaves the battlefield, sacrifice a land."
             }
@@ -3462,8 +3472,11 @@
             {
                 "id": "ability_1",
                 "trigger": "AttackEvent",
-                "effect": "Provoke",
-                "optional": true,
+                "effect": {
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": "Provoke"
+                },
                 "targetRequirement": {
                     "type": "TargetObject",
                     "filter": {
@@ -3506,7 +3519,7 @@
                             "type": "CostAtomWrapper",
                             "atom": {
                                 "type": "AtomSacrifice",
-                                "filter": "creature Goblin"
+                                "filter": "permanent Goblin"
                             }
                         }
                     ]
@@ -3564,7 +3577,7 @@
                     "type": "CostAtomWrapper",
                     "atom": {
                         "type": "AtomSacrifice",
-                        "filter": "creature Goblin"
+                        "filter": "permanent Goblin"
                     }
                 },
                 "effect": {
@@ -3612,7 +3625,7 @@
                             "count": {
                                 "type": "AggregateBattlefield",
                                 "player": "You",
-                                "filter": "creature Zombie"
+                                "filter": "permanent Zombie"
                             }
                         },
                         {
@@ -3620,7 +3633,7 @@
                             "amount": {
                                 "type": "AggregateBattlefield",
                                 "player": "You",
-                                "filter": "creature Zombie"
+                                "filter": "permanent Zombie"
                             },
                             "target": "Controller"
                         }
@@ -3852,8 +3865,11 @@
                 "ability": {
                     "id": "ability_1",
                     "trigger": "AttackEvent",
-                    "effect": "Provoke",
-                    "optional": true,
+                    "effect": {
+                        "type": "Gated",
+                        "gate": "Gate.MayDecide",
+                        "then": "Provoke"
+                    },
                     "targetRequirement": {
                         "type": "TargetObject",
                         "filter": {
@@ -3919,7 +3935,7 @@
                                 "source": {
                                     "type": "FromZone",
                                     "zone": "Library",
-                                    "filter": "creature Dragon"
+                                    "filter": "Dragon"
                                 },
                                 "storeAs": "searchable"
                             },
@@ -4104,7 +4120,7 @@
                             "atom": {
                                 "type": "AtomTapPermanents",
                                 "count": 2,
-                                "filter": "creature Bird"
+                                "filter": "permanent Bird"
                             }
                         }
                     ]
@@ -4275,8 +4291,11 @@
             {
                 "id": "ability_1",
                 "trigger": "AttackEvent",
-                "effect": "Provoke",
-                "optional": true,
+                "effect": {
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": "Provoke"
+                },
                 "targetRequirement": {
                     "type": "TargetObject",
                     "filter": {
@@ -4323,36 +4342,17 @@
                 },
                 "binding": "ANY",
                 "effect": {
-                    "type": "Gated",
-                    "gate": {
-                        "type": "Gate.WhenCondition",
-                        "condition": {
-                            "type": "Compare",
-                            "left": {
-                                "type": "Count",
-                                "player": "TriggeringPlayer",
-                                "zone": "Hand"
-                            },
-                            "operator": "LTE",
-                            "right": {
-                                "type": "Fixed",
-                                "amount": 2
-                            }
-                        }
+                    "type": "DealDamage",
+                    "amount": {
+                        "type": "Fixed",
+                        "amount": 3
                     },
-                    "then": {
-                        "type": "DealDamage",
-                        "amount": {
-                            "type": "Fixed",
-                            "amount": 3
-                        },
-                        "target": {
-                            "type": "PlayerRef",
-                            "player": "TriggeringPlayer"
-                        }
+                    "target": {
+                        "type": "PlayerRef",
+                        "player": "TriggeringPlayer"
                     }
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "Count",
@@ -4454,8 +4454,11 @@
             {
                 "id": "ability_1",
                 "trigger": "AttackEvent",
-                "effect": "Provoke",
-                "optional": true,
+                "effect": {
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": "Provoke"
+                },
                 "targetRequirement": {
                     "type": "TargetObject",
                     "filter": {
@@ -4529,7 +4532,7 @@
                         "powerModifier": {
                             "type": "AggregateBattlefield",
                             "player": "Each",
-                            "filter": "creature Sliver"
+                            "filter": "permanent Sliver"
                         },
                         "toughnessModifier": {
                             "type": "Fixed",
@@ -4550,7 +4553,7 @@
                     ]
                 },
                 "filter": {
-                    "baseFilter": "creature Sliver"
+                    "baseFilter": "permanent Sliver"
                 }
             }
         ]
@@ -4595,13 +4598,16 @@
                 "id": "ability_1",
                 "trigger": "TurnFaceUpEvent",
                 "effect": {
-                    "type": "TurnFaceDown",
-                    "target": {
-                        "type": "BoundVariable",
-                        "name": "creature with a morph ability"
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "TurnFaceDown",
+                        "target": {
+                            "type": "BoundVariable",
+                            "name": "creature with a morph ability"
+                        }
                     }
                 },
-                "optional": true,
                 "targetRequirement": {
                     "type": "TargetObject",
                     "filter": {
@@ -4751,7 +4757,7 @@
                     }
                 },
                 "filter": {
-                    "baseFilter": "creature Sliver"
+                    "baseFilter": "permanent Sliver"
                 }
             }
         ]
@@ -4976,7 +4982,7 @@
                 "id": "ability_1",
                 "trigger": {
                     "type": "ZoneChangeEvent",
-                    "filter": "creature Zombie",
+                    "filter": "permanent Zombie",
                     "to": "Battlefield"
                 },
                 "binding": "ANY",
@@ -5108,7 +5114,7 @@
                     "type": "LoseGame",
                     "message": "Phage the Untouchable was not cast from hand"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Not",
                     "condition": "WasCastFromHand"
                 }
@@ -5495,7 +5501,7 @@
                     "count": {
                         "type": "AggregateBattlefield",
                         "player": "You",
-                        "filter": "creature Wizard"
+                        "filter": "permanent Wizard"
                     }
                 }
             }
@@ -5801,7 +5807,7 @@
                 "type": "CantBeBlockedExceptBy",
                 "blockerFilter": {
                     "cardPredicates": [
-                        "IsCreature",
+                        "IsPermanent",
                         {
                             "type": "HasSubtype",
                             "subtype": "Sliver"
@@ -5809,7 +5815,7 @@
                     ]
                 },
                 "filter": {
-                    "baseFilter": "creature Sliver"
+                    "baseFilter": "permanent Sliver"
                 }
             }
         ]
@@ -6195,7 +6201,7 @@
                     "type": "Exists",
                     "player": "You",
                     "zone": "Battlefield",
-                    "filter": "creature Beast"
+                    "filter": "permanent Beast"
                 }
             },
             {
@@ -6212,7 +6218,7 @@
                     "type": "Exists",
                     "player": "You",
                     "zone": "Battlefield",
-                    "filter": "creature Beast"
+                    "filter": "permanent Beast"
                 }
             }
         ]
@@ -6595,8 +6601,11 @@
             {
                 "id": "ability_1",
                 "trigger": "AttackEvent",
-                "effect": "Provoke",
-                "optional": true,
+                "effect": {
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": "Provoke"
+                },
                 "targetRequirement": {
                     "type": "TargetObject",
                     "filter": {
@@ -6656,16 +6665,19 @@
                         "recipient": "AnyPlayer"
                     },
                     "effect": {
-                        "type": "DrawCards",
-                        "count": {
-                            "type": "Fixed",
-                            "amount": 1
+                        "type": "Gated",
+                        "gate": "Gate.MayDecide",
+                        "then": {
+                            "type": "DrawCards",
+                            "count": {
+                                "type": "Fixed",
+                                "amount": 1
+                            }
                         }
-                    },
-                    "optional": true
+                    }
                 },
                 "filter": {
-                    "baseFilter": "creature Sliver"
+                    "baseFilter": "permanent Sliver"
                 }
             }
         ]
@@ -6702,12 +6714,12 @@
                     "powerModifier": {
                         "type": "AggregateBattlefield",
                         "player": "Each",
-                        "filter": "creature Elf"
+                        "filter": "permanent Elf"
                     },
                     "toughnessModifier": {
                         "type": "AggregateBattlefield",
                         "player": "Each",
-                        "filter": "creature Elf"
+                        "filter": "permanent Elf"
                     },
                     "target": {
                         "type": "BoundVariable",
@@ -6753,18 +6765,21 @@
                 "id": "ability_1",
                 "trigger": {
                     "type": "ZoneChangeEvent",
-                    "filter": "creature Beast",
+                    "filter": "permanent Beast",
                     "to": "Battlefield"
                 },
                 "binding": "ANY",
                 "effect": {
-                    "type": "GainLife",
-                    "amount": {
-                        "type": "Fixed",
-                        "amount": 3
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "GainLife",
+                        "amount": {
+                            "type": "Fixed",
+                            "amount": 3
+                        }
                     }
-                },
-                "optional": true
+                }
             }
         ]
     },
@@ -6818,7 +6833,7 @@
                     }
                 },
                 "filter": {
-                    "baseFilter": "creature Sliver"
+                    "baseFilter": "permanent Sliver"
                 }
             }
         ]
@@ -7055,12 +7070,12 @@
                     "powerModifier": {
                         "type": "AggregateBattlefield",
                         "player": "Each",
-                        "filter": "creature Cleric"
+                        "filter": "permanent Cleric"
                     },
                     "toughnessModifier": {
                         "type": "AggregateBattlefield",
                         "player": "Each",
-                        "filter": "creature Cleric"
+                        "filter": "permanent Cleric"
                     },
                     "target": "Self"
                 }
@@ -7671,7 +7686,7 @@
                     "amount": {
                         "type": "AggregateBattlefield",
                         "player": "Each",
-                        "filter": "creature Elf"
+                        "filter": "permanent Elf"
                     }
                 },
                 "timing": "ManaAbility",
@@ -7707,23 +7722,26 @@
                 "id": "ability_1",
                 "trigger": {
                     "type": "ZoneChangeEvent",
-                    "filter": "creature Elf nontoken",
+                    "filter": "permanent Elf nontoken",
                     "to": "Battlefield"
                 },
                 "binding": "OTHER",
                 "effect": {
-                    "type": "CreateToken",
-                    "power": 1,
-                    "toughness": 1,
-                    "colors": [
-                        "GREEN"
-                    ],
-                    "creatureTypes": [
-                        "Insect"
-                    ],
-                    "imageUri": "https://cards.scryfall.io/normal/front/a/a/aa47df37-f246-4f80-a944-008cdf347dad.jpg?1561757793"
-                },
-                "optional": true
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "CreateToken",
+                        "power": 1,
+                        "toughness": 1,
+                        "colors": [
+                            "GREEN"
+                        ],
+                        "creatureTypes": [
+                            "Insect"
+                        ],
+                        "imageUri": "https://cards.scryfall.io/normal/front/a/a/aa47df37-f246-4f80-a944-008cdf347dad.jpg?1561757793"
+                    }
+                }
             }
         ]
     },

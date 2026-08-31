@@ -58,6 +58,21 @@ export const StepDisplayNames: Record<Step, string> = {
 }
 
 /**
+ * The game's day/night designation (Innistrad, CR 731), matching backend DayNight.kt. The game starts
+ * as neither (represented by the absence of this value on the state) and, once a designation is gained,
+ * is always exactly one of these.
+ */
+export enum DayNight {
+  DAY = 'DAY',
+  NIGHT = 'NIGHT',
+}
+
+export const DayNightDisplayNames: Record<DayNight, string> = {
+  [DayNight.DAY]: 'Day',
+  [DayNight.NIGHT]: 'Night',
+}
+
+/**
  * Short step names for compact UI elements like the pass button.
  */
 export const StepShortNames: Record<Step, string> = {
@@ -167,6 +182,7 @@ export enum Keyword {
   BANDING = 'BANDING',
   // ETB modification
   AMPLIFY = 'AMPLIFY',
+  RIOT = 'RIOT',
   // Defense
   DEFENDER = 'DEFENDER',
   INDESTRUCTIBLE = 'INDESTRUCTIBLE',
@@ -181,11 +197,14 @@ export enum Keyword {
   PROWESS = 'PROWESS',
   FLURRY = 'FLURRY',
   CHANGELING = 'CHANGELING',
+  DEVOID = 'DEVOID',
   CRAFT = 'CRAFT',
   // Cost reduction
   CONVOKE = 'CONVOKE',
   DELVE = 'DELVE',
+  IMPROVISE = 'IMPROVISE',
   AFFINITY = 'AFFINITY',
+  EMERGE = 'EMERGE',
   // Spell mechanics
   STORM = 'STORM',
   FLASHBACK = 'FLASHBACK',
@@ -194,10 +213,17 @@ export enum Keyword {
   SOULBOND = 'SOULBOND',
   SNEAK = 'SNEAK',
   NINJUTSU = 'NINJUTSU',
+  WEB_SLINGING = 'WEB_SLINGING',
+  MAYHEM = 'MAYHEM',
+  MADNESS = 'MADNESS',
+  DISTURB = 'DISTURB',
+  SPLICE = 'SPLICE',
   IMPENDING = 'IMPENDING',
   CLEAVE = 'CLEAVE',
   CONSPIRE = 'CONSPIRE',
   CASUALTY = 'CASUALTY',
+  BARGAIN = 'BARGAIN',
+  TEAMWORK = 'TEAMWORK',
   MIRACLE = 'MIRACLE',
   HIDEAWAY = 'HIDEAWAY',
   CASCADE = 'CASCADE',
@@ -209,14 +235,23 @@ export enum Keyword {
   TOXIC = 'TOXIC',
   // Death replacement
   PERSIST = 'PERSIST',
+  UNDYING = 'UNDYING',
   // Dies-and-returns-as-enchantment (Duskmourn Glimmer cycle)
   ENDURING = 'ENDURING',
   // Resolution-time city's blessing grant (Ixalan)
   ASCEND = 'ASCEND',
+  // Enduring-story designation off three artifacts/Sagas/legendaries (The Hobbit)
+  STORIED = 'STORIED',
+  // Player speed 0–4 (Aetherdrift): the keyword that starts it, and the gate at 4
+  START_YOUR_ENGINES = 'START_YOUR_ENGINES',
+  MAX_SPEED = 'MAX_SPEED',
   // Token decay (Innistrad: Midnight Hunt / TDM decayed counter)
   DECAYED = 'DECAYED',
   // Attack-triggered self-buff (Innistrad: Midnight Hunt)
   TRAINING = 'TRAINING',
+  // Day/night transforming DFCs (Innistrad, CR 702.145)
+  DAYBOUND = 'DAYBOUND',
+  NIGHTBOUND = 'NIGHTBOUND',
   // Equipment that makes its own bearer (Final Fantasy)
   JOB_SELECT = 'JOB_SELECT',
   // Ability words
@@ -250,6 +285,7 @@ export const KeywordDisplayNames: Record<Keyword, string> = {
   [Keyword.FLANKING]: 'Flanking',
   [Keyword.BANDING]: 'Banding',
   [Keyword.AMPLIFY]: 'Amplify',
+  [Keyword.RIOT]: 'Riot',
   [Keyword.DEFENDER]: 'Defender',
   [Keyword.INDESTRUCTIBLE]: 'Indestructible',
   [Keyword.HEXPROOF]: 'Hexproof',
@@ -261,10 +297,13 @@ export const KeywordDisplayNames: Record<Keyword, string> = {
   [Keyword.PROWESS]: 'Prowess',
   [Keyword.FLURRY]: 'Flurry',
   [Keyword.CHANGELING]: 'Changeling',
+  [Keyword.DEVOID]: 'Devoid',
   [Keyword.CRAFT]: 'Craft',
   [Keyword.CONVOKE]: 'Convoke',
   [Keyword.DELVE]: 'Delve',
+  [Keyword.IMPROVISE]: 'Improvise',
   [Keyword.AFFINITY]: 'Affinity',
+  [Keyword.EMERGE]: 'Emerge',
   [Keyword.STORM]: 'Storm',
   [Keyword.FLASHBACK]: 'Flashback',
   [Keyword.EVOKE]: 'Evoke',
@@ -272,10 +311,17 @@ export const KeywordDisplayNames: Record<Keyword, string> = {
   [Keyword.SOULBOND]: 'Soulbond',
   [Keyword.SNEAK]: 'Sneak',
   [Keyword.NINJUTSU]: 'Ninjutsu',
+  [Keyword.WEB_SLINGING]: 'Web-slinging',
+  [Keyword.MAYHEM]: 'Mayhem',
+  [Keyword.MADNESS]: 'Madness',
+  [Keyword.DISTURB]: 'Disturb',
+  [Keyword.SPLICE]: 'Splice',
   [Keyword.IMPENDING]: 'Impending',
   [Keyword.CLEAVE]: 'Cleave',
   [Keyword.CONSPIRE]: 'Conspire',
   [Keyword.CASUALTY]: 'Casualty',
+  [Keyword.BARGAIN]: 'Bargain',
+  [Keyword.TEAMWORK]: 'Teamwork',
   [Keyword.MIRACLE]: 'Miracle',
   [Keyword.HIDEAWAY]: 'Hideaway',
   [Keyword.CASCADE]: 'Cascade',
@@ -284,10 +330,16 @@ export const KeywordDisplayNames: Record<Keyword, string> = {
   [Keyword.WITHER]: 'Wither',
   [Keyword.TOXIC]: 'Toxic',
   [Keyword.PERSIST]: 'Persist',
+  [Keyword.UNDYING]: 'Undying',
   [Keyword.ENDURING]: 'Enduring',
   [Keyword.ASCEND]: 'Ascend',
+  [Keyword.STORIED]: 'Storied',
+  [Keyword.START_YOUR_ENGINES]: 'Start your engines!',
+  [Keyword.MAX_SPEED]: 'Max speed',
   [Keyword.DECAYED]: 'Decayed',
   [Keyword.TRAINING]: 'Training',
+  [Keyword.DAYBOUND]: 'Daybound',
+  [Keyword.NIGHTBOUND]: 'Nightbound',
   [Keyword.JOB_SELECT]: 'Job select',
   [Keyword.EERIE]: 'Eerie',
   [Keyword.REBOUND]: 'Rebound',
@@ -304,7 +356,11 @@ export enum AbilityFlag {
   CANT_BECOME_UNTAPPED = 'CANT_BECOME_UNTAPPED',
   MAY_NOT_UNTAP = 'MAY_NOT_UNTAP',
   CANT_RECEIVE_COUNTERS = 'CANT_RECEIVE_COUNTERS',
+  CANT_TRANSFORM = 'CANT_TRANSFORM',
+  CANT_BECOME_SUSPECTED = 'CANT_BECOME_SUSPECTED',
   ASSIGNS_COMBAT_DAMAGE_AS_TOUGHNESS = 'ASSIGNS_COMBAT_DAMAGE_AS_TOUGHNESS',
+  ASSIGNS_NO_COMBAT_DAMAGE = 'ASSIGNS_NO_COMBAT_DAMAGE',
+  MAY_ACTIVATE_ABILITIES_AS_THOUGH_HASTY = 'MAY_ACTIVATE_ABILITIES_AS_THOUGH_HASTY',
 }
 
 export const AbilityFlagDisplayNames: Record<AbilityFlag, string> = {
@@ -314,7 +370,14 @@ export const AbilityFlagDisplayNames: Record<AbilityFlag, string> = {
   [AbilityFlag.CANT_BECOME_UNTAPPED]: "Can't become untapped",
   [AbilityFlag.MAY_NOT_UNTAP]: 'You may choose not to untap',
   [AbilityFlag.CANT_RECEIVE_COUNTERS]: "Can't have counters put on it",
+  [AbilityFlag.CANT_TRANSFORM]: "Can't transform",
+  [AbilityFlag.CANT_BECOME_SUSPECTED]: "Can't become suspected",
   [AbilityFlag.ASSIGNS_COMBAT_DAMAGE_AS_TOUGHNESS]: 'Assigns combat damage equal to its toughness rather than its power',
+  [AbilityFlag.ASSIGNS_NO_COMBAT_DAMAGE]: 'Assigns no combat damage this turn',
+  // Granted by Shang-Chi / Thousand-Year Elixir to a whole board of creatures at once, so it must be
+  // named here or every creature you control shows the raw enum identifier in its preview panel.
+  // Deliberately not in `displayableKeywords` — a battlefield icon on every creature is noise.
+  [AbilityFlag.MAY_ACTIVATE_ABILITIES_AS_THOUGH_HASTY]: 'You may activate its abilities as though it had haste',
 }
 
 /**
@@ -353,8 +416,13 @@ export enum CounterType {
   MINUS_ONE_MINUS_ONE = 'MINUS_ONE_MINUS_ONE',
   PLUS_ONE_PLUS_ZERO = 'PLUS_ONE_PLUS_ZERO',
   PLUS_ZERO_PLUS_ONE = 'PLUS_ZERO_PLUS_ONE',
+  PLUS_TWO_PLUS_ZERO = 'PLUS_TWO_PLUS_ZERO',
+  PLUS_ZERO_PLUS_TWO = 'PLUS_ZERO_PLUS_TWO',
   MINUS_ONE_MINUS_ZERO = 'MINUS_ONE_MINUS_ZERO',
   MINUS_ZERO_MINUS_ONE = 'MINUS_ZERO_MINUS_ONE',
+  PLUS_ONE_PLUS_TWO = 'PLUS_ONE_PLUS_TWO',
+  PLUS_TWO_PLUS_TWO = 'PLUS_TWO_PLUS_TWO',
+  MINUS_TWO_MINUS_TWO = 'MINUS_TWO_MINUS_TWO',
   LOYALTY = 'LOYALTY',
   CHARGE = 'CHARGE',
   GEM = 'GEM',
@@ -366,6 +434,7 @@ export enum CounterType {
   EGG = 'EGG',
   LORE = 'LORE',
   STUN = 'STUN',
+  SHIELD = 'SHIELD',
   FINALITY = 'FINALITY',
   SUPPLY = 'SUPPLY',
   FLYING = 'FLYING',
@@ -378,7 +447,10 @@ export enum CounterType {
   TRAMPLE = 'TRAMPLE',
   HEXPROOF = 'HEXPROOF',
   REACH = 'REACH',
+  HASTE = 'HASTE',
+  MENACE = 'MENACE',
   STASH = 'STASH',
+  CROAK = 'CROAK',
   BLIGHT = 'BLIGHT',
   COIN = 'COIN',
   FLOOD = 'FLOOD',
@@ -399,6 +471,7 @@ export enum CounterType {
   NEST = 'NEST',
   PAGE = 'PAGE',
   REV = 'REV',
+  BLOODSTAIN = 'BLOODSTAIN',
   SOUL = 'SOUL',
   DIVINITY = 'DIVINITY',
   POSSESSION = 'POSSESSION',
@@ -411,6 +484,37 @@ export enum CounterType {
   POINT = 'POINT',
   WISH = 'WISH',
   REVIVAL = 'REVIVAL',
+  INGENUITY = 'INGENUITY',
+  FILM = 'FILM',
+  SKEWER = 'SKEWER',
+  ENERGY = 'ENERGY',
+  ICE = 'ICE',
+  OMEN = 'OMEN',
+  SUSPECT = 'SUSPECT',
+  HARNESS = 'HARNESS',
+  PLAN = 'PLAN',
+  INVASION = 'INVASION',
+  UNLOCK = 'UNLOCK',
+  HONE = 'HONE',
+  // Mirrored from CounterType.kt; see CounterTypeClientMirrorTest.kt (mtg-sdk), which reads this
+  // file and fails when the two drift.
+  DEFENSE = 'DEFENSE',
+  SILVER = 'SILVER',
+  FATE = 'FATE',
+  AIM = 'AIM',
+  DOOM = 'DOOM',
+  FIRE = 'FIRE',
+  CONQUEROR = 'CONQUEROR',
+  NET = 'NET',
+  SPORE = 'SPORE',
+  STORAGE = 'STORAGE',
+  HUNGER = 'HUNGER',
+  SLIME = 'SLIME',
+  JAVELIN = 'JAVELIN',
+  CREDIT = 'CREDIT',
+  CUBE = 'CUBE',
+  TIDE = 'TIDE',
+  JUDGMENT = 'JUDGMENT',
 }
 
 export const CounterTypeDisplayNames: Record<CounterType, string> = {
@@ -418,8 +522,13 @@ export const CounterTypeDisplayNames: Record<CounterType, string> = {
   [CounterType.MINUS_ONE_MINUS_ONE]: '-1/-1',
   [CounterType.PLUS_ONE_PLUS_ZERO]: '+1/+0',
   [CounterType.PLUS_ZERO_PLUS_ONE]: '+0/+1',
+  [CounterType.PLUS_TWO_PLUS_ZERO]: '+2/+0',
+  [CounterType.PLUS_ZERO_PLUS_TWO]: '+0/+2',
   [CounterType.MINUS_ONE_MINUS_ZERO]: '-1/-0',
   [CounterType.MINUS_ZERO_MINUS_ONE]: '-0/-1',
+  [CounterType.PLUS_ONE_PLUS_TWO]: '+1/+2',
+  [CounterType.PLUS_TWO_PLUS_TWO]: '+2/+2',
+  [CounterType.MINUS_TWO_MINUS_TWO]: '-2/-2',
   [CounterType.LOYALTY]: 'Loyalty',
   [CounterType.CHARGE]: 'Charge',
   [CounterType.GEM]: 'Gem',
@@ -431,6 +540,7 @@ export const CounterTypeDisplayNames: Record<CounterType, string> = {
   [CounterType.EGG]: 'Egg',
   [CounterType.LORE]: 'Lore',
   [CounterType.STUN]: 'Stun',
+  [CounterType.SHIELD]: 'Shield',
   [CounterType.FINALITY]: 'Finality',
   [CounterType.SUPPLY]: 'Supply',
   [CounterType.FLYING]: 'Flying',
@@ -443,7 +553,10 @@ export const CounterTypeDisplayNames: Record<CounterType, string> = {
   [CounterType.TRAMPLE]: 'Trample',
   [CounterType.HEXPROOF]: 'Hexproof',
   [CounterType.REACH]: 'Reach',
+  [CounterType.HASTE]: 'Haste',
+  [CounterType.MENACE]: 'Menace',
   [CounterType.STASH]: 'Stash',
+  [CounterType.CROAK]: 'Croak',
   [CounterType.BLIGHT]: 'Blight',
   [CounterType.COIN]: 'Coin',
   [CounterType.FLOOD]: 'Flood',
@@ -464,6 +577,7 @@ export const CounterTypeDisplayNames: Record<CounterType, string> = {
   [CounterType.NEST]: 'Nest',
   [CounterType.PAGE]: 'Page',
   [CounterType.REV]: 'Rev',
+  [CounterType.BLOODSTAIN]: 'Bloodstain',
   [CounterType.SOUL]: 'Soul',
   [CounterType.DIVINITY]: 'Divinity',
   [CounterType.POSSESSION]: 'Possession',
@@ -476,6 +590,35 @@ export const CounterTypeDisplayNames: Record<CounterType, string> = {
   [CounterType.POINT]: 'Point',
   [CounterType.WISH]: 'Wish',
   [CounterType.REVIVAL]: 'Revival',
+  [CounterType.INGENUITY]: 'Ingenuity',
+  [CounterType.FILM]: 'Film',
+  [CounterType.SKEWER]: 'Skewer',
+  [CounterType.ENERGY]: 'Energy',
+  [CounterType.ICE]: 'Ice',
+  [CounterType.OMEN]: 'Omen',
+  [CounterType.SUSPECT]: 'Suspect',
+  [CounterType.HARNESS]: 'Harness',
+  [CounterType.PLAN]: 'Plan',
+  [CounterType.INVASION]: 'Invasion',
+  [CounterType.UNLOCK]: 'Unlock',
+  [CounterType.HONE]: 'Hone',
+  [CounterType.DEFENSE]: 'Defense',
+  [CounterType.SILVER]: 'Silver',
+  [CounterType.FATE]: 'Fate',
+  [CounterType.AIM]: 'Aim',
+  [CounterType.DOOM]: 'Doom',
+  [CounterType.FIRE]: 'Fire',
+  [CounterType.CONQUEROR]: 'Conqueror',
+  [CounterType.NET]: 'Net',
+  [CounterType.SPORE]: 'Spore',
+  [CounterType.STORAGE]: 'Storage',
+  [CounterType.HUNGER]: 'Hunger',
+  [CounterType.SLIME]: 'Slime',
+  [CounterType.JAVELIN]: 'Javelin',
+  [CounterType.CREDIT]: 'Credit',
+  [CounterType.CUBE]: 'Cube',
+  [CounterType.TIDE]: 'Tide',
+  [CounterType.JUDGMENT]: 'Judgment',
 }
 
 /**
@@ -512,3 +655,15 @@ export enum CombatDamageStep {
   FIRST_STRIKE = 'FIRST_STRIKE',
   REGULAR = 'REGULAR',
 }
+
+/**
+ * The player-facing verbs a tap-for-generic payment can carry, mirroring
+ * `TapForGeneric.label` in the engine (`rules-engine/.../mechanics/mana/TapForGeneric.kt`).
+ *
+ * `LegalActionInfo.tapForGenericLabel` is a display string, but two places branch on it — the
+ * improvise tap cap in `pipelinePhases.ts` and the action-menu hint in `actionOptions.ts` — so
+ * the strings live here rather than being typed out at each comparison. Changing a verb is then
+ * one edit in two files (this constant and the Kotlin enum) instead of a silent behaviour change.
+ */
+export const TAP_FOR_GENERIC_LABEL_IMPROVISE = 'improvise'
+export const TAP_FOR_GENERIC_LABEL_WATERBEND = 'waterbend'

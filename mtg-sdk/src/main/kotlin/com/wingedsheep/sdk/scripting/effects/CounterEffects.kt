@@ -5,6 +5,7 @@ import com.wingedsheep.sdk.scripting.Duration
 import com.wingedsheep.sdk.scripting.GameObjectFilter
 import com.wingedsheep.sdk.scripting.events.CounterTypeFilter
 import com.wingedsheep.sdk.scripting.events.RecipientFilter
+import com.wingedsheep.sdk.scripting.references.Player
 import com.wingedsheep.sdk.scripting.targets.EffectTarget
 import com.wingedsheep.sdk.scripting.text.TextReplacer
 import com.wingedsheep.sdk.scripting.values.DynamicAmount
@@ -136,32 +137,137 @@ data class RemoveCountersEffect(
 
 /**
  * Remove counters from a target permanent. The controller chooses how many counters of each kind
- * to remove (0 up to the current count of that kind). With [maxTotal] set, no more than that many
- * counters may be removed in total across all kinds ("remove up to N counters"); left null, there
- * is no cap ("remove any number of counters").
+ * to remove. [maxTotal] caps the total across all kinds ("remove up to N counters"); left null,
+ * there is no cap ("remove any number of counters"). [minTotal] is the matching *floor* — the
+ * number the controller must remove in total once the effect resolves at all.
  *
  * "Remove any number of counters from target creature you control." ([maxTotal] = null.)
  * "Remove up to three counters from target creature." (Heartless Act, [maxTotal] = 3.)
+ * "Remove a counter from it." ([minTotal] = [maxTotal] = 1 — the kind is the player's choice, the
+ * count is not.)
+ * "Remove X counters from target permanent, where X is the mana value of the exiled card."
+ * (Cemetery Desecrator, [minTotal] = [maxTotal] = `StoredCardManaValue`.)
+ *
+ * Both bounds are [DynamicAmount]s, matching the additive mirror [AddCountersUpToEffect.max]:
+ * the printed count is as often a resolution-time value ("X counters, where X is …") as a literal,
+ * and the two effects had no reason to spell the same thing differently. `DynamicAmount.Fixed`
+ * covers the literal case.
+ *
+ * The floor matters because a bare ceiling silently makes every such removal optional: "remove a
+ * counter" modelled as `maxTotal = 1` alone lets the controller answer 0 to every prompt and still
+ * report success, which hands a free payoff to any "if you do" / "when you do" clause hanging off
+ * it (CR 603.12 — the reflexive ability triggers only when the action is actually taken).
  *
  * At resolution time, the executor enumerates each counter kind currently on the target and
- * presents a sequence of `ChooseNumberDecision`s — one per kind. When [maxTotal] is set, each
- * prompt's maximum is the smaller of that kind's count and the remaining budget, and prompting
- * stops once the budget is spent.
+ * presents a sequence of `ChooseNumberDecision`s — one per kind. Each prompt's maximum is the
+ * smaller of that kind's count and the remaining budget, and prompting stops once the budget is
+ * spent. Each prompt's *minimum* is whatever of [minTotal] the kinds still to come can't cover, so
+ * the player keeps a free choice for as long as the floor is still reachable and is held to it on
+ * the last kind that can pay it. With one kind present and `minTotal == maxTotal` the prompt
+ * collapses to a single legal answer and is auto-resolved rather than asked.
  *
  * @property target The permanent to remove counters from.
  * @property maxTotal The total budget across all kinds, or null for no cap.
+ * @property minTotal The total that must be removed across all kinds; a literal 0 makes the
+ *   removal optional. A *dynamic* floor is never treated as optional up front — it can only be
+ *   evaluated at resolution — so a card whose count may legitimately come out as 0 should say so
+ *   with `DynamicAmount.Fixed(0)` rather than a computed zero.
  */
 @SerialName("RemoveAnyNumberOfCounters")
 @Serializable
 data class RemoveAnyNumberOfCountersEffect(
     val target: EffectTarget = EffectTarget.ContextTarget(0),
-    val maxTotal: Int? = null
+    val maxTotal: DynamicAmount? = null,
+    val minTotal: DynamicAmount = DynamicAmount.Fixed(0)
+) : Effect {
+    override val description: String = when {
+        !isLiteralZero(minTotal) && minTotal == maxTotal ->
+            "Remove ${minTotal.description} ${counterWord(minTotal)} from ${target.description}"
+        !isLiteralZero(minTotal) && maxTotal != null ->
+            "Remove ${minTotal.description} to ${maxTotal.description} counters from ${target.description}"
+        !isLiteralZero(minTotal) ->
+            "Remove at least ${minTotal.description} ${counterWord(minTotal)} from ${target.description}"
+        maxTotal != null ->
+            "Remove up to ${maxTotal.description} ${counterWord(maxTotal)} from ${target.description}"
+        else ->
+            "Remove any number of counters from ${target.description}"
+    }
+
+    private companion object {
+        /** Only a printed literal 0 makes a removal optional; a computed one isn't known yet. */
+        fun isLiteralZero(amount: DynamicAmount): Boolean =
+            amount is DynamicAmount.Fixed && amount.amount == 0
+
+        /** Singular only for a literal 1 — every dynamic count reads as a plural. */
+        fun counterWord(amount: DynamicAmount): String =
+            if (amount is DynamicAmount.Fixed && amount.amount == 1) "counter" else "counters"
+    }
+}
+
+/**
+ * A player pays any amount of [counterType] counters they currently have (0..their current
+ * total) — CR 107.14's "pay {E}" generalized to a player-chosen amount rather than a fixed one,
+ * and to any player-scoped counter kind (energy today; poison/rad share the same on-player
+ * `CountersComponent` shape). The paid amount is removed from [player] and stored in the pipeline
+ * under [storeAmountAs], readable downstream via `DynamicAmount.VariableReference(storeAmountAs)`
+ * — the same "store a resolution-time number, read it in a later composed effect" convention
+ * `DrawUpToEffect.storeAs` uses.
+ *
+ * "You get {E}{E}{E} (three energy counters), then you may pay any amount of {E}. [~] deals that
+ * much damage to that permanent." (Galvanic Discharge) composes as:
+ * `Effects.Composite(Effects.GetEnergy(3), PayCountersEffect(Counters.ENERGY, storeAmountAs = "paid"), Effects.DealDamage(VariableReference("paid"), target))`.
+ *
+ * Paying 0 is always legal (a `ChooseNumberDecision` with `minValue = 0`) — "may pay" is
+ * honored by the player being free to choose 0, not by a separate opt-out step. No prompt at all
+ * when the player currently has zero of [counterType] (nothing to choose).
+ *
+ * @property counterType Which player-scoped counter kind to pay (e.g. [Counters.ENERGY]).
+ * @property player Whose counters are paid. Defaults to the effect's controller.
+ * @property storeAmountAs Pipeline variable name the chosen/paid amount is stored under.
+ */
+@SerialName("PayCounters")
+@Serializable
+data class PayCountersEffect(
+    val counterType: String,
+    val player: Player = Player.You,
+    val storeAmountAs: String
 ) : Effect {
     override val description: String =
-        if (maxTotal != null)
-            "Remove up to $maxTotal counter${if (maxTotal != 1) "s" else ""} from ${target.description}"
-        else
-            "Remove any number of counters from ${target.description}"
+        "${player.possessive} may pay any amount of $counterType counters"
+}
+
+/**
+ * Pay an exact, fixed number of player-scoped counters — the all-or-nothing counterpart to
+ * [PayCountersEffect]'s "pay any amount". CR 107.14 energy example: "Whenever you attack, you
+ * may pay {E}{E}{E}. When you do, [...]" (Guide of Souls) — there's no amount to choose, only
+ * whether to pay the named total, and per the 2024-06-07 ruling you can't pay a partial amount
+ * to get a partial effect.
+ *
+ * Designed as the `action` half of a [ReflexiveTriggerEffect] ("When you do" — CR 603.12 — a
+ * fresh triggered ability with its own targets, distinct from a same-ability "If you do"
+ * continuation): the outer yes/no is the payment decision itself, so this effect performs no
+ * decision of its own — it deducts [amount] atomically and fails outright (no partial removal)
+ * if the paying player has fewer than [amount]. `ReflexiveTriggerEffectExecutor.isActionFeasible`
+ * checks affordability *before* offering the "may pay" prompt, so in practice this effect only
+ * ever runs when the payment is guaranteed to succeed; the failure path is defense in depth.
+ *
+ * Composes as:
+ * `ReflexiveTriggerEffect(action = Effects.PayFixedCounters(Counters.ENERGY, 3), reflexiveEffect
+ * = ..., reflexiveTargetRequirements = [...])`.
+ *
+ * @property counterType Which player-scoped counter kind to pay (e.g. [Counters.ENERGY]).
+ * @property amount The exact number of counters paid — not a cap, not a choice.
+ * @property player Whose counters are paid. Defaults to the effect's controller.
+ */
+@SerialName("PayFixedCounters")
+@Serializable
+data class PayFixedCountersEffect(
+    val counterType: String,
+    val amount: Int,
+    val player: Player = Player.You
+) : Effect {
+    override val description: String =
+        "${player.possessive} pay $amount $counterType counter${if (amount != 1) "s" else ""}"
 }
 
 /**
@@ -212,6 +318,20 @@ data class RemoveAllCountersEffect(
 ) : Effect {
     override val description: String =
         "Remove all counters from ${target.description}"
+}
+
+/**
+ * Remove every counter of one specified kind from a target permanent.
+ * Other counter kinds on that permanent are left unchanged.
+ */
+@SerialName("RemoveAllCountersOfType")
+@Serializable
+data class RemoveAllCountersOfTypeEffect(
+    val counterType: String,
+    val target: EffectTarget = EffectTarget.ContextTarget(0)
+) : Effect {
+    override val description: String =
+        "Remove all $counterType counters from ${target.description}"
 }
 
 /**
@@ -358,29 +478,54 @@ data class DistributeCountersFromSelfEffect(
 }
 
 /**
- * Proliferate — choose any number of permanents and/or players that have a counter.
- * For each, give it another counter of each kind already there.
+ * Give one additional counter of each kind already there to any number of permanents and/or players.
  *
- * Pure data; the engine resolves at execution time by:
- * 1. Gathering all permanents on the battlefield AND all players that have at least
- *    one counter of any kind.
- * 2. Asking the controller to pick a subset (any number, including zero).
- * 3. For each chosen entity, adding one counter of every kind it already has.
+ * [target] selects *who* receives them, and is the only difference between the two shapes this
+ * effect covers:
+ *
+ * - **`target == null` — proliferate (CR 701.34a).** The recipients are chosen when the effect
+ *   resolves: the engine gathers every permanent and player that has at least one counter, asks the
+ *   controller to pick any subset (including none), and adds one counter of every kind each picked
+ *   entity already has. Nothing is targeted, so hexproof/shroud don't apply and there is no
+ *   announcement-time choice to respond to.
+ * - **`target != null` — the targeted, single-object form.** "For each kind of counter on target
+ *   permanent or player, give that permanent or player another counter of that kind" (Powerful
+ *   Broker). The recipient is a real target: chosen on announcement (CR 601.2c), respondable,
+ *   subject to hexproof/shroud/protection, and re-checked on resolution (CR 608.2b) — so the
+ *   ability is countered outright if its only target has become illegal. There is no
+ *   resolution-time decision. Any [com.wingedsheep.sdk.scripting.targets.EffectTarget] works
+ *   (`ContextTarget`/`BoundVariable` for a declared target, `Self`, a `PlayerRef`, …).
+ *
+ * The counters added are identical in both shapes: one of each kind the recipient currently has,
+ * honoring counter-placement replacement effects, and attributed to the effect's controller so
+ * counter-history predicates see the placement.
  */
 @SerialName("Proliferate")
 @Serializable
-data object ProliferateEffect : Effect {
-    override val description: String =
+data class ProliferateEffect(
+    val target: EffectTarget? = null
+) : Effect {
+    override val description: String = if (target == null) {
         "Proliferate. (Choose any number of permanents and/or players, then give each another counter of each kind already there.)"
+    } else {
+        "For each kind of counter on ${target.description}, give it another counter of that kind."
+    }
 }
 
 /**
- * Distribute a fixed number of counters among the targets from context.
+ * Distribute a number of counters among the targets from context.
  * "Distribute N counters among one or more target creatures you control."
  *
  * Distribution is deterministic when totalCounters equals number of targets * minPerTarget.
  * With 1 target, all counters go on it. With multiple targets, counters are divided evenly
  * (remainder goes to the first target).
+ *
+ * [totalCounters] is a [DynamicAmount] so the pool can come from the spell's X
+ * ("Distribute X +1/+1 counters among any number of target creatures you control" —
+ * Grove's Bounty) as well as from a literal (`DynamicAmount.Fixed(2)` — Armament Corps).
+ * It is evaluated once, when the effect resolves. Pair an X-scaled pool with
+ * `TargetObject(unlimited = true, dynamicMaxCount = DynamicAmount.XValue)` so the caster
+ * can't declare more targets than there are counters to go around (CR 601.2d).
  *
  * @property totalCounters Total number of counters to distribute
  * @property counterType The type of counter (e.g., "+1/+1")
@@ -389,12 +534,12 @@ data object ProliferateEffect : Effect {
 @SerialName("DistributeCountersAmongTargets")
 @Serializable
 data class DistributeCountersAmongTargetsEffect(
-    val totalCounters: Int,
+    val totalCounters: DynamicAmount,
     val counterType: String = Counters.PLUS_ONE_PLUS_ONE,
     val minPerTarget: Int = 1
 ) : Effect {
     override val description: String =
-        "Distribute $totalCounters $counterType counter${if (totalCounters != 1) "s" else ""} among targets"
+        "Distribute ${totalCounters.description} $counterType counters among targets"
 }
 
 /**

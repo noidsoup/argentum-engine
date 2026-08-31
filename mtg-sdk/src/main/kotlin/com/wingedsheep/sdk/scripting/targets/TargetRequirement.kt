@@ -23,6 +23,14 @@ import kotlinx.serialization.Serializable
  * after the controller's own choices (CR 601.6b / 602.3b: the controller goes first, then the other
  * player).
  *
+ * [TriggeringPlayer] and [ControllerOfTriggeringEntity] are the triggered-ability cases: a trigger
+ * whose printed text hands the choice to somebody other than the ability's controller. They are two
+ * cases rather than one because a trigger names its player in two different ways, exactly as
+ * [com.wingedsheep.sdk.scripting.targets.EffectTarget] already splits `TriggeringEntity` from
+ * `ControllerOfTriggeringEntity`: a step trigger's "that player" *is* the triggering entity, while
+ * an enters trigger's "its controller" has to be read off the permanent that entered. Collapsing
+ * them would make the right answer depend on the trigger's event shape rather than on the card.
+ *
  * The chooser is orthogonal to legality: target-finding and validation ignore it (they always run
  * relative to the controller). Only the announcement layer reads it, to route the selection
  * decision to the right player.
@@ -30,7 +38,22 @@ import kotlinx.serialization.Serializable
 @Serializable
 enum class TargetChooser {
     Controller,
-    Opponent
+    Opponent,
+
+    /**
+     * The player the trigger names decides — "that player … of their choice" (Quicksilver
+     * Fountain). Resolves the way every other reader of the triggering player does
+     * (`triggeringPlayerId ?: triggeringEntityId`), so a step trigger's active player and a
+     * trigger that names a distinct player both land on the same case.
+     */
+    TriggeringPlayer,
+
+    /**
+     * The controller of the permanent that caused the trigger decides — "its controller chooses
+     * target permanent …" (Confusion in the Ranks). Distinct from [TriggeringPlayer], which treats
+     * the triggering entity itself as the deciding player.
+     */
+    ControllerOfTriggeringEntity
 }
 
 /**
@@ -76,6 +99,17 @@ sealed interface TargetRequirement : TextReplaceable<TargetRequirement> {
 
     /** Effective minimum after considering optional/unlimited flags */
     val effectiveMinCount: Int get() = if (optional || unlimited) 0 else minCount
+
+    /**
+     * True when this requirement takes exactly one target and declining it is not legal.
+     *
+     * The engine may fill such a requirement without asking whenever exactly one legal object
+     * exists — every other shape leaves the player a real choice, including "up to one target",
+     * whose empty selection stays legal no matter how few objects are on the battlefield
+     * (CR 601.2c). Read this rather than re-deriving it: the two spellings drifted apart once
+     * already.
+     */
+    val requiresExactlyOneTarget: Boolean get() = count == 1 && effectiveMinCount == 1
 }
 
 // =============================================================================
@@ -162,8 +196,10 @@ fun TargetCreature(
     id: String? = null,
     dynamicMaxCount: DynamicAmount? = null,
     sameController: Boolean = false,
+    differentControllers: Boolean = false,
     sameCreatureType: Boolean = false,
     noSharedCreatureType: Boolean = false,
+    chooser: TargetChooser = TargetChooser.Controller
 ): TargetObject = TargetObject(
     count = count,
     minCount = minCount,
@@ -173,8 +209,10 @@ fun TargetCreature(
     id = id,
     dynamicMaxCount = dynamicMaxCount,
     sameController = sameController,
+    differentControllers = differentControllers,
     sameCreatureType = sameCreatureType,
     noSharedCreatureType = noSharedCreatureType,
+    chooser = chooser
 )
 
 // =============================================================================
@@ -191,14 +229,16 @@ fun TargetPermanent(
     unlimited: Boolean = false,
     filter: TargetFilter = TargetFilter.Permanent,
     id: String? = null,
-    dynamicMaxCount: DynamicAmount? = null
+    dynamicMaxCount: DynamicAmount? = null,
+    sameCardType: Boolean = false
 ): TargetObject = TargetObject(
     count = count,
     optional = optional,
     unlimited = unlimited,
     filter = filter,
     id = id,
-    dynamicMaxCount = dynamicMaxCount
+    dynamicMaxCount = dynamicMaxCount,
+    sameCardType = sameCardType
 )
 
 // =============================================================================
@@ -236,6 +276,64 @@ data class TargetCreatureOrPlayer(
     override val id: String? = null
 ) : TargetRequirement {
     override val description: String = if (count == 1) "target creature or player" else "$count targets (creatures or players)"
+}
+
+/**
+ * "Target permanent or player" — any permanent on the battlefield, or any player.
+ *
+ * The general member of the "object or player" family: [permanentFilter] decides which permanents
+ * qualify, so the same type covers "target permanent or player" (Powerful Broker, the default),
+ * "target artifact or player", and so on. The narrower [TargetCreatureOrPlayer] predates it and is
+ * kept as-is because it is the serialized form of already-shipped cards; new "… or player" wordings
+ * that aren't exactly "creature or player" should use this requirement.
+ *
+ * [TargetCreatureOrPlayer] is a strict special case (`permanentFilter = TargetFilter.Creature`) and
+ * the engine currently validates it through a parallel implementation, which can drift. The
+ * intended cleanup is to keep its `@SerialName` and type but have its validator delegate here —
+ * anti-drift at zero serialization cost — once its face-down special case (CR 708.2) is confirmed
+ * to survive the general path. Not done in this change.
+ *
+ * **Before adding a sixth "… or player" type, read `backlog/target-union-with-arms.md`.**
+ * That scoping doc proposes collapsing this whole family — [AnyTarget], [TargetCreatureOrPlayer],
+ * [TargetPlayerOrPlaneswalker], [TargetOpponentOrPlaneswalker] and this type — into one
+ * `TargetUnion(arms)` where each arm carries its own criteria. This requirement is the closest
+ * existing type to that shape (it is the only member of the family with a criteria slot, and the
+ * proposal's central complaint about the others is that they have none), so it is the intended
+ * migration target: a new "X or player" wording should be `TargetPermanentOrPlayer(permanentFilter
+ * = …)` rather than another bespoke type, and if it genuinely cannot be, that is the signal to build
+ * `TargetUnion` instead of extending the family again.
+ *
+ * Legality is the union of the two halves — a permanent target is checked for
+ * hexproof/shroud/protection like any permanent, a player target like any player — and, being a
+ * target, it is chosen on announcement (CR 601.2c) and re-checked on resolution (CR 608.2b).
+ */
+@SerialName("TargetPermanentOrPlayer")
+@Serializable
+data class TargetPermanentOrPlayer(
+    override val count: Int = 1,
+    override val optional: Boolean = false,
+    override val id: String? = null,
+    val permanentFilter: TargetFilter = TargetFilter.Permanent,
+    private val descriptionOverride: String? = null
+) : TargetRequirement {
+    override val description: String = descriptionOverride
+        ?: run {
+            val noun = permanentFilter.description
+            when {
+                count == 1 -> "target $noun or player"
+                // Suffixing "s" only reads correctly for a bare noun; a longer filter
+                // description ("artifact creature you control") would come out as
+                // "... you controls". Leave those singular and let a card pass a
+                // descriptionOverride if it needs better.
+                !noun.contains(' ') -> "$count targets (${noun}s or players)"
+                else -> "$count targets ($noun or player)"
+            }
+        }
+
+    override fun applyTextReplacement(replacer: TextReplacer): TargetRequirement {
+        val newFilter = permanentFilter.applyTextReplacement(replacer)
+        return if (newFilter !== permanentFilter) copy(permanentFilter = newFilter) else this
+    }
 }
 
 /**
@@ -288,9 +386,19 @@ data class TargetCreatureOrPlaneswalker(
  * Used by text-changing effects like Artificial Evolution and bounce-to-library
  * effects like Swat Away ("target spell or creature").
  *
- * The [permanentFilter] restricts which permanents are valid. When null, any
- * permanent may be targeted. For "target spell or creature", pass
- * [GameObjectFilter.Creature].
+ * The two halves are filtered independently, and either may be left null to mean
+ * "anything of that kind":
+ *  - [permanentFilter] restricts the battlefield half. For "target spell or creature",
+ *    pass [GameObjectFilter.Creature].
+ *  - [spellFilter] restricts the stack half. Most printed cards in this shape don't
+ *    restrict it (the lace effects, Artificial Evolution, Venser, Shaper Savant), but
+ *    some do: Divide by Zero's "target spell or permanent with mana value 1 or greater"
+ *    and Aether Gust's "target spell or permanent that's red or green" apply one
+ *    restriction to *both* halves, which is spelled here by passing the same filter twice.
+ *
+ * A filter is matched against a spell on the stack the same way it is against a permanent,
+ * via the predicate evaluator; stack entities have no projection entry, so the matchers fall
+ * back to the base card characteristics on their own.
  */
 @SerialName("TargetSpellOrPermanent")
 @Serializable
@@ -298,16 +406,28 @@ data class TargetSpellOrPermanent(
     override val count: Int = 1,
     override val optional: Boolean = false,
     override val id: String? = null,
-    val permanentFilter: GameObjectFilter? = null
+    val permanentFilter: GameObjectFilter? = null,
+    val spellFilter: GameObjectFilter? = null,
+    /**
+     * Printed wording, when the generated one reads badly. A restriction that applies to
+     * *both* halves is printed once ("target spell or permanent with mana value 1 or greater")
+     * but has to be passed to each filter separately, and the generated text then repeats it on
+     * both sides. Same escape hatch [TargetPermanentOrPlayer] carries, for the same reason.
+     */
+    private val descriptionOverride: String? = null
 ) : TargetRequirement {
-    override val description: String = run {
+    override val description: String = descriptionOverride ?: run {
         val permanentNoun = permanentFilter?.description ?: "permanent"
-        if (count == 1) "target spell or $permanentNoun"
-        else "$count target spells or ${permanentNoun}s"
+        val spellNoun = spellFilter?.let { "spell ${it.description}" } ?: "spell"
+        if (count == 1) "target $spellNoun or $permanentNoun"
+        else "$count target ${spellNoun}s or ${permanentNoun}s"
     }
     override fun applyTextReplacement(replacer: TextReplacer): TargetRequirement {
-        val newFilter = permanentFilter?.applyTextReplacement(replacer)
-        return if (newFilter !== permanentFilter) copy(permanentFilter = newFilter) else this
+        val newPermanentFilter = permanentFilter?.applyTextReplacement(replacer)
+        val newSpellFilter = spellFilter?.applyTextReplacement(replacer)
+        return if (newPermanentFilter !== permanentFilter || newSpellFilter !== spellFilter) {
+            copy(permanentFilter = newPermanentFilter, spellFilter = newSpellFilter)
+        } else this
     }
 }
 
@@ -395,6 +515,17 @@ data class TargetObject(
      */
     val noSharedCreatureType: Boolean = false,
     /**
+     * When true and more than one target is chosen for this requirement, the chosen permanent
+     * targets must all share at least one **card type** (CR 205.2a — artifact, creature,
+     * enchantment, planeswalker, …) with one another — "two target nonland permanents that share a
+     * card type" (Burglar's Plot). The card-type sibling of [sameCreatureType]: enforced
+     * cross-target by `TargetValidator` using each permanent's *projected* types (so an animated
+     * land counts as a creature) with supertypes sieved out (two legendary permanents don't share
+     * a card type by being legendary). A no-op for single-target requirements and for non-permanent
+     * targets. Defaults to false.
+     */
+    val sameCardType: Boolean = false,
+    /**
      * When non-null, the chosen card targets for this requirement must have a **combined mana
      * value no greater than this amount** — "any number of target creature cards with total mana
      * value X or less" (Fire Lord Sozin). The [DynamicAmount] is resolved once the ability is
@@ -405,7 +536,37 @@ data class TargetObject(
      * mana value N or less" shape. `null` (the default) imposes no aggregate cap. Distinct from
      * `dynamicMaxCount`, which caps the *count* of targets, not their summed mana value.
      */
-    val totalManaValueAtMost: DynamicAmount? = null
+    val totalManaValueAtMost: DynamicAmount? = null,
+    /**
+     * When true and more than one target is chosen for this requirement, every chosen target must
+     * have a **different name** from the others — "up to six target creature cards with different
+     * names" (Behold the Sinister Six!). Enforced cross-target by `TargetValidator` (authoritative)
+     * and the interactive `DecisionValidators`, grouping by each target's *projected* card name; a
+     * no-op for single-target requirements. Defaults to false.
+     */
+    val differentNames: Boolean = false,
+    /**
+     * When true and more than one target is chosen for this requirement, every chosen target must
+     * be controlled by a **different player** — the "one per player" distribution wording, whose
+     * canonical shape is "for each other player, exile **up to one** target creature that player
+     * controls" (Kaya, Spirits' Justice). The exact inverse of [sameController], and it composes
+     * with `optional = true` + `dynamicMaxCount = DynamicAmount.PlayerCount(Player.EachOpponent)`
+     * to spell that clause completely: the count says *how many* players are in scope, this says
+     * *at most one each*, and `optional` is the "up to". Enforced cross-target by `TargetValidator`
+     * (authoritative) and the interactive `DecisionValidators`, grouping by each permanent's
+     * *projected* controller so a control-change effect is respected; a no-op for single-target
+     * requirements and for non-permanent targets. Defaults to false.
+     */
+    val differentControllers: Boolean = false,
+    /**
+     * Who picks which legal object this requirement lands on. See [TargetChooser] — the target
+     * stays the *controller's* target either way (legality, respondability and CR 115 all still
+     * run relative to the controller); only the selection decision is routed elsewhere.
+     * [TargetChooser.TriggeringPlayer] and [TargetChooser.ControllerOfTriggeringEntity] are honored
+     * on triggered abilities, [TargetChooser.Opponent] on activated ones; `CardLinter` fails a card
+     * that puts one in a context the engine doesn't route.
+     */
+    override val chooser: TargetChooser = TargetChooser.Controller
 ) : TargetRequirement {
     override val description: String = run {
         val base = if (id != null) {
@@ -437,9 +598,11 @@ data class TargetObject(
         }
         val qualified = when {
             sameController -> "$base controlled by the same player"
+            differentControllers -> "$base controlled by different players"
             sameOwner -> "$base from a single graveyard"
             sameCreatureType -> "$base that share a creature type"
             noSharedCreatureType -> "$base that share no creature types"
+            sameCardType -> "$base that share a card type"
             else -> base
         }
         if (totalManaValueAtMost != null) {
@@ -482,8 +645,15 @@ data class TargetOther(
     override val id: String? = null
 ) : TargetRequirement {
     override val description: String = baseRequirement.description
+    // Every count-shaping field is delegated, not just `count`: this wrapper only adds a
+    // distinctness rule, so dropping any of them silently reshapes how many targets the wrapped
+    // requirement accepts — an "any number of other target …" requirement would collapse to a
+    // single mandatory target (`unlimited` lost ⇒ count 1, minCount 1).
     override val count: Int = baseRequirement.count
+    override val minCount: Int = baseRequirement.minCount
     override val optional: Boolean = baseRequirement.optional
+    override val unlimited: Boolean = baseRequirement.unlimited
+    override val chooser: TargetChooser = baseRequirement.chooser
 
     override fun applyTextReplacement(replacer: TextReplacer): TargetRequirement {
         val newBase = baseRequirement.applyTextReplacement(replacer)
@@ -511,6 +681,7 @@ fun TargetRequirement.withCount(newCount: Int): TargetRequirement {
         is TargetOpponent -> copy(count = newCount)
         is AnyTarget -> copy(count = newCount, minCount = clampedMin)
         is TargetCreatureOrPlayer -> copy(count = newCount)
+        is TargetPermanentOrPlayer -> copy(count = newCount)
         is TargetOpponentOrPlaneswalker -> copy(count = newCount)
         is TargetPlayerOrPlaneswalker -> copy(count = newCount)
         is TargetCreatureOrPlaneswalker -> copy(count = newCount)
@@ -529,6 +700,7 @@ fun TargetRequirement.withId(name: String): TargetRequirement = when (this) {
     is TargetOpponent -> copy(id = name)
     is AnyTarget -> copy(id = name)
     is TargetCreatureOrPlayer -> copy(id = name)
+    is TargetPermanentOrPlayer -> copy(id = name)
     is TargetOpponentOrPlaneswalker -> copy(id = name)
     is TargetPlayerOrPlaneswalker -> copy(id = name)
     is TargetCreatureOrPlaneswalker -> copy(id = name)

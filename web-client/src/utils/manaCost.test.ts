@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
+  cheapestCost,
   computeAutoTapPreview,
   manaCostCastableWith,
   manaCostColors,
   playableWithinColors,
   reduceCostByHarmonizeTap,
   type TrimmableManaSource,
+  estimatedShortfall,
+  pickConvokeColor,
 } from './manaCost'
 
 const set = (...cs: string[]) => new Set(cs)
@@ -119,5 +122,65 @@ describe('Harmonize-X mana pre-selection', () => {
   it('without the tap it would need all 6 Forests for X=5', () => {
     const reduced = reduceCostByHarmonizeTap('{X}{G}{G}{G}{G}', 5, 0)
     expect(computeAutoTapPreview(forests, reduced)).toHaveLength(6)
+  })
+})
+
+describe('cheapestCost', () => {
+  // Emerge {5}{U} (CR 702.119a) after the server priced each sacrificeable creature: a 2-drop
+  // leaves {3}{U} (4 mana), a 3-drop leaves {2}{U} (3 mana). The cast button shows the best case,
+  // so it can't claim {5}{U} while sitting enabled on four lands.
+  it('picks the option with the lowest total mana, not the fewest symbols', () => {
+    expect(cheapestCost(['{3}{U}', '{2}{U}'])).toBe('{2}{U}')
+    expect(cheapestCost(['{U}{U}{U}', '{4}'])).toBe('{U}{U}{U}')
+  })
+
+  it('a lone candidate is its own cheapest', () => {
+    expect(cheapestCost(['{3}{U}'])).toBe('{3}{U}')
+  })
+
+  it('a cost the reduction wiped out entirely is cheaper than any mana cost', () => {
+    expect(cheapestCost(['{U}', ''])).toBe('')
+  })
+
+  it('no candidates means no cost to show', () => {
+    expect(cheapestCost([])).toBeUndefined()
+  })
+})
+
+describe('pickConvokeColor', () => {
+  it('prefers an exact coloured pip over a hybrid one', () => {
+    expect(pickConvokeColor(['W/U', 'W'], ['WHITE'])).toBe('WHITE')
+  })
+
+  it('covers a hybrid pip with either half', () => {
+    expect(pickConvokeColor(['3', 'W/U'], ['BLUE'])).toBe('BLUE')
+  })
+
+  it('pays generic when none of its colours is still owed', () => {
+    expect(pickConvokeColor(['2', 'W'], ['GREEN'])).toBeNull()
+    expect(pickConvokeColor(['2'], [])).toBeNull()
+  })
+
+  it('walks the creature\'s colours in order for a multicolour creature', () => {
+    expect(pickConvokeColor(['G', 'W'], ['WHITE', 'GREEN'])).toBe('WHITE')
+  })
+})
+
+describe('estimatedShortfall', () => {
+  const sources = [
+    { entityId: 'forest', manaAmount: 1 },
+    { entityId: 'elves', manaAmount: 1 },
+  ]
+
+  it('is zero when floating mana and sources cover the rest', () => {
+    expect(estimatedShortfall(['1', 'G'], undefined, undefined, sources)).toBe(0)
+  })
+
+  it('does not count a source the player is tapping for another payment', () => {
+    expect(estimatedShortfall(['1', 'G'], undefined, undefined, sources, new Set(['elves']))).toBe(1)
+  })
+
+  it('never goes negative', () => {
+    expect(estimatedShortfall([], undefined, undefined, sources)).toBe(0)
   })
 })

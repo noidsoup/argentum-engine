@@ -295,6 +295,71 @@
     ]
 }
 
+// Mulch
+{
+    "name": "Mulch",
+    "manaCost": "{1}{G}",
+    "typeLine": "Sorcery",
+    "oracleText": "Reveal the top four cards of your library. Put all land cards revealed this way into your hand and the rest into your graveyard.",
+    "script": {
+        "spellEffect": {
+            "type": "Composite",
+            "effects": [
+                {
+                    "type": "GatherCards",
+                    "source": {
+                        "type": "TopOfLibrary",
+                        "count": {
+                            "type": "Fixed",
+                            "amount": 4
+                        }
+                    },
+                    "storeAs": "looked"
+                },
+                {
+                    "type": "RevealCollection",
+                    "from": "looked"
+                },
+                {
+                    "type": "FilterCollection",
+                    "from": "looked",
+                    "filter": {
+                        "type": "MatchesFilter",
+                        "filter": "land"
+                    },
+                    "storeMatching": "kept",
+                    "storeNonMatching": "rest"
+                },
+                {
+                    "type": "MoveCollection",
+                    "from": "kept",
+                    "destination": {
+                        "type": "ToZone",
+                        "zone": "Hand"
+                    }
+                },
+                {
+                    "type": "MoveCollection",
+                    "from": "rest",
+                    "destination": {
+                        "type": "ToZone",
+                        "zone": "Graveyard"
+                    }
+                }
+            ]
+        }
+    },
+    "metadata": {
+        "collectorNumber": "110",
+        "artist": "Rebecca Guay",
+        "flavorText": "Hope is the one crop that can grow in any climate.",
+        "imageUri": "https://cards.scryfall.io/normal/front/4/c/4cf9e9a9-325a-4010-acb8-1406adcaeca9.jpg?1783946551"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
 // Primal Rage
 {
     "name": "Primal Rage",
@@ -334,16 +399,18 @@
         "power": {
             "type": "Dynamic",
             "source": {
-                "type": "AggregateBattlefield",
+                "type": "Count",
                 "player": "You",
+                "zone": "Graveyard",
                 "filter": "creature"
             }
         },
         "toughness": {
             "type": "Dynamic",
             "source": {
-                "type": "AggregateBattlefield",
+                "type": "Count",
                 "player": "You",
+                "zone": "Graveyard",
                 "filter": "creature"
             }
         }
@@ -465,6 +532,74 @@
     ]
 }
 
+// Stronghold Assassin
+{
+    "name": "Stronghold Assassin",
+    "manaCost": "{1}{B}{B}",
+    "typeLine": "Creature — Phyrexian Zombie Assassin",
+    "oracleText": "{T}, Sacrifice a creature: Destroy target nonblack creature.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 1
+    },
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": {
+                    "type": "CostComposite",
+                    "costs": [
+                        "CostTap",
+                        {
+                            "type": "CostAtomWrapper",
+                            "atom": {
+                                "type": "AtomSacrifice",
+                                "filter": "creature"
+                            }
+                        }
+                    ]
+                },
+                "effect": {
+                    "type": "MoveToZone",
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "target"
+                    },
+                    "destination": "Graveyard",
+                    "byDestruction": true
+                },
+                "targetRequirements": [
+                    {
+                        "type": "TargetObject",
+                        "filter": {
+                            "baseFilter": {
+                                "cardPredicates": [
+                                    "IsCreature",
+                                    {
+                                        "type": "NotColor",
+                                        "color": "BLACK"
+                                    }
+                                ]
+                            }
+                        },
+                        "id": "target"
+                    }
+                ]
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "71",
+        "rarity": "RARE",
+        "artist": "Matthew D. Wilson",
+        "flavorText": "The assassin sees only throats and hears only heartbeats.",
+        "imageUri": "https://cards.scryfall.io/normal/front/c/c/cc0f043c-efb3-4392-ae25-b3ec180b0cb2.jpg"
+    },
+    "colorIdentityOverride": [
+        "BLACK"
+    ]
+}
+
 // Wall of Blossoms
 {
     "name": "Wall of Blossoms",
@@ -492,7 +627,8 @@
                         "type": "Fixed",
                         "amount": 1
                     }
-                }
+                },
+                "descriptionOverride": "When this creature enters, draw a card."
             }
         ]
     },

@@ -5,6 +5,7 @@ import com.wingedsheep.sdk.core.Keyword
 import com.wingedsheep.sdk.core.ManaCost
 import com.wingedsheep.sdk.scripting.ActivatedAbility
 import com.wingedsheep.sdk.scripting.Duration
+import com.wingedsheep.sdk.scripting.StateTriggeredAbility
 import com.wingedsheep.sdk.scripting.TriggeredAbility
 import com.wingedsheep.sdk.scripting.filters.unified.GroupFilter
 import com.wingedsheep.sdk.scripting.targets.EffectTarget
@@ -23,18 +24,38 @@ import kotlinx.serialization.Serializable
  *
  * The [keyword] field stores the enum name (e.g., "FLYING", "DOESNT_UNTAP")
  * which the engine uses for string-based keyword checks in projected state.
+ *
+ * @property condition When non-null, the granted keyword is only *live* while this condition
+ *   holds. This is not a gate on whether the grant happens — the grant always happens and lasts
+ *   for [duration]; the condition rides along on the resulting continuous effect and is
+ *   re-evaluated on every projection, exactly like the condition of a printed
+ *   [com.wingedsheep.sdk.scripting.ConditionalStaticAbility]. It is the durational sibling of a
+ *   printed "as long as …, this creature has …" clause, and the way to model a quoted conditional
+ *   ability handed out by an animate effect: Restless Spire's "{U}{R}: … becomes a 2/1 … creature
+ *   with 'During your turn, this creature has first strike.'" composes
+ *   `BecomeCreature(...)` with `GrantKeyword(FIRST_STRIKE, Self, EndOfTurn, Conditions.IsYourTurn)`.
+ *   "You" in the condition is the *source's* current controller under projection, so the clause
+ *   correctly stops applying if another player gains control of the permanent mid-turn. Unlike the
+ *   `Duration.While…` family this never latches off: the keyword comes back if the condition
+ *   becomes true again within [duration].
  */
 @SerialName("GrantKeyword")
 @Serializable
 data class GrantKeywordEffect(
     val keyword: String,
     val target: EffectTarget,
-    val duration: Duration = Duration.EndOfTurn
+    val duration: Duration = Duration.EndOfTurn,
+    val condition: com.wingedsheep.sdk.scripting.conditions.Condition? = null
 ) : Effect {
-    constructor(keyword: Keyword, target: EffectTarget, duration: Duration = Duration.EndOfTurn) :
-        this(keyword.name, target, duration)
+    constructor(
+        keyword: Keyword,
+        target: EffectTarget,
+        duration: Duration = Duration.EndOfTurn,
+        condition: com.wingedsheep.sdk.scripting.conditions.Condition? = null
+    ) : this(keyword.name, target, duration, condition)
 
     override val description: String = buildString {
+        if (condition != null) append("${condition.description.replaceFirstChar { it.uppercase() }}, ")
         append("${target.description} gains ${keyword.lowercase().replace('_', ' ')}")
         if (duration.description.isNotEmpty()) append(" ${duration.description}")
     }
@@ -110,6 +131,48 @@ data class GrantTriggeredAbilityEffect(
 }
 
 /**
+ * The permanent [target] names **gains a state-triggered ability** (CR 603.8) for [duration].
+ *
+ * The granted-ability sibling of [GrantTriggeredAbilityEffect]: that one grants an ability that
+ * fires off a [com.wingedsheep.sdk.scripting.GameEvent], this one grants an ability that fires
+ * when its condition *becomes* true, polled at every priority pass. The two need separate effects
+ * because the engine reads them through different paths — a `TriggeredAbility` reaches the
+ * `TriggerIndex`, while a [StateTriggeredAbility] is only ever produced by the
+ * `StateTriggerPoller`, which has its own latch bookkeeping.
+ *
+ * Authored on Olivia, Crimson Bride, whose reanimated creature gains
+ * `"When you don't control a legendary Vampire, exile this creature."` — a state trigger, not an
+ * event trigger: nothing *happens* when the last legendary Vampire leaves, so there is no event
+ * to match; the condition simply starts being true.
+ *
+ * The default [duration] is [Duration.Permanent], not [Duration.EndOfTurn]. A granted state
+ * trigger is a durable rider on the permanent — the printed cards that grant one say nothing
+ * about end of turn — where a granted event trigger is usually a one-turn pump.
+ *
+ * @property ability The state-triggered ability to grant
+ * @property target The permanent to grant the ability to
+ * @property duration How long the grant lasts
+ */
+@SerialName("GrantStateTriggeredAbility")
+@Serializable
+data class GrantStateTriggeredAbilityEffect(
+    val ability: StateTriggeredAbility,
+    val target: EffectTarget,
+    val duration: Duration = Duration.Permanent
+) : Effect, SelfReferentialDescription {
+    override val descriptionTemplate: String = buildString {
+        append("${target.selfNounToken} gains \"${ability.description}\"")
+        if (duration.description.isNotEmpty()) append(" ${duration.description}")
+    }
+    override val description: String get() = defaultResolvedDescription
+
+    override fun applyTextReplacement(replacer: TextReplacer): Effect {
+        val newAbility = ability.applyTextReplacement(replacer)
+        return if (newAbility !== ability) copy(ability = newAbility) else this
+    }
+}
+
+/**
  * Grant an activated ability to a target until end of turn.
  * "Target creature gains '{cost}: {effect}' until end of turn"
  *
@@ -136,6 +199,53 @@ data class GrantActivatedAbilityEffect(
         val newAbility = ability.applyTextReplacement(replacer)
         return if (newAbility !== ability) copy(ability = newAbility) else this
     }
+}
+
+/**
+ * The permanent [target] names **gains all activated abilities of the object [donor] names**, for
+ * [duration].
+ *
+ * The one-shot, resolution-time sibling of
+ * [com.wingedsheep.sdk.scripting.GainActivatedAbilitiesOfPermanents] (a static that re-reads its
+ * donor set every projection) and of [GrantActivatedAbilityEffect] (which grants one *authored*
+ * ability). Here the donor is picked at resolution — usually a target — so the abilities can't be
+ * written into the card:
+ *  - Quicksilver Elemental: `{U}: This creature gains all activated abilities of target creature
+ *    until end of turn.` → `GainAllActivatedAbilitiesOfEffect(donor = ContextTarget(0))`.
+ *  - Grell Philosopher / Havengul Lich are the same shape with a different donor and receiver.
+ *
+ * **The set of abilities is snapshotted when this resolves**, per the Havengul Lich ruling
+ * ("gains the activated abilities of the card *as it existed in the graveyard*"): the donor
+ * changing, leaving the battlefield, or gaining abilities afterwards does not change what the
+ * receiver has. That is the difference from the static sibling, and the reason this is an effect
+ * rather than a `GrantStaticAbility` carrying one.
+ *
+ * Each gained ability is granted with the **receiver** as its source (CR 113.7), so `{T}`,
+ * `SacrificeSelf` and "this creature" inside a copied ability bind to the permanent that gained it
+ * — the printed reminder "(If any of the abilities use that creature's name, use this creature's
+ * name instead.)".
+ *
+ * It grants only *activated* abilities — never triggered, static, or keyword abilities (unless the
+ * keyword is itself modelled as an activated ability), and only those activatable from the
+ * battlefield. Mana abilities **are** included: the printed wording is "all activated abilities",
+ * with no "except mana abilities" clause.
+ *
+ * @property donor The object whose activated abilities are copied.
+ * @property target The permanent that gains them (defaults to the source itself).
+ * @property duration How long the gain lasts.
+ */
+@SerialName("GainAllActivatedAbilitiesOf")
+@Serializable
+data class GainAllActivatedAbilitiesOfEffect(
+    val donor: EffectTarget,
+    val target: EffectTarget = EffectTarget.Self,
+    val duration: Duration = Duration.EndOfTurn
+) : Effect, SelfReferentialDescription {
+    override val descriptionTemplate: String = buildString {
+        append("${target.selfNounToken} gains all activated abilities of ${donor.description}")
+        if (duration.description.isNotEmpty()) append(" ${duration.description}")
+    }
+    override val description: String get() = defaultResolvedDescription
 }
 
 /**
@@ -195,6 +305,37 @@ data class GrantFlashbackEffect(
     override val description: String = buildString {
         append("${target.description} gains flashback")
         append(if (cost != null) " $cost" else " (the flashback cost is equal to its mana cost)")
+        if (duration.description.isNotEmpty()) append(" ${duration.description}")
+    }
+}
+
+/**
+ * Grant Embalm (CR 702.128) to a target creature card in a graveyard.
+ * "Target creature card in your graveyard gains embalm until end of turn. The embalm cost is equal
+ * to its mana cost." — Cursecloth Wrappings.
+ *
+ * The runtime sibling of printed embalm ([com.wingedsheep.sdk.dsl.embalm]). Embalm is an ordinary
+ * graveyard-*activated* ability, not an alternative way to cast, so unlike [GrantHarmonizeEffect] /
+ * [GrantFlashbackEffect] this records a plain granted **activated** ability keyed to the card
+ * entity — the same object [com.wingedsheep.sdk.dsl.embalmAbility] builds for a printed embalm
+ * card — which the engine's zone-activated-ability enumerator surfaces while the card sits in the
+ * graveyard. Nothing about the cast pipeline is involved.
+ *
+ * @property target The creature card (in a graveyard) gaining embalm
+ * @property cost The embalm cost. `null` (the default) means "equal to the card's mana cost" per
+ *   Cursecloth Wrappings; a non-null value grants a fixed embalm cost for any future card.
+ * @property duration How long the grant lasts (until end of turn for Cursecloth Wrappings)
+ */
+@SerialName("GrantEmbalm")
+@Serializable
+data class GrantEmbalmEffect(
+    val target: EffectTarget,
+    val cost: ManaCost? = null,
+    val duration: Duration = Duration.EndOfTurn
+) : Effect {
+    override val description: String = buildString {
+        append("${target.description} gains embalm")
+        append(if (cost != null) " $cost" else " (the embalm cost is equal to its mana cost)")
         if (duration.description.isNotEmpty()) append(" ${duration.description}")
     }
 }

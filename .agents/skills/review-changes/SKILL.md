@@ -65,9 +65,12 @@ has `origin/main` merged in (and any merge commit that produced).
 
 ## 2. SDK elegance — the central question
 
-For every new SDK type the diff introduces (`Effect`, `StaticAbility`, `Trigger`,
-`Condition`, `TargetRequirement`, `EntityNumericProperty`, `DynamicAmount` variant,
-`Modification`, `ReplacementEffect`, …), ask:
+The bar being reviewed against is
+[`docs/sdk-design-principles.md`](../../../docs/sdk-design-principles.md) — the same one
+`add-card` and `add-feature` write to. For every new SDK type the diff introduces
+(`Effect`, `StaticAbility`, `Trigger`, `Condition`, `TargetRequirement`,
+`EntityNumericProperty`, `DynamicAmount` variant, `Modification`, `ReplacementEffect`, …),
+ask:
 
 1. **Could the card compose existing primitives?** Tell-tale: the engine handler converts
    the new type 1:1 into an existing `Modification` / effect with a literal formula
@@ -103,7 +106,8 @@ printings and exits non-zero unless:
 
 If the earliest real set isn't scaffolded under `mtg-sets/.../definitions/<setcode>/`,
 the script reports it as drift. The expectation in that case is to scaffold the earliest
-set (minimal `MtgSet` object + `META-INF/services` entry) and host the canonical there.
+set (a minimal `MtgSet` object under `definitions/` — `MtgSetCatalog` discovers it on the
+classpath, there is no registration list or service file) and host the canonical there.
 Flag it as **Blocking** if the diff put the canonical in a later set without scaffolding
 the original; the only acceptable miss is when the author documents in the PR body why
 scaffolding the earlier set is out of scope.
@@ -112,7 +116,7 @@ scaffolding the earlier set is out of scope.
 
 - **Projected vs base state** (`docs/architecture-principles.md` §2.3). Battlefield reads
   of type/subtype/color/keywords/P/T/controller MUST go through projection
-  (`predicateEvaluator.matchesWithProjection`, `projected.getSubtypes`,
+  (`predicateEvaluator.matches(state, projected, …)`, `projected.getSubtypes`,
   `projected.isCreature`, `state.projectedState.getController`). Flag base
   `ControllerComponent` or `cardComponent.typeLine.isCreature` on battlefield permanents.
 - **Layer 613.8.** New continuous-effect families: dependency-by-trial-application must
@@ -166,16 +170,18 @@ values, layer interactions, "as ~ enters", protection / hexproof / ward).
 - **Interesting axes.** Typical case + the rule-corner that drove the change (Changeling
   for type-counting; regeneration for destroy-vs-exile; last-known-info for dies
   triggers; first-strike + trample interaction; etc.).
-- **Module placement.** Card-interaction scenarios → `game-server` `scenarios/` (full
-  stack). Pure rules → `rules-engine` `scenarios/` with `ScenarioTestBase`. SDK round-
-  trips → `mtg-sdk`. JSON round-trip fixtures are NOT required per card.
+- **Module placement.** Card and mechanic behavior → `rules-engine` `scenarios/` (the
+  engine is the source of truth). SDK round-trips → `mtg-sdk`. A `game-server` test is
+  correct only for a genuine game-server concern — state masking, DTO transformation,
+  session/tournament orchestration. **Flag any `game-server` scenario test written to
+  prove engine behavior.** JSON round-trip fixtures are NOT required per card.
 - **`ScenarioTestBase` set scope.** Only registered sets are loaded; cards from other
   sets must be defined inline via `CardDefinition.creature(...)` and registered via
   `cardRegistry.register(card)` in `init { }`.
-- **Run the tests yourself.** `./gradlew :game-server:test --tests "<Name>"`,
-  `:rules-engine:test`, `:mtg-sdk:test` after engine/SDK changes. Confirm green; don't
-  trust the PR description. Run the broader module suite if a registry/executor/evaluator
-  signature changed.
+- **Run the tests yourself** — via the **`verify`** skill's `just` recipes, never raw
+  `./gradlew` (parallel agents thrash the box otherwise). Confirm green; don't trust the
+  PR description. Run the broader module suite if a registry/executor/evaluator signature
+  changed.
 
 ## 6. Style & scope
 
@@ -193,12 +199,12 @@ values, layer interactions, "as ~ enters", protection / hexproof / ward).
 3. **Issues, by severity:**
    - **Blocking** — wrong behavior, broken rules, missing wiring (new event without
      `ClientEvent.kt` branch), tests that don't exercise the change, base-vs-projected
-     state bugs. Must be fixed before merge.
+     state bugs. Must be fixed before merge. Numbered B#
    - **Important** — over-specialized SDK types (show the rewrite), CR-number mismatches,
      missing rule-corner test, projection fallback gaps, naming that lies about
-     semantics. Should be fixed before merge.
+     semantics. Should be fixed before merge. Numbered I#
    - **Minor** — comment hygiene, descriptions, drive-by formatting, dead code, doc
-     inconsistencies. Author's discretion.
+     inconsistencies. Author's discretion. Numbered M#
 
    Each issue: one short paragraph with `file:line` and the concrete fix.
 4. **Recommendation** — concrete next action ("drop type X, define card via Y, add a

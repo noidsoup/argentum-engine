@@ -1,5 +1,6 @@
 package com.wingedsheep.engine.scenarios
 
+import com.wingedsheep.engine.core.ActivateAbility
 import com.wingedsheep.engine.core.CastSpell
 import com.wingedsheep.engine.state.components.battlefield.PreparedComponent
 import com.wingedsheep.engine.state.components.battlefield.PreparedSpellCopyComponent
@@ -89,7 +90,6 @@ class EmeritusCycleScenarioTest : ScenarioTestBase() {
                     cast shouldNotBe null
                     (cast!!.action as CastSpell).faceIndex shouldBe 0
                     cast.manaCostString shouldBe "{R}"
-                    Unit
                 }
             }
         }
@@ -263,10 +263,85 @@ class EmeritusCycleScenarioTest : ScenarioTestBase() {
                     game.isPrepared("Emeritus of Ideation") shouldBe true
                 }
             }
+
+            test("fewer than eight cards in the graveyard: nothing is exiled and it stays unprepared") {
+                // CR 608.2d — a player can't choose an option that's impossible. With one card in
+                // the graveyard "exile eight cards" can't be performed, so the optional payment is
+                // not on offer at all: no card leaves the graveyard and it doesn't become prepared.
+                var builder = scenario()
+                    .withPlayers("Player", "Opponent")
+                    .withCardOnBattlefield(1, "Emeritus of Ideation", summoningSickness = false)
+                    .withLandsOnBattlefield(1, "Island", 6)
+                    .withLifeTotal(2, 20)
+                    .withActivePlayer(1)
+                    .inPhase(Phase.PRECOMBAT_MAIN, Step.PRECOMBAT_MAIN)
+                    .withCardInGraveyard(1, "Island")
+                repeat(5) { builder = builder.withCardInLibrary(1, "Island") }
+                repeat(5) { builder = builder.withCardInLibrary(2, "Forest") }
+                val game = builder.build()
+
+                game.advanceToPhase(Phase.COMBAT, Step.DECLARE_ATTACKERS)
+                game.declareAttackers(mapOf("Emeritus of Ideation" to 2))
+                game.resolveStack()
+                if (game.hasPendingDecision()) {
+                    game.answerYesNo(true)
+                    game.resolveStack()
+                }
+                withClue("It does not become prepared") {
+                    game.isPrepared("Emeritus of Ideation") shouldBe false
+                }
+                withClue("The lone graveyard card is not exiled") {
+                    game.findCardsInGraveyard(1, "Island").size shouldBe 1
+                }
+            }
+
+            test("a graveyard shrunk in response takes the option away") {
+                // The option is judged as the trigger resolves, not when it triggered: eight cards
+                // at declare-attackers, seven by resolution, so there is nothing to offer — and the
+                // seven survivors must not be exiled for a payment that can't be completed.
+                var builder = scenario()
+                    .withPlayers("Player", "Opponent")
+                    .withCardOnBattlefield(1, "Emeritus of Ideation", summoningSickness = false)
+                    .withCardOnBattlefield(1, "Withered Wretch", summoningSickness = false)
+                    .withLandsOnBattlefield(1, "Island", 6)
+                    .withLifeTotal(2, 20)
+                    .withActivePlayer(1)
+                    .inPhase(Phase.PRECOMBAT_MAIN, Step.PRECOMBAT_MAIN)
+                repeat(8) { builder = builder.withCardInGraveyard(1, "Island") }
+                repeat(5) { builder = builder.withCardInLibrary(1, "Island") }
+                repeat(5) { builder = builder.withCardInLibrary(2, "Forest") }
+                val game = builder.build()
+
+                game.advanceToPhase(Phase.COMBAT, Step.DECLARE_ATTACKERS)
+                game.declareAttackers(mapOf("Emeritus of Ideation" to 2))
+                // The attack trigger is on the stack; eat one graveyard card in response to it.
+                val wretch = game.findPermanent("Withered Wretch")!!
+                val wretchAbility = cardRegistry.getCard("Withered Wretch")!!.activatedAbilities[0].id
+                val eaten = game.findCardsInGraveyard(1, "Island").first()
+                game.execute(
+                    ActivateAbility(
+                        game.player1Id, wretch, wretchAbility,
+                        targets = listOf(ChosenTarget.Card(eaten, game.player1Id, Zone.GRAVEYARD)),
+                    )
+                ).error shouldBe null
+                game.resolveStack()
+                if (game.hasPendingDecision()) {
+                    game.answerYesNo(true)
+                    game.resolveStack()
+                }
+                withClue("Only the eaten card left the graveyard") {
+                    game.findCardsInGraveyard(1, "Island").size shouldBe 7
+                }
+                withClue("It does not become prepared") {
+                    game.isPrepared("Emeritus of Ideation") shouldBe false
+                }
+            }
         }
 
         context("Emeritus of Truce — ETB token then conditional prepare (Swords to Plowshares)") {
-            test("enters prepared (keyword) and ETB makes target player an Inkling token") {
+            // No Keyword.PREPARED — it only becomes prepared from the ETB "Then if …" conditional.
+            // Why, and the Scryfall trap behind it: EmeritusOfTruce's KDoc.
+            fun playTruce(opponentBears: Int, tokenTo: Int = 1): TestGame {
                 var builder = scenario()
                     .withPlayers("Player", "Opponent")
                     .withCardInHand(1, "Emeritus of Truce")
@@ -274,19 +349,27 @@ class EmeritusCycleScenarioTest : ScenarioTestBase() {
                     .withLifeTotal(2, 20)
                     .withActivePlayer(1)
                     .inPhase(Phase.PRECOMBAT_MAIN, Step.PRECOMBAT_MAIN)
+                repeat(opponentBears) { builder = builder.withCardOnBattlefield(2, "Grizzly Bears") }
                 repeat(5) { builder = builder.withCardInLibrary(1, "Plains") }
                 repeat(5) { builder = builder.withCardInLibrary(2, "Forest") }
                 val game = builder.build()
 
                 game.castSpell(1, "Emeritus of Truce")
                 game.resolveStack()
-                // The creature resolved; its ETB trigger is on the stack asking for a target
-                // player — choose self.
-                game.selectTargets(listOf(game.player1Id))
+                // The creature resolved; its ETB trigger is on the stack asking for a target player.
+                game.selectTargets(listOf(if (tokenTo == 1) game.player1Id else game.player2Id))
                 game.resolveStack()
+                return game
+            }
 
-                withClue("Emeritus of Truce enters prepared (has the PREPARED keyword)") {
-                    game.isPrepared("Emeritus of Truce") shouldBe true
+            test("does not enter prepared; ETB makes target player an Inkling token") {
+                val game = playTruce(opponentBears = 0)
+
+                withClue("no PREPARED keyword, and the opponent controls no creatures") {
+                    game.isPrepared("Emeritus of Truce") shouldBe false
+                }
+                withClue("nothing became prepared, so there is no Swords to Plowshares in exile") {
+                    game.findExileCopy(1, "Emeritus of Truce") shouldBe null
                 }
                 val projected = game.state.projectedState
                 val inklings = game.state.getBattlefield(game.player1Id).filter { entity ->
@@ -298,6 +381,43 @@ class EmeritusCycleScenarioTest : ScenarioTestBase() {
                 }
                 withClue("ETB creates a 1/1 flying Inkling token for the chosen player") {
                     inklings.size shouldBe 1
+                }
+            }
+
+            test("becomes prepared when an opponent controls more creatures than you") {
+                // Opponent: 3 Bears. You: Emeritus + the Inkling = 2. 3 > 2 → prepared.
+                val game = playTruce(opponentBears = 3)
+
+                withClue("an opponent controls more creatures than you") {
+                    game.isPrepared("Emeritus of Truce") shouldBe true
+                }
+                withClue("becoming prepared exiles a castable Swords to Plowshares copy") {
+                    game.findExileCopy(1, "Emeritus of Truce") shouldNotBe null
+                }
+            }
+
+            test("the Inkling is counted — CR 608.2c/608.2h: 'Then if' reads state after the token") {
+                // Opponent: 2 Bears. You: Emeritus + the Inkling = 2. 2 > 2 is false → not prepared.
+                // Were the condition checked before the token existed (you: 1), it would prepare.
+                val game = playTruce(opponentBears = 2)
+
+                withClue("creature counts are tied once the Inkling is on the battlefield") {
+                    game.isPrepared("Emeritus of Truce") shouldBe false
+                }
+            }
+
+            test("giving the Inkling away swings the count — both battlefields are read after it") {
+                // Same 2 Bears as above, but the token goes to the opponent: they have 2 Bears +
+                // the Inkling = 3, you have Emeritus alone = 1. 3 > 1 → prepared. The identical
+                // board with the token kept at home does NOT prepare, so this pins that the
+                // condition reads both players' battlefields, after the token is created.
+                val game = playTruce(opponentBears = 2, tokenTo = 2)
+
+                withClue("the Inkling grows the opponent's creature count, not yours") {
+                    game.isPrepared("Emeritus of Truce") shouldBe true
+                }
+                withClue("becoming prepared exiles a castable Swords to Plowshares copy") {
+                    game.findExileCopy(1, "Emeritus of Truce") shouldNotBe null
                 }
             }
         }
@@ -331,7 +451,6 @@ class EmeritusCycleScenarioTest : ScenarioTestBase() {
                 withClue("Demonic Tutor copy is offered from exile for {1}{B}") {
                     cast shouldNotBe null
                     cast!!.manaCostString shouldBe "{1}{B}"
-                    Unit
                 }
             }
         }

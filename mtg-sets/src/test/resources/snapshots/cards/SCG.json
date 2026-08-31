@@ -582,14 +582,17 @@
                     "to": "Battlefield"
                 },
                 "effect": {
-                    "type": "MoveToZone",
-                    "target": {
-                        "type": "BoundVariable",
-                        "name": "target"
-                    },
-                    "destination": "Battlefield"
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "MoveToZone",
+                        "target": {
+                            "type": "BoundVariable",
+                            "name": "target"
+                        },
+                        "destination": "Battlefield"
+                    }
                 },
-                "optional": true,
                 "targetRequirement": {
                     "type": "TargetObject",
                     "filter": {
@@ -675,7 +678,9 @@
                         "destination": "Battlefield"
                     }
                 },
-                "activeZone": "Graveyard"
+                "activeZones": [
+                    "Graveyard"
+                ]
             }
         ],
         "staticAbilities": [
@@ -1086,7 +1091,7 @@
                 },
                 "binding": "ANY",
                 "effect": "SacrificeSelf",
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "AggregateBattlefield",
@@ -1366,14 +1371,18 @@
                     }
                 },
                 {
-                    "type": "DealDamage",
-                    "amount": {
-                        "type": "Fixed",
-                        "amount": 3
+                    "type": "ForEach",
+                    "space": {
+                        "type": "IterationSpace.Players",
+                        "players": "Each"
                     },
-                    "target": {
-                        "type": "PlayerRef",
-                        "player": "Each"
+                    "body": {
+                        "type": "DealDamage",
+                        "amount": {
+                            "type": "Fixed",
+                            "amount": 3
+                        },
+                        "target": "Controller"
                     }
                 }
             ]
@@ -2507,7 +2516,9 @@
                     "then": "ReturnSelfToBattlefieldAttached",
                     "descriptionOverride": "Attach Dragon Breath to this creature?"
                 },
-                "activeZone": "Graveyard"
+                "activeZones": [
+                    "Graveyard"
+                ]
             }
         ],
         "activatedAbilities": [
@@ -2583,7 +2594,9 @@
                     "then": "ReturnSelfToBattlefieldAttached",
                     "descriptionOverride": "Attach Dragon Fangs to this creature?"
                 },
-                "activeZone": "Graveyard"
+                "activeZones": [
+                    "Graveyard"
+                ]
             }
         ],
         "staticAbilities": [
@@ -2713,7 +2726,9 @@
                     "then": "ReturnSelfToBattlefieldAttached",
                     "descriptionOverride": "Attach Dragon Scales to this creature?"
                 },
-                "activeZone": "Graveyard"
+                "activeZones": [
+                    "Graveyard"
+                ]
             }
         ],
         "staticAbilities": [
@@ -2770,7 +2785,9 @@
                     "then": "ReturnSelfToBattlefieldAttached",
                     "descriptionOverride": "Attach Dragon Shadow to this creature?"
                 },
-                "activeZone": "Graveyard"
+                "activeZones": [
+                    "Graveyard"
+                ]
             }
         ],
         "staticAbilities": [
@@ -2906,7 +2923,9 @@
                     "then": "ReturnSelfToBattlefieldAttached",
                     "descriptionOverride": "Attach Dragon Wings to this creature?"
                 },
-                "activeZone": "Graveyard"
+                "activeZones": [
+                    "Graveyard"
+                ]
             }
         ],
         "staticAbilities": [
@@ -3136,6 +3155,7 @@
                         "amount": 3
                     }
                 },
+                "timing": "ManaAbility",
                 "isManaAbility": true
             }
         ]
@@ -3235,7 +3255,8 @@
                 "effect": {
                     "type": "MoveToZone",
                     "target": "Self",
-                    "destination": "Hand"
+                    "destination": "Hand",
+                    "fromZone": "Graveyard"
                 },
                 "restrictions": [
                     {
@@ -3762,8 +3783,16 @@
         ],
         "staticAbilities": [
             {
-                "type": "CantBeAttackedWithout",
-                "requiredKeyword": "FLYING"
+                "type": "CantBeAttackedBy",
+                "attackerFilter": {
+                    "cardPredicates": [
+                        "IsCreature",
+                        {
+                            "type": "NotKeyword",
+                            "keyword": "FLYING"
+                        }
+                    ]
+                }
             }
         ]
     },
@@ -4057,7 +4086,7 @@
                 "type": "GrantKeyword",
                 "keyword": "HASTE",
                 "filter": {
-                    "baseFilter": "creature Goblin"
+                    "baseFilter": "permanent Goblin ctrl:you"
                 }
             }
         ]
@@ -7076,6 +7105,7 @@
             "amount": {
                 "type": "AggregateBattlefield",
                 "player": "You",
+                "filter": "permanent",
                 "aggregation": "MAX",
                 "property": "MANA_VALUE"
             },
@@ -7739,7 +7769,7 @@
                     "type": "CostAtomWrapper",
                     "atom": {
                         "type": "AtomReturnToHand",
-                        "filter": "creature Elf"
+                        "filter": "permanent Elf"
                     }
                 },
                 "effect": {

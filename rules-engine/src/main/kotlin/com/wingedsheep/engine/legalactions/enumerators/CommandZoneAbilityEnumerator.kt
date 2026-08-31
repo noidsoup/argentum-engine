@@ -18,7 +18,7 @@ import com.wingedsheep.sdk.scripting.costs.manaCostOrNull
  *
  * The motivating case is the Momir Basic Vanguard avatar
  * ([com.wingedsheep.sdk.core.Format.MomirBasic]), which grants "{X}{X}{X}, Discard a card: …"
- * with `activateFromZone == Zone.COMMAND`. Modeled on [GraveyardAbilityEnumerator]: scan a
+ * with `activateFromZone == Zone.COMMAND`. Modeled on [ZoneActivatedAbilityEnumerator]: scan a
  * non-battlefield zone, filter abilities by `activateFromZone`, gate sorcery timing on
  * [EnumerationContext.canPlaySorcerySpeed], honour activation restrictions, and surface
  * mana/discard cost payability plus X-cost info. [com.wingedsheep.engine.handlers.actions.ability.ActivateAbilityHandler]
@@ -46,9 +46,15 @@ class CommandZoneAbilityEnumerator : ActionEnumerator {
                 // action is never offered at instant speed (the handler would reject it anyway).
                 if (ability.timing == TimingRule.SorcerySpeed && !context.canPlaySorcerySpeed) continue
 
+                // Kang the Conqueror's turn-scoped power-up lockout is zone-independent, and so is
+                // the matching check in `ActivateAbilityHandler.validate` — which sits before the
+                // zone split and so would reject a command-zone power-up the same way. Guard here
+                // too, or the action would be offered and then refused.
+                if (context.castPermissionUtils.isPowerUpActivationRestricted(state, ability)) continue
+
                 // Activation restrictions (e.g. once each turn).
                 if (ability.restrictions.any {
-                        !context.castPermissionUtils.checkActivationRestriction(state, playerId, it, entityId, ability.id)
+                        !context.castPermissionUtils.checkActivationRestriction(state, playerId, it, entityId, ability)
                     }
                 ) continue
 
@@ -57,7 +63,7 @@ class CommandZoneAbilityEnumerator : ActionEnumerator {
                 val effectiveCost = ability.cost
                 val handCards = state.getZone(playerId, Zone.HAND)
                 val abilityContext = com.wingedsheep.engine.mechanics.mana.buildAbilityPaymentContext(
-                    cardComponent, context.projected, entityId
+                    cardComponent, context.projected, entityId, ability
                 )
                 var costCanBePaid = true
                 var hasDiscardCost = false
@@ -111,7 +117,10 @@ class CommandZoneAbilityEnumerator : ActionEnumerator {
                 val maxAffordableX = if (hasXCost) {
                     context.costUtils.calculateMaxAffordableX(
                         state, playerId, ability.cost, abilityManaCost,
-                        precomputedSources = context.availableManaSources
+                        precomputedSources = context.availableManaSources,
+                        // Same source scoping the battlefield enumerator passes: cost filters
+                        // routinely resolve against the ability's own permanent.
+                        sourceId = entityId
                     )
                 } else null
 

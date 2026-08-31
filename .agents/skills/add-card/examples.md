@@ -474,7 +474,8 @@ fun MyNew(param1: Int, target: EffectTarget = EffectTarget.ContextTarget(0)): Ef
 
 ## Scenario Test Template
 
-Scenario tests live in the engine: `rules-engine/src/test/kotlin/com/wingedsheep/engine/scenarios/`.
+Scenario tests live in the era module mirroring the card's own —
+`mtg-sets/<era>/tests/src/test/kotlin/com/wingedsheep/engine/scenarios/` (`just where <SET>`).
 The engine is the source of truth, so a card's behavior is proven there — **not** in `game-server`
 (which only tests frontend ↔ engine concerns: masking, DTO shape, protocol).
 
@@ -701,18 +702,3 @@ test('triggers during upkeep', async ({ createGame }) => {
 - **Face-down creatures**: Alt text is `"Card back"`, not the card name. Use `clickCard('Card back')`.
 - **Activated abilities**: Action buttons show full ability text, not "Activate". Use partial match: `selectAction('damage to target')`.
 - **Aura/sacrifice targeting**: Uses ChooseTargets modal — need `confirmTargets()` after `selectTarget()`.
-
----
-
-## Set Registration
-
-```kotlin
-import com.wingedsheep.mtg.sets.definitions.por.cards.*
-
-object PortalSet {
-    val allCards = listOf(
-        // ... existing cards ...
-        NewCard,  // <-- Add here alphabetically or by collector number
-    )
-}
-```

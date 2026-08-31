@@ -2,20 +2,23 @@ package com.wingedsheep.engine.mechanics.layers
 
 import com.wingedsheep.engine.registry.CardRegistry
 import com.wingedsheep.engine.state.ComponentContainer
-import com.wingedsheep.engine.state.components.battlefield.ClassLevelComponent
+import com.wingedsheep.engine.state.components.battlefield.CantBeBlockedWhilePropertyAtMostComponent
 import com.wingedsheep.engine.state.components.battlefield.CantBeTargetedByOpponentAbilitiesComponent
-import com.wingedsheep.engine.state.components.battlefield.GrantCantBeBlockedToSmallCreaturesComponent
+import com.wingedsheep.engine.state.components.battlefield.ClassLevelComponent
 import com.wingedsheep.engine.state.components.battlefield.GrantsCantLoseGameComponent
 import com.wingedsheep.engine.state.components.battlefield.GrantsOpponentsCantWinGameComponent
 import com.wingedsheep.engine.state.components.battlefield.GrantsCantLoseGameFromLifeComponent
 import com.wingedsheep.engine.state.components.battlefield.GrantsControllerHexproofComponent
+import com.wingedsheep.engine.state.components.battlefield.GrantsSacrificeImmunityComponent
 import com.wingedsheep.engine.state.components.battlefield.GrantsControllerProtectionComponent
 import com.wingedsheep.engine.state.components.battlefield.GrantsStationUsingToughnessComponent
+import com.wingedsheep.engine.state.components.battlefield.ProtectionGrant
 import com.wingedsheep.engine.state.components.battlefield.GrantsControllerShroudComponent
 import com.wingedsheep.engine.state.components.battlefield.ReplacementEffectSourceComponent
 import com.wingedsheep.engine.state.components.battlefield.SuppressesHexproofForGroupComponent
 import com.wingedsheep.engine.state.components.battlefield.SuppressesWardForGroupComponent
 import com.wingedsheep.engine.state.components.identity.CardComponent
+import com.wingedsheep.engine.state.components.identity.GrantsMadnessToOwnedCardsComponent
 import com.wingedsheep.engine.state.components.identity.RoomFaceStatics
 import com.wingedsheep.sdk.model.CardDefinition
 import com.wingedsheep.sdk.scripting.DoubleDamage
@@ -28,6 +31,7 @@ import com.wingedsheep.sdk.scripting.AddLandTypeByCounter
 import com.wingedsheep.sdk.scripting.CantBeBlocked
 import com.wingedsheep.sdk.scripting.CantAttack
 import com.wingedsheep.sdk.scripting.CantBlock
+import com.wingedsheep.sdk.scripting.CrewSaddleContribution
 import com.wingedsheep.sdk.scripting.CanBlockAdditionalForCreatureGroup
 import com.wingedsheep.sdk.scripting.MustBeBlocked
 import com.wingedsheep.sdk.scripting.MustBlock
@@ -53,8 +57,10 @@ import com.wingedsheep.sdk.scripting.GrantSupertype
 import com.wingedsheep.sdk.scripting.GrantProtectionFromChosenColorToGroup
 import com.wingedsheep.sdk.scripting.GrantProtectionFromCardType
 import com.wingedsheep.sdk.scripting.GrantProtectionFromControlledColors
+import com.wingedsheep.sdk.scripting.GrantProtectionFromLinkedExiledCardTypes
 import com.wingedsheep.sdk.scripting.GrantHexproofFromOwnColorsToGroup
 import com.wingedsheep.sdk.scripting.GrantHexproofFromMonocoloredToGroup
+import com.wingedsheep.sdk.scripting.GrantHexproofFromMulticoloredToGroup
 import com.wingedsheep.sdk.scripting.AnimateLandGroup
 import com.wingedsheep.sdk.scripting.GrantAdditionalTypesToGroup
 import com.wingedsheep.sdk.scripting.SetLandTypesForGroup
@@ -72,9 +78,12 @@ import com.wingedsheep.sdk.scripting.CantBeTargetedBySourceTypeAbilities
 import com.wingedsheep.sdk.scripting.CantBeTargetedByOpponentAbilities
 import com.wingedsheep.sdk.scripting.CantBeSacrificed
 import com.wingedsheep.sdk.scripting.CantReceiveCounters
+import com.wingedsheep.sdk.scripting.GrantCantLoseGameFromLife
 import com.wingedsheep.sdk.scripting.GrantHexproofToController
+import com.wingedsheep.sdk.scripting.GrantOpponentsCantWinGame
 import com.wingedsheep.sdk.scripting.GrantProtectionToController
 import com.wingedsheep.sdk.scripting.GrantShroudToController
+import com.wingedsheep.sdk.scripting.OpponentsCantMakeYouSacrifice
 import com.wingedsheep.sdk.scripting.StationUsingToughness
 import com.wingedsheep.sdk.scripting.AdditionalAttackTriggers
 import com.wingedsheep.sdk.scripting.AdditionalDeathTriggers
@@ -86,17 +95,20 @@ import com.wingedsheep.sdk.scripting.AssignCombatDamageAsUnblocked
 import com.wingedsheep.sdk.scripting.AssignDamageEqualToToughness
 import com.wingedsheep.sdk.scripting.AttackTax
 import com.wingedsheep.sdk.scripting.BlockTax
+import com.wingedsheep.sdk.scripting.CantAttackOrBlockUnlessPay
 import com.wingedsheep.sdk.scripting.AttackerCountLimit
 import com.wingedsheep.sdk.scripting.BlockerCountLimit
 import com.wingedsheep.sdk.scripting.CanAttackDespiteDefender
 import com.wingedsheep.sdk.scripting.CanBlockAnyNumber
 import com.wingedsheep.sdk.scripting.CantAttackUnless
 import com.wingedsheep.sdk.scripting.CantAttackUnlessCoAttacker
-import com.wingedsheep.sdk.scripting.CantBeAttackedWithout
+import com.wingedsheep.sdk.scripting.CantBeAttackedBy
+import com.wingedsheep.sdk.scripting.CantBeAttackedWhileAttached
 import com.wingedsheep.sdk.scripting.CantBeBlockedBy
 import com.wingedsheep.sdk.scripting.CantBeBlockedByCreaturesWithLessPower
 import com.wingedsheep.sdk.scripting.CantBeBlockedByMoreThan
 import com.wingedsheep.sdk.scripting.CantBeBlockedIfCastSpellType
+import com.wingedsheep.sdk.scripting.CantBeBlockedIfDefenderControls
 import com.wingedsheep.sdk.scripting.CantBeBlockedUnlessDefenderSharesCreatureType
 import com.wingedsheep.sdk.scripting.CantBlockCreaturesWithGreaterPower
 import com.wingedsheep.sdk.scripting.CantBlockUnless
@@ -109,7 +121,7 @@ import com.wingedsheep.sdk.scripting.DivideCombatDamageFreely
 import com.wingedsheep.sdk.scripting.ExtraLoyaltyActivation
 import com.wingedsheep.sdk.scripting.GainActivatedAbilitiesOfPermanents
 import com.wingedsheep.sdk.scripting.GrantActivatedAbility
-import com.wingedsheep.sdk.scripting.HasAllActivatedAbilitiesOfExiledCards
+import com.wingedsheep.sdk.scripting.HasAllActivatedAbilitiesOfCards
 import com.wingedsheep.sdk.scripting.SpendAnyManaTypeForActivatedAbilities
 import com.wingedsheep.sdk.scripting.GrantAdditionalLandDrop
 import com.wingedsheep.sdk.scripting.GrantAlternativeCastingCost
@@ -148,6 +160,8 @@ import com.wingedsheep.sdk.scripting.PreventCycling
 import com.wingedsheep.sdk.scripting.SuppressEntersTriggers
 import com.wingedsheep.sdk.scripting.ConvertEmptyingManaToRed
 import com.wingedsheep.sdk.scripting.PreventManaPoolEmptying
+import com.wingedsheep.sdk.scripting.RetainUnspentColoredMana
+import com.wingedsheep.sdk.scripting.MultiplyManaOnSourceTap
 import com.wingedsheep.sdk.scripting.ReplaceLandManaColor
 import com.wingedsheep.sdk.scripting.RestrictSpellsCastPerTurn
 import com.wingedsheep.sdk.scripting.RevealFirstDrawEachTurn
@@ -167,7 +181,8 @@ import com.wingedsheep.sdk.scripting.conditions.NotCondition
 import com.wingedsheep.sdk.scripting.GrantKeyword
 import com.wingedsheep.sdk.scripting.GrantLandwalkOfChosenType
 import com.wingedsheep.sdk.scripting.RemoveKeywordStatic
-import com.wingedsheep.sdk.scripting.GrantCantBeBlockedToSmallCreatures
+import com.wingedsheep.sdk.scripting.CantBeBlockedWhilePropertyAtMost
+import com.wingedsheep.sdk.scripting.values.EntityNumericProperty
 import com.wingedsheep.sdk.scripting.GrantDynamicStatsEffect
 import com.wingedsheep.sdk.scripting.GrantWard
 import com.wingedsheep.sdk.scripting.filters.unified.GroupFilter
@@ -234,51 +249,65 @@ class StaticAbilityHandler(
             result = result.with(ContinuousEffectSourceComponent(effectsData))
         }
 
-        // Add tag component for abilities that grant controller-level effects
-        if (allStaticAbilities.any { it is GrantShroudToController }) {
-            result = result.with(GrantsControllerShroudComponent)
+        // Marker components for the grants that live outside the layer system (see
+        // [ControllerGrantMarker]). Every one of these goes through controllerGrant<A>(), which
+        // matches the ability bare *or* behind an "as long as …" gate and carries the condition
+        // onto the marker for readers to re-evaluate. A bare `any { it is A }` here would make a
+        // gated grant silently inert.
+        allStaticAbilities.controllerGrant<GrantShroudToController>()?.let {
+            result = result.with(GrantsControllerShroudComponent(it.condition))
         }
-        if (allStaticAbilities.any { it is GrantHexproofToController }) {
-            result = result.with(GrantsControllerHexproofComponent)
+        allStaticAbilities.controllerGrant<GrantHexproofToController>()?.let {
+            result = result.with(GrantsControllerHexproofComponent(it.condition))
         }
-        val controllerProtectionScopes = allStaticAbilities
-            .filterIsInstance<GrantProtectionToController>()
-            .map { it.scope }
-        if (controllerProtectionScopes.isNotEmpty()) {
-            result = result.with(GrantsControllerProtectionComponent(controllerProtectionScopes))
+        allStaticAbilities.controllerGrant<OpponentsCantMakeYouSacrifice>()?.let {
+            result = result.with(GrantsSacrificeImmunityComponent(it.condition))
         }
-
-        // Add tag component for "you can't lose the game"
-        if (allStaticAbilities.any { it is com.wingedsheep.sdk.scripting.GrantCantLoseGame }) {
-            result = result.with(GrantsCantLoseGameComponent)
+        allStaticAbilities.controllerGrant<GrantCantLoseGame>()?.let {
+            result = result.with(GrantsCantLoseGameComponent(it.condition))
         }
-
-        // Add tag component for "your opponents can't win the game" (Herald of Eternal Dawn)
-        if (allStaticAbilities.any { it is com.wingedsheep.sdk.scripting.GrantOpponentsCantWinGame }) {
-            result = result.with(GrantsOpponentsCantWinGameComponent)
+        allStaticAbilities.controllerGrant<GrantOpponentsCantWinGame>()?.let {
+            result = result.with(GrantsOpponentsCantWinGameComponent(it.condition))
         }
-
-        // Add tag component for the narrow "you don't lose for 0 or less life" (Marina's Grimoire)
-        if (allStaticAbilities.any { it is com.wingedsheep.sdk.scripting.GrantCantLoseGameFromLife }) {
-            result = result.with(GrantsCantLoseGameFromLifeComponent)
+        allStaticAbilities.controllerGrant<GrantCantLoseGameFromLife>()?.let {
+            result = result.with(GrantsCantLoseGameFromLifeComponent(it.condition))
         }
-
-        // Add tag component for "station using toughness"
-        if (allStaticAbilities.any { it is StationUsingToughness }) {
-            result = result.with(GrantsStationUsingToughnessComponent)
+        allStaticAbilities.controllerGrant<StationUsingToughness>()?.let {
+            result = result.with(GrantsStationUsingToughnessComponent(it.condition))
+        }
+        allStaticAbilities.controllerGrant<CantBeTargetedByOpponentAbilities>()?.let {
+            result = result.with(CantBeTargetedByOpponentAbilitiesComponent(it.condition))
         }
 
-        // Add tag component for "can't be the target of abilities your opponents control"
-        if (allStaticAbilities.any { it is CantBeTargetedByOpponentAbilities }) {
-            result = result.with(CantBeTargetedByOpponentAbilitiesComponent)
+        // Player-level protection is the one grant gated *per scope* rather than per permanent: a
+        // card may carry several GrantProtectionToController abilities and gate them
+        // independently, so each keeps its own condition rather than collapsing to one marker.
+        val protectionGrants = allStaticAbilities.controllerGrants<GrantProtectionToController>()
+            .map { (ability, condition) -> ProtectionGrant(ability.scope, condition) }
+        if (protectionGrants.isNotEmpty()) {
+            result = result.with(GrantsControllerProtectionComponent(protectionGrants))
         }
 
-        // Add component for "creatures you control with power or toughness N or less can't be blocked"
-        val smallCreaturesAbility = allStaticAbilities
-            .filterIsInstance<GrantCantBeBlockedToSmallCreatures>()
+        // Add component for the power/toughness-gated evasion (Tetsuko Umezawa's "creatures you
+        // control with power or toughness N or less can't be blocked", Stature, Size Shifter's
+        // self-scoped "if her power is 1 or less"). Kept out of the layer system on purpose — see
+        // CantBeBlockedWhilePropertyAtMost: the gate reads Layer 7 stats, so it is resolved in a
+        // post-layer projector pass rather than as a Layer 6 grant.
+        // One component per permanent, so only the first such ability is carried. No printed card
+        // has two, and a second would have to differ in threshold or scope to matter; widen the
+        // component to a list if one ever ships.
+        val propertyEvasion = allStaticAbilities
+            .filterIsInstance<CantBeBlockedWhilePropertyAtMost>()
             .firstOrNull()
-        if (smallCreaturesAbility != null) {
-            result = result.with(GrantCantBeBlockedToSmallCreaturesComponent(smallCreaturesAbility.maxValue))
+        if (propertyEvasion != null) {
+            result = result.with(
+                CantBeBlockedWhilePropertyAtMostComponent(
+                    maxValue = propertyEvasion.maxValue,
+                    checkPower = EntityNumericProperty.Power in propertyEvasion.properties,
+                    checkToughness = EntityNumericProperty.Toughness in propertyEvasion.properties,
+                    affects = convertGroupFilter(propertyEvasion.filter)
+                )
+            )
         }
 
         // Add component for "creatures matching filter can be targeted as though they didn't have hexproof"
@@ -287,6 +316,15 @@ class StaticAbilityHandler(
             .map { it.filter }
         if (suppressHexproofFilters.isNotEmpty()) {
             result = result.with(SuppressesHexproofForGroupComponent(suppressHexproofFilters))
+        }
+
+        // Add component for "each [filter] card you own that isn't on the battlefield has madness"
+        // (Falkenrath Gorger) — read off the permanent by MadnessGrants at discard time.
+        val madnessGrantFilters = allStaticAbilities
+            .filterIsInstance<com.wingedsheep.sdk.scripting.GrantMadnessToOwnedCards>()
+            .map { it.filter }
+        if (madnessGrantFilters.isNotEmpty()) {
+            result = result.with(GrantsMadnessToOwnedCardsComponent(madnessGrantFilters))
         }
 
         // Add component for "ward abilities of creatures matching filter don't trigger"
@@ -301,6 +339,56 @@ class StaticAbilityHandler(
     }
 
     /**
+     * A controller-granting static ability that is present on the permanent, together with the
+     * "as long as …" gate it sits behind ([condition] `null` when the grant is unconditional).
+     */
+    private data class ControllerGrant(val condition: Condition?)
+
+    /**
+     * Find a controller-granting static ability [A], whether written bare or wrapped in a
+     * [ConditionalStaticAbility], returning `null` when the card doesn't have it at all.
+     *
+     * Controller grants ("you have hexproof", "you have shroud", …) are stamped as marker
+     * components once, as the permanent enters, rather than projected each pass — so a gate on one
+     * cannot be resolved at stamp time and has to travel on the marker to be re-evaluated on every
+     * read. Matching only the bare type, as this used to, made a gated grant *silently inert*: the
+     * marker was never stamped and the ability did nothing at all rather than switching on and off.
+     *
+     * A bare grant wins over a gated one if a card somehow carries both, and only the first gated
+     * grant is taken — no printed card has two, and a second would need a different condition to
+     * mean anything. Use [controllerGrants] instead for the grants where a card legitimately
+     * carries several, each with its own gate.
+     *
+     * **Every** [com.wingedsheep.engine.state.components.battlefield.ControllerGrantMarker] is
+     * stamped through this helper (or [controllerGrants]); `ConditionalControllerGrantsTest` fails
+     * the build if a new one regresses to a bare type check.
+     */
+    private inline fun <reified A : StaticAbility> List<StaticAbility>.controllerGrant(): ControllerGrant? =
+        when {
+            any { it is A } -> ControllerGrant(condition = null)
+            else -> filterIsInstance<ConditionalStaticAbility>()
+                .firstOrNull { it.ability is A }
+                ?.let { ControllerGrant(it.condition) }
+        }
+
+    /**
+     * Every static ability of type [A] the permanent carries, each paired with the gate it sits
+     * behind (`null` when written bare) — the many-per-card counterpart of [controllerGrant], for
+     * grants that stack rather than collapsing into a single marker
+     * ([GrantProtectionToController]: "you have protection from red, and from blue as long as you
+     * control an Island" is two abilities with two different gates).
+     */
+    private inline fun <reified A : StaticAbility> List<StaticAbility>.controllerGrants(): List<Pair<A, Condition?>> =
+        mapNotNull { ability ->
+            when {
+                ability is A -> ability to null
+                ability is ConditionalStaticAbility ->
+                    (ability.ability as? A)?.let { it to ability.condition }
+                else -> null
+            }
+        }
+
+    /**
      * Add continuous effect component from a list of static abilities directly.
      * Used for tokens with static abilities that don't have a CardDefinition.
      */
@@ -308,10 +396,23 @@ class StaticAbilityHandler(
         container: ComponentContainer,
         staticAbilities: List<StaticAbility>
     ): ComponentContainer {
-        val effectsData = staticAbilities.toGroupedEffectData()
+        val effectsData = lowerToContinuousEffectData(staticAbilities)
         return if (effectsData.isNotEmpty()) container.with(ContinuousEffectSourceComponent(effectsData))
         else container
     }
+
+    /**
+     * Lower a list of static abilities to the [ContinuousEffectData] the projector consumes,
+     * without touching any container. The pure half of
+     * [addContinuousEffectComponentFromAbilities], for callers that need to *append* to a
+     * permanent's existing [ContinuousEffectSourceComponent] rather than replace it — a resolved
+     * effect handing a permanent a new static ability it keeps for as long as it stays on the
+     * battlefield (`BecomeArtifactEffect.grantedStaticAbilities`: The Irencrag gaining "Equipped
+     * creature gets +3/+3"). Multi-layer abilities are group-tagged exactly as they are when baked
+     * from a card definition (CR 613.6 — see [toGroupedEffectData]).
+     */
+    fun lowerToContinuousEffectData(staticAbilities: List<StaticAbility>): List<ContinuousEffectData> =
+        staticAbilities.toGroupedEffectData()
 
     /**
      * Lower a list of static abilities to [ContinuousEffectData], stamping every effect that comes
@@ -529,9 +630,21 @@ class StaticAbilityHandler(
                     affectsFilter = convertGroupFilter(ability.filter)
                 )
             }
+            is GrantHexproofFromMulticoloredToGroup -> {
+                ContinuousEffectData(
+                    modification = Modification.GrantHexproofFromMulticolored,
+                    affectsFilter = convertGroupFilter(ability.filter)
+                )
+            }
             is GrantProtectionFromControlledColors -> {
                 ContinuousEffectData(
                     modification = Modification.GrantProtectionFromControlledColors,
+                    affectsFilter = convertGroupFilter(ability.filter)
+                )
+            }
+            is GrantProtectionFromLinkedExiledCardTypes -> {
+                ContinuousEffectData(
+                    modification = Modification.GrantProtectionFromLinkedExiledCardTypes,
                     affectsFilter = convertGroupFilter(ability.filter)
                 )
             }
@@ -761,6 +874,15 @@ class StaticAbilityHandler(
                     affectsFilter = convertGroupFilter(ability.filter)
                 )
             }
+            is com.wingedsheep.sdk.scripting.HasCreatureTypesOf -> {
+                // "has the creature types of [that object]" — Layer 4 (TYPE). The referenced object
+                // is resolved on every projection pass by the applicator, not here, so the gainer's
+                // types track it live (Duplicant).
+                ContinuousEffectData(
+                    modification = Modification.SetCreatureSubtypesFrom(ability.source, ability.retainedTypes),
+                    affectsFilter = convertGroupFilter(ability.filter)
+                )
+            }
             is SetBaseToughnessForCreatureGroup -> {
                 ContinuousEffectData(
                     modification = Modification.SetToughness(ability.toughness),
@@ -816,6 +938,7 @@ class StaticAbilityHandler(
             is AdditionalManaOnSourceTap,
             is AdditionalManaOnTap,
             is DampLandManaProduction,
+            is MultiplyManaOnSourceTap,
             is OverrideEnchantedLandManaColor,
             is ReplaceLandManaColor,
 
@@ -823,24 +946,30 @@ class StaticAbilityHandler(
             // AttackRestrictionRules / BlockEvasionRules / CombatEnumerator):
             is AttackTax,
             is BlockTax,
+            is CantAttackOrBlockUnlessPay,
             is AttackerCountLimit,
             is BlockerCountLimit,
             is CanAttackDespiteDefender,
             is CanBlockAnyNumber,
             is CantAttackUnless,
+            is com.wingedsheep.sdk.scripting.CantAttackUnlessSacrifice,
             is CantAttackUnlessCoAttacker,
-            is CantBeAttackedWithout,
+            is CantBeAttackedBy,
+            is CantBeAttackedWhileAttached,
             is CantBeBlockedBy,
             is CantBeBlockedByCreaturesWithLessPower,
             is CantBeBlockedByMoreThan,
             is com.wingedsheep.sdk.scripting.CantBeBlockedByFewerThan,
             is CantBeBlockedIfCastSpellType,
+            is CantBeBlockedIfDefenderControls,
             is CantBeBlockedUnlessDefenderSharesCreatureType,
             is CantBlockCreaturesWithGreaterPower,
             is CantBlockUnless,
             is CantBlockUnlessCoBlocker,
+            is CrewSaddleContribution,
 
             // Combat: damage assignment (CombatDamageManager / CombatDamageUtils / DamageUtils):
+            is com.wingedsheep.sdk.scripting.CreaturesDamagedBySourceAreDoomed,
             is AssignCombatDamageAsUnblocked,
             is AssignDamageEqualToToughness,
             is DivideCombatDamageFreely,
@@ -851,6 +980,7 @@ class StaticAbilityHandler(
             // CastSpellEnumerator / PlayLandHandler):
             is CantCastSpellsSharingColorWithLastCast,
             is CastSpellTypesFromTopOfLibrary,
+            is com.wingedsheep.sdk.scripting.SpendAnyManaTypeForSpells,
             is GrantAdditionalLandDrop,
             is GrantFlashToSpellType,
             is GrantMayCastFromLinkedExile,
@@ -858,21 +988,27 @@ class StaticAbilityHandler(
             is GrantMiracleToCardsInHand,
             is MayCastFromGraveyard,
             is GraveyardCardsHaveFlashback,
+            is com.wingedsheep.sdk.scripting.GraveyardCardsHaveMayhem,
             is com.wingedsheep.sdk.scripting.GraveyardCreaturesHaveSneak,
             is MayCastSelfFromZones,
             is MayCastWithoutPayingManaCost,
             is MayPlayLandsFromGraveyard,
             is MayPlayPermanentsFromGraveyard,
+            is com.wingedsheep.sdk.scripting.MayPlayCardsFromExile,
             // Equip-timing/cost permissions (consulted by CastPermissionUtils /
             // ActivatedAbilityEnumerator / ActivateAbilityHandler, not continuous effects):
             is EquipAbilitiesAtInstantSpeed,
             is FreeFirstEquipEachTurn,
             is ReduceEquipCost,
             is ReduceActivatedAbilityCost,
+            is com.wingedsheep.sdk.scripting.IncreaseActivatedAbilityCost,
             is PlayFromTopOfLibrary,
+            is com.wingedsheep.sdk.scripting.PlayFromTopWithAlternativeCost,
             is PlayLandsAndCastFilteredFromTopOfLibrary,
             is PlotFromTopOfLibrary,
             is PlayersCantCastSpells,
+            is com.wingedsheep.sdk.scripting.PlayersCantPlayLands,
+            is com.wingedsheep.sdk.scripting.LandsCantEnterTheBattlefield,
             is RestrictSpellsCastPerTurn,
 
             // Spell costs (CostCalculator):
@@ -889,16 +1025,18 @@ class StaticAbilityHandler(
             // Spells on the stack (StackResolver / GrantedKeywordResolver):
             is GrantCantBeCountered,
             is GrantKeywordToOwnSpells,
+            is com.wingedsheep.sdk.scripting.GrantWebSlingingToSpells,
 
             // Activated abilities (ActivateAbilityHandler / ActivatedAbilityEnumerator):
             is ExtraLoyaltyActivation,
             is GrantActivatedAbility,
-            is HasAllActivatedAbilitiesOfExiledCards,
+            is HasAllActivatedAbilitiesOfCards,
             is com.wingedsheep.sdk.scripting.HasAbilitiesOfChosenLinkedExiledCard,
             is GainActivatedAbilitiesOfPermanents,
             is SpendAnyManaTypeForActivatedAbilities,
             is PreventActivatedAbilities,
             is PlayersCantActivateAbilities,
+            is com.wingedsheep.sdk.scripting.ExtraOnceOnlyActivations,
             is PreventCycling,
 
             // Trigger detection (TriggerDetector.suppressEntersTriggers) — not a continuous
@@ -911,6 +1049,8 @@ class StaticAbilityHandler(
             is SetMaximumHandSize,
             is PreventManaPoolEmptying,
             is ConvertEmptyingManaToRed,
+            is RetainUnspentColoredMana,
+            is com.wingedsheep.sdk.scripting.LegendRuleDoesNotApplyTo,
             is UntapDuringOtherUntapSteps,
             is UntapFilteredDuringOtherUntapSteps,
             is UntapSelfDuringOtherUntapSteps,
@@ -923,22 +1063,26 @@ class StaticAbilityHandler(
             is RevealFirstDrawEachTurn,
             is RevealTopOfLibrary,
 
-            // Coin-flip result replacement (CR 705.3), queried by the coin-flip executors via
-            // CoinFlipModifiers — not a Rule 613 continuous effect:
+            // Coin-flip replacements, queried by CoinFlipService via CoinFlipModifiers — the
+            // result-dictating one (CR 705.3) and the flip-more-coins one (CR 614). Neither is a
+            // Rule 613 continuous effect:
             is WinCoinFlips,
+            is com.wingedsheep.sdk.scripting.FlipAdditionalCoins,
 
             // Stamped as marker components by addContinuousEffectComponent in this
             // handler and read from those components by their subsystems:
             is CantBeTargetedByOpponentAbilities,
-            is GrantCantBeBlockedToSmallCreatures,
+            is CantBeBlockedWhilePropertyAtMost,
             is GrantCantLoseGame,
             is com.wingedsheep.sdk.scripting.GrantOpponentsCantWinGame,
             is com.wingedsheep.sdk.scripting.GrantCantLoseGameFromLife,
             is GrantHexproofToController,
             is GrantProtectionToController,
             is GrantShroudToController,
+            is com.wingedsheep.sdk.scripting.OpponentsCantMakeYouSacrifice,
             is StationUsingToughness,
             is SuppressHexproofForGroup,
+            is com.wingedsheep.sdk.scripting.GrantMadnessToOwnedCards,
             is SuppressWardForGroup -> null
         }
     }
@@ -1005,6 +1149,7 @@ class StaticAbilityHandler(
         when (it) {
             // Damage replacement/modification:
             is PreventDamage,
+            is com.wingedsheep.sdk.scripting.PreventDamageByRemovingCounter,
             is DoubleDamage,
             is ModifyDamageAmount,
             is com.wingedsheep.sdk.scripting.CapDamage,
@@ -1013,12 +1158,15 @@ class StaticAbilityHandler(
             is com.wingedsheep.sdk.scripting.DamageCantBePrevented,
             is ReplaceDamageWithCounters,
             is com.wingedsheep.sdk.scripting.ReplaceDamageWithMill,
-            is com.wingedsheep.sdk.scripting.PreventDamageAndRemoveCounter,
+            is com.wingedsheep.sdk.scripting.HealOtherDamage,
             // Life gain/loss:
             is PreventLifeGain,
             is com.wingedsheep.sdk.scripting.ModifyLifeGain,
             is com.wingedsheep.sdk.scripting.ModifyLifeLoss,
             is com.wingedsheep.sdk.scripting.LifeLossFloor,
+            // Life payment (Ashiok, Wicked Manipulator) — consulted from the battlefield by
+            // LifePaymentService every time its controller would pay life.
+            is com.wingedsheep.sdk.scripting.ReplaceLifePaymentWithLibraryExile,
             // Draws:
             is com.wingedsheep.sdk.scripting.PreventDraw,
             is com.wingedsheep.sdk.scripting.ReplaceDrawWithEffect,
@@ -1041,8 +1189,9 @@ class StaticAbilityHandler(
             is com.wingedsheep.sdk.scripting.RedirectZoneChange,
             is com.wingedsheep.sdk.scripting.RedirectZoneChangeWithEffect,
             is com.wingedsheep.sdk.scripting.PreventExtraTurns,
-            // Explore modification (consulted from the battlefield at explore time — Twists and Turns):
-            is com.wingedsheep.sdk.scripting.ModifyExplore,
+            // Keyword-action modification, consulted from the battlefield when the action happens:
+            // explore (Twists and Turns) and connive (Leader, Super-Genius).
+            is com.wingedsheep.sdk.scripting.ModifyKeywordAction,
             // Token creation:
             is com.wingedsheep.sdk.scripting.ReplaceTokenCreationWithAttachedCopy,
             is com.wingedsheep.sdk.scripting.MultiplyTokenCreation,
@@ -1056,6 +1205,7 @@ class StaticAbilityHandler(
             is com.wingedsheep.sdk.scripting.EntersWithChoice,
             is com.wingedsheep.sdk.scripting.EntersWithDevour,
             is com.wingedsheep.sdk.scripting.EntersWithRevealCounters,
+            is com.wingedsheep.sdk.scripting.EntersWithExileCounters,
             is com.wingedsheep.sdk.scripting.OnEnterRunEffect -> false
         }
 
@@ -1068,8 +1218,8 @@ class StaticAbilityHandler(
         when (val scope = filter.scope) {
             is com.wingedsheep.sdk.scripting.filters.unified.Scope.Self -> return AffectsFilter.Self
             is com.wingedsheep.sdk.scripting.filters.unified.Scope.AttachedTo -> return AffectsFilter.AttachedPermanent
-            is com.wingedsheep.sdk.scripting.filters.unified.Scope.SoulbondPartner ->
-                return AffectsFilter.SoulbondPartner
+            is com.wingedsheep.sdk.scripting.filters.unified.Scope.SoulbondPair -> return AffectsFilter.SoulbondPair
+            is com.wingedsheep.sdk.scripting.filters.unified.Scope.SoulbondPartner -> return AffectsFilter.SoulbondPartner
             is com.wingedsheep.sdk.scripting.filters.unified.Scope.Specific ->
                 return AffectsFilter.SpecificEntities(setOf(scope.entityId))
             is com.wingedsheep.sdk.scripting.filters.unified.Scope.Battlefield -> { /* fall through */ }

@@ -1,6 +1,8 @@
 package com.wingedsheep.engine.handlers.actions.ability
 
 import com.wingedsheep.engine.core.CrewVehicle
+import com.wingedsheep.engine.core.CrewOrSaddleContributionEvent
+import com.wingedsheep.engine.core.CrewOrSaddleKind
 import com.wingedsheep.engine.core.ExecutionResult
 import com.wingedsheep.engine.core.GameEvent
 import com.wingedsheep.engine.core.tap
@@ -39,7 +41,7 @@ class CrewVehicleHandler(
     override val actionType: KClass<CrewVehicle> = CrewVehicle::class
 
     override fun validate(state: GameState, action: CrewVehicle): String? {
-        if (state.priorityPlayerId != action.playerId) {
+        if (!state.hasPriority(action.playerId)) {
             return "You don't have priority"
         }
 
@@ -114,8 +116,12 @@ class CrewVehicleHandler(
             }
 
             // Summoning sickness does NOT prevent crewing (CR 702.122c)
-            val power = projected.getPower(creatureId) ?: 0
-            totalPower += power
+            totalPower += CrewSaddleContributionEvaluator.evaluate(
+                state = state,
+                projected = projected,
+                cardRegistry = cardRegistry,
+                creatureId = creatureId
+            )
         }
 
         if (totalPower < crewAbility.n) {
@@ -142,7 +148,17 @@ class CrewVehicleHandler(
         for (creatureId in action.crewCreatures) {
             val (tappedState, tapEvent) = tap(currentState, creatureId)
             currentState = tappedState
-            tapEvent?.let(events::add)
+            tapEvent?.let {
+                events.add(it)
+                events.add(
+                    CrewOrSaddleContributionEvent(
+                        contributorId = creatureId,
+                        permanentId = action.vehicleId,
+                        controllerId = action.playerId,
+                        kind = CrewOrSaddleKind.CREW
+                    )
+                )
+            }
         }
 
         // Record the crew so Vehicle payoffs can read "creatures that crewed it this turn"

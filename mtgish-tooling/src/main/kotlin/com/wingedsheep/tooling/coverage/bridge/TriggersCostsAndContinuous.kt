@@ -3,6 +3,14 @@ package com.wingedsheep.tooling.coverage.bridge
 /** Triggered-ability conditions and costs (accepted as [supported] pending a `Triggers.*`/`Costs.*`
  *  facade scan), plus the duration-scoped trigger/replacement creators (composed from primitives). */
 internal fun BridgeBuilder.triggersCostsAndContinuous() {
+    supported(
+        "CrewsVehiclesAsThoughPowerWereGreater",
+        "static ability: projected power plus N contributes to Crew (CrewSaddleContribution)"
+    )
+    supported(
+        "SaddlesMountsAsThoughPowerWereGreater",
+        "static ability: projected power plus N contributes to Saddle (CrewSaddleContribution)"
+    )
     // Triggers — validated by a Triggers.* facade scan in a later phase.
     supported("WhenAPermanentEntersTheBattlefield", "trigger: ETB (Triggers.* scan validates in P1)")
     // Batched ETB — "whenever one or more permanents [matching a filter] enter" fires once per event
@@ -16,6 +24,14 @@ internal fun BridgeBuilder.triggersCostsAndContinuous() {
     // renders only the SELF subject + a nameable counter type; a non-self subject or unnameable counter
     // declines -> SCAFFOLD.
     supported("WhenAnyNumberOfCountersOfTypeArePutOnAPermanent", "trigger: one or more counters of a type put on this permanent (CountersPlacedEvent, SELF)")
+    // The removal mirror of the two tags above (EventPattern.CountersRemovedEvent /
+    // Triggers.countersRemovedFrom). `lastRemoved = true` is the "when the LAST counter is removed"
+    // variant that CR 310.12b's Siege defeat ability is built from (Divine Intervention prints the
+    // same shape). The emitter renders the SELF-subject + nameable-counter form; the last-counter tag
+    // additionally carries a *remover* selector, which our trigger doesn't model, so that one declines
+    // to SCAFFOLD rather than silently dropping the restriction.
+    supported("WhenACounterOfTypeIsRemovedFromAPermanent", "trigger: a counter of a type removed from this permanent (CountersRemovedEvent, SELF)")
+    supported("WhenAPlayerRemovesTheLastCounterOfTypeFromAPermanent", "trigger: the last counter of a type removed from this permanent (CountersRemovedEvent, lastRemoved)")
     supported("WhenACreatureAttacks", "trigger: attacks")
     // "Whenever this creature attacks a player, …" — the attacks-a-player trigger, gated on the declared
     // defender being a player (not a planeswalker or battle; CR 508.1 + Kaalia of the Vast's 2024-06-07
@@ -33,7 +49,26 @@ internal fun BridgeBuilder.triggersCostsAndContinuous() {
     // attacker filter exactly or declines -> SCAFFOLD.
     supported("WhenAPlayerAttacksWithAnyNumberOfCreatures", "trigger: you attack with one or more creatures matching a filter (Triggers.YouAttackWithFilter)")
     supported("WhenACreatureBlocks", "trigger: blocks (Ydwen Efreet)")
+    // "Whenever a player discards a card" — Triggers.AnyOpponentDiscards / YouDiscard, or the
+    // discards(player, cardFilter, batch) factory. Fires once per discarded card, and each firing binds
+    // *its* card as the triggering entity, so a payoff can act on "it" — the card the discard put into
+    // the graveyard (CR 400.7e). That binding is what makes "exile it from their graveyard with a stash
+    // counter on it" (Tinybones, Bauble Burglar) expressible.
+    supported("WhenAPlayerDiscardsACard", "trigger: a player discards a card (Triggers.AnyOpponentDiscards / YouDiscard / discards(player, cardFilter)); binds the discarded card as TriggeringEntity")
+    // Cause-agnostic by construction: `EventPattern.TapEvent.reason` defaults to null, which matches a
+    // tap from any cause. The engine also carries a *tap cause* (`TapReason` — teamwork is the only
+    // classified one today, CR 702.194a), but the IR has no tag for "becomes tapped **to pay a
+    // teamwork cost**", so a card with that wording must not be drafted from this tag; it would render
+    // a strictly wider trigger. Register a distinct tag before claiming it.
     supported("WhenAPermanentBecomesTapped", "trigger: this permanent becomes tapped (Triggers.BecomesTapped — Wylie Duke, Atiin Hero)")
+    // "Whenever you tap an untapped creature an opponent controls" — the tap-*attribution* trigger, a
+    // different axis from the passive WhenAPermanentBecomesTapped above: only a tap the trigger's
+    // controller caused fires it (Triggers.YouTap(filter); Hylda of the Icy Crown, Icewrought Sentry,
+    // Solitary Sanctuary). The IR's `IsUntapped` clause is intrinsic to the engine — tapping is a
+    // transition (CR 603.2f), so an already-tapped permanent emits no tap event — and the emitter drops
+    // it rather than recovering a `.untapped()` predicate that would read false at detection time.
+    // You-scope only; the emitter recovers the permanent filter exactly or declines -> SCAFFOLD.
+    supported("WhenAPlayerTapsAPermanent", "trigger: you tap an untapped permanent matching a filter (Triggers.YouTap)")
     supported("WhenACreatureDealsCombatDamageToAPlayer", "trigger: combat damage to player")
     // "Whenever you sacrifice a/another [filter] …" — the batched sacrifice trigger that fires when a
     // matching permanent you control is sacrificed (Triggers.YouSacrificeOneOrMore; the first matching
@@ -45,6 +80,7 @@ internal fun BridgeBuilder.triggersCostsAndContinuous() {
     // the payoff is renderable (else SCAFFOLD).
     supported("AtTheBeginningOfCombatDuringAPlayersTurn", "trigger: beginning of combat on your turn (Triggers.BeginCombat)")
     supported("WhenAPlayerCastsASpell", "trigger: a player casts a spell (Triggers.YouCastSpell / AnyPlayerCastsSpell / OpponentCastsSpell + type filters)")
+    supported("WhenAPlayerActivatesAnAbility", "trigger: you activate an exhaust ability (Triggers.YouActivateExhaustAbility)")
     supported("WhenAPlayerCastsTheirNthSpellInATurn", "trigger: you cast your Nth spell each turn (Triggers.NthSpellCast(N, Player.You) — Rodeo Pyromancers)")
     // Breeches, the Blastmaker stays a DELIBERATE DECLINE — its second-spell payoff (NthSpellCast above)
     // is a `MayCost(sacrifice an artifact)`-gated `FlipACoin_OnWinAndLose` that sets up two reflexive
@@ -71,7 +107,7 @@ internal fun BridgeBuilder.triggersCostsAndContinuous() {
     supported("WhenAPermanentIsTurnedFaceUp", "trigger: this or another permanent you control is turned face up (Triggers.CreatureTurnedFaceUp — Cryptid Inspector)")
     // OTJ Plot (CR 718) — "When this card becomes plotted, …" (Triggers.BecomesPlotted, Aloe Alchemist).
     supported("WhenACardBecomesPlotted", "trigger: this card becomes plotted (Triggers.BecomesPlotted)")
-    supported("WhenAPermanentBecomesTheTargetOfASpellOrAbility", "trigger: becomes target (Triggers.BecomesTargetByOpponent / BecomesTarget / CreatureYouControlBecomesTargetByOpponent)")
+    supported("WhenAPermanentBecomesTheTargetOfASpellOrAbility", "trigger: becomes target (Triggers.BecomesTargetByOpponent / BecomesTarget / CreatureYouControlBecomesTargetByOpponent / BecomesTargetOfAbility — the last narrows to abilities and, with includePlayerTargets, also covers a targeted player)")
     // OTJ Saddle (CR 702.171b) — "Whenever this creature becomes saddled for the first time each turn, …"
     // (Triggers.becomesSaddled(firstTimeEachTurn = true), Stubborn Burrowfiend).
     supported("WhenAPermanentBecomesSaddledForTheFirstTimeInATurn", "trigger: this permanent becomes saddled for the first time each turn (Triggers.becomesSaddled(firstTimeEachTurn = true))")
@@ -162,6 +198,15 @@ internal fun BridgeBuilder.triggersCostsAndContinuous() {
     // OTJ crime (CR Outlaws of Thunder Junction) — "you've committed a crime this turn" ->
     // Conditions.YouCommittedCrimeThisTurn, gating a cost reduction or a resolution-time effect.
     supported("CommitedACrimeThisTurn", "predicate: player has committed a crime this turn (YouCommittedCrimeThisTurn)")
+    // Celebration (WOE ability word, CR 207.2c) — "if two or more nonland permanents entered the
+    // battlefield under your control this turn". Backed by the per-player permanent-entry log
+    // (TurnTracker.NONLAND_PERMANENTS_ENTERED) behind Conditions.Celebration, which is dual-mode, so
+    // it serves both the intervening-'if' triggers and the "as long as" conditional statics. The
+    // emitter renders the bare nonland-permanent + You shape; a narrower permanent filter scaffolds.
+    supported(
+        "NumberPermanentsEnteredTheBattlefieldUnderPlayersControlThisTurn",
+        "condition: N or more [nonland] permanents entered the battlefield under your control this turn (Conditions.Celebration)"
+    )
     // Delirium (ability word) — "there are four or more card types among cards in your graveyard."
     // Both the static "as long as …" gate (NumCardTypesInGraveyardIs) and the activated-ability
     // "Activate only if …" gate (ThereAreNumberCardTypesInPlayersGraveyard) map to Conditions.Delirium(N)
@@ -180,6 +225,21 @@ internal fun BridgeBuilder.triggersCostsAndContinuous() {
     // (Giant Beaver) -> GameObjectFilter.Creature.crewedOrSaddledSourceThisTurn().
     supported("SaddledPermanentThisTurn", "filter: a creature that saddled this permanent this turn (crewedOrSaddledSourceThisTurn)")
     supported("CrewedPermanentThisTurn", "filter: a creature that crewed this permanent this turn (crewedOrSaddledSourceThisTurn)")
+    // Pilot payoff: "whenever this creature saddles a Mount or crews a Vehicle". The engine emits
+    // one contributor event per creature tapped for either activation cost and binds the destination
+    // permanent as EffectTarget.TriggeringEntity. Capability-only: mtgish drops Aetherdrift's
+    // "during your main phase" rider from these trigger nodes, so the emitter must keep them at
+    // SCAFFOLD rather than produce an over-broad AUTO draft.
+    supported("WhenACreatureSaddlesAMount", "trigger: this creature saddles a Mount (Triggers.Saddles)")
+    supported("WhenACreatureCrewsAVehicle", "trigger: this creature crews a Vehicle (Triggers.Crews)")
+    // Graveyard-arrival filters, both backed by the one PutIntoGraveyardThisTurnComponent stamp:
+    // "…that was put there this turn" (Abyssal Harvester) reads the stamp, the battlefield-only
+    // variant (Samwise the Stouthearted, Lobelia Sackville-Baggins) also requires its
+    // fromBattlefield flag. The remaining sibling tags (…FromLibraryThisTurn,
+    // …FromAnywhereOtherThanTheBattlefieldThisTurn) would each need the stamp to carry the origin
+    // zone rather than a boolean, so they stay unmapped.
+    supported("WasPutIntoGraveyardFromAnywhereThisTurn", "filter: a card put into a graveyard this turn, from any zone (putIntoGraveyardThisTurn)")
+    supported("WasPutIntoGraveyardFromTheBattlefieldThisTurn", "filter: a card put into a graveyard from the battlefield this turn (putIntoGraveyardFromBattlefieldThisTurn)")
 
     // Costs.
     supported("PayMana", "cost: pay mana (universal)")
@@ -190,12 +250,50 @@ internal fun BridgeBuilder.triggersCostsAndContinuous() {
     // cast-time-value area is exactly what the emitter declines to render exactly (creator's note in
     // mtgish-tooling/CLAUDE.md), so cards using it stay SCAFFOLD even though the capability is present.
     supported("PayManaAnyX", "cost: pay mana with {X} (player-declared, threads to resolution via DynamicAmount.XValue)")
+    // An *activation* cost carrying {X} — the tag covers both halves of CR 107.3, and the engine now
+    // has both. When the ability's text doesn't define X (CR 107.3a) the controller announces it: the
+    // enumerator surfaces `hasXCost` / `maxAffordableX` / `minX`, the handler pauses for a
+    // ChooseNumberDecision, and the chosen value threads to payment and to `DynamicAmount.XValue`
+    // (Necropolis Fiend, Wizard's Rockets, Gogo's `minimumXValue = 1`). When the text *does* define it
+    // (CR 107.3c — "X is the mana value of that card"), `activatedAbility { xDefinedAs = <amount> }`
+    // substitutes the value into the {X} before enumeration, validation and payment read the cost, so
+    // the ability is offered at its resolved price with no picker (Soul Foundry, Elite Arcanist,
+    // Prototype Portal). Capability-only: the {X} / cast-time-value area is exactly what the emitter
+    // declines to render exactly, so these cards stay SCAFFOLD even though the capability is present.
+    supported(
+        "PayManaX",
+        "cost: activation cost with {X} — player-declared (ChooseNumberDecision -> DynamicAmount.XValue) " +
+            "or card-defined (activatedAbility { xDefinedAs = … }, CR 107.3c)"
+    )
     // Planeswalker loyalty cost (CR 606) — the +N / -N ability activation cost. The engine models it
     // via `loyaltyAbility(loyaltyChange) { }` with `startingLoyalty`. Oko, the Ringleader. The emitter
     // declines the whole loyalty-ability envelope (Activated) -> SCAFFOLD, so this is capability-only.
     supported("Loyalty", "cost: planeswalker loyalty +N/-N (loyaltyAbility(change) { })")
     supported("SacrificeAPermanent", "cost: sacrifice")
     supported("SacrificeNumberPermanents", "cost: sacrifice N")
+    // Variable-count permanent costs — "exile/sacrifice **one or more** [filter] you control" as an
+    // activated-ability cost, where the payer chooses how many and that choice defines the ability's
+    // X (CR 601.2b). Both map to the single `CostAtom.VariablePermanents` atom, differing only in its
+    // `action` and `xMeasure` axes, surfaced as `Costs.ExilePermanents(...)` /
+    // `Costs.SacrificePermanents(...)`. The engine pauses for the on-battlefield selection, computes
+    // X from it (total mana value, or the count), then pauses for the ability's target so an
+    // X-bounded target can't be picked and then fizzle.
+    //
+    // Capability-only: both sit squarely in the extra-cost / chosen-value area the emitter declines
+    // to render exactly (creator's note), so their cards stay SCAFFOLD even though the capability is
+    // present. Note the near-miss neighbour `SacrificeAnyNumberOfPermanents` stays unregistered — it
+    // is a min-0 sacrifice used as a *spell* cost/effect, not an activated-ability cost, and this
+    // atom is activated-ability-only.
+    supported(
+        "ExileNumberOrMoreGroupPermanents",
+        "cost: exile one or more permanents you control, X = their total mana value " +
+            "(Costs.ExilePermanents(filter, minCount, excludeSelf)) — Fabrication Foundry"
+    )
+    supported(
+        "SacrificeOneOrMorePermanents",
+        "cost: sacrifice one or more permanents you control, X = how many " +
+            "(Costs.SacrificePermanents(filter, minCount, excludeSelf)) — Radiant Lotus"
+    )
     // "Pay N life" as an activation cost -> Costs.PayLife(n). The emitter renders fixed-integer amounts
     // (abilityCostDsl); non-integer amounts ({X}, life-total halves, …) are declined -> SCAFFOLD.
     supported("PayLife", "cost: pay life")
@@ -269,6 +367,18 @@ internal fun BridgeBuilder.triggersCostsAndContinuous() {
         "GrantMayPlayFromExile over the cards that player exiled this way",
         composes = listOf("GrantMayPlayFromExile"),
     )
+    // "You may play cards <filter> from exile, and mana of any type can be spent to cast those spells"
+    // (Tinybones, Bauble Burglar) — a *filter over exile* rather than a per-card grant, so it keeps
+    // covering cards a previous copy of the granter exiled. Maps to the MayPlayCardsFromExile static
+    // (filter + optional condition, e.g. Conditions.IsYourTurn from an enclosing IsPlayersTurn, +
+    // withAnyManaType per CR 118.14). The exile-card filter tags it needs — ownership and
+    // has-a-counter-of-type — are the standard filter predicates.
+    effect(
+        "MayPlayExiledCardsAndMaySpendManaAsThoughAnyTypeToCast",
+        "MayPlayCardsFromExile",
+        note = "static: may play filtered cards from exile, mana of any type for those casts",
+    )
+    supported("CardsInExile", "filter over cards in exile (ownership / has-a-counter-of-type predicates on GameObjectFilter)")
     // "Players can't play cards from their hand" (Memory Vessel) — the nested _PlayerEffect of a
     // CreateEachPlayerEffectUntil. Renders to the hand-scoped player restriction
     // `CantPlayCardsFromHand` (blocks casting spells and playing lands from the hand zone only;
@@ -359,4 +469,14 @@ internal fun BridgeBuilder.triggersCostsAndContinuous() {
     // an unreadable count still scaffolds.
     supported("CDA_Power", "rule: characteristic-defining power (dynamicPower / dynamicStats)")
     supported("CDA_Toughness", "rule: characteristic-defining toughness (dynamicToughness / dynamicStats)")
+
+    // Characteristic-defining COLOR (CR 604.3, applied in layer 5). Unlike its power/toughness
+    // siblings this rule carries no capability of its own — every colour CDA in the corpus is one of
+    // several very different mechanics, told apart only by the nested `_SettableColor`: `Devoid`
+    // (CR 702.114, 132 cards) is a bare keyword the SDK derives `CardDefinition.colors` from, while
+    // `SimpleColorList` ("this card is blue"), `AllColors`, `Colorless` and `TheChosenColor` are each
+    // a colour-setting shape the SDK has no card-level home for. So this is an ENVELOPE: the nested
+    // tag decides. `Devoid` resolves through the Keyword entry in `keywords()`; the others stay
+    // UNMAPPED and keep blocking, which is the honest split.
+    envelope("CDA_Color", "envelope: the nested _SettableColor carries the capability (Devoid -> Keyword.DEVOID)")
 }

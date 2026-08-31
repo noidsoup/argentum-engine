@@ -202,16 +202,12 @@
                     "to": "Battlefield"
                 },
                 "effect": {
-                    "type": "ForEach",
-                    "space": {
-                        "type": "IterationSpace.Players",
-                        "players": "Each"
-                    },
-                    "body": {
-                        "type": "ForceSacrifice",
-                        "filter": "creature",
-                        "count": 2,
-                        "target": "Controller"
+                    "type": "ForceSacrifice",
+                    "filter": "creature",
+                    "count": 2,
+                    "target": {
+                        "type": "PlayerRef",
+                        "player": "Each"
                     }
                 }
             }
@@ -683,7 +679,7 @@
                         }
                     ]
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "PermanentTypeEnteredBattlefieldThisTurn",
                     "cardType": "ARTIFACT"
                 }
@@ -939,8 +935,7 @@
                 },
                 {
                     "type": "CreatePredefinedToken",
-                    "tokenType": "Treasure",
-                    "imageUri": "https://cards.scryfall.io/normal/front/3/d/3dfaedeb-f8ec-4f0e-b243-c850770a86f2.jpg?1783913602"
+                    "tokenType": "Treasure"
                 }
             ]
         },
@@ -1872,8 +1867,7 @@
                             },
                             "then": {
                                 "type": "CreatePredefinedToken",
-                                "tokenType": "Treasure",
-                                "imageUri": "https://cards.scryfall.io/normal/front/3/d/3dfaedeb-f8ec-4f0e-b243-c850770a86f2.jpg?1783913602"
+                                "tokenType": "Treasure"
                             }
                         }
                     ]
@@ -2111,7 +2105,8 @@
         },
         "colorIdentityOverride": [
             "BLUE"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "47",
@@ -2243,7 +2238,7 @@
                         }
                     ]
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "TurnTracking",
@@ -2352,7 +2347,7 @@
                     },
                     "target": "Self"
                 },
-                "triggerCondition": {
+                "triggerRestriction": {
                     "type": "Compare",
                     "left": {
                         "type": "AggregateBattlefield",
@@ -2406,8 +2401,7 @@
                         {
                             "effect": {
                                 "type": "CreatePredefinedToken",
-                                "tokenType": "Treasure",
-                                "imageUri": "https://cards.scryfall.io/normal/front/3/d/3dfaedeb-f8ec-4f0e-b243-c850770a86f2.jpg?1783913602"
+                                "tokenType": "Treasure"
                             }
                         },
                         {
@@ -2554,7 +2548,7 @@
                         }
                     ]
                 },
-                "triggerCondition": "WasCast"
+                "interveningIf": "WasCast"
             }
         ]
     },
@@ -2609,7 +2603,7 @@
                         "CantBlock"
                     ]
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "TurnTracking",
@@ -2667,6 +2661,7 @@
                     ]
                 },
                 "effect": "AddManaOfChoice",
+                "timing": "ManaAbility",
                 "isManaAbility": true
             },
             {
@@ -2730,7 +2725,7 @@
                     },
                     "target": "Self"
                 },
-                "triggerCondition": {
+                "triggerRestriction": {
                     "type": "Exists",
                     "player": "You",
                     "zone": "Battlefield",
@@ -2752,7 +2747,7 @@
                     },
                     "target": "Self"
                 },
-                "triggerCondition": {
+                "triggerRestriction": {
                     "type": "Exists",
                     "player": "You",
                     "zone": "Battlefield",
@@ -2849,7 +2844,7 @@
                     },
                     "id": "target creature you control"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "TurnTracking",
@@ -3032,7 +3027,7 @@
                 "targetRequirement": {
                     "type": "TargetObject",
                     "filter": {
-                        "baseFilter": "creature Pirate ctrl:you"
+                        "baseFilter": "permanent Pirate ctrl:you"
                     },
                     "id": "target Pirate you control"
                 }
@@ -3164,8 +3159,7 @@
                 "trigger": "AttackEvent",
                 "effect": {
                     "type": "CreatePredefinedToken",
-                    "tokenType": "Treasure",
-                    "imageUri": "https://cards.scryfall.io/normal/front/3/d/3dfaedeb-f8ec-4f0e-b243-c850770a86f2.jpg?1783913602"
+                    "tokenType": "Treasure"
                 }
             }
         ]
@@ -3425,7 +3419,7 @@
                     "count": 1,
                     "target": "Self"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "TurnTracking",
@@ -3717,7 +3711,8 @@
         },
         "colorIdentityOverride": [
             "WHITE"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "6",
@@ -3764,7 +3759,7 @@
                     },
                     "id": "target permanent card from your graveyard"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "Count",
@@ -3894,63 +3889,66 @@
                     "to": "Battlefield"
                 },
                 "effect": {
-                    "type": "Composite",
-                    "effects": [
-                        {
-                            "type": "GatherCards",
-                            "source": {
-                                "type": "FromZone",
-                                "zone": "Library",
-                                "filter": {
-                                    "cardPredicates": [
-                                        {
-                                            "type": "Or",
-                                            "predicates": [
-                                                "IsBasicLand",
-                                                {
-                                                    "type": "And",
-                                                    "predicates": [
-                                                        "IsLand",
-                                                        {
-                                                            "type": "HasSubtype",
-                                                            "subtype": "Cave"
-                                                        }
-                                                    ]
-                                                }
-                                            ]
-                                        }
-                                    ]
-                                }
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "Composite",
+                        "effects": [
+                            {
+                                "type": "GatherCards",
+                                "source": {
+                                    "type": "FromZone",
+                                    "zone": "Library",
+                                    "filter": {
+                                        "cardPredicates": [
+                                            {
+                                                "type": "Or",
+                                                "predicates": [
+                                                    "IsBasicLand",
+                                                    {
+                                                        "type": "And",
+                                                        "predicates": [
+                                                            "IsLand",
+                                                            {
+                                                                "type": "HasSubtype",
+                                                                "subtype": "Cave"
+                                                            }
+                                                        ]
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                },
+                                "storeAs": "searchable"
                             },
-                            "storeAs": "searchable"
-                        },
-                        {
-                            "type": "SelectFromCollection",
-                            "from": "searchable",
-                            "selection": {
-                                "type": "ChooseUpTo",
-                                "count": {
-                                    "type": "Fixed",
-                                    "amount": 1
-                                }
+                            {
+                                "type": "SelectFromCollection",
+                                "from": "searchable",
+                                "selection": {
+                                    "type": "ChooseUpTo",
+                                    "count": {
+                                        "type": "Fixed",
+                                        "amount": 1
+                                    }
+                                },
+                                "storeSelected": "found"
                             },
-                            "storeSelected": "found"
-                        },
-                        "ShuffleLibrary",
-                        {
-                            "type": "MoveCollection",
-                            "from": "found",
-                            "destination": {
-                                "type": "ToZone",
-                                "zone": "Library",
-                                "placement": "Top"
+                            "ShuffleLibrary",
+                            {
+                                "type": "MoveCollection",
+                                "from": "found",
+                                "destination": {
+                                    "type": "ToZone",
+                                    "zone": "Library",
+                                    "placement": "Top"
+                                },
+                                "revealed": true
                             },
-                            "revealed": true
-                        },
-                        "EmitLibrarySearchedEvent"
-                    ]
-                },
-                "optional": true
+                            "EmitLibrarySearchedEvent"
+                        ]
+                    }
+                }
             }
         ]
     },
@@ -4148,8 +4146,7 @@
                                     },
                                     {
                                         "type": "CreatePredefinedToken",
-                                        "tokenType": "Treasure",
-                                        "imageUri": "https://cards.scryfall.io/normal/front/3/d/3dfaedeb-f8ec-4f0e-b243-c850770a86f2.jpg?1783913602"
+                                        "tokenType": "Treasure"
                                     }
                                 ]
                             }
@@ -4228,7 +4225,7 @@
                         "destination": "Hand"
                     }
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "TurnTracking",
@@ -4249,14 +4246,14 @@
                 "powerBonus": 1,
                 "toughnessBonus": 0,
                 "filter": {
-                    "baseFilter": "creature Skeleton ctrl:you"
+                    "baseFilter": "permanent Skeleton ctrl:you"
                 }
             },
             {
                 "type": "GrantKeyword",
                 "keyword": "HASTE",
                 "filter": {
-                    "baseFilter": "creature Skeleton ctrl:you"
+                    "baseFilter": "permanent Skeleton ctrl:you"
                 }
             }
         ]
@@ -4513,7 +4510,7 @@
                     },
                     "id": "up to one target nonland permanent other than this creature"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "Count",
@@ -4732,31 +4729,34 @@
                     "to": "Battlefield"
                 },
                 "effect": {
-                    "type": "Composite",
-                    "effects": [
-                        {
-                            "type": "GatherCards",
-                            "source": {
-                                "type": "TopOfLibrary",
-                                "count": {
-                                    "type": "Fixed",
-                                    "amount": 2
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "Composite",
+                        "effects": [
+                            {
+                                "type": "GatherCards",
+                                "source": {
+                                    "type": "TopOfLibrary",
+                                    "count": {
+                                        "type": "Fixed",
+                                        "amount": 2
+                                    },
+                                    "isMill": true
                                 },
-                                "isMill": true
+                                "storeAs": "milled"
                             },
-                            "storeAs": "milled"
-                        },
-                        {
-                            "type": "MoveCollection",
-                            "from": "milled",
-                            "destination": {
-                                "type": "ToZone",
-                                "zone": "Graveyard"
+                            {
+                                "type": "MoveCollection",
+                                "from": "milled",
+                                "destination": {
+                                    "type": "ToZone",
+                                    "zone": "Graveyard"
+                                }
                             }
-                        }
-                    ]
-                },
-                "optional": true
+                        ]
+                    }
+                }
             }
         ]
     },
@@ -4894,7 +4894,7 @@
                     "count": 1,
                     "target": "Self"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "TurnTracking",
@@ -4954,45 +4954,62 @@
                             }
                         },
                         {
-                            "type": "GatherCards",
-                            "source": {
-                                "type": "FromZone",
-                                "zone": "Hand",
-                                "player": {
-                                    "type": "ContextPlayer",
-                                    "index": 0
+                            "type": "Gated",
+                            "gate": {
+                                "type": "Gate.WhenCondition",
+                                "condition": {
+                                    "type": "SourceInZone",
+                                    "zones": [
+                                        "Battlefield"
+                                    ]
                                 }
                             },
-                            "storeAs": "opponentHand"
-                        },
-                        {
-                            "type": "SelectFromCollection",
-                            "from": "opponentHand",
-                            "selection": {
-                                "type": "ChooseUpTo",
-                                "count": {
-                                    "type": "Fixed",
-                                    "amount": 1
-                                }
-                            },
-                            "filter": "nonland",
-                            "storeSelected": "exiledCard",
-                            "prompt": "You may exile a nonland card from target opponent's hand",
-                            "showAllCards": true,
-                            "alwaysPrompt": true
-                        },
-                        {
-                            "type": "MoveCollection",
-                            "from": "exiledCard",
-                            "destination": {
-                                "type": "ToZone",
-                                "zone": "Exile",
-                                "player": {
-                                    "type": "ContextPlayer",
-                                    "index": 0
-                                }
-                            },
-                            "linkToSource": true
+                            "then": {
+                                "type": "Composite",
+                                "effects": [
+                                    {
+                                        "type": "GatherCards",
+                                        "source": {
+                                            "type": "FromZone",
+                                            "zone": "Hand",
+                                            "player": {
+                                                "type": "ContextPlayer",
+                                                "index": 0
+                                            }
+                                        },
+                                        "storeAs": "opponentHand"
+                                    },
+                                    {
+                                        "type": "SelectFromCollection",
+                                        "from": "opponentHand",
+                                        "selection": {
+                                            "type": "ChooseUpTo",
+                                            "count": {
+                                                "type": "Fixed",
+                                                "amount": 1
+                                            }
+                                        },
+                                        "filter": "nonland",
+                                        "storeSelected": "exiledCard",
+                                        "prompt": "You may exile a nonland card from target opponent's hand",
+                                        "showAllCards": true,
+                                        "alwaysPrompt": true
+                                    },
+                                    {
+                                        "type": "MoveCollection",
+                                        "from": "exiledCard",
+                                        "destination": {
+                                            "type": "ToZone",
+                                            "zone": "Exile",
+                                            "player": {
+                                                "type": "ContextPlayer",
+                                                "index": 0
+                                            }
+                                        },
+                                        "linkToSource": true
+                                    }
+                                ]
+                            }
                         }
                     ]
                 },
@@ -5273,8 +5290,7 @@
                     "trigger": "AttackEvent",
                     "effect": {
                         "type": "CreatePredefinedToken",
-                        "tokenType": "Treasure",
-                        "imageUri": "https://cards.scryfall.io/normal/front/3/d/3dfaedeb-f8ec-4f0e-b243-c850770a86f2.jpg?1783913602"
+                        "tokenType": "Treasure"
                     }
                 }
             }
@@ -5676,7 +5692,8 @@
         },
         "colorIdentityOverride": [
             "RED"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "145",
@@ -6379,10 +6396,9 @@
                 "binding": "ANY",
                 "effect": {
                     "type": "CreatePredefinedToken",
-                    "tokenType": "Treasure",
-                    "imageUri": "https://cards.scryfall.io/normal/front/3/d/3dfaedeb-f8ec-4f0e-b243-c850770a86f2.jpg?1783913602"
+                    "tokenType": "Treasure"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "TurnTracking",
@@ -6631,7 +6647,7 @@
                         {
                             "type": "CostAtomWrapper",
                             "atom": {
-                                "type": "AtomExilePermanents",
+                                "type": "AtomVariablePermanents",
                                 "filter": "artifact"
                             }
                         }
@@ -6643,7 +6659,8 @@
                         "type": "BoundVariable",
                         "name": "target artifact card with mana value X or less from your graveyard"
                     },
-                    "destination": "Battlefield"
+                    "destination": "Battlefield",
+                    "fromZone": "Graveyard"
                 },
                 "targetRequirements": [
                     {
@@ -7022,7 +7039,7 @@
                         "amount": 3
                     }
                 },
-                "triggerCondition": "WasCast"
+                "interveningIf": "WasCast"
             }
         ]
     },
@@ -7411,18 +7428,12 @@
             {
                 "type": "ConditionalStaticAbility",
                 "ability": {
-                    "type": "GrantDynamicStats",
+                    "type": "ModifyStats",
+                    "powerBonus": 1,
+                    "toughnessBonus": 0,
                     "filter": {
                         "baseFilter": "permanent",
                         "scope": "Self"
-                    },
-                    "powerBonus": {
-                        "type": "Fixed",
-                        "amount": 1
-                    },
-                    "toughnessBonus": {
-                        "type": "Fixed",
-                        "amount": 0
                     }
                 },
                 "condition": {
@@ -7709,8 +7720,7 @@
                         },
                         {
                             "type": "CreatePredefinedToken",
-                            "tokenType": "Treasure",
-                            "imageUri": "https://cards.scryfall.io/normal/front/3/d/3dfaedeb-f8ec-4f0e-b243-c850770a86f2.jpg?1783913602"
+                            "tokenType": "Treasure"
                         }
                     ]
                 }
@@ -8174,8 +8184,7 @@
                             "collectionName": "discovered"
                         }
                     }
-                },
-                "imageUri": "https://cards.scryfall.io/normal/front/3/d/3dfaedeb-f8ec-4f0e-b243-c850770a86f2.jpg?1783913602"
+                }
             }
         }
     },
@@ -8494,7 +8503,9 @@
                                             "WHITE"
                                         ]
                                     }
-                                }
+                                },
+                                "timing": "ManaAbility",
+                                "isManaAbility": true
                             },
                             "filter": {
                                 "baseFilter": "creature ctrl:you"
@@ -8583,7 +8594,8 @@
             "WHITE",
             "RED",
             "GREEN"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "189",
@@ -8900,7 +8912,8 @@
         },
         "colorIdentityOverride": [
             "RED"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "155",
@@ -9163,6 +9176,7 @@
                 "id": "ability_1",
                 "cost": "CostTap",
                 "effect": "AddManaOfChoice",
+                "timing": "ManaAbility",
                 "isManaAbility": true
             },
             {
@@ -9374,7 +9388,8 @@
         },
         "colorIdentityOverride": [
             "BLUE"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "60",
@@ -9574,7 +9589,10 @@
                 },
                 "effect": {
                     "type": "DistributeCountersAmongTargets",
-                    "totalCounters": 3
+                    "totalCounters": {
+                        "type": "Fixed",
+                        "amount": 3
+                    }
                 },
                 "targetRequirement": {
                     "type": "TargetObject",
@@ -9645,7 +9663,8 @@
         },
         "colorIdentityOverride": [
             "GREEN"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "195",
@@ -9889,7 +9908,8 @@
         },
         "colorIdentityOverride": [
             "GREEN"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "197",
@@ -10462,7 +10482,8 @@
         },
         "colorIdentityOverride": [
             "BLUE"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "62",
@@ -10534,8 +10555,7 @@
                 "binding": "ANY",
                 "effect": {
                     "type": "CreatePredefinedToken",
-                    "tokenType": "Treasure",
-                    "imageUri": "https://cards.scryfall.io/normal/front/3/d/3dfaedeb-f8ec-4f0e-b243-c850770a86f2.jpg?1783913602"
+                    "tokenType": "Treasure"
                 }
             }
         ]
@@ -10796,7 +10816,7 @@
                     },
                     "id": "target creature"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "Count",
@@ -11310,7 +11330,8 @@
         "colorIdentityOverride": [
             "WHITE",
             "BLUE"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "233",
@@ -11732,31 +11753,34 @@
                     "to": "Battlefield"
                 },
                 "effect": {
-                    "type": "Composite",
-                    "effects": [
-                        {
-                            "type": "GatherCards",
-                            "source": {
-                                "type": "TopOfLibrary",
-                                "count": {
-                                    "type": "Fixed",
-                                    "amount": 2
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "Composite",
+                        "effects": [
+                            {
+                                "type": "GatherCards",
+                                "source": {
+                                    "type": "TopOfLibrary",
+                                    "count": {
+                                        "type": "Fixed",
+                                        "amount": 2
+                                    },
+                                    "isMill": true
                                 },
-                                "isMill": true
+                                "storeAs": "milled"
                             },
-                            "storeAs": "milled"
-                        },
-                        {
-                            "type": "MoveCollection",
-                            "from": "milled",
-                            "destination": {
-                                "type": "ToZone",
-                                "zone": "Graveyard"
+                            {
+                                "type": "MoveCollection",
+                                "from": "milled",
+                                "destination": {
+                                    "type": "ToZone",
+                                    "zone": "Graveyard"
+                                }
                             }
-                        }
-                    ]
-                },
-                "optional": true
+                        ]
+                    }
+                }
             }
         ]
     },
@@ -13002,7 +13026,8 @@
         },
         "colorIdentityOverride": [
             "WHITE"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "29",
@@ -13200,7 +13225,7 @@
                         }
                     ]
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Exists",
                     "player": "You",
                     "zone": "Battlefield",
@@ -13213,7 +13238,7 @@
                 "type": "GrantKeyword",
                 "keyword": "HASTE",
                 "filter": {
-                    "baseFilter": "creature Dinosaur ctrl:you",
+                    "baseFilter": "permanent Dinosaur ctrl:you",
                     "excludeSelf": true
                 }
             }
@@ -13396,7 +13421,8 @@
                     }
                 ],
                 "timing": "SorcerySpeed",
-                "descriptionOverride": "Equip Pirate {1}"
+                "isEquipAbility": true,
+                "equipQuality": "Pirate"
             },
             {
                 "id": "ability_2",
@@ -13608,8 +13634,7 @@
                 },
                 "effect": {
                     "type": "CreatePredefinedToken",
-                    "tokenType": "Treasure",
-                    "imageUri": "https://cards.scryfall.io/normal/front/3/d/3dfaedeb-f8ec-4f0e-b243-c850770a86f2.jpg?1783913602"
+                    "tokenType": "Treasure"
                 }
             }
         ]
@@ -13655,8 +13680,7 @@
                         "type": "AggregateBattlefield",
                         "player": "You",
                         "filter": "creature Dinosaur attacking"
-                    },
-                    "imageUri": "https://cards.scryfall.io/normal/front/3/d/3dfaedeb-f8ec-4f0e-b243-c850770a86f2.jpg?1783913602"
+                    }
                 }
             },
             {
@@ -13786,7 +13810,7 @@
                     ],
                     "imageUri": "https://cards.scryfall.io/normal/front/0/4/0484390e-1167-4407-84de-7ddc726e8926.jpg?1783913608"
                 },
-                "triggerCondition": {
+                "triggerRestriction": {
                     "type": "PlayerHasMostLife",
                     "player": "DefendingPlayer"
                 }
@@ -13814,7 +13838,7 @@
                         }
                     ]
                 },
-                "triggerCondition": {
+                "triggerRestriction": {
                     "type": "PlayerHasMostLife",
                     "player": "You"
                 }
@@ -13978,7 +14002,7 @@
                     "count": 1,
                     "target": "Self"
                 },
-                "triggerCondition": {
+                "triggerRestriction": {
                     "type": "Exists",
                     "player": "You",
                     "zone": "Battlefield",
@@ -15285,7 +15309,7 @@
                     "type": "Scry",
                     "count": 1
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "TurnTracking",
@@ -15324,47 +15348,6 @@
     },
     "colorIdentityOverride": [
         "WHITE"
-    ]
-}
-
-// Rumbling Rockslide
-{
-    "name": "Rumbling Rockslide",
-    "manaCost": "{3}{R}",
-    "typeLine": "Sorcery",
-    "oracleText": "Rumbling Rockslide deals damage to target creature equal to the number of lands you control.",
-    "script": {
-        "spellEffect": {
-            "type": "DealDamage",
-            "amount": {
-                "type": "Count",
-                "player": "You",
-                "zone": "Battlefield",
-                "filter": "land"
-            },
-            "target": {
-                "type": "BoundVariable",
-                "name": "target creature"
-            }
-        },
-        "targetRequirements": [
-            {
-                "type": "TargetObject",
-                "filter": {
-                    "baseFilter": "creature"
-                },
-                "id": "target creature"
-            }
-        ]
-    },
-    "metadata": {
-        "collectorNumber": "163",
-        "artist": "Johann Bodin",
-        "flavorText": "Sometimes an expedition reaches a natural conclusion. Sometimes it all just comes crashing down.",
-        "imageUri": "https://cards.scryfall.io/normal/front/4/f/4f06b53f-ec82-4d7f-bee3-6ca04583f023.jpg?1782694478"
-    },
-    "colorIdentityOverride": [
-        "RED"
     ]
 }
 
@@ -15619,7 +15602,8 @@
         },
         "colorIdentityOverride": [
             "RED"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "164",
@@ -15972,7 +15956,7 @@
                         "player": "TriggeringPlayer"
                     }
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Not",
                     "condition": {
                         "type": "IsPlayersTurn",
@@ -16477,31 +16461,34 @@
                     "to": "Battlefield"
                 },
                 "effect": {
-                    "type": "Composite",
-                    "effects": [
-                        {
-                            "type": "GatherCards",
-                            "source": {
-                                "type": "TopOfLibrary",
-                                "count": {
-                                    "type": "Fixed",
-                                    "amount": 2
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "Composite",
+                        "effects": [
+                            {
+                                "type": "GatherCards",
+                                "source": {
+                                    "type": "TopOfLibrary",
+                                    "count": {
+                                        "type": "Fixed",
+                                        "amount": 2
+                                    },
+                                    "isMill": true
                                 },
-                                "isMill": true
+                                "storeAs": "milled"
                             },
-                            "storeAs": "milled"
-                        },
-                        {
-                            "type": "MoveCollection",
-                            "from": "milled",
-                            "destination": {
-                                "type": "ToZone",
-                                "zone": "Graveyard"
+                            {
+                                "type": "MoveCollection",
+                                "from": "milled",
+                                "destination": {
+                                    "type": "ToZone",
+                                    "zone": "Graveyard"
+                                }
                             }
-                        }
-                    ]
-                },
-                "optional": true
+                        ]
+                    }
+                }
             }
         ],
         "staticAbilities": [
@@ -16969,7 +16956,8 @@
         },
         "colorIdentityOverride": [
             "WHITE"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "36",
@@ -17158,7 +17146,7 @@
                     "count": 1,
                     "target": "Self"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "TurnTracking",
@@ -17329,7 +17317,7 @@
                     "type": "TargetOpponent",
                     "id": "target opponent"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "Count",
@@ -17479,7 +17467,7 @@
                         }
                     ]
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "Count",
@@ -17651,7 +17639,8 @@
             "artist": "Aldo Domínguez",
             "imageUri": "https://cards.scryfall.io/normal/back/e/0/e0b6d40a-fded-4625-b03c-765c88d75766.jpg?1782694401"
         },
-        "colorIdentityOverride": []
+        "colorIdentityOverride": [],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "262",
@@ -18116,7 +18105,9 @@
                     "effect": {
                         "type": "AddMana",
                         "color": "BLACK"
-                    }
+                    },
+                    "timing": "ManaAbility",
+                    "isManaAbility": true
                 },
                 {
                     "id": "ability_4",
@@ -18617,8 +18608,7 @@
                 "trigger": "AttackEvent",
                 "effect": {
                     "type": "CreatePredefinedToken",
-                    "tokenType": "Treasure",
-                    "imageUri": "https://cards.scryfall.io/normal/front/3/d/3dfaedeb-f8ec-4f0e-b243-c850770a86f2.jpg?1783913602"
+                    "tokenType": "Treasure"
                 }
             }
         ],
@@ -18743,8 +18733,8 @@
             ],
             "staticAbilities": [
                 {
-                    "type": "HasAllActivatedAbilitiesOfExiledCards",
-                    "source": "Crafted",
+                    "type": "HasAllActivatedAbilitiesOfCards",
+                    "donors": "CraftMaterials",
                     "oncePerTurnEach": true
                 }
             ]
@@ -18757,7 +18747,8 @@
         },
         "colorIdentityOverride": [
             "BLUE"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "55",
@@ -18831,7 +18822,7 @@
                 },
                 "binding": "ANY",
                 "effect": "Transform",
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "Count",
@@ -19817,7 +19808,8 @@
         ],
         "colorIndicator": [
             "BLACK"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "266",
@@ -20069,7 +20061,8 @@
         },
         "colorIdentityOverride": [
             "BLACK"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "128",
@@ -20246,9 +20239,9 @@
                     "filter": "land ctrl:you",
                     "to": "Battlefield"
                 },
-                "binding": "OTHER",
+                "binding": "ANY",
                 "effect": "Transform",
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "AggregateBattlefield",
@@ -20266,7 +20259,7 @@
         ],
         "replacementEffects": [
             {
-                "type": "ModifyExplore",
+                "type": "ModifyKeywordAction",
                 "prefixEffect": {
                     "type": "Scry",
                     "count": 1
@@ -20561,7 +20554,7 @@
                         ]
                     }
                 },
-                "triggerCondition": "WasCast"
+                "interveningIf": "WasCast"
             }
         ],
         "activatedAbilities": [
@@ -20622,7 +20615,7 @@
                             }
                         }
                     },
-                    "triggerCondition": "IsNotYourTurn"
+                    "triggerRestriction": "IsNotYourTurn"
                 }
             ],
             "staticAbilities": [
@@ -20643,7 +20636,8 @@
         },
         "colorIdentityOverride": [
             "WHITE"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "41",
@@ -20914,7 +20908,8 @@
         },
         "colorIdentityOverride": [
             "BLACK"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "129",
@@ -21202,8 +21197,7 @@
                         },
                         {
                             "type": "CreatePredefinedToken",
-                            "tokenType": "Treasure",
-                            "imageUri": "https://cards.scryfall.io/normal/front/3/d/3dfaedeb-f8ec-4f0e-b243-c850770a86f2.jpg?1783913602"
+                            "tokenType": "Treasure"
                         }
                     ]
                 },
@@ -21766,7 +21760,8 @@
         },
         "colorIdentityOverride": [
             "BLUE"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "83",
@@ -21863,7 +21858,7 @@
                     },
                     "id": "target"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Exists",
                     "player": "You",
                     "zone": "Battlefield",
@@ -22048,7 +22043,7 @@
                         ]
                     }
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "TurnTracking",

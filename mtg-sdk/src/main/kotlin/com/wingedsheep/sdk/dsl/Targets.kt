@@ -16,6 +16,7 @@ import com.wingedsheep.sdk.scripting.targets.TargetCreatureOrPlayer
 import com.wingedsheep.sdk.scripting.targets.TargetOpponent
 import com.wingedsheep.sdk.scripting.targets.TargetOpponentOrPlaneswalker
 import com.wingedsheep.sdk.scripting.targets.TargetPermanent
+import com.wingedsheep.sdk.scripting.targets.TargetPermanentOrPlayer
 import com.wingedsheep.sdk.scripting.targets.TargetPlayer
 import com.wingedsheep.sdk.scripting.targets.TargetPlayerOrPlaneswalker
 import com.wingedsheep.sdk.scripting.targets.TargetRequirement
@@ -180,14 +181,33 @@ object Targets {
     val ArtifactOrLand: TargetRequirement = TargetPermanent(filter = TargetFilter.ArtifactOrLand)
 
     /**
+     * Target artifact, enchantment, or land (Creeping Mold).
+     */
+    val ArtifactEnchantmentOrLand: TargetRequirement =
+        TargetPermanent(filter = TargetFilter.ArtifactEnchantmentOrLand)
+
+    /**
      * Target land.
      */
     val Land: TargetRequirement = TargetPermanent(filter = TargetFilter.Land)
 
     /**
+     * Target permanent you control — "target permanent you control gains protection …"
+     * (Razor Barrier). The mirror of [PermanentOpponentControls].
+     */
+    val PermanentYouControl: TargetRequirement = TargetPermanent(filter = TargetFilter.PermanentYouControl)
+
+    /**
      * Target permanent an opponent controls.
      */
     val PermanentOpponentControls: TargetRequirement = TargetPermanent(filter = TargetFilter.PermanentOpponentControls)
+
+    /**
+     * Target **token** you control — any token permanent, not just a creature token. "Target token
+     * you control becomes a copy of it" (Kaya, Spirits' Justice) is deliberately wide enough to
+     * turn a Clue or a Treasure into a creature.
+     */
+    val TokenYouControl: TargetRequirement = TargetPermanent(filter = TargetFilter.TokenYouControl)
 
     /**
      * Target planeswalker (any player's) — "destroy target planeswalker" (Graf Reaver).
@@ -222,6 +242,13 @@ object Targets {
      * Target creature or player.
      */
     val CreatureOrPlayer: TargetRequirement = TargetCreatureOrPlayer()
+
+    /**
+     * Target permanent or player — any permanent on the battlefield, or any player
+     * (Powerful Broker). For a narrower permanent half ("target artifact or player"),
+     * construct [TargetPermanentOrPlayer] with a `permanentFilter`.
+     */
+    val PermanentOrPlayer: TargetRequirement = TargetPermanentOrPlayer()
 
     /**
      * Target creature or planeswalker.
@@ -320,6 +347,13 @@ object Targets {
     val CreatureSpellYouControl: TargetRequirement = TargetSpell(filter = TargetFilter.CreatureSpellOnStack.youControl())
 
     /**
+     * Target spell you control, of any type (e.g. Slick Imitator's "Copy target spell you
+     * control"). The unrestricted sibling of [InstantOrSorcerySpellYouControl] and
+     * [CreatureSpellYouControl].
+     */
+    val SpellYouControl: TargetRequirement = TargetSpell(filter = TargetFilter.SpellOnStack.youControl())
+
+    /**
      * Target spell you don't control.
      * In multiplayer this matches any spell controlled by an opponent.
      */
@@ -367,6 +401,15 @@ object Targets {
     )
 
     /**
+     * Target an instant spell, sorcery spell, or triggered ability on the stack — the Spider-Sense
+     * counter clause. Narrower than [InstantSorcerySpellOrAbility] (activated abilities excluded).
+     * Pair with [com.wingedsheep.sdk.dsl.Effects.CounterSpellOrAbility].
+     */
+    val InstantSorceryOrTriggeredAbility: TargetRequirement = TargetObject(
+        filter = TargetFilter.InstantSorcerySpellOrTriggeredAbilityOnStack
+    )
+
+    /**
      * Target triggered ability you control on the stack.
      */
     val TriggeredAbilityYouControl: TargetRequirement = TargetObject(
@@ -382,6 +425,25 @@ object Targets {
     val ActivatedOrTriggeredAbilityYouControl: TargetRequirement = TargetObject(
         filter = TargetFilter.ActivatedOrTriggeredAbilityOnStack.youControl()
     )
+
+    /**
+     * Target activated or triggered ability you control on the stack **from a source matching
+     * [sourceFilter]** — the "from a creature source" (Echo, Perceptive Prodigy) / "from an
+     * artifact source" (Scientist Supreme of A.I.M.) narrowing of
+     * [ActivatedOrTriggeredAbilityYouControl].
+     *
+     * The restriction is on the ability's source per CR 113.7, not on the ability object itself
+     * (which has no characteristics of its own), and is matched with last known information when
+     * the source has already left the battlefield — a dead creature's dies trigger is still "from a
+     * creature source". See [com.wingedsheep.sdk.scripting.predicates.CardPredicate.AbilitySourceMatches].
+     * Pair with [com.wingedsheep.sdk.dsl.Effects.CopyTargetSpellOrAbility].
+     */
+    fun ActivatedOrTriggeredAbilityYouControlFrom(sourceFilter: GameObjectFilter): TargetRequirement =
+        TargetObject(
+            filter = TargetFilter.ActivatedOrTriggeredAbilityOnStack
+                .youControl()
+                .abilitySourceMatches(sourceFilter)
+        )
 
     /**
      * Target spell or ability with a single target.

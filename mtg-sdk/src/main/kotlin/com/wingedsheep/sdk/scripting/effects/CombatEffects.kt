@@ -95,7 +95,17 @@ sealed interface PreventionSourceFilter {
  *   [PreventionSourceFilter.FromGroup] (which filters the *source* of damage): one new field, so the
  *   next "prevent all damage to artifacts / to each opponent's creatures" card needs only a
  *   [GroupFilter], not a new effect. Only meaningful with [PreventionDirection.ToTarget]; honours
- *   [scope] (all damage vs combat-only) and [duration].
+ *   [scope] (all damage vs combat-only), [duration], and a [PreventionSourceFilter.FromGroup]
+ *   [sourceFilter] ("… by creatures").
+ * @property recipientGroupIncludesController Extends a [recipientGroup] shield to also protect the
+ *   shield's controller — the "you and" in "prevent all damage that would be dealt to **you and**
+ *   creatures you control this turn by creatures" (Eerie Interference, Riot Control). A player is
+ *   not a permanent, so it can never be expressed by the [GroupFilter] itself; this keeps the whole
+ *   recipient set on one shield instead of splitting it across two effects with divergent scopes.
+ *   Set **without** a [recipientGroup] it names the controller alone — "prevent all damage that
+ *   would be dealt to you this turn by creatures with flying" (Scarecrow) is this flag plus a
+ *   [PreventionSourceFilter.FromGroup], i.e. the same recipient-side shield with an empty permanent
+ *   half rather than a second effect shape.
  * @property amount Amount of damage to prevent; null means prevent all
  * @property scope Whether to prevent all damage or only combat damage
  * @property direction Whether to prevent damage TO the target, FROM the target, or BOTH
@@ -116,6 +126,7 @@ sealed interface PreventionSourceFilter {
 data class PreventDamageEffect(
     val target: EffectTarget = EffectTarget.Controller,
     val recipientGroup: GroupFilter? = null,
+    val recipientGroupIncludesController: Boolean = false,
     val amount: DynamicAmount? = null,
     val scope: PreventionScope = PreventionScope.AllDamage,
     val direction: PreventionDirection = PreventionDirection.ToTarget,
@@ -139,7 +150,13 @@ data class PreventDamageEffect(
      * [duration] (Samite Ministration). This is orthogonal to which sources are eligible
      * ([sourceFilter]) — set it explicitly rather than inferring it from the filter.
      */
-    val nextInstanceOnly: Boolean = false
+    val nextInstanceOnly: Boolean = false,
+    /**
+     * With [nextInstanceOnly], prevent only **half** the instance, rounded down, instead of all of
+     * it — Dark Sphere's "prevent half that damage, rounded down". The rest is dealt and the shield
+     * is consumed either way, so a 1-damage instance halves to 0 prevented and still spends it.
+     */
+    val halvePreventedDamage: Boolean = false
 ) : Effect {
     override val description: String = buildString {
         append("Prevent ")
@@ -153,8 +170,11 @@ data class PreventDamageEffect(
             PreventionScope.AllDamage -> append("damage ")
         }
         when {
-            recipientGroup != null ->
-                append("that would be dealt to ${recipientGroup.description.replaceFirstChar { it.lowercase() }}")
+            recipientGroup != null -> {
+                append("that would be dealt to ")
+                if (recipientGroupIncludesController) append("you and ")
+                append(recipientGroup.description.replaceFirstChar { it.lowercase() })
+            }
             direction == PreventionDirection.ToTarget -> append("that would be dealt to ${target.description}")
             direction == PreventionDirection.FromTarget -> append("${target.description} would deal")
             else -> append("that would be dealt to and dealt by ${target.description}")
@@ -182,9 +202,10 @@ data class PreventDamageEffect(
         }
     }
 
-    override fun runtimeDescription(resolver: (DynamicAmount) -> Int): String {
+    override fun runtimeDescription(resolver: (DynamicAmount) -> Int?): String {
         if (amount == null) return description
-        val resolved = resolver(amount)
+        // Undeterminable: [description] already renders the amount by name, so leave it as-is.
+        val resolved = resolver(amount) ?: return description
         return description.replace(amount.description, resolved.toString())
     }
 
@@ -339,14 +360,29 @@ data class GrantCantBeBlockedByChosenColorEffect(
  * Unlike Provoke, this does NOT untap the target creature.
  * "Target creature defending player controls blocks this creature this combat if able."
  *
+ * [attacker] is the creature that must be blocked. It defaults to [EffectTarget.Self] — the
+ * ability's own source, which is the Avalanche Tusker shape ("blocks **it**", the attacking
+ * permanent that carries the trigger). An ANY-bound trigger that fires off *another* attacker and
+ * pins the blocker to that one instead passes [EffectTarget.TriggeringEntity]: Tolsimir, Midnight's
+ * Light says "whenever a Wolf you control attacks … target creature an opponent controls blocks
+ * **that Wolf** this combat if able", where the Wolf is the triggering entity and Tolsimir is the
+ * source. Any attacking creature the effect context can name works; the executor requires only that
+ * the resolved attacker is actually attacking.
+ *
  * @property target The creature forced to block
+ * @property attacker The attacking creature that must be blocked
  */
 @SerialName("ForceBlock")
 @Serializable
 data class ForceBlockEffect(
-    val target: EffectTarget = EffectTarget.ContextTarget(0)
+    val target: EffectTarget = EffectTarget.ContextTarget(0),
+    val attacker: EffectTarget = EffectTarget.Self
 ) : Effect {
-    override val description: String = "Target creature blocks ${target.description} this combat if able"
+    override val description: String = if (attacker == EffectTarget.Self) {
+        "Target creature blocks ${target.description} this combat if able"
+    } else {
+        "${target.description} blocks ${attacker.description} this combat if able"
+    }
 }
 
 /**
@@ -505,6 +541,29 @@ data class MarkMustAttackThisTurnEffect(
 }
 
 /**
+ * Mark a creature as "blocks this turn if able" (Culvert Ambusher).
+ *
+ * The blocking mirror of [MarkMustAttackThisTurnEffect], and the *unrestricted* sibling of
+ * [ForceBlockEffect]: this requires the creature to block **some** attacker, not a named one, and
+ * the ability's source need not be attacking (or even be a creature). It is the one-shot,
+ * turn-scoped form of the static [com.wingedsheep.sdk.scripting.MustBlock] (Grand Melee) — both
+ * project the same "must block" requirement that the block-declaration validator enforces.
+ *
+ * Only a *requirement*, never a guarantee (CR 509.1c): a creature that is tapped, that can't block,
+ * or whose every possible block is illegal simply doesn't block, and its controller is never forced
+ * to pay a cost associated with blocking.
+ *
+ * @property target The creature to mark (typically `EffectTarget.ContextTarget(0)` — the ability's target)
+ */
+@SerialName("MarkMustBlockThisTurn")
+@Serializable
+data class MarkMustBlockThisTurnEffect(
+    val target: EffectTarget = EffectTarget.ContextTarget(0)
+) : Effect {
+    override val description: String = "${target.description} blocks this turn if able"
+}
+
+/**
  * Goad a target creature (CR 701.15).
  *
  * Until the goader's next turn, the targeted creature is goaded: it attacks each
@@ -576,6 +635,29 @@ enum class RedirectScope {
 }
 
 /**
+ * Swap what two blocking creatures are blocking — Sorrow's Path's "if each of those creatures could
+ * block all creatures that the other is blocking, remove both of them from combat. Each one then
+ * blocks all creatures the other was blocking."
+ *
+ * Both targets must still be blocking creatures controlled by the same *opponent* of the
+ * activating player when this resolves — the printed line allows neither a split pair nor your
+ * own blockers — and the swap only happens if it would be **legal both ways**: each creature is
+ * checked against every attacker it is about to block, through the same evasion rules that govern
+ * a normal block declaration. A creature that couldn't have blocked a flier by declaring can't be
+ * handed one here either. When the check fails the effect does nothing, which is the printed
+ * behaviour and most of this card's reputation.
+ *
+ * Targets are read from the ability's chosen targets, so this effect carries no fields.
+ */
+@SerialName("SwapBlockingAssignments")
+@Serializable
+data object SwapBlockingAssignmentsEffect : Effect {
+    override val description: String =
+        "If each of those creatures could block all creatures that the other is blocking, remove " +
+            "both of them from combat. Each one then blocks all creatures the other was blocking"
+}
+
+/**
  * Redirect damage that would be dealt to the protected targets this turn.
  * "The next time damage would be dealt to [protected targets] this turn,
  *  that damage is dealt to [redirectTo] instead."
@@ -592,13 +674,39 @@ data class RedirectNextDamageEffect(
     val protectedTargets: List<EffectTarget>,
     val redirectTo: EffectTarget,
     val amount: Int? = null,
-    val scope: RedirectScope = RedirectScope.NEXT_INSTANCE
+    val scope: RedirectScope = RedirectScope.NEXT_INSTANCE,
+    /**
+     * Protect **every creature** instead of a fixed [protectedTargets] list — Blood of the Martyr's
+     * "if damage would be dealt to any creature". Evaluated against projected state at damage time,
+     * so creatures that arrive later are covered and players never are.
+     */
+    val creaturesOnly: Boolean = false,
+    /**
+     * Make the redirection a **"you may"** (Blood of the Martyr) instead of a mandatory replacement.
+     * The shield's controller is asked once per damage instance the shield could catch, before any
+     * of that damage is dealt, and answers for each instance separately — so a board-wide sweep can
+     * be soaked up for one creature and declined for the next.
+     *
+     * A path that deals damage without going through the choice pre-pass treats the shield as
+     * **declined** rather than redirecting silently; see
+     * `com.wingedsheep.engine.handlers.effects.damage.OptionalDamageRedirect`.
+     */
+    val optional: Boolean = false
 ) : Effect {
     override val description: String = buildString {
         append(if (scope == RedirectScope.CONTINUOUS) "All " else "The next ")
         if (amount != null) append("$amount ")
-        append("damage that would be dealt to ${protectedTargets.joinToString(" and/or ") { it.description }} this turn")
-        append(" is dealt to ${redirectTo.description} instead")
+        val recipients = if (creaturesOnly) {
+            "any creature"
+        } else {
+            protectedTargets.joinToString(" and/or ") { it.description }
+        }
+        append("damage that would be dealt to $recipients this turn")
+        if (optional) {
+            append(" may be dealt to ${redirectTo.description} instead")
+        } else {
+            append(" is dealt to ${redirectTo.description} instead")
+        }
     }
 }
 
@@ -673,26 +781,52 @@ data class RedirectCombatDamageToControllerEffect(
 }
 
 /**
- * Atomic: mark the target as carrying the "suspected" status (CR 701.60).
+ * Suspect the target (CR 701.60) — the whole mechanic in one effect: the named "suspected"
+ * designation, plus the menace and "this creature can't block" it carries for as long as it stays
+ * suspected.
  *
- * This is the named-status layer modification only — it does NOT grant menace or
- * apply the "can't block" restriction. Suspect's full mechanical effect is composed
- * by [com.wingedsheep.sdk.dsl.Effects.Suspect] which pairs this with
- * [GrantKeywordEffect] (MENACE) and [CantBlockEffect].
+ * **Why one effect and not a composite of three.** All three halves exist *because* the creature is
+ * suspected, so anything that can stop a creature from becoming suspected has to stop all three at
+ * once — "can't become suspected" ([com.wingedsheep.sdk.core.AbilityFlag.CANT_BECOME_SUSPECTED],
+ * Airtight Alibi) and the CR 701.60d "already suspected" no-op alike. Split across three effects
+ * there is no single place to ask the question: gating the designation alone would leave a creature
+ * that isn't suspected but still has menace and can't block, and gating the riders separately would
+ * wrongly suppress menace or can't-block arriving from an unrelated source. The engine's executor
+ * applies the three layer modifications under one shared timestamp, so Rule 613 still sees them as
+ * a single application and [RemoveSuspectedEffect] can still lift them as one bundle.
  *
- * Other status-flag mechanics (e.g. a future "investigated" tag) can reuse this
- * primitive with their own keyword/restriction composition.
- *
- * Duration defaults to Permanent because suspect status in MTG lasts until
- * explicitly removed.
+ * Duration defaults to Permanent: a suspected creature stays suspected until it changes zones or an
+ * effect un-suspects it (CR 701.60a). Suspect is not a copiable value.
  */
-@SerialName("SetSuspected")
+@SerialName("Suspect")
 @Serializable
-data class SetSuspectedEffect(
+data class SuspectEffect(
     val target: EffectTarget = EffectTarget.ContextTarget(0),
     val duration: Duration = Duration.Permanent
 ) : Effect {
     override val description: String = "${target.description} becomes suspected"
+}
+
+/**
+ * "It's no longer suspected" (CR 701.60c) — the inverse of the whole suspect bundle.
+ *
+ * Undoes a [SuspectEffect] *application* in full: the named designation, the menace grant and the
+ * "can't block" restriction all go away together, because all three exist only for as long as the
+ * creature is suspected. Menace or can't-block from any *other* source is untouched —
+ * un-suspecting is not "lose menace".
+ *
+ * A no-op on a creature that isn't suspected. Suspect is not a copiable value and has no duration,
+ * so this is the only way the designation ever comes off a permanent that stays on the battlefield.
+ *
+ * Used by MKM's Absolving Lammasu ("all suspected creatures are no longer suspected"), and by the
+ * "you may have it become no longer suspected" riders (Airtight Alibi, Deadly Complication).
+ */
+@SerialName("RemoveSuspected")
+@Serializable
+data class RemoveSuspectedEffect(
+    val target: EffectTarget = EffectTarget.ContextTarget(0)
+) : Effect {
+    override val description: String = "${target.description} is no longer suspected"
 }
 
 

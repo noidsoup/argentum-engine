@@ -6,6 +6,7 @@ import com.wingedsheep.engine.state.GameState
 import com.wingedsheep.engine.state.components.combat.*
 import com.wingedsheep.engine.state.components.player.ManaPoolComponent
 import com.wingedsheep.sdk.model.EntityId
+import com.wingedsheep.sdk.scripting.Duration
 import com.wingedsheep.sdk.scripting.effects.ManaExpiry
 import com.wingedsheep.engine.mechanics.combat.rules.AttackDefenderRule
 import com.wingedsheep.engine.mechanics.combat.rules.AttackRestrictionRule
@@ -85,6 +86,30 @@ class CombatManager(
         damagePhase.applyCombatDamage(state, firstStrike)
 
     /**
+     * Drop the damage assignments chosen in the first-strike combat damage step, so the regular
+     * one assigns from scratch.
+     *
+     * CR 510.1 / 510.4: the second combat damage step is its own assignment — every creature that
+     * still deals damage (double strikers, plus everything that had no first strike) announces a
+     * fresh division. Carrying the first-strike [DamageAssignmentComponent] over is wrong whenever
+     * first-strike damage killed only *some* of the blockers: the amounts aimed at the dead ones
+     * would spill onto the defending player through trample, while the blockers still blocking
+     * were never assigned the lethal damage CR 702.19b requires first.
+     *
+     * Only the assignment is cleared. Damage assignment *order* ([DamageAssignmentOrderComponent],
+     * [AttackerOrderComponent]) is chosen once per combat and stays put.
+     */
+    fun clearDamageAssignmentsForNewDamageStep(state: GameState): GameState {
+        var newState = state
+        for ((entityId, _) in state.findEntitiesWith<DamageAssignmentComponent>()) {
+            newState = newState.updateEntity(entityId) { container ->
+                container.without<DamageAssignmentComponent>()
+            }
+        }
+        return newState
+    }
+
+    /**
      * Re-pause the same combat damage step for the next chooser (CR 510.1c sequencing and the
      * CR 702.22j/k two-actor banding case). Delegates to [CombatDamageManager.repauseCombatResolution].
      */
@@ -121,6 +146,23 @@ class CombatManager(
                     .without<AttackedThisCombatComponent>()
                     .without<BlockedThisCombatComponent>()
             }
+        }
+
+        // Expire "until end of combat" effects (CR 511.2: they expire at the end of the combat
+        // phase, which per CR 511.3 is once the end of combat step has ended — i.e. here, the same
+        // point creatures leave combat). Nothing swept these before: `CleanupPhaseManager` dropped
+        // them at end of turn with a "should already be removed" note, and no step ever removed
+        // them, so a Murk Dwellers "+2/+0 until end of combat" stayed on through the postcombat
+        // main phase. The counter-placement modifiers keep the same lifetime as the floating
+        // effects, so both are swept together and the cleanup pass stays a safety net.
+        val survivingFloating = newState.floatingEffects.filter { it.duration !is Duration.EndOfCombat }
+        if (survivingFloating.size != newState.floatingEffects.size) {
+            newState = newState.copy(floatingEffects = survivingFloating)
+        }
+        val survivingCounterModifiers = newState.activeCounterPlacementModifiers
+            .filter { it.duration !is Duration.EndOfCombat }
+        if (survivingCounterModifiers.size != newState.activeCounterPlacementModifiers.size) {
+            newState = newState.copy(activeCounterPlacementModifiers = survivingCounterModifiers)
         }
 
         // Discard combat-duration mana (firebending, CR 702.189): "Any of this mana you still

@@ -9,6 +9,7 @@ import com.wingedsheep.sdk.scripting.effects.Effect
 import com.wingedsheep.sdk.scripting.effects.EffectChoice
 import com.wingedsheep.sdk.scripting.effects.Mode
 import com.wingedsheep.sdk.scripting.targets.TargetRequirement
+import com.wingedsheep.sdk.scripting.values.DynamicAmount
 import kotlinx.serialization.Serializable
 
 /**
@@ -56,6 +57,14 @@ data class ModalContinuation(
     val minChooseCount: Int = chooseCount,
     val selectedModeIndices: List<Int> = emptyList(),
     val availableIndices: List<Int>? = null,
+    /**
+     * Whether the same mode may be chosen more than once ([ModalEffect.allowRepeat]). The cast-time
+     * path has always honoured it; the resolution-time path used to narrow the option list after
+     * every pick regardless, which silently turned "choose X, you may repeat" into "choose X
+     * different" — and, once the caller ran out of distinct modes, dropped picks entirely
+     * (Frankenstein's Monster: X counters, each independently one of the same three).
+     */
+    val allowRepeat: Boolean = false,
     val outerTargets: List<ChosenTarget> = emptyList(),
     val outerNamedTargets: Map<String, ChosenTarget> = emptyMap(),
     /**
@@ -76,11 +85,20 @@ data class ModalContinuation(
 ) : ContinuationFrame
 
 /**
- * One queued (effect, targets, requirements) triple for a choose-N modal spell's
- * cast-time-resolved execution. See [ModalPreChosenContinuation].
+ * One queued (effect, targets, requirements) triple: an effect whose targets were already chosen, to
+ * be executed with a context scoped to *its own* target slice — so its `ContextTarget(0)` means its
+ * first target, not some enclosing spell's.
+ *
+ * Drained in order by
+ * [com.wingedsheep.engine.handlers.effects.composite.processPreTargetedEffectQueue], which two
+ * mechanics feed:
+ *  - a **choose-N modal spell** whose modes and per-mode targets were picked at cast time
+ *    (CR 700.2 / 601.2b–c) — see [ModalPreChosenContinuation]; and
+ *  - the **splice tail** of a spell with cards spliced onto it (CR 702.47b — the spliced cards' text
+ *    happens in the chosen order after the main spell's own effects) — see [SpliceTailContinuation].
  */
 @Serializable
-data class ModalPreChosenEntry(
+data class PreTargetedEffectEntry(
     val effect: @Serializable Effect,
     val targets: List<ChosenTarget>,
     val targetRequirements: List<@Serializable TargetRequirement>
@@ -110,7 +128,38 @@ data class ModalPreChosenContinuation(
     val sourceName: String?,
     val xValue: Int? = null,
     val triggeringEntityId: EntityId? = null,
-    val remainingEntries: List<ModalPreChosenEntry>
+    /**
+     * The enclosing resolution's pipeline, so the modes still queued behind a paused one read the
+     * same stored collections/numbers the modes before them did. Without it a choose-two modal
+     * whose first mode pauses would run its second mode against an empty pipeline.
+     */
+    val pipeline: com.wingedsheep.engine.handlers.PipelineState =
+        com.wingedsheep.engine.handlers.PipelineState.EMPTY,
+    val remainingEntries: List<PreTargetedEffectEntry>
+) : ContinuationFrame
+
+/**
+ * Auto-resumed continuation that runs the **spliced text** of a spell with cards spliced onto it
+ * (CR 702.47b — "The effects of the main spell must happen first", then each spliced card's text in
+ * the order the caster chose).
+ *
+ * [com.wingedsheep.engine.mechanics.stack.StackResolver] pushes this frame BELOW the main spell's own
+ * effect before executing it, so the splice tail runs whether the main effect completes synchronously
+ * or pauses for a decision of its own (Through the Breach's "put a creature card from your hand onto
+ * the battlefield" is exactly such a pause). Each entry carries its own target slice, so a spliced
+ * card's `ContextTarget(0)` resolves to its own first target.
+ *
+ * [sourceId] is the *spell's* entity, never the spliced card's: the spell gained only the card's rules
+ * text, not its characteristics (CR 702.47c), so spliced damage is dealt by the spell — which is why a
+ * red splice card's damage on a blue Arcane spell can still hit a creature with protection from red.
+ */
+@Serializable
+data class SpliceTailContinuation(
+    override val decisionId: String,
+    val controllerId: EntityId,
+    val sourceId: EntityId?,
+    val sourceName: String?,
+    val remainingEntries: List<PreTargetedEffectEntry>
 ) : ContinuationFrame
 
 /**
@@ -198,6 +247,9 @@ data class ModalTargetContinuation(
  * @property toughnessOverride When non-null, overrides the copy's base toughness (Superior Spider-Man: 4)
  * @property exileCopiedCard When true, exile the copied card after copying it (Superior Spider-Man:
  *   "When you do, exile that card"). Used for graveyard copies.
+ * @property additionalCounters When non-null, the number of additional +1/+1 counters the copy
+ *   enters with (Altered Ego's "except it enters with X additional +1/+1 counters on it"). Applied
+ *   only when a copy was actually made — declining the copy declines the counters too.
  */
 @Serializable
 data class CloneEntersContinuation(
@@ -211,7 +263,8 @@ data class CloneEntersContinuation(
     val nameOverride: String? = null,
     val powerOverride: Int? = null,
     val toughnessOverride: Int? = null,
-    val exileCopiedCard: Boolean = false
+    val exileCopiedCard: Boolean = false,
+    val additionalCounters: DynamicAmount? = null
 ) : ContinuationFrame
 
 /**
@@ -232,6 +285,8 @@ data class CloneEntersContinuation(
  * @property controllerId Its controller (also the copy chooser).
  * @property fromZone The zone the permanent came from, used to synthesize the entry event.
  * @property tappedIfCopied Tap the permanent iff it entered as a copy ("enter tapped as a copy").
+ * @property additionalCounters Additional +1/+1 counters the permanent enters with iff it entered
+ *   as a copy. See [CloneEntersContinuation.additionalCounters].
  */
 @Serializable
 data class CloneEntersOnBattlefieldContinuation(
@@ -245,7 +300,8 @@ data class CloneEntersOnBattlefieldContinuation(
     val powerOverride: Int? = null,
     val toughnessOverride: Int? = null,
     val exileCopiedCard: Boolean = false,
-    val tappedIfCopied: Boolean = false
+    val tappedIfCopied: Boolean = false,
+    val additionalCounters: DynamicAmount? = null
 ) : ContinuationFrame
 
 /**
@@ -297,7 +353,18 @@ data class EntersWithChoiceSpellContinuation(
      * this list to recover the name stored under
      * [com.wingedsheep.sdk.scripting.ChoiceSlot.CARD_NAME].
      */
-    val cardNames: List<String> = emptyList()
+    val cardNames: List<String> = emptyList(),
+    /**
+     * True when this MODE choice is a **synthesized Riot** choice granted to the entity (not printed
+     * on its card). The resumer then applies the chosen branch (a +1/+1 counter or a haste grant)
+     * directly, because a granted permanent has no printed `EntersWithCounters`/haste static.
+     */
+    val syntheticRiot: Boolean = false,
+    /**
+     * The number of *further* synthesized Riot choices to present after this one (CR 702.136b — each
+     * granted riot instance is a separate choice). The resumer re-pauses that many more times.
+     */
+    val syntheticRiotRemaining: Int = 0
 ) : ContinuationFrame
 
 /**
@@ -338,7 +405,11 @@ data class EntersWithChoiceOnBattlefieldContinuation(
     /** For [com.wingedsheep.sdk.scripting.ChoiceType.CARD_NAME] choices, the land card names
      *  presented (the resumer stores the chosen name by index). */
     val cardNames: List<String> = emptyList(),
-    val fromZone: Zone? = null
+    val fromZone: Zone? = null,
+    /** See [EntersWithChoiceSpellContinuation.syntheticRiot]. */
+    val syntheticRiot: Boolean = false,
+    /** See [EntersWithChoiceSpellContinuation.syntheticRiotRemaining]. */
+    val syntheticRiotRemaining: Int = 0
 ) : ContinuationFrame
 
 /**
@@ -405,6 +476,17 @@ data class RevealCountersContinuation(
     val countersPerReveal: Int
 ) : ContinuationFrame
 
+/** Resume an as-enters linked-exile selection before the permanent enters the battlefield. */
+@Serializable
+data class ExileCountersContinuation(
+    override val decisionId: String,
+    val spellId: EntityId,
+    val controllerId: EntityId,
+    val ownerId: EntityId,
+    val counterType: String,
+    val countersPerCard: Int
+) : ContinuationFrame
+
 /**
  * Resume after player selects permanents to sacrifice for Devour (CR 702.82).
  *
@@ -426,6 +508,33 @@ data class DevourEntersContinuation(
     val spellId: EntityId,
     val controllerId: EntityId,
     val ownerId: EntityId,
+    val multiplier: Int,
+    val counterType: String,
+    val squareSacrificeCount: Boolean = false,
+) : ContinuationFrame
+
+/**
+ * Resume after the player selects permanents to sacrifice for Devour on a token minted from a
+ * bare card definition (CR 702.82) — the Momir Basic avatar's random-creature token.
+ *
+ * The sibling of [DevourEntersContinuation] for the path where nothing was ever cast. There is no
+ * entity to hang the pause on: the token does not exist yet, because devour is an as-enters
+ * replacement (CR 614) and a devour creature is typically a 0/0 that state-based actions would bin
+ * on arrival if it were placed first and counted afterwards. So the decision is raised *before*
+ * the mint, keyed by the chosen [cardDefinitionId], and the resumer re-enters
+ * [com.wingedsheep.engine.handlers.effects.token.TokenFromDefinition.mint] with the resulting
+ * counter count so the token enters already carrying it.
+ *
+ * @property cardDefinitionId Name of the definition the token will copy
+ * @property controllerId The player creating (and controlling) the token
+ * @property multiplier Counters placed per sacrificed permanent
+ * @property counterType Serialized counter type (string form of [com.wingedsheep.sdk.scripting.events.CounterTypeFilter])
+ */
+@Serializable
+data class DevourMintedTokenContinuation(
+    override val decisionId: String,
+    val cardDefinitionId: String,
+    val controllerId: EntityId,
     val multiplier: Int,
     val counterType: String,
     val squareSacrificeCount: Boolean = false,
@@ -473,6 +582,65 @@ data class CreateTokenCopyOfChosenContinuation(
     val controllerId: EntityId,
     val sourceId: EntityId?,
     val sourceName: String?
+) : ContinuationFrame
+
+/**
+ * Resume after the controller chooses what an Aura token copy will enchant (CR 303.4h).
+ *
+ * A token copy of an Aura is created on the battlefield rather than cast, so its controller
+ * picks a host instead of targeting one. The pick is raised *before* the token exists so it can
+ * enter already attached — see
+ * [com.wingedsheep.engine.handlers.effects.token.AuraTokenHostChooser].
+ *
+ * @property effect The original create-token-copy effect, re-executed for one token per pick
+ * @property context The resolution context, so the effect's target still resolves on resume
+ * @property controllerId The player creating (and choosing for) the token
+ * @property auraDefinitionId Card definition of the copied Aura, for re-deriving legal hosts
+ * @property auraName The copied Aura's name, for the next prompt
+ * @property remaining How many Aura tokens are still owed, including the one this pick creates
+ */
+@Serializable
+data class CreateTokenCopyAuraHostContinuation(
+    override val decisionId: String,
+    val effect: com.wingedsheep.sdk.scripting.effects.CreateTokenCopyOfTargetEffect,
+    val context: com.wingedsheep.engine.handlers.EffectContext,
+    val controllerId: EntityId,
+    val auraDefinitionId: String,
+    val auraName: String,
+    val remaining: Int
+) : ContinuationFrame
+
+/**
+ * Auto-resumed continuation that creates the **remaining** token copies of a multi-token
+ * create-token-copy effect after one token paused for an "as-enters" choice (a printed
+ * [com.wingedsheep.sdk.scripting.EntersWithChoice] or a synthesized granted-riot choice — CR 614.12 /
+ * 702.136).
+ *
+ * A create-token-copy effect makes N tokens in a loop; each token must resolve its own as-enters
+ * choice (CR 707.2 — the copy has the copied card's abilities). When a token pauses, this frame is
+ * pushed **below** the choice's
+ * [EntersWithChoiceOnBattlefieldContinuation] so that, once that token's choice (and every granted-riot
+ * instance / chained printed choice) has resolved and its ETB triggers fired, the batch resumes here
+ * and creates the next token — which may pause again, pushing a fresh frame with a smaller [remaining].
+ * The resolution-time twin of [ModalPreChosenContinuation] / [ModalChosenModeTailContinuation]'s
+ * "push a tail frame below the nested decision" pattern; the copy analogue of
+ * [CreateTokenCopyAuraHostContinuation]'s per-token re-entry.
+ *
+ * [effect] is the original create-token-copy effect (a
+ * [com.wingedsheep.sdk.scripting.effects.CreateTokenCopyOfTargetEffect] or
+ * [com.wingedsheep.sdk.scripting.effects.CreateTokenCopyOfSourceEffect]) and [context] the resolution
+ * context, both re-used so the copy's source/target still resolves on resume — mirroring
+ * [CreateTokenCopyAuraHostContinuation].
+ *
+ * @property remaining how many more token copies are owed (always > 0 while this frame is live).
+ */
+@Serializable
+data class CreateTokenCopyRemainingContinuation(
+    override val decisionId: String,
+    val effect: @Serializable Effect,
+    val context: com.wingedsheep.engine.handlers.EffectContext,
+    val controllerId: EntityId,
+    val remaining: Int,
 ) : ContinuationFrame
 
 /**

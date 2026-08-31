@@ -130,6 +130,8 @@ class AIPlayerTest : FunSpec({
                 is SimulationResult.Terminal -> result.state.shouldNotBeNull()
                 is SimulationResult.NeedsDecision -> result.decision.shouldNotBeNull()
                 is SimulationResult.Illegal -> {}
+                is SimulationResult.StoppedAtLimit ->
+                    error("Ordinary legal-action simulation exhausted its automatic transition limit")
             }
         }
     }
@@ -175,43 +177,6 @@ class AIPlayerTest : FunSpec({
         val p1Life = state.getEntity(p1)?.get<LifeTotalComponent>()?.life ?: 20
         val p2Life = state.getEntity(p2)?.get<LifeTotalComponent>()?.life ?: 20
         (p1Life < 20 || p2Life < 20 || state.gameOver).shouldBeTrue()
-    }
-
-    test("searcher evaluates deeper than 1-ply without errors") {
-        val registry = createCardRegistry()
-        // Deck with instants — opponent can respond, triggering deeper search
-        val deck = Deck.of("Mountain" to 12, "Raging Goblin" to 4, "Volcanic Hammer" to 4)
-        val (state, _) = initGame(registry, deck)
-
-        val playerId = state.turnOrder[0]
-        val simulator = GameSimulator(registry)
-        val evaluator = AIPlayer.defaultEvaluator()
-        val searcher = Searcher(simulator, evaluator)
-
-        val actions = simulator.getLegalActions(state, playerId).filter { it.affordable }
-        // Search each action at depth 2 — should not throw
-        for (action in actions.take(5)) {
-            val score = searcher.searchAction(state, action, playerId, depth = 2)
-            score.isFinite().shouldBeTrue()
-        }
-    }
-
-    test("searcher at depth 2+ respects node limit") {
-        val registry = createCardRegistry()
-        val deck = Deck.of("Mountain" to 12, "Raging Goblin" to 4, "Volcanic Hammer" to 4)
-        val (state, _) = initGame(registry, deck)
-
-        val playerId = state.turnOrder[0]
-        val simulator = GameSimulator(registry)
-        val evaluator = AIPlayer.defaultEvaluator()
-        // Very tight node limit
-        val searcher = Searcher(simulator, evaluator, SearchConfig(maxDepth = 3, maxNodes = 50))
-
-        val actions = simulator.getLegalActions(state, playerId).filter { it.affordable }
-        for (action in actions.take(3)) {
-            val score = searcher.searchAction(state, action, playerId, depth = 3)
-            score.isFinite().shouldBeTrue()
-        }
     }
 
     test("simulating CastSpell resolves the spell onto the battlefield") {
@@ -321,18 +286,20 @@ class AIPlayerTest : FunSpec({
                 val pass = actions.find { it.actionType == "PassPriority" }
                 val passResult = if (pass != null) simulator.simulate(state, pass.action) else null
                 val passScore = if (passResult != null) {
-                    evaluator.evaluate(passResult.state, passResult.state.projectedState, p1)
+                    passResult.scoreOrRankLast { evaluator.evaluate(it, it.projectedState, p1) }
                 } else 0.0
 
                 println("=== AI ACTION SCORES ===")
                 println("Pass score: $passScore")
                 for (a in actions.filter { it.affordable && it.actionType != "PassPriority" && !it.isManaAbility }) {
                     val result = simulator.simulate(state, a.action)
-                    val score = evaluator.evaluate(result.state, result.state.projectedState, p1)
+                    val score = result.scoreOrRankLast { evaluator.evaluate(it, it.projectedState, p1) }
                     val resultType = when (result) {
                         is SimulationResult.Terminal -> "Terminal(stack=${result.state.stack.size})"
                         is SimulationResult.NeedsDecision -> "NeedsDecision(${result.decision::class.simpleName})"
                         is SimulationResult.Illegal -> "Illegal(${result.reason})"
+                        is SimulationResult.StoppedAtLimit ->
+                            "StoppedAtLimit(${result.automaticTransitions}/${result.limit})"
                     }
                     println("  ${a.actionType}(${a.description}): score=$score, result=$resultType")
                 }

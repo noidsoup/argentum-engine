@@ -20,7 +20,7 @@ import kotlinx.serialization.Serializable
  * lost the game, gained life, cast the spell) against another resolved player reference. Used to
  * narrow a broad "whenever a player does X" trigger to a specific player without a bespoke event
  * filter: Shinryu, Transcendent Rival gates "When the chosen player loses the game, you win the
- * game" as `triggerCondition = TriggeringPlayerIs(Player.ChosenOpponent)`. Both sides resolve via
+ * game" as `triggerRestriction = TriggeringPlayerIs(Player.ChosenOpponent)`. Both sides resolve via
  * the engine's shared player resolver, so any [Player] reference works on the right-hand side.
  */
 @SerialName("TriggeringPlayerIs")
@@ -128,6 +128,10 @@ data class TargetIsSpellOnStack(
 enum class ComparisonOperator {
     LT, LTE, EQ, NEQ, GT, GTE;
 
+    /**
+     * The mathematical symbol. Debug/diagnostic rendering only — anything a player reads should use
+     * [phrase] instead, so "…can't attack unless X >= 2" comes out as "…unless X is at least 2".
+     */
     val symbol: String
         get() = when (this) {
             LT -> "<"
@@ -136,6 +140,24 @@ enum class ComparisonOperator {
             NEQ -> "!="
             GT -> ">"
             GTE -> ">="
+        }
+
+    /**
+     * English rendering of the comparison, phrased to follow an "is": "is **at least** 2",
+     * "is **greater than** the number of creatures defending player controls".
+     *
+     * Mirrors Magic's own comparative wording ("two or more" → at least, "fewer than" → less than)
+     * rather than inventing a house style, so a [Compare] description drops into rules text without
+     * reading like a debug dump.
+     */
+    val phrase: String
+        get() = when (this) {
+            LT -> "less than"
+            LTE -> "at most"
+            EQ -> "exactly"
+            NEQ -> "not"
+            GT -> "greater than"
+            GTE -> "at least"
         }
 }
 
@@ -159,7 +181,7 @@ data class Compare(
     val operator: ComparisonOperator,
     val right: DynamicAmount
 ) : Condition {
-    override val description: String = "${left.description} ${operator.symbol} ${right.description}"
+    override val description: String = "${left.description} is ${operator.phrase} ${right.description}"
     override fun applyTextReplacement(replacer: TextReplacer): Condition {
         val newLeft = left.applyTextReplacement(replacer)
         val newRight = right.applyTextReplacement(replacer)
@@ -174,7 +196,7 @@ data class Compare(
  * (`Player.You`), the attacked player (`Player.DefendingPlayer`), the triggering player, etc.
  *
  * Preacher of the Schism: "Whenever this creature attacks the player with the most life or tied for
- * most life, …" (`triggerCondition = PlayerHasMostLife(Player.DefendingPlayer)`) and "Whenever this
+ * most life, …" (`triggerRestriction = PlayerHasMostLife(Player.DefendingPlayer)`) and "Whenever this
  * creature attacks while you have the most life or are tied for most life, …"
  * (`PlayerHasMostLife(Player.You)`).
  */
@@ -183,6 +205,34 @@ data class Compare(
 data class PlayerHasMostLife(val player: Player) : Condition {
     override val description: String =
         "if ${player.description} has the most life or is tied for most life"
+}
+
+/**
+ * True when [player] controls the most permanents matching [filter], or is tied for the most,
+ * among all players (their count ≥ every player's). The board-count sibling of
+ * [PlayerHasMostLife] — the same shape a binary [Compare] can't express, since it needs the max
+ * over every player rather than a fixed threshold.
+ *
+ * Counts are read from the projected battlefield, so type-changing continuous effects (an animated
+ * land, a creature that lost its types) are honored.
+ *
+ * No Witnesses: "Each player who controls the most creatures investigates" — a per-player loop
+ * whose body is gated on `PlayerControlsMostPermanents(Player.You, GameObjectFilter.Creature)`,
+ * which inside the loop asks about the iterated player. Ties are included, exactly as printed.
+ */
+@SerialName("PlayerControlsMostPermanents")
+@Serializable
+data class PlayerControlsMostPermanents(
+    val player: Player,
+    val filter: GameObjectFilter = GameObjectFilter.Creature,
+) : Condition {
+    override val description: String =
+        "if ${player.description} controls the most ${filter.description} or is tied for the most"
+
+    override fun applyTextReplacement(replacer: TextReplacer): Condition {
+        val newFilter = filter.applyTextReplacement(replacer)
+        return if (newFilter !== filter) copy(filter = newFilter) else this
+    }
 }
 
 /**
@@ -290,10 +340,20 @@ data class APlayerLifeAtMost(val threshold: Int) : Condition {
     override val description: String = "a player has $threshold or less life"
 }
 
-/**
- * True when [entity] is currently in [zone] (e.g. source still on the battlefield at resolution).
- * Resolution-only; uses base zone membership, not projected characteristics.
- */
+/** Condition: every player in the game has [threshold] or less life. */
+@SerialName("EachPlayerLifeAtMost")
+@Serializable
+data class EachPlayerLifeAtMost(val threshold: Int) : Condition {
+    override val description: String = "each player has $threshold or less life"
+}
+
+/** Condition: at least one opponent of the ability's controller has [threshold] or less life. */
+@SerialName("AnOpponentLifeAtMost")
+@Serializable
+data class AnOpponentLifeAtMost(val threshold: Int) : Condition {
+    override val description: String = "an opponent has $threshold or less life"
+}
+
 @SerialName("EntityInZone")
 @Serializable
 data class EntityInZone(

@@ -27,6 +27,11 @@ data class ScryfallMetadata(
     val artist: String? = null,
     val flavorText: String? = null,
     val imageUri: String? = null,
+    /**
+     * Display-only art selected from the permanent's projected creature subtypes. This lets art
+     * follow continuous type-changing effects without making the client infer game rules.
+     */
+    val imageUriByCreatureSubtype: Map<String, String> = emptyMap(),
     val scryfallId: String? = null,
     val releaseDate: String? = null,
     val rulings: List<Ruling> = emptyList(),
@@ -41,9 +46,10 @@ data class ScryfallMetadata(
     /**
      * Whether this printing is part of the set's draft/sealed product. Mirrors Scryfall's
      * `booster` field — false for Special Guests, The List, promos, and other non-draft slots.
-     * Drives [com.wingedsheep.engine.limited.BoosterGenerator]: gates both the booster pool and
-     * the basic-land variants offered during draft/sealed deck building (so a basic art variant
-     * marked `false` is still defined, just not selectable in limited).
+     * Drives [com.wingedsheep.engine.limited.BoosterGenerator]: gates both the booster pool and the
+     * basic-land variants a set can offer during draft/sealed deck building (so a basic art variant
+     * marked `false` is still defined, just never the printing limited hands out — of the remaining
+     * variants, the standard art wins; see [BasicLandArt]).
      */
     val inBooster: Boolean = true
 )
@@ -203,11 +209,46 @@ data class CardDefinition(
     val backFace: CardDefinition? = null,  // For double-faced cards
     val metadata: ScryfallMetadata = ScryfallMetadata(),  // Scryfall metadata for web client
     val startingLoyalty: Int? = null,  // For planeswalkers
+    /**
+     * The number printed in a battle's lower right corner (CR 310.4a). A battle has the intrinsic
+     * ability "this permanent enters with this many defense counters on it" (CR 310.4b), so on the
+     * battlefield its defense is its defense-counter count (CR 310.4c) rather than this field. The
+     * battle analogue of [startingLoyalty]; null for every other card type.
+     */
+    val startingDefense: Int? = null,
     val legalFormats: Set<DeckFormat> = emptySet(),  // Formats in which the card is legal (Scryfall-sourced)
     val colorIdentityOverride: Set<Color>? = null,  // Authoritative Scryfall color identity; null = derive from heuristic
     val colorIndicator: Set<Color>? = null,  // Explicit color indicator (CR 204); null = no indicator, color comes from mana cost
     val layout: CardLayout = CardLayout.NORMAL,
-    val cardFaces: List<CardFace> = emptyList()  // Populated for non-NORMAL layouts (e.g. SPLIT Rooms)
+    val cardFaces: List<CardFace> = emptyList(),  // Populated for non-NORMAL layouts (e.g. SPLIT Rooms)
+    /**
+     * True when the card is printed with genuinely no mana cost — not even "{0}" — so it can
+     * never be cast normally (CR 202.1b: having no mana cost represents an unpayable cost;
+     * CR 118.6: attempting to pay an unpayable cost is illegal), only via an alternative cost or
+     * a "play without paying its mana cost" effect (e.g. Ancestral Vision's Suspend). Set by the
+     * `card { }` DSL exactly when its `manaCost` string is blank; distinct from [manaCost] being
+     * [ManaCost.ZERO] for other reasons (a printed "{0}" cost parses to a non-empty one-symbol
+     * list and leaves this false).
+     */
+    val hasNoManaCost: Boolean = false,
+    /**
+     * True for a **meld result** (CR 701.42) — the single permanent two meld cards combine into,
+     * such as Chittering Host (Graf Rats + Midnight Scavengers) or Brisela, Voice of Nightmares
+     * (Bruna, the Fading Light + Gisela, the Broken Blade).
+     *
+     * A meld result is physically the *back halves* of its two meld parts, not a card of its own:
+     * it is never opened in a booster, never drafted, never picked in limited, and never put in a
+     * deck — the only way it exists is by melding the pair on the battlefield. We nonetheless
+     * define it as a standalone [CardDefinition] so the corpus carries its characteristics for when
+     * meld is supported (today the parts' meld triggers are deliberately unwired).
+     *
+     * That "in the corpus but not a real deck card" split is exactly what this flag exists for:
+     * every pool that answers *"which cards can a player end up owning?"* — booster / draft /
+     * sealed pools, constructed pools, the deckbuilder catalog — filters it out. Scryfall can't be
+     * the source here: it marks meld results `booster: true` and format-legal, because the physical
+     * card they're printed on is in the booster and legal (as the meld *parts*).
+     */
+    val meldResult: Boolean = false,
 ) {
     init {
         if (typeLine.isCreature) {
@@ -223,9 +264,35 @@ data class CardDefinition(
      * override. A card with an empty mana cost and a black color indicator is exactly black; a
      * normal card (no indicator) is just its mana-cost colors. Used e.g. by The Grim Captain, whose
      * transformed back face has no mana cost and a black color indicator.
+     *
+     * [Keyword.DEVOID] (CR 702.114a) overrides both. Devoid is a characteristic-defining ability —
+     * "this object is colorless" — and CDAs function in every zone (CR 604.3), so it belongs to the
+     * card's derived colors rather than to any continuous effect: every reader downstream (the
+     * engine's `CardComponent.colors`, projection's layer-5 base row, evasion and protection checks,
+     * the client card view, search) then sees a colorless object in hand, graveyard, exile, on the
+     * stack and on the battlefield alike, with nothing to wire per zone. A layer-5 effect that says
+     * "becomes blue" still applies on top, which is the order CR 613.3 asks for (CDAs first, then
+     * other effects by timestamp).
+     *
+     * [colorIdentity] deliberately does **not** consult devoid: CR 903.4 builds identity out of the
+     * mana symbols in the cost and rules text, and devoid defines *no* color for the CDA clause to
+     * contribute. Ulamog's Nullifier is colorless and blue-identity at the same time.
      */
     val colors: Set<Color>
-        get() = if (colorIndicator == null) manaCost.colors else manaCost.colors + colorIndicator
+        get() = when {
+            hasDevoid -> emptySet()
+            colorIndicator == null -> manaCost.colors
+            else -> manaCost.colors + colorIndicator
+        }
+
+    /**
+     * Devoid, in either of the two spellings the SDK gives a parameterless keyword: the bare
+     * [keywords] set — what the `keywords(…)` DSL and Assay's compiler both write — and the
+     * [keywordAbilities] list a card may reach for instead. Reading only one would make a card's
+     * colorlessness depend on which spelling its author picked.
+     */
+    private val hasDevoid: Boolean
+        get() = Keyword.DEVOID in keywords || keywordAbilities.any { it.keyword == Keyword.DEVOID }
 
     /**
      * Color identity per CR 903.4: the colors of any mana symbols in the card's mana cost or
@@ -332,7 +399,24 @@ data class CardDefinition(
      */
     val isRoom: Boolean
         get() = isSplit && cardFaces.any { it.typeLine.isRoom }
+    /**
+     * True if this face is **printed sideways** — its card image is an ordinary portrait file
+     * containing a card lying on its side, so every surface that draws it has to rotate it 90° and
+     * give it a landscape footprint.
+     *
+     * The single place that decides what "landscape" means. Two families qualify today: split
+     * layouts (CR 709 — Pain // Suffering, and Rooms) and battles (CR 310). A future landscape card
+     * type is one clause here and nothing else: the game view (`ClientCard.isLandscapeFace`), the
+     * sealed/draft view (`SealedCardInfo.isLandscape`), and every renderer downstream read this
+     * rather than re-deriving orientation from layouts and type lines.
+     *
+     * A property of the *face*, not the card — a transforming double-faced card can be landscape on
+     * one side and portrait on the other (Invasion of Innistrad // Deluge of the Dead).
+     */
+    val isLandscapePrint: Boolean get() = isSplit || isBattle
     val isPlaneswalker: Boolean get() = CardType.PLANESWALKER in typeLine.cardTypes
+    val isBattle: Boolean get() = typeLine.isBattle
+    val isSiege: Boolean get() = typeLine.isSiege
     val isClass: Boolean get() = typeLine.isClass
     val isSaga: Boolean get() = typeLine.isSaga
 
@@ -655,6 +739,96 @@ data class CardDefinition(
             require(frontFace.isPermanent) { "Front face must be a permanent: ${frontFace.name}" }
             require(backFace.isPermanent) { "Back face must be a permanent: ${backFace.name}" }
             return frontFace.copy(backFace = backFace)
+        }
+
+        /**
+         * Creates a **modal** double-faced card whose back face is a permanent (CR 712.3), for the
+         * Marvel Super Heroes hero cycle: Jennifer Walters // The Sensational She-Hulk, Bruce
+         * Banner // The Incredible Hulk, and the rest.
+         *
+         * These are modal *and* transforming, which CR 712.3 explicitly allows: *"Modal
+         * double-faced cards have a Magic card face on each side. These faces are usually
+         * independent from one another, **but they may have an ability that allows them to
+         * 'transform' or 'convert' on either face**."* So the card supports two routes to the back
+         * face, and both must work:
+         *
+         *  - **Cast it.** Per CR 712.11b the caster chooses a face before putting the card on the
+         *    stack, and per CR 712.11c only that face is evaluated — so the back face is castable
+         *    from hand for **its own printed mana cost**, and resolves onto the battlefield back
+         *    face up (CR 712.13).
+         *  - **Transform into it.** The front face's printed activated ability
+         *    (`{3}{G}{W}{W}: Transform Jennifer Walters`) flips a front-face-up permanent, exactly
+         *    as it would on a nonmodal DFC.
+         *
+         * Both routes reach the same [backFace] definition, which is why the back is a full
+         * [CardDefinition] here rather than a [CardFace]: it needs P/T, keywords and its own
+         * abilities on the battlefield. (Modal DFCs with a *spell* back — Flamescroll Celebrant //
+         * Revel in Silence — use `modalBack { }` in the DSL and live in [cardFaces] instead; a
+         * spell face never becomes a permanent and needs none of that.)
+         *
+         * **The back face keeps its printed mana cost and takes no color indicator.** That is not
+         * cosmetic. CR 712.8f — *"While a modal double-faced spell is on the stack or a modal
+         * double-faced permanent is on the battlefield, it has only the characteristics of the face
+         * that's up"* — has no mana-value exception, unlike CR 712.8e for nonmodal DFCs. So a
+         * transformed The Sensational She-Hulk has mana value 6, not Jennifer Walters' 2, and its
+         * G/W colors come from `{3}{G}{W}{W}` rather than from a CR 204 color indicator (which is
+         * why the printed card shows none).
+         *
+         * @param frontFace The front face (must be a permanent).
+         * @param backFace The back face (must be a permanent, and must carry its own mana cost —
+         *   it is castable).
+         */
+        fun modalDoubleFacedPermanent(
+            frontFace: CardDefinition,
+            backFace: CardDefinition
+        ): CardDefinition {
+            require(frontFace.isPermanent) { "Front face must be a permanent: ${frontFace.name}" }
+            require(backFace.isPermanent) { "Back face must be a permanent: ${backFace.name}" }
+            require(!backFace.manaCost.isEmpty()) {
+                "Modal DFC back face '${backFace.name}' must have its own mana cost — it is castable (CR 712.11b)"
+            }
+            require(backFace.colorIndicator == null) {
+                "Modal DFC back face '${backFace.name}' takes no color indicator; its colors come " +
+                    "from its own mana cost (CR 712.8f)"
+            }
+            return frontFace.copy(backFace = backFace, layout = CardLayout.MODAL_DFC)
+        }
+
+        /**
+         * Creates a **modal double-faced land** — a modal DFC (CR 712.3) both of whose faces are
+         * lands, the Zendikar Rising Pathway cycle (Riverglide Pathway // Lavaglide Pathway and its
+         * nine siblings).
+         *
+         * The rule that makes this its own shape is CR 712.12: *"A player playing a modal
+         * double-faced card or a copy of a modal double-faced card as a land chooses one of its
+         * faces that's a land before putting it onto the battlefield. It enters the battlefield
+         * with that face up."* So neither face is ever cast — the card is **played**, and the
+         * choice is made on the way in — which is exactly why it can't use
+         * [modalDoubleFacedPermanent]: that factory requires the back face to carry its own mana
+         * cost because it is castable (CR 712.11b), and a land has none.
+         *
+         * Once on the battlefield the permanent has only the played face's characteristics
+         * (CR 712.8f) and can never turn over — CR 712.9 excludes modal DFCs from transforming.
+         *
+         * @param frontFace The front face (must be a land with no mana cost).
+         * @param backFace The back face (must be a land with no mana cost).
+         */
+        fun modalDoubleFacedLand(
+            frontFace: CardDefinition,
+            backFace: CardDefinition
+        ): CardDefinition {
+            for (face in listOf(frontFace, backFace)) {
+                require(face.typeLine.isLand) {
+                    "Modal double-faced land face '${face.name}' must be a land (CR 712.12)"
+                }
+                require(face.manaCost.isEmpty()) {
+                    "Modal double-faced land face '${face.name}' is played, not cast — it takes no mana cost"
+                }
+                require(face.colorIndicator == null) {
+                    "Modal double-faced land face '${face.name}' takes no color indicator; a land face is colorless"
+                }
+            }
+            return frontFace.copy(backFace = backFace, layout = CardLayout.MODAL_DFC)
         }
 
         /**

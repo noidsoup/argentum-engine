@@ -42,12 +42,14 @@ data class CompositeEffect(
     override val description: String =
         descriptionOverride ?: effects.joinToString(". ") { it.description }
 
-    override fun runtimeDescription(resolver: (DynamicAmount) -> Int): String {
+    override fun runtimeDescription(resolver: (DynamicAmount) -> Int?): String {
         val template = descriptionOverride
             ?: return effects.joinToString(". ") { it.runtimeDescription(resolver) }
         var rendered = template
         descriptionAmounts.forEachIndexed { index, amount ->
-            rendered = rendered.replace("{$index}", resolver(amount).toString())
+            // Undeterminable slot: substitute the amount's own wording rather than a bogus "0".
+            val value = resolver(amount)?.toString() ?: amount.description
+            rendered = rendered.replace("{$index}", value)
         }
         return rendered
     }
@@ -127,6 +129,15 @@ data class Mode(
  *           (i.e. "choose exactly N"). Set lower for "choose one or both" / "choose one or more" (rules 700.2).
  * @property allowRepeat If true, the same mode index may be chosen more than once
  *           (rules 700.2d — Escalate/Spree-style).
+ * @property additionalManaCostPerExtraMode Additional cost paid for each chosen mode beyond the
+ *           first. Models escalate without assigning a cost to any particular printed mode.
+ * @property additionalCostPerExtraMode The non-mana sibling of [additionalManaCostPerExtraMode] —
+ *           escalate whose cost is a payable thing rather than mana ("Escalate—Discard a card",
+ *           Collective Brutality; "Escalate—Tap an untapped creature you control", Collective
+ *           Effort). Paid once for each mode chosen beyond the first, so with three modes chosen
+ *           the caster discards two cards. The engine charges it as a single scaled cost
+ *           (`atom.repeated(extraModes)`), which is what the flat payment channels can validate.
+ *           A card may carry both this and [additionalManaCostPerExtraMode]; no printed card does.
  */
 @SerialName("Modal")
 @Serializable
@@ -135,6 +146,8 @@ data class ModalEffect(
     val chooseCount: Int = 1,
     val minChooseCount: Int = chooseCount,
     val allowRepeat: Boolean = false,
+    val additionalManaCostPerExtraMode: String? = null,
+    val additionalCostPerExtraMode: com.wingedsheep.sdk.scripting.costs.CostAtom? = null,
     /**
      * If true, when this spell's `AdditionalCost.BlightOrPay` cost was paid via the
      * blight path, the effective number of modes the player must choose becomes
@@ -149,19 +162,34 @@ data class ModalEffect(
      * result as the effective maximum, clamped to `modes.size`. Two evaluation sites with
      * different floor semantics:
      *
-     * - **Resolution-time** (modal triggered/activated abilities, `ModalEffectExecutor`):
-     *   [minChooseCount] is treated as `0` (always "choose up to"); [chooseCount] is ignored.
-     *   Used for "choose up to X" where X depends on resolution-time data (Riku of Many
-     *   Paths — X is the number of modes the cast modal spell chose). See
+     * - **Put-on-stack / resolution-time** (modal abilities): [minChooseCount] is treated as `0`
+     *   (always "choose up to"); [chooseCount] is ignored. A modal *triggered* ability evaluates it
+     *   as the ability goes onto the stack (CR 603.3c, `TriggerProcessor`) and the result is then
+     *   fixed; a modal *activated* ability evaluates it on resolution (`ModalEffectExecutor`). Used
+     *   for "choose up to X" where X depends on game state rather than the cast (Riku of Many
+     *   Paths — X is the number of modes the triggering modal spell chose). See
      *   [chooseUpToDynamic].
-     * - **Cast-time** (modal *spells*, `CastSpellHandler.effectiveModalChooseCounts`): the
-     *   [minChooseCount] floor is preserved, so the effective range is
-     *   `[minChooseCount, eval.coerceIn(minChooseCount, modes.size)]`. Models "Choose one. If
-     *   [condition] as you cast this spell, you may choose two instead." (Flame of Anor):
-     *   `chooseCount = 2, minChooseCount = 1` with a [DynamicAmount.Conditional] that yields
-     *   2 when the condition holds, else 1.
+     * - **Cast-time** (modal *spells*, `ModalChooseCounts.forCast`): the floor comes from
+     *   [dynamicMinChooseCount] if set and [minChooseCount] otherwise, so the effective range is
+     *   `[floor, eval.coerceIn(floor, modes.size)]`. Models "Choose one. If [condition] as you cast
+     *   this spell, you **may** choose two instead." (Flame of Anor): `chooseCount = 2,
+     *   minChooseCount = 1` with a [DynamicAmount.Conditional] that yields 2 when the condition
+     *   holds, else 1.
      */
     val dynamicChooseCount: com.wingedsheep.sdk.scripting.values.DynamicAmount? = null,
+    /**
+     * Optional runtime-evaluated *lower* bound, the mandatory sibling of [dynamicChooseCount].
+     * Evaluated the same way, at the same cast-time site, and clamped the same way.
+     *
+     * The two exist because the printed wording splits: "you **may** choose two instead" leaves the
+     * floor at one (Flame of Anor — set [dynamicChooseCount] alone), while "choose both **instead**"
+     * does not (the Marvel Super Heroes teamwork modals — set both to the same [DynamicAmount], as
+     * `teamworkModal { }` does). With only a ceiling, a player who paid the extra cost could still
+     * take a single mode, which no printed card allows.
+     *
+     * Ignored at the resolution-time site, where [minChooseCount] is already treated as 0.
+     */
+    val dynamicMinChooseCount: com.wingedsheep.sdk.scripting.values.DynamicAmount? = null,
     /**
      * "Choose one that hasn't been chosen" (e.g., Gandalf the Grey). When `true`, the
      * engine remembers which modes the *source permanent* has already chosen across the
@@ -304,8 +332,9 @@ data class ModalEffect(
             ModalEffect(modes.toList(), 2)
 
         /**
-         * Create a "choose up to X" modal effect where X is evaluated at resolution
-         * time from a [com.wingedsheep.sdk.scripting.values.DynamicAmount]. The player
+         * Create a "choose up to X" modal effect where X is evaluated from a
+         * [com.wingedsheep.sdk.scripting.values.DynamicAmount] — as the ability goes onto the stack
+         * for a triggered ability (CR 603.3c), on resolution for an activated one. The player
          * may decline (pick 0) and may pick at most `min(X, modes.size)` total modes.
          * Mode repetition is not allowed by default (per CR-compliant "choose up to N")
          * — pass `allowRepeat = true` for Spree-style behavior.
@@ -493,6 +522,44 @@ sealed interface SuccessCriterion {
     @SerialName("SuccessCriterion.CountersRemoved")
     @Serializable
     data object CountersRemoved : SuccessCriterion
+
+    /**
+     * Action succeeded iff the gated action actually *sacrificed a permanent* — at least one
+     * `PermanentsSacrificedEvent` carrying a non-empty permanent list was emitted during the action.
+     * Use for the "Sacrifice a [permanent]. If you do, …" shape: a sacrifice is a zone move, but which
+     * permanent (and so whose graveyard) isn't known until the chooser decides at resolution, so
+     * [Auto] can't infer it, and [Always] would wrongly fire the payoff for a player who controls
+     * nothing to sacrifice.
+     *
+     * Garruk, the Veil-Cursed: "−1: Sacrifice a creature. If you do, search your library for a
+     * creature card, reveal it, put it into your hand, then shuffle." Per the 2011-09-22 ruling the
+     * ability doesn't target and "you must sacrifice a creature **if you control one**" — so an empty
+     * board means no sacrifice and no search.
+     */
+    @SerialName("SuccessCriterion.PermanentsSacrificed")
+    @Serializable
+    data object PermanentsSacrificed : SuccessCriterion
+
+    /**
+     * Action succeeded iff the gated action actually *turned a permanent face up* — a
+     * `TurnFaceUpEvent` was emitted during the action. Turning face up is not a zone move, so
+     * [Auto] can't infer it, and [Always] would wrongly report success for the cases the rules
+     * single out as failures.
+     *
+     * A `TurnFaceUpEffect` deliberately produces no such event when it can't do its work:
+     * a manifested or cloaked permanent represented by an instant or sorcery card is revealed and
+     * left face down (CR 701.40g / 701.58g), and a permanent that is already face up has nothing
+     * to turn. Both are exactly the "you can't" the gate must catch.
+     *
+     * Etrata, Deadly Fugitive grants face-down creatures "{2}{U}{B}: Turn this creature face up.
+     * **If you can't**, exile it, then you may cast the exiled card without paying its mana cost."
+     * — the fallback lives in [GatedEffect.otherwise], so the primary instruction stays the gated
+     * action rather than being re-encoded as a condition that would have to re-derive the engine's
+     * own turn-up legality.
+     */
+    @SerialName("SuccessCriterion.TurnedFaceUp")
+    @Serializable
+    data object TurnedFaceUp : SuccessCriterion
 }
 
 /**
@@ -510,7 +577,8 @@ enum class DamageRecipient {
 /**
  * "Behold a [filter]" as a resolution-time effect (CR: a player beholds a permanent by either
  * choosing a matching permanent they control or revealing a matching card from their hand).
- * Unlike the cast-time [AdditionalCost.Behold] / [AdditionalCost.BeholdOrPay], this is the
+ * Unlike the cast-time [AdditionalCost.Behold] (on its own or as an [AdditionalCost.OrPay] leg),
+ * this is the
  * *effect-side* behold used inside abilities such as Sarkhan, Dragon Ascendant's ETB
  * ("you may behold a Dragon. If you do, create a Treasure token.").
  *
@@ -602,13 +670,31 @@ data class ReflexiveTriggerEffect(
  * @property cost The cost that can be paid to avoid the consequence
  * @property suffer The consequence if the cost is not paid
  * @property player Who must make the choice (defaults to controller)
+ * @property consequenceDescription The prompt's words for what happens if the cost isn't paid
  */
 @SerialName("PayOrSuffer")
 @Serializable
 data class PayOrSufferEffect(
     val cost: PayCost,
     val suffer: Effect,
-    val player: EffectTarget = EffectTarget.Controller
+    val player: EffectTarget = EffectTarget.Controller,
+    /**
+     * The consequence clause of the player-facing prompt ("Pay {2} or **…**?"), in the card's own
+     * words. Null generates it from [suffer], which is right for the common case where the payer is
+     * the ability's controller.
+     *
+     * It stops being right as soon as [player] routes the question elsewhere. An effect description
+     * is an imperative fragment addressed to the ability's controller — [GainControlEffect] renders
+     * "gain control of target" — so asking an *opponent* that question inverts who does what:
+     * Scarwood Bandits asked its victim "Pay {2} or gain control of target for as long as this
+     * creature remains on the battlefield?", offering them the theft they were the subject of.
+     * The unresolved "target" and "this creature" are the same fragment's other half — placeholders
+     * that read as the card's text, not as this game's board.
+     *
+     * Write this out whenever [player] is not the controller, and whenever the generated text would
+     * name a placeholder the player can't resolve.
+     */
+    val consequenceDescription: String? = null
 ) : Effect {
     override val description: String = "${suffer.description} unless you ${cost.description}"
 
@@ -654,7 +740,19 @@ enum class DelayedTriggerTiming {
      * rather than an intervening opponent turn. (Kav Landseeker.)
      */
     @SerialName("NextTurn")
-    NEXT_TURN
+    NEXT_TURN,
+
+    /**
+     * "…the next [step] **this turn**": no turn floor, but the trigger is discarded at end of turn
+     * if that step never comes around again. Feral Encounter ("at the beginning of the next combat
+     * phase this turn") is the shape — cast it in a postcombat main phase and the ability simply
+     * never triggers, rather than lying in wait for the opponent's combat.
+     *
+     * [CURRENT_TURN_OR_LATER] is the open-ended cousin: it also allows the current turn but keeps
+     * waiting across turn boundaries, which is what "at the beginning of the next end step" wants.
+     */
+    @SerialName("ThisTurnOnly")
+    THIS_TURN_ONLY
 }
 
 /**
@@ -720,6 +818,12 @@ data class CreateDelayedTriggerEffect(
      */
     val fireOnce: Boolean = false,
     /**
+     * For step-based delayed triggers: keep the trigger resident after it fires so it repeats at
+     * every matching step until [expiry]. The default preserves the ordinary one-shot "at the
+     * beginning of the next ..." shape.
+     */
+    val repeatAtEachMatchingStep: Boolean = false,
+    /**
      * The earliest turn this step-based delayed trigger may fire. See
      * [DelayedTriggerTiming]. Orthogonal to [fireOnPlayer], which gates *whose* turn the
      * trigger fires on (not *which* turn is the earliest eligible one).
@@ -733,6 +837,15 @@ data class CreateDelayedTriggerEffect(
      * Null for non-targeting delayed triggers (the common case).
      */
     val targetRequirement: TargetRequirement? = null,
+    /**
+     * Further target requirements beyond [targetRequirement], for a delayed trigger that targets
+     * more than once — Feral Encounter's "at the beginning of the next combat phase this turn,
+     * target creature you control deals damage equal to its power to up to one target creature you
+     * don't control". They are exposed to [effect] as
+     * [com.wingedsheep.sdk.scripting.targets.EffectTarget.ContextTarget] 1, 2, … in order, with
+     * [targetRequirement] at index 0, and the whole list is chosen fresh each time the trigger fires.
+     */
+    val additionalTargetRequirements: List<TargetRequirement> = emptyList(),
     /**
      * For step-based delayed triggers: restrict firing to a specific player's matching step,
      * rather than every player's. Resolved to a concrete player entity id at scheduling time
@@ -783,6 +896,37 @@ sealed interface DelayedTriggerExpiry {
     @SerialName("DelayedTriggerExpiry.Never")
     @Serializable
     data object Never : DelayedTriggerExpiry
+
+    /**
+     * Remove the delayed trigger after the untap step of its **controller's** next turn — the
+     * delayed-trigger analogue of [com.wingedsheep.sdk.scripting.Duration.UntilYourNextTurn], and
+     * expired on the same post-untap hook so both wordings wear off at the same moment.
+     *
+     * Models "Until your next turn, whenever …" riders that install a watcher rather than a
+     * continuous effect: Tamiyo, Field Researcher's +1 ("Until your next turn, whenever either of
+     * those creatures deals combat damage, you draw a card"). Unlike [EndOfTurn] the trigger
+     * survives the intervening opponents' turns, and unlike [Never] it does not outlive the
+     * controller's next untap step.
+     */
+    @SerialName("DelayedTriggerExpiry.UntilControllersNextTurn")
+    @Serializable
+    data object UntilControllersNextTurn : DelayedTriggerExpiry
+
+    /**
+     * Remove the delayed trigger when the current combat phase ends — the scope of a "this combat"
+     * rider, which [EndOfTurn] is too coarse for once a turn has more than one combat phase.
+     *
+     * Goblin Flotilla (FEM) installs one per combat: "At the beginning of each combat, unless you
+     * pay {R}, whenever this creature blocks or becomes blocked by a creature *this combat*, that
+     * creature gains first strike until end of turn." Paying in the second combat must not leave
+     * the first combat's unpaid watcher running.
+     *
+     * Expired alongside the removal of creatures from combat, on entry to the postcombat main
+     * phase — the same moment the engine considers the combat phase over.
+     */
+    @SerialName("DelayedTriggerExpiry.EndOfCombat")
+    @Serializable
+    data object EndOfCombat : DelayedTriggerExpiry
 }
 
 /**
@@ -984,6 +1128,40 @@ data class FlipCoinsEffect(
     val storeHeadsAs: String = "heads"
 ) : Effect {
     override val description: String = "Flip $count coins"
+}
+
+/**
+ * Flip coins one at a time until the flipper *loses* a flip or chooses to stop, then store how many
+ * flips they won under [storeWinsAs] in pipeline `storedNumbers`.
+ *
+ * The open-ended sibling of [FlipCoinsEffect]: there the count is known up front and every coin is
+ * flipped, here the count is discovered as you go and a lost flip ends the run immediately. That
+ * asymmetry is the whole reason this is its own primitive rather than a `RepeatWhileEffect` over
+ * [FlipCoinEffect] — a repeat condition is asked unconditionally after each body, so it cannot express
+ * "stop *because* the flip was lost", and the repeat loop deliberately restarts each iteration from the
+ * pristine pre-loop context, so a running tally could not survive the prompt between flips.
+ *
+ * The order within one iteration is flip → check → ask, which is what "after each flip, you choose
+ * whether to continue flipping" means: the choice is only ever offered after a *won* flip, because a
+ * lost flip has already ended the run.
+ *
+ * Losing the very first flip stores 0. Because an unread [storeWinsAs] resolves to 0
+ * (`DynamicAmount.VariableReference` reads a missing key as zero), a card that gates its payoffs on
+ * "if you win one or more flips" needs no separate "if you lose a flip, this has no effect" branch —
+ * that sentence is the absence of every payoff.
+ *
+ * Used by Fiery Gambit ("Flip a coin until you lose a flip or choose to stop flipping"), whose three
+ * payoff tiers are then plain `Compare(VariableReference(storeWinsAs), GTE, Fixed(n))` gates over the
+ * one tally.
+ *
+ * @property storeWinsAs Pipeline `storedNumbers` key the won-flip tally is written to.
+ */
+@SerialName("FlipCoinsUntilLoss")
+@Serializable
+data class FlipCoinsUntilLossEffect(
+    val storeWinsAs: String = "wins"
+) : Effect {
+    override val description: String = "Flip a coin until you lose a flip or choose to stop flipping"
 }
 
 /**

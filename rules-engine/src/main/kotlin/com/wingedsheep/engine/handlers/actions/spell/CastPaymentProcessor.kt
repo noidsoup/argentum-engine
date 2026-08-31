@@ -4,6 +4,7 @@ import com.wingedsheep.engine.core.GameEvent
 import com.wingedsheep.engine.core.ManaSpentEvent
 import com.wingedsheep.engine.core.PaymentStrategy
 import com.wingedsheep.engine.handlers.CostHandler
+import com.wingedsheep.engine.handlers.effects.life.LifePaymentService
 import com.wingedsheep.engine.mechanics.mana.ManaAbilitySideEffectExecutor
 import com.wingedsheep.engine.mechanics.mana.ManaSolver
 import com.wingedsheep.engine.state.GameState
@@ -21,16 +22,18 @@ import com.wingedsheep.sdk.scripting.effects.ManaSpellRider
 /**
  * Result of a mana payment attempt.
  *
- * @property consumedRiders Union of [ManaSpellRider]s carried by the mana actually
- *   spent on this payment (from both restricted floating mana and freshly-tapped
- *   sources). The caller applies each rider to the spell as it goes on the stack —
- *   e.g. [ManaSpellRider.MakesSpellUncounterable] stamps `CantBeCounteredComponent`.
+ * @property consumedRiders Every [ManaSpellRider] carried by the mana actually spent on this
+ *   payment (from both restricted floating mana and freshly-tapped sources). The caller applies
+ *   each rider to the spell as it goes on the stack — e.g.
+ *   [ManaSpellRider.MakesSpellUncounterable] stamps `CantBeCounteredComponent`. A **list**, not a
+ *   set: two rider-carrying mana spent on one spell must fire the rider twice (Pyromancer's
+ *   Goggles copies the spell once per {R} spent), so identical riders must not be deduplicated.
  */
 data class PaymentResult(
     val state: GameState,
     val events: List<GameEvent>,
     val error: String?,
-    val consumedRiders: Set<ManaSpellRider> = emptySet(),
+    val consumedRiders: List<ManaSpellRider> = emptyList(),
     /**
      * Provenance of the mana actually spent on this payment — which producing-source subtypes and
      * which producing sources contributed (see [SpentManaProvenance]). Combines mana pulled from the
@@ -125,20 +128,35 @@ class CastPaymentProcessor(
         spellContext: SpellPaymentContext? = null,
         xManaRestriction: Set<Color> = emptySet()
     ): PaymentResult {
-        return when (action.paymentStrategy) {
-            is PaymentStrategy.FromPool -> payFromPool(state, action.playerId, effectiveCost, cardName, xValue, spellContext, xManaRestriction)
-            is PaymentStrategy.AutoPay -> autoPay(state, action.playerId, effectiveCost, cardName, xValue, spellContext, xManaRestriction = xManaRestriction)
+        val lifePayments = (action.paymentStrategy as? PaymentStrategy.Explicit)?.phyrexianLifePayments.orEmpty()
+        val lifeToPay = lifePayments.size * 2
+        val currentLife = state.lifeTotal(action.playerId)
+        if (lifeToPay > currentLife) {
+            return PaymentResult(state, emptyList(), "Insufficient life for Phyrexian mana payment")
+        }
+        val manaCost = effectiveCost.withPhyrexianPaidByLife(lifePayments)
+            ?: return PaymentResult(state, emptyList(), "Invalid Phyrexian mana payment")
+        val manaResult = when (action.paymentStrategy) {
+            is PaymentStrategy.FromPool -> payFromPool(state, action.playerId, manaCost, cardName, xValue, spellContext, xManaRestriction)
+            is PaymentStrategy.AutoPay -> autoPay(state, action.playerId, manaCost, cardName, xValue, spellContext, xManaRestriction = xManaRestriction)
             is PaymentStrategy.Explicit -> explicitPay(
                 state,
                 action.playerId,
                 action.paymentStrategy,
-                effectiveCost,
+                manaCost,
                 cardName,
                 xValue,
                 spellContext,
                 xManaRestriction
             )
         }
+        if (manaResult.error != null || lifePayments.isEmpty()) return manaResult
+        val lifePayment = LifePaymentService.pay(manaResult.state, action.playerId, lifeToPay)
+            ?: return PaymentResult(state, emptyList(), "Unable to pay life for Phyrexian mana")
+        return manaResult.copy(
+            state = lifePayment.first,
+            events = manaResult.events + lifePayment.second
+        )
     }
 
     private fun payFromPool(
@@ -379,7 +397,7 @@ class CastPaymentProcessor(
         }
 
         // Tap lands for remaining cost (using xRemainingToPay instead of full xValue)
-        var solutionConsumedRiders: Set<ManaSpellRider> = emptySet()
+        var solutionConsumedRiders: List<ManaSpellRider> = emptyList()
         if (!remainingCost.isEmpty() || xRemainingToPay > 0) {
             val solution = manaSolver.solve(currentState, playerId, remainingCost, xRemainingToPay, excludeSources = excludeSources, spellContext = spellContext, xManaRestriction = xManaRestriction)
                 ?: return PaymentResult(currentState, events, "Not enough mana to auto-pay")
@@ -519,17 +537,18 @@ class CastPaymentProcessor(
     }
 
     /**
-     * Union of [ManaSpellRider]s carried by restricted mana entries that disappeared
-     * during payment (present in [before], gone from [after] after multiset
-     * subtraction). Used to detect that e.g. Cavern of Souls' floating restricted
-     * mana was spent on the cast.
+     * Every [ManaSpellRider] carried by restricted mana entries that disappeared during payment
+     * (present in [before], gone from [after] after multiset subtraction). Used to detect that
+     * e.g. Cavern of Souls' floating restricted mana was spent on the cast. Multiplicity is
+     * preserved — two spent entries carrying the same rider yield it twice (Pyromancer's
+     * Goggles), so this returns a list rather than a set.
      */
     private fun ridersConsumedDuringPayment(
         before: List<RestrictedManaEntry>,
         after: List<RestrictedManaEntry>
-    ): Set<ManaSpellRider> {
+    ): List<ManaSpellRider> {
         val remaining = after.toMutableList()
-        val consumed = mutableSetOf<ManaSpellRider>()
+        val consumed = mutableListOf<ManaSpellRider>()
         for (entry in before) {
             val idx = remaining.indexOfFirst { it == entry }
             if (idx >= 0) {

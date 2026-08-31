@@ -188,6 +188,27 @@ sealed interface CardSource {
     }
 
     /**
+     * The cards exiled to pay the ability's *activation cost* — the exile counterpart of
+     * [TappedAsCost], read from `EffectContext.exiledAsCostCards`, which the activation records at
+     * cost-payment time (CR 601.2h/602.2b: the cost is paid on activation, long before the ability
+     * resolves).
+     *
+     * This is what "those exiled cards" refers to in an ability whose *cost* did the exiling —
+     * Baron Helmut Zemo's "Exile any number of black cards from your graveyard …: **Copy those
+     * exiled cards.**" The cards are already in exile by resolution, and each activation sees only
+     * its own selection.
+     *
+     * **Not [FromLinkedExile]**, which is the accumulated pile a permanent has exiled over its
+     * lifetime: on a second activation that source would hand back the first activation's cards
+     * too. This gather is scoped to the one payment that put the ability on the stack.
+     */
+    @SerialName("ExiledAsCost")
+    @Serializable
+    data object ExiledAsCost : CardSource {
+        override val description: String = "those exiled cards"
+    }
+
+    /**
      * Cards from the source permanent's linked exile (LinkedExileComponent).
      * Returns the entity IDs stored in the component, filtered to only those
      * currently in exile.
@@ -227,7 +248,7 @@ sealed interface CardSource {
     /**
      * The cards exiled to Craft the source permanent (its
      * [com.wingedsheep.engine.state.components.battlefield.CraftedFromExiledComponent]), filtered
-     * to those still in exile. The gather counterpart of `ExiledCardsSource.CRAFTED` (which the
+     * to those still in exile. The gather counterpart of `DonorCards.CRAFT_MATERIALS` (which the
      * back-face CDAs read): where that feeds ability grants and dynamic amounts, this feeds a
      * gather → select → move pipeline.
      *
@@ -327,7 +348,7 @@ sealed interface CardSource {
 
     /**
      * The Equipment that was attached to the effect's source the moment a self-sacrifice / self-exile
-     * cost moved it off the battlefield (CR 112.7a last-known information). Read off
+     * cost moved it off the battlefield (CR 113.7a last-known information). Read off
      * [com.wingedsheep.engine.handlers.EffectContext.lastKnownSourceAttachments] — the source's
      * attachment list captured before the cost was paid — and restricted to permanents that are
      * *still on the battlefield and still Equipment*, since an Equipment that has since left (or
@@ -369,6 +390,48 @@ sealed interface CardDestination {
             }
         }
     }
+
+    /**
+     * Each card goes back to **the zone it was exiled from** — the "return it to its previous zone"
+     * half of an exile-until (CR 610.3: "A second one-shot effect is created immediately after the
+     * specified event. This second one-shot effect returns the object to its previous zone").
+     *
+     * Unlike [ToZone] the destination is *per card*, read from the `ExiledFromZoneComponent` the
+     * engine stamps as an object enters the exile zone. That makes it the right destination for a
+     * single exile clause that can reach more than one zone — Cloak and Dagger, Entwined exiles
+     * either a card from an opponent's **hand** or a creature from the **battlefield**, and a single
+     * leaves-the-battlefield trigger has to put each back where it belongs.
+     *
+     * Semantics worth stating, because they aren't obvious:
+     *  - A card returning to the battlefield returns as a **new object** (CR 400.7) under its
+     *    **owner's** control (CR 610.3c) — pair with `underOwnersControl = true`, which
+     *    [com.wingedsheep.sdk.dsl.Effects.ReturnLinkedExileToZoneExiledFrom] does.
+     *  - Cards that have left exile since (cast, blinked, exiled again) are already dropped by
+     *    `CardSource.FromLinkedExile`, and a token exiled from the battlefield has ceased to exist
+     *    (CR 111.7, swept by the CR 704.5d state-based action), so neither ever reaches this
+     *    destination.
+     *  - Every zone an object can be exiled from and returned to is honoured as recorded:
+     *    BATTLEFIELD, HAND, GRAVEYARD, LIBRARY, COMMAND and SIDEBOARD. Two recorded values are
+     *    special-cased: a card exiled from the **stack** takes [fallback] (there is no stack object
+     *    to go back to), and a card exiled **from exile** (CR 406.7 — "it doesn't change zones")
+     *    simply stays in exile, un-moved and with no event.
+     *  - **[fallback] is load-bearing, not a corner case.** The stamp is written by
+     *    `ZoneTransitionService` and by the direct-`addToZone` exile sites that opt in; an exile
+     *    path that does neither leaves no origin, and every such card lands on [fallback]. Set it
+     *    deliberately for the exile half your card actually performs.
+     *  - A card returning to a **library** lands at the default placement, not at the index it was
+     *    exiled from. CR 610.3 fixes only the zone, not a position.
+     *
+     * @property fallback Where a card whose origin zone is unknown or un-returnable goes. Defaults
+     *   to the battlefield, matching plain `ReturnLinkedExile`.
+     */
+    @SerialName("ToZoneExiledFrom")
+    @Serializable
+    data class ToZoneExiledFrom(
+        val fallback: Zone = Zone.BATTLEFIELD
+    ) : CardDestination {
+        override val description: String = "the zone it was exiled from"
+    }
 }
 
 /**
@@ -380,6 +443,15 @@ sealed interface SelectionMode {
 
     /**
      * Player must choose exactly N cards.
+     *
+     * **N is a ceiling, not a contract.** When the collection holds fewer than N eligible cards the
+     * executor clamps to what is there and selects them all, rather than failing — which is right
+     * for "discard two cards" with one card in hand, and wrong for a card whose text is
+     * all-or-nothing. If "if you can't, …" is printed on the card (Frankenstein's Monster: "exile X
+     * creature cards from your graveyard. If you can't, put this creature into its owner's
+     * graveyard instead"), gate the whole selection on a `Conditions.CompareAmounts` count of the
+     * source zone *before* anything moves and put the failure in the else branch; leaving it to
+     * this mode silently builds the smaller outcome instead of none.
      */
     @SerialName("ChooseExactly")
     @Serializable
@@ -641,7 +713,14 @@ sealed interface SelectionRestriction {
 enum class Chooser {
     /** The controller of the spell/ability decides */
     Controller,
-    /** An opponent decides */
+    /**
+     * An opponent decides — *one* opponent, chosen by the controller of the spell or ability.
+     * The engine asks the controller which opponent decides whenever there is more than one
+     * (CR 601.7a / 602.3a, and rulings like Curator of Destinies' "You decide which opponent
+     * chooses the pile"); with a sole opponent the choice is forced and nothing is prompted, so
+     * two-player games never see the extra step. Each "an opponent chooses" step in a resolution
+     * gets its own pick.
+     */
     Opponent,
     /** The target player decides (resolved from context.targets[0]) */
     TargetPlayer,
@@ -674,7 +753,20 @@ enum class Chooser {
      * library…"-style effects (Magmatic Hellkite), where the destroyed permanent's
      * controller performs a follow-up search/choice.
      */
-    ControllerOfTarget
+    ControllerOfTarget,
+
+    /**
+     * The defending player (CR 802.2a) decides — the player, or the controller/protector of the
+     * planeswalker or battle, that the source of the ability is attacking. For an attack trigger
+     * whose payoff acts on that player's own cards, they are the one who chooses: "defending player
+     * discards three cards" (Mindstab Thrull) is their choice from their own hand, not the
+     * attacker's.
+     *
+     * Resolves through the same combat read as [com.wingedsheep.sdk.scripting.references.Player]
+     * `.DefendingPlayer`, including its removed-from-combat leg — so it still answers after an
+     * ability has sacrificed its own attacking source on the way to the choice.
+     */
+    DefendingPlayer
 }
 
 /**
@@ -736,7 +828,7 @@ data class GatherCardsEffect(
     val source: CardSource,
     val storeAs: String,
     val revealed: Boolean = false,
-    val lookAudience: LookAudience = LookAudience.Controller
+    val lookAudience: LookAudience = LookAudience.Controller,
 ) : Effect {
     override val description: String = buildString {
         if (revealed) append("Reveal ") else append("Look at ")
@@ -1105,6 +1197,10 @@ data class MoveCollectionEffect(
         // `from` is an internal pipeline-collection key — never surface it to players.
         append(if ((destination as? CardDestination.ToZone)?.zone == Zone.BATTLEFIELD) "onto " else "into ")
         append(destination.description)
+        // "under its owner's control" is a printed clause on every card that sets this flag
+        // (Safe Haven, Oblivion Ring's cousins). Dropping it from the generated text loses the
+        // one detail that distinguishes it from a plain return to the battlefield.
+        if (underOwnersControl) append(" under its owner's control")
     }
 }
 
@@ -1198,17 +1294,43 @@ data class ChooseOptionEffect(
  * The source permanent's `NotedCreatureTypesComponent` is permanent-scoped state, so it disappears
  * with the permanent when it leaves play — no explicit cleanup needed.
  *
+ * **Secret notes.** With [secret] set the note is hidden information: only the player who made it
+ * may see it, and only they may later reveal it with
+ * [com.wingedsheep.sdk.scripting.costs.CostAtom.RevealNotedCreatureType]. This is the
+ * hidden-agenda shape (CR 702.106a-b — "secretly choose", noted on a piece of paper kept with the
+ * object) applied to a permanent: A Killer Among Us's "Then secretly choose Human, Merfolk, or
+ * Goblin". The secrecy rides the *note*, not the permanent, so a change of control does not hand
+ * the new controller the answer — and, per that card's ruling, does not let them reveal it either.
+ *
  * @property storeAs Key under which the chosen type is stored in `EffectContext.chosenValues`.
  *   Default `"notedType"`.
  * @property prompt Custom prompt text. Defaults to `"Note a creature type"`.
+ * @property options The creature types offered. Empty (the default) offers every creature type;
+ *   a non-empty list narrows the choice to exactly those ("secretly choose Human, Merfolk, or
+ *   Goblin"). Already-noted types are excluded from whichever set this names.
+ * @property secret Hide the note from every player but the one who made it, and restrict the
+ *   reveal cost to that player. Default false — an ordinary note is public information.
  */
 @SerialName("NoteCreatureType")
 @Serializable
 data class NoteCreatureTypeEffect(
     val storeAs: String = "notedType",
-    val prompt: String? = null
+    val prompt: String? = null,
+    val options: List<String> = emptyList(),
+    val secret: Boolean = false
 ) : Effect {
-    override val description: String = "Note a creature type"
+    override val description: String = when {
+        options.isEmpty() && !secret -> "Note a creature type"
+        options.isEmpty() -> "Secretly choose a creature type"
+        else -> {
+            val verb = if (secret) "Secretly choose " else "Note "
+            verb + when (options.size) {
+                1 -> options.single()
+                2 -> "${options[0]} or ${options[1]}"
+                else -> options.dropLast(1).joinToString(", ") + ", or " + options.last()
+            }
+        }
+    }
 }
 
 /**
@@ -1314,14 +1436,30 @@ data class GrantMayPlayFromExileEffect(
      * "Exile target nonland permanent and the top card of your library. For each of those cards,
      * its owner may play it until the end of their next turn."). Defaults to controller-controls,
      * matching impulse-draw effects where you exile and play cards you own.
+     *
+     * Per-*card* routing, so it can't be expressed as a single [recipient]; when set it wins over
+     * [recipient].
      */
     val ownerControls: Boolean = false,
+    /**
+     * Which player gets the play permission, when it isn't the effect's controller. Resolved
+     * against the resolving context, so a trigger can hand the permission to a player named by
+     * the trigger rather than by the source — Gonti, Night Minister ("Whenever a creature deals
+     * combat damage to one of your opponents, **its controller** … may play that card") grants to
+     * [EffectTarget.ControllerOfTriggeringEntity], the controller of the damaging creature, which
+     * is a player Gonti's controller has no other handle on.
+     *
+     * Turn-keyed [expiry] windows still follow the *activating* player, matching the existing
+     * Memory Vessel rebinding: the grant's duration is a property of the effect, not of who may
+     * use it. For per-card owner routing use [ownerControls] instead — it takes precedence here.
+     */
+    val recipient: EffectTarget = EffectTarget.Controller,
     /**
      * When true, each granted card is stamped so that, if a spell cast from this permission would
      * be put into a graveyard (on resolution, when countered, or when it fizzles), it is exiled
      * instead. Models the "If that spell would be put into a graveyard, exile it instead" rider on
      * cards that let you cast a card you don't own out of exile (Nita, Forum Conciliator) — the
-     * same `ExileAfterResolveComponent` mechanism behind [GrantFreeCastTargetFromExileEffect.exileAfterResolve],
+     * same `AfterResolveDestinationComponent` mechanism behind [GrantFreeCastTargetFromExileEffect.exileAfterResolve],
      * but for a *paid* cast rather than a free one. Defaults to off (impulse-draw cards leave the
      * card to go to its owner's graveyard normally).
      */
@@ -1362,11 +1500,60 @@ data class GrantMayPlayFromExileEffect(
      * Usurper). The timing rider is honored by both the from-exile cast enumerator and the
      * authoritative cast handler; it does not waive any cost.
      */
-    val asThoughFlash: Boolean = false
+    val asThoughFlash: Boolean = false,
+    /**
+     * When true, the permission covers casting spells only — a land card among the granted
+     * cards can never be played through it. Models "you may **cast** that card" wording (Ragavan,
+     * Nimble Pilferer) as distinct from "you may **play** those cards" (Light Up the Stage):
+     * "cast" never applies to a land (CR 305.1 — playing a land is a special action, not a cast),
+     * so the granting effect exiles the card regardless of type but the permission itself excludes
+     * lands. Read by the from-exile enumerator, which otherwise offers a `PlayLand` action for any
+     * exiled land under an active permission.
+     */
+    val nonLandOnly: Boolean = false,
+    /**
+     * When set, the permission authorizes casting the card's **alternative face** at this index
+     * (`CardDefinition.cardFaces[castFaceIndex]`) rather than its primary characteristics — the
+     * face's mana cost, type line, timing, cast restrictions, target requirements, and spell
+     * script all apply, and the emitted `CastSpell` carries the same `faceIndex`.
+     *
+     * Models "you may cast it … as an Adventure" (CR 715.3, Mosswood Dreadknight: "When this
+     * creature dies, you may cast it from your graveyard as an Adventure until the end of your
+     * next turn") — index 0 is the Adventure face of an `ADVENTURE`-layout card. The permission
+     * grants *only* that face: the creature side stays uncastable from the graveyard, exactly as
+     * the oracle text says. The Adventure's own resolution then exiles the card and grants the
+     * usual cast-the-creature-from-exile permission (CR 715.3d), so the two halves chain without
+     * any card-specific wiring.
+     *
+     * Read by the from-exile/graveyard cast enumerator and enforced by the authoritative cast
+     * handler, which rejects a hand-constructed `faceIndex` no permission authorizes.
+     */
+    val castFaceIndex: Int? = null,
+    /**
+     * When set, the permission authorizes casting only spells of this **color**, checked against
+     * the face actually being cast rather than the card in exile. Models "You may cast red spells
+     * from among them this turn" (Chandra, Dressed to Kill's −7) as distinct from "if it's red,
+     * you may cast it" (her +1), which tests the *exiled card's* characteristics and is expressed
+     * upstream with a `FilterCollection(MatchesFilter(...withColor(RED)))` instead. Her ruling
+     * pins the difference: a modal double-faced card that is red in exile still can't have its
+     * blue back face cast through the −7.
+     */
+    val castColorRestriction: com.wingedsheep.sdk.core.Color? = null
 ) : Effect {
     override val description: String = buildString {
-        val who = if (ownerControls) "its owner" else "you"
-        append("${expiry.description.replaceFirstChar { it.uppercase() }}, $who may play those cards from exile")
+        val who = when {
+            ownerControls -> "its owner"
+            recipient != EffectTarget.Controller -> recipient.description
+            else -> "you"
+        }
+        val verb = if (nonLandOnly) "cast" else "play"
+        val what = when {
+            castColorRestriction != null -> "${castColorRestriction.name.lowercase()} spells among them"
+            nonLandOnly -> "that card"
+            else -> "those cards"
+        }
+        append("${expiry.description.replaceFirstChar { it.uppercase() }}, $who may $verb $what from exile")
+        if (castFaceIndex != null) append(" as its alternative face")
         if (fixedAlternativeCostIsManaValue) {
             append(if (waterbend) " by waterbending {X} rather than paying their mana cost, where X is their mana value"
                    else " for their mana value rather than their mana cost")
@@ -1535,7 +1722,7 @@ data class GrantPlayWithCostIncreaseEffect(
  * Grant a single target entity in exile permission to be cast without paying
  * its mana cost. The engine registers a MayPlayPermission and stamps
  * PlayWithoutPayingCostComponent on the target. Optionally marks the spell
- * with ExileAfterResolveComponent so it goes to exile instead of graveyard
+ * with AfterResolveDestinationComponent so it goes to exile instead of graveyard
  * after resolving or being countered.
  *
  * Unlike the collection-based [GrantMayPlayFromExileEffect] + [GrantPlayWithoutPayingCostEffect],
@@ -1713,6 +1900,62 @@ data class FilterCollectionEffect(
     val storeNonMatching: String? = null
 ) : Effect {
     override val description: String = "Filter those cards"
+}
+
+/**
+ * "…chooses a \<permanent of each category\> they control…" — each permanent's **controller** picks
+ * one member of [from] for every filter in [categories], and all the picks land in [storeAs].
+ *
+ * The choosers are the distinct controllers of the permanents in [from], asked in APNAP order
+ * (CR 101.4) so the active player picks first and each later player chooses knowing what came
+ * before. Per chooser, the categories are offered in list order over just the members of [from]
+ * they control: a category they control nothing of is skipped, a category with a single candidate
+ * resolves itself without a prompt, and **one permanent may be the pick for several categories** —
+ * an artifact creature can be spared as both the artifact and the creature, which is why this is a
+ * sequence of one-of-each choices rather than a single restricted selection
+ * ([SelectionRestriction.OnePerCardType] would let that permanent claim only one of its types).
+ *
+ * This step only *chooses*; it moves nothing. Pair it with
+ * [CollectionFilter.ExcludeOtherCollection] to get "the rest", then any move step to decide their
+ * fate — which is what makes the whole family authorable from atoms:
+ *
+ * ```kotlin
+ * // Liliana, Dreadhorde General −9: "…and sacrifices the rest"
+ * Effects.Pipeline {
+ *     val atRisk = gather(GameObjectFilter.Permanent.controlledByOpponent())
+ *     val kept = chooseOnePerCategory(atRisk, Filters.PermanentTypes)
+ *     sacrifice(exclude(atRisk, kept))
+ * }
+ * ```
+ *
+ * Swapping the last step gives Consuming Tide ("returns the rest to their hands"); swapping the
+ * category list gives Cataclysm and Divine Reckoning.
+ *
+ * @property from Collection to choose from — every candidate, across all affected players.
+ * @property categories One filter per choice each controller makes, in the order they are offered.
+ * @property storeAs Collection receiving every player's picks (deduplicated).
+ */
+@SerialName("ChooseOnePerCategory")
+@Serializable
+data class ChooseOnePerCategoryEffect(
+    val from: String,
+    val categories: List<GameObjectFilter>,
+    val storeAs: String
+) : Effect {
+    init {
+        require(categories.isNotEmpty()) {
+            "ChooseOnePerCategoryEffect needs at least one category; with none it chooses nothing."
+        }
+    }
+
+    override val description: String =
+        "each player chooses ${categories.joinToString(", ") { it.description }} they control"
+
+    override fun applyTextReplacement(replacer: TextReplacer): Effect {
+        val newCategories = categories.map { it.applyTextReplacement(replacer) }
+        val changed = newCategories.indices.any { newCategories[it] !== categories[it] }
+        return if (changed) copy(categories = newCategories) else this
+    }
 }
 
 /**

@@ -5,6 +5,8 @@ import com.wingedsheep.engine.handlers.PredicateContext
 import com.wingedsheep.engine.handlers.PredicateEvaluator
 import com.wingedsheep.engine.handlers.effects.TargetResolutionUtils
 import com.wingedsheep.engine.handlers.effects.DamageUtils
+import com.wingedsheep.engine.handlers.effects.damage.OptionalDamageRedirect
+import com.wingedsheep.engine.mechanics.battle.Battles
 import com.wingedsheep.engine.mechanics.layers.ProjectedState
 import com.wingedsheep.engine.mechanics.layers.SerializableModification
 import com.wingedsheep.engine.registry.CardRegistry
@@ -86,6 +88,11 @@ internal class CombatDamageManager(
             val attackerContainer = state.getEntity(attackerId) ?: continue
             val attackerCard = attackerContainer.get<CardComponent>() ?: continue
 
+            // A face-down permanent has no abilities (CR 708.2a), so this ability-gated pre-check
+            // must not read the face-up card's abilities off cardDef below — doing so would both
+            // mis-apply the ability and leak the hidden card's name into the decision prompt.
+            if (attackerContainer.has<FaceDownComponent>()) continue
+
             // Only relevant when blocked
             val blockedBy = attackerContainer.get<BlockedComponent>() ?: continue
             if (blockedBy.blockerIds.isEmpty()) continue
@@ -139,6 +146,8 @@ internal class CombatDamageManager(
         for ((attackerId, attackingComponent) in attackers) {
             val attackerContainer = state.getEntity(attackerId) ?: continue
             val attackerCard = attackerContainer.get<CardComponent>() ?: continue
+            // CR 708.2a: a face-down permanent has no abilities, so it can't divide freely.
+            if (attackerContainer.has<FaceDownComponent>()) continue
             val cardDef = cardRegistry.getCard(attackerCard.cardDefinitionId) ?: continue
             val hasDivideDamageFreely = cardDef.staticAbilities.any { it is DivideCombatDamageFreely }
             if (!hasDivideDamageFreely) continue
@@ -247,11 +256,57 @@ internal class CombatDamageManager(
             finalAssignments = modifier.modify(state, projected, finalAssignments)
         }
 
-        // Phase 3: Apply
-        var newState = state
+        // Pre-check: the "you may" of an optional redirection shield (Blood of the Martyr). Asked off
+        // the final assignments — one question per damage instance the shield covers — and answered
+        // before any of the simultaneous batch is dealt (CR 510.2). Phases 1 and 2 above are pure
+        // computations over `state`, so re-running the step after each answer re-derives exactly the
+        // same assignments; nothing has been applied yet that the re-run would repeat.
+        val redirectChoice = OptionalDamageRedirect.check(
+            state,
+            finalAssignments.map { OptionalDamageRedirect.Instance(it.sourceId, it.targetId, it.amount) }
+        )
+        var newState = when (redirectChoice) {
+            is OptionalDamageRedirect.Check.Ask -> {
+                val pausedState = redirectChoice.state.pushContinuation(
+                    CombatOptionalRedirectContinuation(
+                        decisionId = redirectChoice.decision.id,
+                        choiceKey = redirectChoice.choiceKey,
+                        firstStrike = firstStrike
+                    )
+                )
+                return ExecutionResult.paused(pausedState, redirectChoice.decision)
+            }
+            is OptionalDamageRedirect.Check.Ready -> redirectChoice.state
+        }
+
+        // Phase 2b: Shield counters (CR 122.1c). Consumes one counter per shielded permanent for
+        // the whole simultaneous batch and drops the assignments whose damage it prevents, so the
+        // downstream steps (redirect consumption, lifelink) never see prevented damage.
         val events = mutableListOf<GameEvent>()
+        val shieldResult = applyShieldCountersToCombatDamage(newState, finalAssignments)
+        newState = shieldResult.first
+        finalAssignments = shieldResult.second
+        events.addAll(shieldResult.third)
+
+        // Phase 3: Apply
+        //
+        // All combat damage in a step is dealt simultaneously (CR 510.2), so a heal-on-damage
+        // replacement (Wolverine, Fierce Fighter — "all *other* damage already dealt to him is
+        // healed") must fire at most once for the whole batch: a creature blocked by two attackers
+        // heals what was marked before the step and then keeps *both* attackers' damage. The set
+        // records every recipient whose heal replacement has already been *evaluated* this step —
+        // not only the ones that actually healed. That distinction is load-bearing: recording only
+        // real heals would let a source-filtered heal fire on a later assignment in the same step
+        // and wipe an earlier assignment's damage, breaking CR 510.2 simultaneity. The cost is that
+        // for a *filtered* heal, applicability is decided from the first assignment that reaches the
+        // recipient rather than from the whole simultaneous event; no printed card exercises that
+        // today (Wolverine is Self / any source / any amount).
+        //
+        // The set is deliberately step-scoped: the first-strike and regular combat damage steps are
+        // separate events that each call `applyCombatDamage`, so each heals in turn.
+        val healProcessedTargets = mutableSetOf<EntityId>()
         for (assignment in finalAssignments) {
-            newState = applySingleAssignment(newState, assignment, events)
+            newState = applySingleAssignment(newState, assignment, events, healProcessedTargets)
         }
 
         // Consume one-shot redirect effects for creatures that dealt damage
@@ -343,8 +398,11 @@ internal class CombatDamageManager(
             val attackerCard = attackerContainer.get<CardComponent>() ?: continue
 
             val cardDef = cardRegistry.getCard(attackerCard.cardDefinitionId)
-            // DivideCombatDamageFreely (Butcher Orgg) keeps its own DistributeDecision pre-check.
-            if (cardDef?.staticAbilities?.any { it is DivideCombatDamageFreely } == true) continue
+            // DivideCombatDamageFreely (Butcher Orgg) keeps its own DistributeDecision pre-check —
+            // but only when face up. A face-down permanent has no abilities (CR 708.2a), so it takes
+            // part in the normal board here rather than being dropped from it.
+            if (!attackerContainer.has<FaceDownComponent>() &&
+                cardDef?.staticAbilities?.any { it is DivideCombatDamageFreely } == true) continue
             // AssignAsUnblocked, once answered, has written a DamageAssignmentComponent → skip.
             if (attackerContainer.get<DamageAssignmentComponent>() != null) continue
             if (!dealsDamageThisStep(projected, attackerId, firstStrike)) continue
@@ -453,8 +511,11 @@ internal class CombatDamageManager(
                 projected.isPlaneswalker(defenderId) -> ResolutionDefender(defenderId, ResolutionTargetKind.PLANESWALKER,
                     container.get<CardComponent>()?.name ?: "Planeswalker",
                     container.get<CountersComponent>()?.getCount(CounterType.LOYALTY))
+                // A battle's remaining "life" is its defense — its defense-counter count
+                // (CR 310.4c) — so the damage-division UI can show how much is left to remove.
                 else -> ResolutionDefender(defenderId, ResolutionTargetKind.BATTLE,
-                    container.get<CardComponent>()?.name ?: "Battle", null)
+                    container.get<CardComponent>()?.name ?: "Battle",
+                    container.get<CountersComponent>()?.getCount(CounterType.DEFENSE))
             }
         }
 
@@ -560,6 +621,8 @@ internal class CombatDamageManager(
         val choosers = attackerChoosers + blockerChoosers
 
         val decisionId = UUID.randomUUID().toString()
+        // Names here are the real card names; per-viewer face-down masking is applied downstream at
+        // delivery time (DecisionEnricher), since this one decision graph is shown to both choosers.
         val prompt = if (candidates.size == 1) {
             "Assign ${candidates[0].attackerName}'s ${candidates[0].availablePower} combat damage"
         } else {
@@ -658,12 +721,13 @@ internal class CombatDamageManager(
                     val manualAssignment = attackerContainer.get<DamageAssignmentComponent>()
                     when {
                         manualAssignment != null && manualAssignment.assignments.isNotEmpty() -> {
-                            // A DamageAssignmentComponent set during the first-strike damage step
-                            // persists into the regular damage step. If first-strike damage killed
-                            // a blocker, that blocker is no longer on the battlefield. Per CR 702.19c,
-                            // an attacker with trample whose blocker has been removed from combat
-                            // assigns the freed-up damage to the defending player/planeswalker.
-                            // Without trample, damage assigned to a removed blocker is lost.
+                            // A chosen assignment can still name a target that has since left the
+                            // battlefield. Per CR 702.19d, an attacker with trample whose blockers
+                            // have been removed from combat assigns the freed-up damage to the
+                            // defending player/planeswalker; without trample it is simply lost.
+                            // (Assignments never cross a combat damage step — CR 510.1 makes each
+                            // step a fresh division, and CombatManager
+                            // .clearDamageAssignmentsForNewDamageStep drops the first-strike one.)
                             val defenderId = attackingComponent.defenderId
                             val hasTrample = projected.hasKeyword(attackerId, Keyword.TRAMPLE)
                             var trampleRedirect = 0
@@ -693,7 +757,7 @@ internal class CombatDamageManager(
                                     }
                                 }
                             } else if (projected.hasKeyword(attackerId, Keyword.TRAMPLE)) {
-                                // CR 702.19c: Blocked attacker with trample and no remaining blockers
+                                // CR 702.19d: Blocked attacker with trample and no remaining blockers
                                 // assigns all damage to the defending player/planeswalker.
                                 assignments.add(CombatDamageAssignment(attackerId, attackingComponent.defenderId, power))
                             }
@@ -787,7 +851,9 @@ internal class CombatDamageManager(
     private fun applySingleAssignment(
         state: GameState,
         assignment: CombatDamageAssignment,
-        events: MutableList<GameEvent>
+        events: MutableList<GameEvent>,
+        /** Recipients whose heal-on-damage replacement was already evaluated this step — see [applyCombatDamage]. */
+        healProcessedTargets: MutableSet<EntityId>
     ): GameState {
         if (assignment.amount <= 0) return state
 
@@ -796,16 +862,103 @@ internal class CombatDamageManager(
                        targetContainer.get<CardComponent>() == null
         val projected = state.projectedState
         val isPlaneswalker = !isPlayer && projected.isPlaneswalker(assignment.targetId)
+        val isBattle = !isPlayer && !isPlaneswalker && projected.isBattle(assignment.targetId)
 
         val amplifiedAmount = DamageUtils.applyStaticDamageAmplification(
             state, assignment.targetId, assignment.amount, assignment.sourceId, isCombatDamage = true
         )
 
         return when {
-            isPlayer -> applyDamageToPlayer(state, assignment.sourceId, assignment.targetId, amplifiedAmount, assignment.amount, events)
-            isPlaneswalker -> applyDamageToPlaneswalker(state, assignment.sourceId, assignment.targetId, amplifiedAmount, events)
-            else -> applyDamageToCreature(state, assignment.sourceId, assignment.targetId, amplifiedAmount, events)
+            isPlayer -> applyDamageToPlayer(
+                state, assignment.sourceId, assignment.targetId, amplifiedAmount, assignment.amount,
+                events, healProcessedTargets
+            )
+            isPlaneswalker -> applyDamageByRemovingCounters(
+                state, assignment.sourceId, assignment.targetId, amplifiedAmount,
+                com.wingedsheep.sdk.core.CounterType.LOYALTY, events
+            )
+            isBattle -> applyDamageByRemovingCounters(
+                state, assignment.sourceId, assignment.targetId, amplifiedAmount,
+                com.wingedsheep.sdk.core.CounterType.DEFENSE, events
+            )
+            else -> applyDamageToCreature(
+                state, assignment.sourceId, assignment.targetId, amplifiedAmount, events, healProcessedTargets
+            )
         }
+    }
+
+    /**
+     * CR 122.1c shield counters, applied to the whole combat-damage batch.
+     *
+     * Combat damage marks itself in this class rather than routing through
+     * `DamageUtils.dealDamageToTarget`, so the rule needs its own call site here — otherwise a
+     * shielded creature would survive a Shock but not a blocker.
+     *
+     * It runs over the batch, not per assignment, because all combat damage in a step is dealt
+     * simultaneously as a single event (CR 510.2). A shielded creature blocking two attackers is
+     * dealt damage *once*, so it spends exactly **one** shield counter and all of that damage is
+     * prevented — applying the rule per assignment would wrongly burn one counter per attacker. The
+     * first-strike and regular combat damage steps are separate events, so a shielded creature does
+     * spend one counter in each.
+     *
+     * Running over the batch is also why this sits *ahead* of the per-assignment replacements in
+     * [applyDamageToCreature] (redirection, Anti-Venom) while `DamageUtils` puts them first — a
+     * legal but different CR 616.1 ordering, recorded on [applyShieldCounterToDamage].
+     *
+     * Runs both counter-spending shields in one pass — the shield-counter rule and the printed
+     * [com.wingedsheep.sdk.scripting.PreventDamageByRemovingCounter] ability (Unbreathing Horde) —
+     * because they share the batch scoping and the position in the CR 616.1 ordering. A creature
+     * carrying both spends only the shield counter: once the shield prevents the damage there is no
+     * damage left for the printed ability to replace.
+     *
+     * @return the state with counters consumed, the assignments that survive (those whose target's
+     *   damage was not prevented), and the [CountersRemovedEvent]s to emit.
+     */
+    private fun applyShieldCountersToCombatDamage(
+        state: GameState,
+        assignments: List<CombatDamageAssignment>,
+    ): Triple<GameState, List<CombatDamageAssignment>, List<GameEvent>> {
+        var newState = state
+        val events = mutableListOf<GameEvent>()
+        val preventedTargets = mutableSetOf<EntityId>()
+        // Unpreventable damage (Leyline of Punishment) is still dealt, but per the official rulings
+        // the shield counter is still removed.
+        for (targetId in assignments.map { it.targetId }.distinct()) {
+            val container = state.getEntity(targetId) ?: continue
+            val isPlayer = container.get<LifeTotalComponent>() != null && container.get<CardComponent>() == null
+            if (isPlayer) continue
+            // Per-recipient, so it is read inside the loop: a creature marked unpreventable
+            // (Whippoorwill) takes damage in full while its neighbours keep their shields.
+            val cantBePrevented = DamageUtils.isDamagePreventionDisabled(state, targetId)
+            val shielded = applyShieldCounterToDamage(newState, targetId, cantBePrevented)
+            if (shielded != null) {
+                newState = shielded.state
+                events.add(shielded.event)
+                if (shielded.damagePrevented) {
+                    preventedTargets.add(targetId)
+                    // The damage is already gone; a printed prevent-and-remove ability on the same
+                    // creature has nothing left to replace, so it keeps its counter.
+                    continue
+                }
+            }
+            // The printed sibling (Unbreathing Horde). Batch-scoped for the same CR 510.2 reason as
+            // the shield-counter rule above: one counter per damage *event*, so a creature blocking
+            // two attackers spends one counter and prevents all of it.
+            // CR 510.2: all combat damage in a step is dealt simultaneously, so a creature
+            // blocking two attackers is dealt *one* damage event whose amount is the total. That
+            // total is what "remove that many counters" reads — not each blocker's share.
+            val totalDamage = assignments.filter { it.targetId == targetId }.sumOf { it.amount }
+            val counterShield = applyPreventByRemovingCounterToDamage(
+                newState, targetId, isCombatDamage = true, cantBePrevented = cantBePrevented,
+                damageAmount = totalDamage
+            ) ?: continue
+            newState = counterShield.state
+            counterShield.event?.let { events.add(it) }
+            if (counterShield.damagePrevented) preventedTargets.add(targetId)
+        }
+
+        if (preventedTargets.isEmpty()) return Triple(newState, assignments, events)
+        return Triple(newState, assignments.filterNot { it.targetId in preventedTargets }, events)
     }
 
     private fun applyDamageToPlayer(
@@ -814,12 +967,13 @@ internal class CombatDamageManager(
         targetId: EntityId,
         amplifiedAmount: Int,
         originalAmount: Int,
-        events: MutableList<GameEvent>
+        events: MutableList<GameEvent>,
+        healProcessedTargets: MutableSet<EntityId>
     ): GameState {
         var newState = state
 
         // Replace with counters (Force Bubble)
-        val counterResult = DamageUtils.applyReplaceDamageWithCounters(newState, targetId, amplifiedAmount, sourceId)
+        val counterResult = DamageUtils.applyReplaceDamageWithCounters(newState, targetId, amplifiedAmount, sourceId, isCombatDamage = true)
         if (counterResult != null) {
             newState = counterResult.state
             events.addAll(counterResult.events)
@@ -871,14 +1025,14 @@ internal class CombatDamageManager(
         // simultaneous combat-damage step (CR 510.2); it is consumed once afterwards by
         // consumeBatchRedirectShields.
         val (redirectState, redirectTargetId, redirectAmount) = DamageUtils.checkDamageRedirection(
-            newState, targetId, effectiveAmount, inBatch = true
+            newState, targetId, effectiveAmount, inBatch = true, sourceId = sourceId
         )
         newState = redirectState
         if (redirectTargetId != null && redirectAmount > 0) {
-            newState = dealFinalDamage(newState, sourceId, redirectTargetId, redirectAmount, events)
+            newState = dealFinalDamage(newState, sourceId, redirectTargetId, redirectAmount, events, healProcessedTargets)
             val remaining = effectiveAmount - redirectAmount
             if (remaining > 0) {
-                newState = dealFinalDamage(newState, sourceId, targetId, remaining, events)
+                newState = dealFinalDamage(newState, sourceId, targetId, remaining, events, healProcessedTargets)
             }
             return newState
         }
@@ -901,11 +1055,13 @@ internal class CombatDamageManager(
             newState = newState.updateEntity(sourceId) { container ->
                 val priorRecipients = container.get<DealtCombatDamageToPlayersThisTurnComponent>()
                     ?.playerIds ?: emptySet()
-                container.with(HasDealtDamageComponent)
+                container.with(HasDealtDamageComponent(newState.turnNumber))
                     .with(HasDealtCombatDamageToPlayerComponent)
                     .with(DealtCombatDamageToPlayersThisTurnComponent(priorRecipients + targetId))
             }
         }
+        // Combat damage counts toward "sources you controlled dealt damage this turn" too.
+        newState = DamageUtils.trackDamageSourceForController(newState, sourceId)
         // Track that player was dealt combat damage this turn (boolean marker + running total).
         newState = newState.updateEntity(targetId) { container ->
             val priorCombat = container.get<CombatDamageReceivedThisTurnComponent>()?.amount ?: 0
@@ -943,14 +1099,21 @@ internal class CombatDamageManager(
     }
 
     /**
-     * Apply combat damage to a planeswalker by removing loyalty counters (Rule 120.3c).
-     * SBA will handle putting it into graveyard if loyalty reaches 0.
+     * Apply combat damage to a permanent whose "life" is a counter stack: a planeswalker's loyalty
+     * (CR 120.3c) or a battle's defense (CR 120.3h). Damage removes that many counters and never
+     * destroys the permanent itself (CR 120.5) — state-based actions put it into its owner's
+     * graveyard once the stack is empty (CR 704.5i / 704.5v/w).
+     *
+     * @param counterType [com.wingedsheep.sdk.core.CounterType.LOYALTY] or
+     *   [com.wingedsheep.sdk.core.CounterType.DEFENSE]; also selects which change event is emitted,
+     *   since the client reads a planeswalker's loyalty off a dedicated event.
      */
-    private fun applyDamageToPlaneswalker(
+    private fun applyDamageByRemovingCounters(
         state: GameState,
         sourceId: EntityId,
         targetId: EntityId,
         amplifiedAmount: Int,
+        counterType: com.wingedsheep.sdk.core.CounterType,
         events: MutableList<GameEvent>
     ): GameState {
         if (targetId !in state.getBattlefield()) return state
@@ -964,26 +1127,72 @@ internal class CombatDamageManager(
         newState = shieldState
         if (effectiveAmount <= 0) return newState
 
-        // Remove loyalty counters equal to damage dealt
+        return removeCountersForDamage(newState, sourceId, targetId, effectiveAmount, counterType, events)
+    }
+
+    /**
+     * The unmodifiable tail of [applyDamageByRemovingCounters]: take the counters off, mark the
+     * source as having dealt damage, and emit the damage plus counter-change events. Split out so
+     * [dealFinalDamage] — which by contract applies no further modification — shares one
+     * implementation with the prevention-aware path instead of open-coding a second copy.
+     */
+    private fun removeCountersForDamage(
+        state: GameState,
+        sourceId: EntityId,
+        targetId: EntityId,
+        amount: Int,
+        counterType: com.wingedsheep.sdk.core.CounterType,
+        events: MutableList<GameEvent>
+    ): GameState {
+        var newState = state
         val counters = newState.getEntity(targetId)?.get<CountersComponent>() ?: CountersComponent()
-        val currentLoyalty = counters.getCount(com.wingedsheep.sdk.core.CounterType.LOYALTY)
+        val currentCount = counters.getCount(counterType)
         newState = newState.updateEntity(targetId) { container ->
-            container.with(counters.withRemoved(com.wingedsheep.sdk.core.CounterType.LOYALTY, effectiveAmount))
+            container.with(counters.withRemoved(counterType, amount))
         }
 
-        // Track that source dealt damage
-        if (sourceId in newState.getBattlefield()) {
-            newState = newState.updateEntity(sourceId) { container ->
-                container.with(HasDealtDamageComponent)
+        // Combat damage that takes a Siege's last defense counter defeats it (CR 310.12b). Arm the
+        // marker so the state-based action that runs before this turn's trigger-detection pass
+        // leaves the battle alone long enough for its defeat trigger to be put on the stack — see
+        // DefeatTriggerArmedComponent.
+        if (counterType == com.wingedsheep.sdk.core.CounterType.DEFENSE &&
+            currentCount in 1..amount &&
+            Battles.isSiege(newState, targetId)
+        ) {
+            newState = newState.updateEntity(targetId) { container ->
+                container.with(com.wingedsheep.engine.state.components.battlefield.DefeatTriggerArmedComponent)
             }
         }
 
+        if (sourceId in newState.getBattlefield()) {
+            newState = newState.updateEntity(sourceId) { container ->
+                container.with(HasDealtDamageComponent(newState.turnNumber))
+            }
+        }
+        // Combat damage counts toward "sources you controlled dealt damage this turn" too.
+        newState = DamageUtils.trackDamageSourceForController(newState, sourceId)
+        // Planeswalkers (not battles) join the source's "dealt damage to this game" memory, the
+        // player half of which is recorded in DamageUtils.trackDamageReceivedByPlayer (The Fallen).
+        if (counterType == com.wingedsheep.sdk.core.CounterType.LOYALTY) {
+            newState = DamageUtils.markDealtDamageToThisGame(newState, sourceId, targetId)
+        }
+
         val sourceName = newState.getEntity(sourceId)?.get<CardComponent>()?.name ?: "Creature"
-        val targetName = newState.getEntity(targetId)?.get<CardComponent>()?.name ?: "Planeswalker"
-        events.add(DamageDealtEvent(sourceId, targetId, effectiveAmount, true,
+        val defaultName = if (counterType == com.wingedsheep.sdk.core.CounterType.LOYALTY) "Planeswalker" else "Battle"
+        val targetName = newState.getEntity(targetId)?.get<CardComponent>()?.name ?: defaultName
+        events.add(DamageDealtEvent(sourceId, targetId, amount, true,
             sourceName = sourceName, targetName = targetName, targetIsPlayer = false))
-        val newLoyalty = (currentLoyalty - effectiveAmount).coerceAtLeast(0)
-        events.add(LoyaltyChangedEvent(targetId, targetName, -(effectiveAmount.coerceAtMost(currentLoyalty))))
+        val removed = amount.coerceAtMost(currentCount)
+        if (counterType == com.wingedsheep.sdk.core.CounterType.LOYALTY) {
+            events.add(LoyaltyChangedEvent(targetId, targetName, -removed))
+        } else if (removed > 0) {
+            events.add(
+                com.wingedsheep.engine.core.CountersRemovedEvent(
+                    targetId, counterType.name, removed, targetName,
+                    remainingCount = currentCount - removed
+                )
+            )
+        }
 
         return newState
     }
@@ -993,24 +1202,11 @@ internal class CombatDamageManager(
         sourceId: EntityId,
         targetId: EntityId,
         amplifiedAmount: Int,
-        events: MutableList<GameEvent>
+        events: MutableList<GameEvent>,
+        healProcessedTargets: MutableSet<EntityId>
     ): GameState {
         if (targetId !in state.getBattlefield()) return state
         var newState = state
-
-        // Phantom / Unbreathing Horde: prevent all combat damage and remove a +1/+1 counter.
-        // Skip when damage can't be prevented (Sunspine Lynx / "damage can't be prevented this turn"),
-        // matching DamageUtils.dealDamageToTarget's cantBePrevented gate.
-        if (!DamageUtils.isDamagePreventionDisabled(newState)) {
-            val phantomResult = DamageUtils.applyPreventDamageAndRemoveCounter(
-                newState, targetId, amplifiedAmount, sourceId, isCombatDamage = true
-            )
-            if (phantomResult != null) {
-                newState = phantomResult.state
-                events.addAll(phantomResult.events)
-                return newState
-            }
-        }
 
         // Prevention shields
         val (shieldState, effectiveAmount) = DamageUtils.applyDamagePreventionShields(
@@ -1019,23 +1215,33 @@ internal class CombatDamageManager(
         newState = shieldState
         if (effectiveAmount <= 0) return newState
 
+        // Damage-to-counters self-replacement (Anti-Venom): "if damage would be dealt to <this
+        // creature>, prevent it and put that many +1/+1 counters on him." Replaces the damage
+        // entirely (CR 615) — checked before redirection and final marking.
+        val counterResult = DamageUtils.applyReplaceDamageWithCounters(newState, targetId, effectiveAmount, sourceId, isCombatDamage = true)
+        if (counterResult != null) {
+            newState = counterResult.state
+            events.addAll(counterResult.events)
+            return newState
+        }
+
         // Damage redirection (Glarecaster, Zealous Inquisitor). See applyDamageToPlayer for why
         // inBatch=true — a Glarecaster shield protects its controller's creatures too, so a blocked
         // attacker's damage to a protected blocker is redirected as part of the same batch.
         val (redirectState, redirectTargetId, redirectAmount) = DamageUtils.checkDamageRedirection(
-            newState, targetId, effectiveAmount, inBatch = true
+            newState, targetId, effectiveAmount, inBatch = true, sourceId = sourceId
         )
         newState = redirectState
         if (redirectTargetId != null && redirectAmount > 0) {
-            newState = dealFinalDamage(newState, sourceId, redirectTargetId, redirectAmount, events)
+            newState = dealFinalDamage(newState, sourceId, redirectTargetId, redirectAmount, events, healProcessedTargets)
             val remaining = effectiveAmount - redirectAmount
             if (remaining > 0) {
-                newState = dealFinalDamage(newState, sourceId, targetId, remaining, events)
+                newState = dealFinalDamage(newState, sourceId, targetId, remaining, events, healProcessedTargets)
             }
             return newState
         }
 
-        return dealFinalDamage(newState, sourceId, targetId, effectiveAmount, events)
+        return dealFinalDamage(newState, sourceId, targetId, effectiveAmount, events, healProcessedTargets)
     }
 
     /**
@@ -1047,7 +1253,9 @@ internal class CombatDamageManager(
         sourceId: EntityId,
         targetId: EntityId,
         amount: Int,
-        events: MutableList<GameEvent>
+        events: MutableList<GameEvent>,
+        /** Recipients whose heal-on-damage replacement was already evaluated this step — see [applyCombatDamage]. */
+        healProcessedTargets: MutableSet<EntityId>
     ): GameState {
         if (amount <= 0) return state
         var newState = state
@@ -1057,6 +1265,7 @@ internal class CombatDamageManager(
                        targetContainer.get<CardComponent>() == null
         val projected = newState.projectedState
         val isPlaneswalker = !isPlayer && projected.isPlaneswalker(targetId)
+        val isBattle = !isPlayer && !isPlaneswalker && projected.isBattle(targetId)
 
         if (isPlayer) {
             // CR 810.9 — applies to the team's shared total (isPlayer already guards presence).
@@ -1069,11 +1278,13 @@ internal class CombatDamageManager(
                 newState = newState.updateEntity(sourceId) { container ->
                     val priorRecipients = container.get<DealtCombatDamageToPlayersThisTurnComponent>()
                         ?.playerIds ?: emptySet()
-                    container.with(HasDealtDamageComponent)
+                    container.with(HasDealtDamageComponent(newState.turnNumber))
                         .with(HasDealtCombatDamageToPlayerComponent)
                         .with(DealtCombatDamageToPlayersThisTurnComponent(priorRecipients + targetId))
                 }
             }
+            // Combat damage counts toward "sources you controlled dealt damage this turn" too.
+            newState = DamageUtils.trackDamageSourceForController(newState, sourceId)
             // Track that player was dealt combat damage this turn (boolean marker + running total).
             newState = newState.updateEntity(targetId) { container ->
                 val priorCombat = container.get<CombatDamageReceivedThisTurnComponent>()?.amount ?: 0
@@ -1102,26 +1313,22 @@ internal class CombatDamageManager(
                 }
                 events.add(CountersAddedEvent(targetId, CounterType.POISON.name, toxicAmount, "Player"))
             }
-        } else if (isPlaneswalker) {
+        } else if (isPlaneswalker || isBattle) {
             if (targetId !in newState.getBattlefield()) return newState
-            val counters = newState.getEntity(targetId)?.get<CountersComponent>() ?: CountersComponent()
-            val currentLoyalty = counters.getCount(com.wingedsheep.sdk.core.CounterType.LOYALTY)
-            newState = newState.updateEntity(targetId) { container ->
-                container.with(counters.withRemoved(com.wingedsheep.sdk.core.CounterType.LOYALTY, amount))
-            }
-            // Track that source dealt damage
-            if (sourceId in newState.getBattlefield()) {
-                newState = newState.updateEntity(sourceId) { container ->
-                    container.with(HasDealtDamageComponent)
-                }
-            }
-            val sourceName = newState.getEntity(sourceId)?.get<CardComponent>()?.name ?: "Creature"
-            val targetName = newState.getEntity(targetId)?.get<CardComponent>()?.name ?: "Planeswalker"
-            events.add(DamageDealtEvent(sourceId, targetId, amount, true,
-                sourceName = sourceName, targetName = targetName, targetIsPlayer = false))
-            events.add(LoyaltyChangedEvent(targetId, targetName, -(amount.coerceAtMost(currentLoyalty))))
+            val counterType = if (isPlaneswalker) com.wingedsheep.sdk.core.CounterType.LOYALTY
+            else com.wingedsheep.sdk.core.CounterType.DEFENSE
+            newState = removeCountersForDamage(newState, sourceId, targetId, amount, counterType, events)
         } else {
             if (targetId !in newState.getBattlefield()) return newState
+            // Heal-on-damage replacement (Wolverine, Fierce Fighter), CR 701.69a. Fires here —
+            // after prevention/redirection/replacement have had their say and the damage is certain
+            // to be marked — and at most once per recipient per step; see [applyCombatDamage] for
+            // why the set is scoped and shaped the way it is.
+            if (healProcessedTargets.add(targetId)) {
+                newState = DamageUtils.applyHealOtherDamage(
+                    newState, targetId, amount, sourceId, isCombatDamage = true
+                )
+            }
             val projected = newState.projectedState
             val hasWither = projected.hasKeyword(sourceId, Keyword.WITHER)
             // Excess damage (CR 120.4a) is only computed for the non-wither path below.
@@ -1134,8 +1341,18 @@ internal class CombatDamageManager(
                 newState = newState.updateEntity(targetId) { container ->
                     container.with(counters.withAdded(com.wingedsheep.sdk.core.CounterType.MINUS_ONE_MINUS_ONE, amount))
                 }
+                // The wither source's controller is the player putting the -1/-1 counters on, so
+                // record both axes; on the usual "opponent's creature withers yours" board that
+                // resolves to a placement *not* made by the target's controller.
                 val (afterMark, firstThisTurn) =
-                    com.wingedsheep.engine.handlers.effects.DamageUtils.recordCounterPlacement(newState, targetId)
+                    com.wingedsheep.engine.handlers.effects.DamageUtils.recordCounterPlacement(
+                        newState,
+                        targetId,
+                        com.wingedsheep.engine.handlers.effects.permanent.counters.counterTypeToString(
+                            com.wingedsheep.sdk.core.CounterType.MINUS_ONE_MINUS_ONE
+                        ),
+                        placerId = projected.getController(sourceId),
+                    )
                 newState = afterMark
                 events.add(CountersAddedEvent(targetId, com.wingedsheep.sdk.core.CounterType.MINUS_ONE_MINUS_ONE.name, amount,
                     newState.getEntity(targetId)?.get<CardComponent>()?.name ?: "Creature", firstThisTurn,
@@ -1180,14 +1397,17 @@ internal class CombatDamageManager(
             // Track that source dealt damage
             if (sourceId in newState.getBattlefield()) {
                 newState = newState.updateEntity(sourceId) { container ->
-                    container.with(HasDealtDamageComponent)
+                    container.with(HasDealtDamageComponent(newState.turnNumber))
                 }
             }
+            // Combat damage counts toward "sources you controlled dealt damage this turn" too.
+            newState = DamageUtils.trackDamageSourceForController(newState, sourceId)
             newState = DamageUtils.trackDamageDealtToCreature(newState, sourceId, targetId)
             // Snapshot the source's last-known controller / subtypes onto the recipient so observer
             // death triggers ("a creature dealt damage this turn by a Spider you controlled dies",
             // Shelob) can match the source even after it dies in the same combat (CR 608.2h).
             newState = DamageUtils.trackDamageSourceLki(newState, sourceId, targetId)
+            newState = DamageUtils.applyDoomedRidersToDamagedCreature(newState, sourceId, targetId)
             val sourceName = newState.getEntity(sourceId)?.get<CardComponent>()?.name ?: "Creature"
             val targetName = newState.getEntity(targetId)?.get<CardComponent>()?.name ?: "Creature"
             val targetIsFaceDown = newState.getEntity(targetId)?.has<FaceDownComponent>() == true
@@ -1249,6 +1469,19 @@ internal class CombatDamageManager(
         val newLife = attackerControllerLife - originalAmount
         var newState = state.withLifeTotal(attackerController, newLife)
         newState = DamageUtils.trackDamageReceivedByPlayer(newState, attackerController, originalAmount, sourceId)
+        // Reflection makes the attacking creature the source of damage dealt to its own controller
+        // (CR 120.1 — the object that deals the damage is its source), so this emits a second
+        // `DamageDealtEvent` for the same creature and stamps it alongside, keeping the invariant
+        // "every damage-dealing path records its source" true function-locally rather than by
+        // inheritance from the caller. Today it is belt-and-braces: the only caller is
+        // `applyDamageToPlayer`, which stamps the same creature under the same battlefield guard
+        // before it gets here, so removing this line changes no current behaviour. It earns its keep
+        // if reflection is ever reached from a path that doesn't stamp first.
+        if (sourceId in newState.getBattlefield()) {
+            newState = newState.updateEntity(sourceId) { container ->
+                container.with(HasDealtDamageComponent(newState.turnNumber))
+            }
+        }
         val sourceName = state.getEntity(sourceId)?.get<CardComponent>()?.name ?: "Creature"
         events.add(DamageDealtEvent(sourceId, attackerController, originalAmount, true,
             sourceName = sourceName, targetName = "Player", targetIsPlayer = true))
@@ -1362,7 +1595,7 @@ internal class CombatDamageManager(
                         incomingDamage.getOrPut(targetId) { mutableMapOf() }
                             .merge(attackerId, amplified) { a, b -> a + b }
                     } else {
-                        val damageCantBePrevented = DamageUtils.isDamagePreventionDisabled(state)
+                        val damageCantBePrevented = DamageUtils.isDamagePreventionDisabled(state, targetId)
                         val attackerColors = projected.getColors(attackerId)
                         val attackerSubtypes = projected.getSubtypes(attackerId)
                         val attackerTypes = projected.getTypes(attackerId)

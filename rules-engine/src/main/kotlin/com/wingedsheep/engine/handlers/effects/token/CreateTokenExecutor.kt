@@ -33,6 +33,7 @@ import com.wingedsheep.engine.event.GrantedStaticAbility
 import com.wingedsheep.engine.event.GrantedTriggeredAbility
 import com.wingedsheep.engine.mechanics.layers.StaticAbilityHandler
 import com.wingedsheep.engine.registry.CardRegistry
+import com.wingedsheep.engine.registry.TokenArtRegistry
 import com.wingedsheep.sdk.dsl.Triggers
 import com.wingedsheep.sdk.scripting.Duration
 import com.wingedsheep.sdk.scripting.TriggeredAbility
@@ -54,7 +55,8 @@ import kotlin.reflect.KClass
 class CreateTokenExecutor(
     private val amountEvaluator: DynamicAmountEvaluator = DynamicAmountEvaluator(),
     private val staticAbilityHandler: StaticAbilityHandler? = null,
-    private val cardRegistry: CardRegistry? = null
+    private val cardRegistry: CardRegistry? = null,
+    private val tokenArtRegistry: TokenArtRegistry? = null
 ) : EffectExecutor<CreateTokenEffect> {
 
     override val effectType: KClass<CreateTokenEffect> = CreateTokenEffect::class
@@ -133,24 +135,44 @@ class CreateTokenExecutor(
         val effectiveCreatureTypes = effect.creatureTypesFromChoice?.let { slot ->
             (sourceBag?.chosen?.get(slot) as? ChoiceValue.TextChoice)?.text?.let { setOf(it) } ?: setOf("Creature")
         } ?: effect.creatureTypes
-        val resolvedImageUri = effect.imageUri
-            ?: if (effect.creatureTypesFromChoice != null) {
-                effectiveCreatureTypes.firstNotNullOfOrNull { TokenArt.IMAGES[it] }
-            } else null
+        // The token's identity is the same for every copy in this batch, so resolve it once rather
+        // than per iteration. Its art is the one thing that can differ between copies — see below.
+        val defaultName = "${effectiveCreatureTypes.joinToString(" ")} Token"
+        val tokenName = effect.name ?: defaultName
+        val tokenPower = effect.dynamicPower?.let { amountEvaluator.evaluate(state, it, context) } ?: effect.power
+        val tokenToughness = effect.dynamicToughness?.let { amountEvaluator.evaluate(state, it, context) } ?: effect.toughness
+
+        // Art: an explicit per-card override wins, then the art printed by the set the creating
+        // card came from (so a reprint mints its own set's token), then the engine-wide generic
+        // art for the creature type. A token always ends up with *some* image — TokenArtCoverageTest
+        // holds that line across the whole card corpus.
+        //
+        // A set that printed one token with several illustrations contributes a row per art, so
+        // this is a list: the batch is dealt out of it in order and wraps, which is why Release the
+        // Dogs' four Dogs show Jumpstart's four Dog arts. Indexing by position in the batch keeps
+        // it deterministic, so a replay re-simulates the same board.
+        val sourceCard = context.sourceId
+            ?.let { state.getEntity(it) }
+            ?.get<CardComponent>()
+        val resolvedImageUris = effect.imageUri?.let(::listOf)
+            ?: tokenArtRegistry?.resolveAll(
+                sourceCardDefinitionId = sourceCard?.cardDefinitionId,
+                tokenName = tokenName.removeSuffix(" Token"),
+                power = tokenPower,
+                toughness = tokenToughness,
+                colors = effectiveColors,
+                sourcePrintingSetCode = sourceCard?.printingSetCode,
+            )?.takeIf { it.isNotEmpty() }
+            ?: listOf(TokenArt.forCreatureTypes(effectiveCreatureTypes))
 
         var newState = state
         val createdTokens = mutableListOf<EntityId>()
 
-        repeat(count) {
+        repeat(count) { indexInBatch ->
+            val resolvedImageUri = resolvedImageUris[indexInBatch % resolvedImageUris.size]
             val (tokenId, stateWithId) = newState.newEntity()
             newState = stateWithId
             createdTokens.add(tokenId)
-
-            // Create token entity
-            val defaultName = "${effectiveCreatureTypes.joinToString(" ")} Token"
-            val tokenName = effect.name ?: defaultName
-            val tokenPower = effect.dynamicPower?.let { amountEvaluator.evaluate(state, it, context) } ?: effect.power
-            val tokenToughness = effect.dynamicToughness?.let { amountEvaluator.evaluate(state, it, context) } ?: effect.toughness
 
             val typeLinePrefix = buildString {
                 if (effect.legendary) append("Legendary ")
@@ -208,6 +230,16 @@ class CreateTokenExecutor(
             }
             if (effect.initialCounters.isNotEmpty()) {
                 var counters = CountersComponent()
+                // A token created "with a +1/+1 counter on it" is given those counters as it
+                // enters, which CR 122.6 counts as counters being *put on* it, and CR 122.6a makes
+                // its controller the player putting them there. Stamp the same per-permanent
+                // history marker the ordinary placement paths do, so counter-history readings
+                // (Kid Loki's "you've put one or more +1/+1 counters on this turn") see the token
+                // and so a later placement on it reports firstThisTurn = false. No
+                // CountersAddedEvent is emitted: the counters arrive as part of the token's
+                // creation, not as a separate placement event.
+                var history = com.wingedsheep.engine.state.components.battlefield
+                    .ReceivedCountersThisTurnComponent()
                 for ((counterTypeStr, amount) in effect.initialCounters) {
                     val counterType = try {
                         CounterType.valueOf(
@@ -221,8 +253,16 @@ class CreateTokenExecutor(
                         CounterType.PLUS_ONE_PLUS_ONE
                     }
                     counters = counters.withAdded(counterType, amount)
+                    if (amount > 0) {
+                        history = history.with(
+                            com.wingedsheep.engine.handlers.effects.permanent.counters
+                                .counterTypeToString(counterType),
+                            byController = true,
+                        )
+                    }
                 }
                 container = container.with(counters)
+                if (history.counterTypes.isNotEmpty()) container = container.with(history)
             }
 
             newState = newState.withEntity(tokenId, container)
@@ -245,7 +285,7 @@ class CreateTokenExecutor(
         val counterEvents = mutableListOf<com.wingedsheep.engine.core.GameEvent>()
         for (tokenId in createdTokens) {
             val (nextState, events) = EntersWithReplacements.applyGlobal(
-                newState, tokenId, tokenControllerId
+                newState, tokenId, tokenControllerId, cardRegistry
             )
             newState = nextState
             counterEvents.addAll(events)

@@ -7,6 +7,7 @@ import com.wingedsheep.engine.event.GrantedActivatedAbility
 import com.wingedsheep.engine.event.GrantedKeywordAbility
 import com.wingedsheep.engine.event.GrantedReplacementEffect
 import com.wingedsheep.engine.event.GrantedStaticAbility
+import com.wingedsheep.engine.event.GrantedStateTriggeredAbility
 import com.wingedsheep.engine.event.GrantedTriggeredAbility
 import com.wingedsheep.engine.mechanics.layers.ActiveFloatingEffect
 import com.wingedsheep.sdk.core.Color
@@ -21,6 +22,7 @@ import com.wingedsheep.engine.state.components.stack.SpellOnStackComponent
 import com.wingedsheep.sdk.core.Zone
 import com.wingedsheep.engine.mechanics.layers.ProjectedState
 import com.wingedsheep.engine.mechanics.layers.StateProjector
+import com.wingedsheep.engine.replacement.ReplacementEffectIdentity
 import com.wingedsheep.sdk.model.EntityId
 import com.wingedsheep.sdk.model.GameRng
 import com.wingedsheep.sdk.scripting.AbilityIdentity
@@ -40,7 +42,18 @@ data class GameState(
     /** Zone contents - maps zone keys to lists of entity IDs */
     val zones: Map<ZoneKey, List<EntityId>> = emptyMap(),
 
-    /** Current turn number (starts at 0, becomes 1 when first player's turn starts) */
+    /**
+     * Current turn number, counting **player turns** — every turn the game begins gets its own
+     * number, including extra turns (CR 500.7) and every seat's turn in a multiplayer pod. Starts
+     * at 0 and becomes 1 when the first player's turn starts, so in a four-player pod the opening
+     * round is turns 1, 2, 3, 4 and the second round is 5, 6, 7, 8.
+     *
+     * This is deliberately *not* a round counter. `turnNumber + 1` is read across the engine as
+     * "the next turn" (delayed triggers, rebound, may-play expiries) and `stamp == turnNumber` as
+     * "this turn" (graveyard/exile entry stamps) — both of which are only true of a per-turn count.
+     * A round counter also stops advancing entirely once the first seat is eliminated, because the
+     * seat that used to mark the round boundary never takes another turn.
+     */
     val turnNumber: Int = 0,
 
     /** ID of the player whose turn it is */
@@ -85,6 +98,9 @@ data class GameState(
     /** Triggered abilities granted to entities temporarily (e.g., Commando Raid) */
     val grantedTriggeredAbilities: List<GrantedTriggeredAbility> = emptyList(),
 
+    /** State-triggered abilities (CR 603.8) granted to entities (e.g., Olivia, Crimson Bride) */
+    val grantedStateTriggeredAbilities: List<GrantedStateTriggeredAbility> = emptyList(),
+
     /** Activated abilities granted to entities temporarily (e.g., Run Wild) */
     val grantedActivatedAbilities: List<GrantedActivatedAbility> = emptyList(),
 
@@ -112,6 +128,37 @@ data class GameState(
     /** Per-player spell records cast this turn, for conditional evasion and "first of type" triggers */
     val spellsCastThisTurnByPlayer: Map<EntityId, List<CastSpellRecord>> = emptyMap(),
 
+    /**
+     * The game's **day/night** designation (CR 731, "Day and Night"). `null` models the CR 731.1
+     * "neither day nor night" state the game starts in; once it has become day or night it is always
+     * exactly one of the two thereafter. All writes go through
+     * [com.wingedsheep.engine.mechanics.daynight.DayNightService] (the single writer, mirroring
+     * `SpeedService`), which also cascades the daybound/nightbound transforms (CR 702.145b/c/e/f) that
+     * "become day"/"become night" entails. Read directly by the `IsDay`/`IsNight` conditions and by
+     * the untap-step turn-based action (CR 502.2 / 731.2).
+     */
+    val dayNight: com.wingedsheep.sdk.core.DayNight? = null,
+
+    /**
+     * Entity id of the **previous turn's active player**, snapshotted by
+     * [com.wingedsheep.engine.core.TurnManager.startTurn] the instant a new turn begins — before the
+     * per-turn spell counters are zeroed. `null` on the game's first turn (there is no previous turn).
+     * Read together with [previousTurnActiveTeamSpellCounts] by the untap-step day/night check
+     * (CR 502.2 / 731.2), which must know how many spells the active player—or each player on the
+     * active team in a shared-team-turns game—cast during that turn even though the counters for the
+     * new turn have already reset.
+     */
+    val previousTurnActivePlayerId: EntityId? = null,
+
+    /**
+     * Per-player spell counts for the previous turn's active side, snapshotted in
+     * [com.wingedsheep.engine.core.TurnManager.startTurn] before the counters reset. This is a
+     * singleton map in ordinary games and contains every member of the previous active team when
+     * the format uses shared team turns. The untap-step day/night action becomes night if none of
+     * those players cast a spell, and becomes day if any one of them cast two or more.
+     */
+    val previousTurnActiveTeamSpellCounts: Map<EntityId, Int> = emptyMap(),
+
     /** Pending spell copies — copy the next instant/sorcery spell cast by a player (e.g., Howl of the Horde) */
     val pendingSpellCopies: List<PendingSpellCopy> = emptyList(),
 
@@ -119,17 +166,57 @@ data class GameState(
     val pendingUncounterableSpells: List<PendingUncounterableSpell> = emptyList(),
     val pendingNextSpellAffinities: List<PendingNextSpellAffinity> = emptyList(),
 
+    /**
+     * Pending "the next matching spell you cast this turn can be cast without paying its mana cost"
+     * riders (World War Hulk I). Read by
+     * [com.wingedsheep.engine.mechanics.mana.CostCalculator.hasFreeCastPermission] and consumed by
+     * the next matching cast, whether or not the free cast was taken.
+     */
+    val pendingFreeCastSpells: List<PendingFreeCastSpell> = emptyList(),
+
+    /**
+     * Turn-scoped "spells you cast this turn that match … cost {N} less" discounts (the Scion
+     * cycle). Unlike [pendingNextSpellAffinities] these are not consumed by the spell they
+     * discount — they apply to every matching spell until the turn ends.
+     */
+    val turnSpellCostReductions: List<TurnSpellCostReduction> = emptyList(),
+
     /** Whether a spell was warped this turn (for Void condition: "a spell was warped this turn") */
     val spellWarpedThisTurn: Boolean = false,
 
     /**
-     * Whether damage can't be prevented for the rest of this turn (CR 615.6 — a prevention effect
-     * can't apply to damage that can't be prevented). Set by the
+     * Whether damage can't be prevented for the rest of this turn (CR 615.12 — prevention shields
+     * aren't reduced and prevent nothing). Set by the
      * [com.wingedsheep.sdk.scripting.effects.DamageCantBePreventedThisTurnEffect] one-shot (Fear,
      * Fire, Foes!) and read by [com.wingedsheep.engine.handlers.effects.DamageUtils.isDamagePreventionDisabled].
      * Reset to false at every turn boundary.
      */
     val damageCantBePreventedThisTurn: Boolean = false,
+
+    /**
+     * Turn numbers during which **no player** may activate a power-up ability (CR 702.193). Written
+     * by [com.wingedsheep.engine.handlers.effects.player.TakeExtraTurnExecutor] when the resolving
+     * [com.wingedsheep.sdk.scripting.effects.TakeExtraTurnEffect] carries
+     * `powerUpAbilitiesCantBeActivated` — Kang the Conqueror's "Take an extra turn after this one.
+     * During that turn, power-up abilities can't be activated."
+     *
+     * The stamp is `turnNumber + 1`, the number of the next turn to actually *begin*: [turnNumber]
+     * counts turns that begin, and a turn skipped via
+     * [com.wingedsheep.engine.state.components.player.SkipNextTurnComponent] never reaches
+     * `TurnManager.startTurn`, so the skips that model the extra turn consume no numbers. That is
+     * the extra turn **in a two-player game**. With three or more players it may not be:
+     * `TurnManager.endTurn` consumes at most one pending skip per turn boundary, so a second
+     * skipped opponent takes `turnNumber + 1` anyway and the lockout lands on their ordinary turn.
+     * The limitation is in the pre-existing skip-based extra-turn model, not here.
+     *
+     * Recorded against the turn rather than against a player or the source permanent because the
+     * prohibition is global, applies on a turn that has not started yet (so it must *not* bind for
+     * the rest of the current turn), and survives the source leaving the battlefield. A set, so two
+     * riders in the same turn are idempotent; entries earlier than the current turn are pruned at
+     * each turn boundary. Read through
+     * [com.wingedsheep.engine.legalactions.utils.CastPermissionUtils.isPowerUpActivationRestricted].
+     */
+    val powerUpRestrictedTurns: Set<Int> = emptySet(),
 
     /** Whether a nonland permanent left the battlefield this turn (for the Void ability word). */
     val nonlandPermanentLeftBattlefieldThisTurn: Boolean = false,
@@ -236,7 +323,7 @@ data class GameState(
      * Cumulative combat damage dealt by each commander to each player, keyed by
      * `(commanderEntityId, defendingPlayerId)`. Populated by `CombatDamageManager` at the
      * `DamageDealtEvent` emission sites for combat damage to a player. Read by the
-     * `CommanderDamageLossCheck` SBA against [Format.Commander.commanderDamageThreshold].
+     * `CommanderDamageLossCheck` SBA against [Format.commanderDamageThreshold].
      */
     val commanderDamage: List<CommanderDamageEntry> = emptyList(),
 
@@ -276,6 +363,32 @@ data class GameState(
      * (auto-answer). Empty entries are pruned, so an absent key means "no yields".
      */
     val yieldsByPlayer: Map<EntityId, PlayerYields> = emptyMap(),
+
+    /**
+     * Active replacement-effect chain (CR 614.5 — each effect applies at most once).
+     *
+     * Set by the [com.wingedsheep.engine.replacement.ReplacementEffectProcessor] when a [com.wingedsheep.engine.handlers.effects.drawing.DrawReplacementDispatcher.DispatchResult.Replaced]
+     * outcome is produced, and cleared after the replacement effect finishes executing.
+     * Prevents already-applied effects from re-triggering when a replacement effect
+     * (e.g. Phial of Galadriel's "draw two cards instead") contains sub-effects that
+     * would be independently checked against the processor.
+     */
+    val activeReplacementChain: Set<ReplacementEffectIdentity>? = null,
+
+    /**
+     * Answers to the "**you may** have that damage dealt to you instead" prompts of an optional
+     * damage-redirection shield (Blood of the Martyr), for the damage event currently being applied.
+     *
+     * Keyed by shield + damage source + recipient (see
+     * [com.wingedsheep.engine.handlers.effects.damage.OptionalDamageRedirect.choiceKey]) so each
+     * damage instance in a simultaneous batch is answered on its own. Entries are written by the
+     * choice pre-pass that runs *before* any of that damage is dealt, consumed by
+     * [com.wingedsheep.engine.handlers.effects.DamageUtils.checkDamageRedirection] as each instance
+     * is applied, and pruned when the next pre-pass finds them stale (the recipient died first, a
+     * shield counter ate the damage). A missing entry means "declined" — the shield never redirects
+     * on its controller's behalf without having asked.
+     */
+    val optionalDamageRedirectChoices: Map<String, Boolean> = emptyMap(),
 ) {
     /**
      * Cached projection of the game state with all continuous effects (Rule 613) applied.
@@ -473,18 +586,48 @@ data class GameState(
         }
 
     /**
+     * [activePlayers] rotated into **APNAP order** (CR 101.4): the active player first, then the
+     * remaining players in turn order starting from the one after them. This is the order in which
+     * players make simultaneous choices — "each player sacrifices a creature" asks the active
+     * player first, then each nonactive player in turn order, and only then do the sacrifices
+     * happen.
+     *
+     * Note this is a *rotation*, not "active player prepended to seat order": with seats [A, B, C]
+     * and B active the order is [B, C, A], not [B, A, C]. Falls back to plain turn order when
+     * there is no active player (before the first turn begins).
+     */
+    val apnapOrder: List<EntityId>
+        get() {
+            val ordered = activePlayers
+            val active = activePlayerId ?: return ordered
+            val index = ordered.indexOf(active)
+            return if (index <= 0) ordered else ordered.drop(index) + ordered.take(index)
+        }
+
+    /**
      * Opponents of a player, in turn order, excluding players who have lost or left the
      * game. There is deliberately no single-opponent helper: any code that needs one
      * specific opponent must say which one (a chosen target, an iteration, or the
      * per-creature defending player — CR 802.2a).
      */
     fun getOpponents(playerId: EntityId): List<EntityId> {
-        // CR 810: an opponent is a player on an opposing team, so exclude the player's whole team
+        // CR 102.3: in a multiplayer game between teams a player's opponents are all players not
+        // on their team, so exclude the player's whole team
         // (themselves and any teammates), not just themselves. In a non-team game a player is its
         // own team, so this is identical to "everyone but me".
         val ownTeam = teamOf(playerId).toHashSet()
         return activePlayers.filter { it !in ownTeam }
     }
+
+    /**
+     * Whether [playerId] is an opponent of [ofPlayerId] (CR 102.3) — the predicate form of
+     * [getOpponents], for the `Player.EachOpponent` branch of every "does this player match the
+     * pattern?" check. Never spell that branch as `playerId != controllerId`: in a team game the
+     * controller's teammate is not their opponent, and "your opponents can't gain life" must not
+     * lock your own partner. A player who has left the game is nobody's opponent any more.
+     */
+    fun isOpponentOf(playerId: EntityId, ofPlayerId: EntityId): Boolean =
+        playerId in getOpponents(ofPlayerId)
 
     // =========================================================================
     // Teams (Two-Headed Giant and other team variants — CR 810)
@@ -592,10 +735,47 @@ data class GameState(
     // play a land (805.4c), and either may take sorcery-speed actions while it is the team's turn
     // (805.5a — a player may act when their team has priority). The engine keeps a single
     // [activePlayerId] (CR 805.9 — "active player" is one specific player), but turn *ownership* —
-    // "is it this player's turn?" — is a team question answered by [isActiveTurnFor]. Priority still
-    // cycles per player, so each teammate gets their own window and the phase advances only once
-    // everyone has passed; that already yields the shared-turn outcome.
+    // "is it this player's turn?" — is a team question answered by [isActiveTurnFor].
+    //
+    // Priority is likewise a team question (CR 805.5: "Teams have priority, not individual
+    // players"). [priorityPlayerId] stays a single seat — it is the baton: who the server nudges,
+    // whose auto-pass runs, which board the UI focuses. But *permission* to act is
+    // [hasPriority], which admits the baton holder's whole team. The phase still advances only
+    // once every seat has passed ([allPlayersPassed]), so each player is still guaranteed their
+    // own window; what changes is that a teammate no longer has to wait for the baton to reach
+    // them before they can respond to what their partner just did.
     // =========================================================================
+
+    /**
+     * True when [playerId] may take a priority action right now — cast a spell, activate an
+     * ability, take a special action, or pass (CR 805.5a). **The team-aware replacement for
+     * `priorityPlayerId == playerId` at every action-legality gate.**
+     *
+     * In a shared-team-turns format the whole of the baton holder's team may act while their team
+     * holds priority (CR 805.5). Everywhere else — 1v1, Free-for-All, Commander, Team vs. Team
+     * (CR 808.4, individual turns) — [sharedTurnTeam] is the singleton `[playerId]`, so this is
+     * literally `priorityPlayerId == playerId` and no non-2HG game changes behaviour.
+     *
+     * Note this is permission, not obligation: [priorityPlayerId] is still one seat, and the
+     * auto-pass / AI paths deliberately keep following it so a bot teammate takes its window in
+     * baton order instead of racing its human partner for every response.
+     */
+    fun hasPriority(playerId: EntityId): Boolean {
+        val holder = priorityPlayerId ?: return false
+        // Read the team off the *holder*, not off [playerId]: [sharedTurnTeam] drops members who
+        // have left the game, so asking the holder is what keeps a departed teammate (CR 800.4a)
+        // from inheriting a window they can no longer take.
+        return holder == playerId || playerId in sharedTurnTeam(holder)
+    }
+
+    /**
+     * Every player who may act in the current priority window — the baton holder's shared-turn
+     * team (CR 805.5), or just the baton holder outside a shared-team-turns format. Empty when
+     * nobody holds priority. The list form of [hasPriority], for the client DTO and for callers
+     * that need to pick an acting seat rather than test one.
+     */
+    val priorityTeam: List<EntityId>
+        get() = priorityPlayerId?.let { sharedTurnTeam(it) } ?: emptyList()
 
     /**
      * True when it is [playerId]'s team's turn — i.e. [playerId] is on the active team. The
@@ -666,6 +846,29 @@ data class GameState(
     fun lifeTotal(playerId: EntityId): Int =
         getEntity(teamLifeOwnerOf(playerId))
             ?.get<com.wingedsheep.engine.state.components.identity.LifeTotalComponent>()?.life ?: 0
+
+    /**
+     * [playerId]'s **speed** (Aetherdrift, CR 702.179), 0–[com.wingedsheep.sdk.core.Speed.MAX].
+     *
+     * A player who has no speed reads as 0 per CR 702.179f, so every consumer — dynamic amounts, the
+     * max-speed gate, the client DTO — can treat speed as a plain number. Use [hasSpeed] for the two
+     * rules that genuinely distinguish "no speed" from "speed 0".
+     *
+     * Speed is per-player even in team games: unlike life and poison, CR 810 does not pool it.
+     */
+    fun speed(playerId: EntityId): Int =
+        getEntity(playerId)
+            ?.get<com.wingedsheep.engine.state.components.player.PlayerSpeedComponent>()?.speed
+            ?: com.wingedsheep.sdk.core.Speed.NONE
+
+    /**
+     * Whether [playerId] has a speed at all (CR 702.179b). False means the CR 704.5aa state-based
+     * action may still start their speed at 1, and that they have no inherent speed trigger yet
+     * (CR 702.179d).
+     */
+    fun hasSpeed(playerId: EntityId): Boolean =
+        getEntity(playerId)
+            ?.has<com.wingedsheep.engine.state.components.player.PlayerSpeedComponent>() == true
 
     /**
      * Set [playerId]'s (team's) life total to [newLife], writing the canonical owner's component.
@@ -1027,6 +1230,56 @@ data class GameState(
             }
         }
         return afterPlayer
+    }
+
+    /**
+     * The next player still in the game, in turn order after [afterPlayer], who has **not already
+     * passed** in the current priority round — i.e. the seat the priority baton should visit next.
+     *
+     * Identical to [getNextPlayer] whenever passing is strictly round-robin, which is every
+     * non-team game: each seat passes in turn, so the seat after the passer is by construction one
+     * that hasn't passed. It only diverges under team priority ([hasPriority]), where a teammate
+     * may act — and therefore pass — out of baton order, leaving a seat behind the baton that
+     * still owes a pass. Handing the baton to someone who already passed is harmless (they simply
+     * pass again) but it costs a real click, so skip them.
+     *
+     * Falls back to [getNextPlayer] when every other seat has already passed — the caller only
+     * reaches here when [allPlayersPassed] is false, so a seat that still owes a pass exists.
+     */
+    fun nextUnpassedPriorityAfter(afterPlayer: EntityId): EntityId {
+        val size = turnOrder.size
+        if (size == 0) return afterPlayer
+        val start = turnOrder.indexOf(afterPlayer)
+        for (step in 1..size) {
+            val candidate = turnOrder[((start + step) % size + size) % size]
+            if (candidate in priorityPassedBy) continue
+            if (getEntity(candidate)
+                    ?.has<com.wingedsheep.engine.state.components.player.PlayerLostComponent>() != true
+            ) {
+                return candidate
+            }
+        }
+        return getNextPlayer(afterPlayer)
+    }
+
+    /**
+     * Where the priority baton goes once [passer] has passed — the seat rule behind
+     * [com.wingedsheep.engine.handlers.actions.priority.PassPriorityHandler].
+     *
+     * Identical to [getNextPlayer] in every non-team game: the only seat allowed to pass is the
+     * baton holder, so `passer` is the holder and the seat after them has by construction not
+     * passed. Under team priority (CR 805.5) a teammate may pass **out of baton order**, and then
+     * two things differ:
+     *
+     * - the baton doesn't move at all — its holder hasn't passed yet, and taking their window away
+     *   because their partner declined theirs would be exactly backwards;
+     * - once it does move, it skips the seats that already passed this round rather than handing
+     *   them a window they just declined.
+     */
+    fun nextPriorityAfterPass(passer: EntityId): EntityId {
+        val holder = priorityPlayerId
+        if (holder != null && holder != passer && holder !in priorityPassedBy) return holder
+        return nextUnpassedPriorityAfter(passer)
     }
 
     /**

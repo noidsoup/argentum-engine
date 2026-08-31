@@ -44,6 +44,234 @@
     ]
 }
 
+// Barkchannel Pathway
+{
+    "name": "Barkchannel Pathway",
+    "manaCost": "",
+    "typeLine": "Land",
+    "oracleText": "{T}: Add {G}.",
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": "CostTap",
+                "effect": {
+                    "type": "AddMana",
+                    "color": "GREEN"
+                },
+                "timing": "ManaAbility",
+                "isManaAbility": true
+            }
+        ]
+    },
+    "backFace": {
+        "name": "Tidechannel Pathway",
+        "manaCost": "",
+        "typeLine": "Land",
+        "oracleText": "{T}: Add {U}.",
+        "script": {
+            "activatedAbilities": [
+                {
+                    "id": "ability_2",
+                    "cost": "CostTap",
+                    "effect": {
+                        "type": "AddMana",
+                        "color": "BLUE"
+                    },
+                    "timing": "ManaAbility",
+                    "isManaAbility": true
+                }
+            ]
+        },
+        "metadata": {
+            "collectorNumber": "251",
+            "rarity": "RARE",
+            "artist": "Daniel Ljunggren",
+            "imageUri": "https://cards.scryfall.io/normal/back/b/6/b6de14ae-0132-4261-af00-630bf15918cd.jpg?1783928184"
+        },
+        "colorIdentityOverride": [
+            "BLUE"
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "251",
+        "rarity": "RARE",
+        "artist": "Daniel Ljunggren",
+        "imageUri": "https://cards.scryfall.io/normal/front/b/6/b6de14ae-0132-4261-af00-630bf15918cd.jpg?1783928184"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ],
+    "layout": "MODAL_DFC"
+}
+
+// Blightstep Pathway
+{
+    "name": "Blightstep Pathway",
+    "manaCost": "",
+    "typeLine": "Land",
+    "oracleText": "{T}: Add {B}.",
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": "CostTap",
+                "effect": {
+                    "type": "AddMana",
+                    "color": "BLACK"
+                },
+                "timing": "ManaAbility",
+                "isManaAbility": true
+            }
+        ]
+    },
+    "backFace": {
+        "name": "Searstep Pathway",
+        "manaCost": "",
+        "typeLine": "Land",
+        "oracleText": "{T}: Add {R}.",
+        "script": {
+            "activatedAbilities": [
+                {
+                    "id": "ability_2",
+                    "cost": "CostTap",
+                    "effect": {
+                        "type": "AddMana",
+                        "color": "RED"
+                    },
+                    "timing": "ManaAbility",
+                    "isManaAbility": true
+                }
+            ]
+        },
+        "metadata": {
+            "collectorNumber": "252",
+            "rarity": "RARE",
+            "artist": "Ravenna Tran",
+            "imageUri": "https://cards.scryfall.io/normal/back/0/c/0ce39a19-f51d-4a35-ae80-5b82eb15fcff.jpg?1783928185"
+        },
+        "colorIdentityOverride": [
+            "RED"
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "252",
+        "rarity": "RARE",
+        "artist": "Ravenna Tran",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/c/0ce39a19-f51d-4a35-ae80-5b82eb15fcff.jpg?1783928185"
+    },
+    "colorIdentityOverride": [
+        "BLACK"
+    ],
+    "layout": "MODAL_DFC"
+}
+
+// Darkbore Pathway
+{
+    "name": "Darkbore Pathway",
+    "manaCost": "",
+    "typeLine": "Land",
+    "oracleText": "{T}: Add {B}.",
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": "CostTap",
+                "effect": {
+                    "type": "AddMana",
+                    "color": "BLACK"
+                },
+                "timing": "ManaAbility",
+                "isManaAbility": true
+            }
+        ]
+    },
+    "backFace": {
+        "name": "Slitherbore Pathway",
+        "manaCost": "",
+        "typeLine": "Land",
+        "oracleText": "{T}: Add {G}.",
+        "script": {
+            "activatedAbilities": [
+                {
+                    "id": "ability_2",
+                    "cost": "CostTap",
+                    "effect": {
+                        "type": "AddMana",
+                        "color": "GREEN"
+                    },
+                    "timing": "ManaAbility",
+                    "isManaAbility": true
+                }
+            ]
+        },
+        "metadata": {
+            "collectorNumber": "254",
+            "rarity": "RARE",
+            "artist": "Johannes Voss",
+            "imageUri": "https://cards.scryfall.io/normal/back/8/7/87a4e5fe-161f-42da-9ca2-67c8e8970e94.jpg?1783928184"
+        },
+        "colorIdentityOverride": [
+            "GREEN"
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "254",
+        "rarity": "RARE",
+        "artist": "Johannes Voss",
+        "imageUri": "https://cards.scryfall.io/normal/front/8/7/87a4e5fe-161f-42da-9ca2-67c8e8970e94.jpg?1783928184"
+    },
+    "colorIdentityOverride": [
+        "BLACK"
+    ],
+    "layout": "MODAL_DFC"
+}
+
+// Demon Bolt
+{
+    "name": "Demon Bolt",
+    "manaCost": "{2}{R}",
+    "typeLine": "Instant",
+    "oracleText": "Demon Bolt deals 4 damage to target creature or planeswalker.\nForetell {R} (During your turn, you may pay {2} and exile this card from your hand face down. Cast it on a later turn for its foretell cost.)",
+    "keywords": [
+        "FORETELL"
+    ],
+    "keywordAbilities": [
+        {
+            "type": "Foretell",
+            "cost": "{R}"
+        }
+    ],
+    "script": {
+        "spellEffect": {
+            "type": "DealDamage",
+            "amount": {
+                "type": "Fixed",
+                "amount": 4
+            },
+            "target": {
+                "type": "BoundVariable",
+                "name": "target"
+            }
+        },
+        "targetRequirements": [
+            {
+                "type": "TargetCreatureOrPlaneswalker",
+                "id": "target"
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "129",
+        "artist": "Campbell White",
+        "flavorText": "\"Burn them from the sky.\"\n—Varragoth",
+        "imageUri": "https://cards.scryfall.io/normal/front/5/f/5f856b0e-b413-49b0-9aa7-d935ad40ae53.jpg?1783928232"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
 // Esika's Chariot
 {
     "name": "Esika's Chariot",
@@ -243,6 +471,110 @@
     "colorIdentityOverride": []
 }
 
+// Grizzled Outrider
+{
+    "name": "Grizzled Outrider",
+    "manaCost": "{4}{G}",
+    "typeLine": "Creature — Elf Warrior",
+    "creatureStats": {
+        "power": 5,
+        "toughness": 5
+    },
+    "metadata": {
+        "collectorNumber": "173",
+        "artist": "Cristi Balanescu",
+        "flavorText": "\"Sure, a horse might be faster. But I'd like to see a horse take the head clean off a troll in one swipe!\"",
+        "imageUri": "https://cards.scryfall.io/normal/front/4/a/4a1d4473-5317-4bdd-9cb9-93670acf52e9.jpg?1783928213"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
+// Hengegate Pathway
+{
+    "name": "Hengegate Pathway",
+    "manaCost": "",
+    "typeLine": "Land",
+    "oracleText": "{T}: Add {W}.",
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": "CostTap",
+                "effect": {
+                    "type": "AddMana",
+                    "color": "WHITE"
+                },
+                "timing": "ManaAbility",
+                "isManaAbility": true
+            }
+        ]
+    },
+    "backFace": {
+        "name": "Mistgate Pathway",
+        "manaCost": "",
+        "typeLine": "Land",
+        "oracleText": "{T}: Add {U}.",
+        "script": {
+            "activatedAbilities": [
+                {
+                    "id": "ability_2",
+                    "cost": "CostTap",
+                    "effect": {
+                        "type": "AddMana",
+                        "color": "BLUE"
+                    },
+                    "timing": "ManaAbility",
+                    "isManaAbility": true
+                }
+            ]
+        },
+        "metadata": {
+            "collectorNumber": "260",
+            "rarity": "RARE",
+            "artist": "Yeong-Hao Han",
+            "imageUri": "https://cards.scryfall.io/normal/back/7/e/7ef37cb3-d803-47d7-8a01-9c803aa2eadc.jpg?1783928182"
+        },
+        "colorIdentityOverride": [
+            "BLUE"
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "260",
+        "rarity": "RARE",
+        "artist": "Yeong-Hao Han",
+        "imageUri": "https://cards.scryfall.io/normal/front/7/e/7ef37cb3-d803-47d7-8a01-9c803aa2eadc.jpg?1783928182"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ],
+    "layout": "MODAL_DFC"
+}
+
+// Highland Forest
+{
+    "name": "Highland Forest",
+    "manaCost": "",
+    "typeLine": "Snow Land — Mountain Forest",
+    "oracleText": "({T}: Add {R} or {G}.)\nThis land enters tapped.",
+    "script": {
+        "replacementEffects": [
+            "EntersTapped"
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "261",
+        "artist": "Alayna Danner",
+        "flavorText": "\"Tread carefully! The last time I walked this path, half the snowdrifts were, in fact, sleeping trolls. I've never run so fast in my life!\"\n—Iskene, Kannah storyteller",
+        "imageUri": "https://cards.scryfall.io/normal/front/6/8/682eee5f-7986-45d3-910f-407303fdbcc4.jpg?1783928176"
+    },
+    "colorIdentityOverride": [
+        "GREEN",
+        "RED"
+    ]
+}
+
 // Immersturm Predator
 {
     "name": "Immersturm Predator",
@@ -328,6 +660,75 @@
     "colorIdentityOverride": [
         "BLACK",
         "RED"
+    ]
+}
+
+// Mistwalker
+{
+    "name": "Mistwalker",
+    "manaCost": "{2}{U}",
+    "typeLine": "Creature — Shapeshifter",
+    "oracleText": "Changeling (This card is every creature type.)\nFlying\n{1}{U}: This creature gets +1/-1 until end of turn.",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 4
+    },
+    "keywords": [
+        "CHANGELING",
+        "FLYING"
+    ],
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": {
+                    "type": "CostAtomWrapper",
+                    "atom": {
+                        "type": "AtomMana",
+                        "cost": "{1}{U}"
+                    }
+                },
+                "effect": {
+                    "type": "ModifyStats",
+                    "powerModifier": {
+                        "type": "Fixed",
+                        "amount": 1
+                    },
+                    "toughnessModifier": {
+                        "type": "Fixed",
+                        "amount": -1
+                    },
+                    "target": "Self"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "68",
+        "artist": "Steve Prescott",
+        "flavorText": "\"To escape Littjara, follow a bird.\" —Tuskeri folklore",
+        "imageUri": "https://cards.scryfall.io/normal/front/9/2/92f64b49-327c-473b-a492-f020a322aed7.jpg?1783928259",
+        "rulings": [
+            {
+                "date": "2021-02-05",
+                "text": "Changeling is a characteristic-defining ability. It functions in all zones, not only while a card that has it is on the battlefield."
+            },
+            {
+                "date": "2021-02-05",
+                "text": "The subtype Shapeshifter that appears on the type line is mostly there to reinforce the flavor. A creature card with changeling is just as much an Elf, a Dwarf, a Sliver, a Goat, a Coward, and a Zombie as it is a Shapeshifter."
+            },
+            {
+                "date": "2021-02-05",
+                "text": "If an effect causes a creature with changeling to become a new creature type, it will be only that new creature type. It will still have changeling; the effect making it all creature types will simply be overwritten."
+            },
+            {
+                "date": "2021-02-05",
+                "text": "If an effect causes a creature with changeling to lose all abilities, it will remain all creature types, even though it will no longer have changeling. This is because changeling applies before the effect that removes it."
+            }
+        ]
+    },
+    "colorIdentityOverride": [
+        "BLUE"
     ]
 }
 
@@ -422,6 +823,168 @@
     ]
 }
 
+// Snowfield Sinkhole
+{
+    "name": "Snowfield Sinkhole",
+    "manaCost": "",
+    "typeLine": "Snow Land — Plains Swamp",
+    "oracleText": "({T}: Add {W} or {B}.)\nThis land enters tapped.",
+    "script": {
+        "replacementEffects": [
+            "EntersTapped"
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "269",
+        "artist": "Marta Nael",
+        "flavorText": "\"Young Vitima bellowed to the Cosmos, daring the gods to punish her hubris! Well, she got their attention, as you can see.\"\n—Iskene, Kannah storyteller",
+        "imageUri": "https://cards.scryfall.io/normal/front/6/6/6611dc5e-6acc-48df-b8c4-4b327314578b.jpg?1783928172"
+    },
+    "colorIdentityOverride": [
+        "BLACK",
+        "WHITE"
+    ]
+}
+
+// Starnheim Aspirant
+{
+    "name": "Starnheim Aspirant",
+    "manaCost": "{2}{W}",
+    "typeLine": "Creature — Human Cleric",
+    "oracleText": "Angel spells you cast cost {2} less to cast.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 2
+    },
+    "script": {
+        "staticAbilities": [
+            {
+                "type": "ModifySpellCost",
+                "target": {
+                    "type": "YouCast",
+                    "filter": "Angel"
+                },
+                "modification": {
+                    "type": "ReduceGeneric",
+                    "amount": 2
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "380",
+        "rarity": "UNCOMMON",
+        "artist": "Kieran Yanner",
+        "flavorText": "\"I do not fear death. I know my soul will rise to Starnheim, where I will feast forever among valkyries and heroes. Can you say the same?\"",
+        "imageUri": "https://cards.scryfall.io/normal/front/e/a/ea007a18-b31a-4881-92c4-86120dc5729b.jpg?1783928123",
+        "rulings": [
+            {
+                "date": "2021-02-05",
+                "text": "To determine the total cost of a spell, start with the mana cost or alternative cost you're paying, add any cost increases, then apply any cost reductions (such as that of Starnheim Aspirant). The mana value of the spell is determined only by its mana cost, no matter what the total cost to cast the spell was."
+            },
+            {
+                "date": "2021-02-05",
+                "text": "The cost reduction applies only to generic mana in the costs of Angel spells you cast. It can't reduce requirements of specific colors of mana."
+            },
+            {
+                "date": "2021-02-05",
+                "text": "An Angel spell is a creature spell with the creature type Angel. Instant, sorcery, and enchantment cards that may create Angel tokens are not Angel spells."
+            }
+        ]
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
+// Undersea Invader
+{
+    "name": "Undersea Invader",
+    "manaCost": "{4}{U}{U}",
+    "typeLine": "Creature — Giant Rogue",
+    "oracleText": "Flash (You may cast this spell any time you could cast an instant.)\nThis creature enters tapped.",
+    "creatureStats": {
+        "power": 5,
+        "toughness": 6
+    },
+    "keywords": [
+        "FLASH"
+    ],
+    "script": {
+        "replacementEffects": [
+            "EntersTapped"
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "78",
+        "artist": "Lorenzo Mastroianni",
+        "flavorText": "\"The currents are strange today, and the fish are fearful. Something's stirring in the depths.\" —Rathstaf, Kannah fisherman",
+        "imageUri": "https://cards.scryfall.io/normal/front/5/5/550c745b-64e8-4d20-9cf0-024248ddbd57.jpg?1783928254"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
+
+// Vault Robber
+{
+    "name": "Vault Robber",
+    "manaCost": "{1}{R}",
+    "typeLine": "Creature — Dwarf Rogue",
+    "oracleText": "{1}, {T}, Exile a creature card from your graveyard: Create a Treasure token. (It's an artifact with \"{T}, Sacrifice this token: Add one mana of any color.\")",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 3
+    },
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": {
+                    "type": "CostComposite",
+                    "costs": [
+                        {
+                            "type": "CostAtomWrapper",
+                            "atom": {
+                                "type": "AtomMana",
+                                "cost": "{1}"
+                            }
+                        },
+                        "CostTap",
+                        {
+                            "type": "CostAtomWrapper",
+                            "atom": {
+                                "type": "AtomExileFrom",
+                                "zone": "Graveyard",
+                                "filter": "creature"
+                            }
+                        }
+                    ]
+                },
+                "effect": {
+                    "type": "CreatePredefinedToken",
+                    "tokenType": "Treasure"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "158",
+        "artist": "Slawomir Maniak",
+        "flavorText": "The dwarves believe works of art should be passed down the generations, not buried with the dead.",
+        "imageUri": "https://cards.scryfall.io/normal/front/7/4/74f68014-489d-4f51-a959-0f335541cb4e.jpg?1783928220",
+        "rulings": [
+            {
+                "date": "2021-02-05",
+                "text": "Once you announce that you’re activating the activated ability, no player may take actions until the ability has been paid for. Notably, opponents can’t try to remove one of your creature cards to stop you from exiling it."
+            }
+        ]
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
 // Youthful Valkyrie
 {
     "name": "Youthful Valkyrie",
@@ -441,7 +1004,7 @@
                 "id": "ability_1",
                 "trigger": {
                     "type": "ZoneChangeEvent",
-                    "filter": "creature Angel ctrl:you",
+                    "filter": "permanent Angel ctrl:you",
                     "to": "Battlefield"
                 },
                 "binding": "OTHER",

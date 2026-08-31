@@ -8,7 +8,16 @@ import type { ClientGameState, ClientEvent, LegalActionInfo, PendingDecision, Op
 import { trackEvent, setInGame } from '@/utils/analytics.ts'
 import { applyStateDelta } from '@/network/deltaApplicator.ts'
 import { getWebSocket, clearLobbyId, requestReauth } from '../shared'
+import { keepAttackerPreview, keepBlockerPreview } from './combatPreview'
 import type { SetState, GetState } from './types'
+import type {
+  LogEntry,
+  DrawAnimation,
+  DamageAnimation,
+  RevealAnimation,
+  CoinFlipAnimation,
+  TargetReselectedAnimation,
+} from '../types'
 
 /**
  * Extract the relevant player ID from an event for log coloring.
@@ -52,6 +61,33 @@ function isRevealCoveredBySelectDecision(
   if (revealedIds.length === 0) return false
   const covered = new Set<EntityId>([...options, ...nonSelectableOptions])
   return revealedIds.every((id) => covered.has(id))
+}
+
+/**
+ * Map a game log the server has resent into log entries, reusing the entries already built for
+ * the prefix. The log is append-only, so everything but the new tail is unchanged — rebuilding
+ * it wholesale meant every click late in a game re-mapped hundreds of entries it had already
+ * mapped. Falls back to a full rebuild if the log ever shrinks (a new game, or an undo).
+ */
+function appendGameLogTail(
+  existing: readonly LogEntry[],
+  gameLog: readonly ClientEvent[] | undefined
+): readonly LogEntry[] {
+  const log = gameLog ?? []
+  if (log.length === existing.length) return existing
+  const reusable = log.length > existing.length ? existing.length : 0
+  const entries: LogEntry[] = reusable > 0 ? existing.slice(0, reusable) : []
+  const now = Date.now()
+  for (let i = reusable; i < log.length; i++) {
+    const e = log[i] as { type: string; description: string; playerId?: string; casterId?: string; controllerId?: string; attackingPlayerId?: string; viewingPlayerId?: string; revealingPlayerId?: string; activePlayerId?: string; newControllerId?: string }
+    entries.push({
+      description: e.description,
+      playerId: getEventPlayerId(e),
+      timestamp: now,
+      type: getEventLogType(e.type),
+    })
+  }
+  return entries
 }
 
 function getEventLogType(eventType: string): 'action' | 'turn' | 'combat' | 'system' {
@@ -149,13 +185,59 @@ interface StateUpdateEnvelope {
  * Process a state update — shared between full StateUpdate and StateDeltaUpdate.
  * Takes the resolved (full) ClientGameState and the envelope fields.
  */
+/**
+ * Stamp the seat → team map from the state's own team fields, unless it already matches. In the
+ * overwhelmingly common non-team game no seat carries a `teamIndex`, so this settles into
+ * comparing two empty maps and returning without ever writing to the store.
+ *
+ * Exported for its own tests: this is the whole of the reconnect fix, and the bug it replaced
+ * (team state riding only on the one-shot game-start roster) is an easy one to reintroduce.
+ */
+export function syncSeatTeams(state: ClientGameState, get: GetState): void {
+  const next: Record<EntityId, number> = {}
+  for (const p of state.players) {
+    if (p.teamIndex != null) next[p.playerId] = p.teamIndex
+  }
+  const sharedLife = state.players.some((p) => p.teamSharedLife === true)
+  const sharedTurns = state.players.some((p) => p.teamSharedTurns === true)
+  const store = get()
+  const current = store.teamByPlayerId
+  const keys = Object.keys(next)
+  if (
+    keys.length === Object.keys(current).length &&
+    keys.every((k) => current[k as EntityId] === next[k as EntityId]) &&
+    store.teamSharedLife === sharedLife &&
+    store.teamSharedTurns === sharedTurns
+  ) {
+    return
+  }
+  store.setSeatTeams(next, sharedLife, sharedTurns)
+}
+
 function processStateUpdate(
   resolvedState: ClientGameState,
   msg: StateUpdateEnvelope,
   set: SetState,
   get: GetState
 ): void {
-  const { playerId, addDrawAnimation, addDamageAnimation, addRevealAnimation, addCoinFlipAnimation, addTargetReselectedAnimation, addBeholdPulse, reconcileBeholdPulses } = get()
+  const { playerId, addBeholdPulse, reconcileBeholdPulses } = get()
+
+  // Two-Headed Giant (CR 810) / Team vs. Team (CR 808): re-derive the seat → team map from the
+  // state itself. The game-start roster also carries it, but that message is a one-shot — a
+  // client that joined by *reconnecting* (hotseat, a scenario, a dropped connection resuming)
+  // never receives it and would render a team game as a free-for-all. Doing it here covers every
+  // entry path with one write, and it's a no-op (reference-stable) once the map already matches.
+  syncSeatTeams(resolvedState, get)
+
+  // Animations spawned by this update are collected here and committed with the state itself,
+  // in one store write. Each separate write re-runs every subscriber's selector across the
+  // whole board — a combat update that draws a card and changes two life totals used to cost
+  // four of those passes before anything could paint.
+  const newDrawAnimations: DrawAnimation[] = []
+  const newDamageAnimations: DamageAnimation[] = []
+  const newRevealAnimations: RevealAnimation[] = []
+  const newCoinFlipAnimations: CoinFlipAnimation[] = []
+  const newTargetReselectedAnimations: TargetReselectedAnimation[] = []
 
   // Check for hand reveal events
   const handLookedAtEvent = msg.events.find(
@@ -263,7 +345,7 @@ function processStateUpdate(
   cardDrawnEvents.forEach((event, index) => {
     const isOpponent = event.playerId !== playerId
     const card = resolvedState.cards[event.cardId]
-    addDrawAnimation({
+    newDrawAnimations.push({
       id: `draw-${event.cardId}-${Date.now()}-${index}`,
       cardId: event.cardId,
       cardName: event.cardName,
@@ -296,7 +378,7 @@ function processStateUpdate(
   let animIndex = 0
   playerLifeChanges.forEach((changes, targetPlayerId) => {
     if (changes.damage > 0) {
-      addDamageAnimation({
+      newDamageAnimations.push({
         id: `life-${targetPlayerId}-${Date.now()}-damage`,
         targetId: targetPlayerId,
         targetIsPlayer: true,
@@ -307,7 +389,7 @@ function processStateUpdate(
       animIndex++
     }
     if (changes.lifeGain > 0) {
-      addDamageAnimation({
+      newDamageAnimations.push({
         id: `life-${targetPlayerId}-${Date.now()}-gain`,
         targetId: targetPlayerId,
         targetIsPlayer: true,
@@ -330,7 +412,7 @@ function processStateUpdate(
   turnedFaceUpEvents.forEach((event, index) => {
     const isOpponent = event.controllerId !== playerId
     const card = resolvedState.cards[event.cardId]
-    addRevealAnimation({
+    newRevealAnimations.push({
       id: `reveal-${event.cardId}-${Date.now()}-${index}`,
       cardName: event.cardName,
       imageUri: card?.imageUri ?? null,
@@ -346,16 +428,23 @@ function processStateUpdate(
     won: boolean
     sourceId: EntityId
     sourceName: string
+    ignored?: boolean
   }[]
 
+  // Coins that were flipped together are shown together, fanned out across the screen rather than
+  // stacked on the centre — a Krark's Thumb flip is always at least two coins, and the point of
+  // showing the ignored ones is that the player can see what was really flipped.
   coinFlipEvents.forEach((event, index) => {
     const isOpponent = event.playerId !== playerId
-    addCoinFlipAnimation({
+    newCoinFlipAnimations.push({
       id: `coin-${event.sourceId}-${Date.now()}-${index}`,
       sourceName: event.sourceName,
       won: isOpponent ? !event.won : event.won,
       isOpponent,
       startTime: Date.now() + index * 200,
+      ignored: event.ignored ?? false,
+      laneIndex: index,
+      laneCount: coinFlipEvents.length,
     })
   })
 
@@ -369,7 +458,7 @@ function processStateUpdate(
   }[]
 
   targetReselectedEvents.forEach((event, index) => {
-    addTargetReselectedAnimation({
+    newTargetReselectedAnimations.push({
       id: `reselect-${Date.now()}-${index}`,
       spellOrAbilityName: event.spellOrAbilityName,
       oldTargetName: event.oldTargetName,
@@ -399,13 +488,18 @@ function processStateUpdate(
     undoAvailable: msg.undoAvailable ?? false,
     ...(serverPriorityMode ? { priorityMode: serverPriorityMode, fullControl: serverPriorityMode === 'fullControl' } : {}),
     ...(serverOverrides ? { stopOverrides: serverOverrides } : {}),
-    pendingEvents: [...state.pendingEvents, ...msg.events],
-    eventLog: (resolvedState.gameLog ?? []).map((e) => ({
-      description: e.description,
-      playerId: getEventPlayerId(e as { type: string; playerId?: string; casterId?: string; controllerId?: string; attackingPlayerId?: string; viewingPlayerId?: string; revealingPlayerId?: string; activePlayerId?: string; newControllerId?: string }),
-      timestamp: Date.now(),
-      type: getEventLogType((e as { type: string }).type),
-    })),
+    // The server resends the whole game log every update, but it only ever grows at the tail:
+    // re-mapping all of it each time did work proportional to the game's length so far, so a
+    // long game paid steadily more per click. Map only the new tail and keep the prefix's
+    // existing entries, which also keeps their identity stable for the log list.
+    eventLog: appendGameLogTail(state.eventLog, resolvedState.gameLog),
+    ...(newDrawAnimations.length > 0 ? { drawAnimations: [...state.drawAnimations, ...newDrawAnimations] } : {}),
+    ...(newDamageAnimations.length > 0 ? { damageAnimations: [...state.damageAnimations, ...newDamageAnimations] } : {}),
+    ...(newRevealAnimations.length > 0 ? { revealAnimations: [...state.revealAnimations, ...newRevealAnimations] } : {}),
+    ...(newCoinFlipAnimations.length > 0 ? { coinFlipAnimations: [...state.coinFlipAnimations, ...newCoinFlipAnimations] } : {}),
+    ...(newTargetReselectedAnimations.length > 0
+      ? { targetReselectedAnimations: [...state.targetReselectedAnimations, ...newTargetReselectedAnimations] }
+      : {}),
     waitingForOpponentMulligan: false,
     revealedHandCardIds: (() => {
       if (faceDownCastByOpponent) return null
@@ -448,8 +542,17 @@ function processStateUpdate(
           ? null
           : { cardIds: filteredReveal.cardIds, cardNames: filteredReveal.cardNames, imageUris: filteredReveal.imageUris, source: filteredReveal.source, isYourReveal: filteredReveal.revealingPlayerId === playerId, fromZone: filteredReveal.fromZone ?? null, toZone: filteredReveal.toZone ?? null, ...(filteredReveal.cardOwnerIsYours ? { cardOwnerIsYours: filteredReveal.cardOwnerIsYours } : {}) })
       : cardsRevealedEvent ? null : state.revealedCardsInfo,
-    opponentAttackerTargets: resolvedState.combat ? null : state.opponentAttackerTargets,
-    opponentBlockerAssignments: (resolvedState.combat?.blockers?.length || !resolvedState.combat) ? null : state.opponentBlockerAssignments,
+    // The opponent's streamed declaration previews expire with their own declaration step.
+    opponentAttackerTargets: keepAttackerPreview(resolvedState.currentStep, resolvedState.combat != null)
+      ? state.opponentAttackerTargets
+      : null,
+    opponentBlockerAssignments: keepBlockerPreview(
+      resolvedState.currentStep,
+      resolvedState.combat != null,
+      (resolvedState.combat?.blockers?.length ?? 0) > 0,
+    )
+      ? state.opponentBlockerAssignments
+      : null,
   }))
 
   // Auto-initialize inline distribute state for DistributeDecision
@@ -508,7 +611,10 @@ export function createGameplayHandlers(set: SetState, get: GetState): Pick<Messa
       }
       // Shared life is a game-level fact (same on every seat); 2HG shares, Team vs. Team doesn't.
       const sharedLife = msg.players.some((p) => p.teamSharedLife)
-      get().setSeatTeams(seatTeams, sharedLife)
+      // Shared turns is the separate CR 805 axis: 2HG shares its turn *and* its priority, Team
+      // vs. Team shares neither. `syncSeatTeams` re-derives both from every state update.
+      const sharedTurns = msg.players.some((p) => p.teamSharedTurns)
+      get().setSeatTeams(seatTeams, sharedLife, sharedTurns)
 
       // Load persisted stop overrides and send to server
       try {
@@ -646,8 +752,14 @@ export function createGameplayHandlers(set: SetState, get: GetState): Pick<Messa
       // Ignore a game-over for a game we already left — e.g. an eliminated FFA player who
       // returned to the lobby still holds a seat server-side and receives the final GameOver.
       if (msg.gameId && sessionId !== msg.gameId) return
-      const result: 'win' | 'lose' | 'draw' =
-        msg.winnerId === null ? 'draw' : msg.winnerId === playerId ? 'win' : 'lose'
+      // "Did I win?" is a team question in Two-Headed Giant (CR 810.8a): the server names every
+      // winning seat in winnerIds; winnerId is one representative and would tell the other head
+      // of the winning team they lost. Older servers send winnerId alone, so fall back to it.
+      const won =
+        msg.winnerIds && msg.winnerIds.length > 0
+          ? playerId !== null && msg.winnerIds.includes(playerId)
+          : msg.winnerId === playerId
+      const result: 'win' | 'lose' | 'draw' = msg.winnerId === null ? 'draw' : won ? 'win' : 'lose'
       trackEvent('game_over', { result, reason: msg.reason })
       setInGame(false)
       set({

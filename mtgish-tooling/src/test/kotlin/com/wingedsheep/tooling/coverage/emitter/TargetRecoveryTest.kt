@@ -31,7 +31,8 @@ class TargetRecoveryTest : StringSpec({
                 """{"_Permanents":"IsCreatureType","args":"Soldier"}]}""",
         )
         ctx.creatureFilterDsl(orSubs) shouldBe
-            "TargetFilter(GameObjectFilter.Creature.withSubtype(\"Goblin\") or GameObjectFilter.Creature.withSubtype(\"Soldier\"))"
+            "TargetFilter(GameObjectFilter.Creature.withSubtype(${subtypeArg("Goblin")}) or " +
+            "GameObjectFilter.Creature.withSubtype(${subtypeArg("Soldier")}))"
     }
 
     "creatureFilterDsl renders power-or-toughness and suppresses the standalone power bound" {
@@ -229,7 +230,8 @@ class TargetRecoveryTest : StringSpec({
                 """{"_Permanents":"IsNonCreatureType","args":"Mount"},""" +
                 """{"_Permanents":"IsCardtype","args":"Creature"}]}""",
         )
-        ctx.creatureFilterDsl(nonMount) shouldBe "TargetFilter(GameObjectFilter.Creature.notSubtype(Subtype(\"Mount\")))"
+        ctx.creatureFilterDsl(nonMount) shouldBe
+            "TargetFilter(GameObjectFilter.Creature.notSubtype(${subtypeCtorArg("Mount")}))"
     }
 
     "creatureFilterDsl renders a 'with a stun counter on it' restriction (Floodpits Drowner)" {
@@ -256,9 +258,9 @@ class TargetRecoveryTest : StringSpec({
         ctx.creatureFilterDsl(withUnknownCounter).shouldBeNull()
     }
 
-    "creatureFilterDsl renders a 'dealt damage this turn' restriction (Rooftop Assassin)" {
-        // "target creature an opponent controls that was dealt damage this turn" -> the
-        // .dealtDamageThisTurn() state-predicate suffix composed with the controller suffix.
+    "creatureFilterDsl renders a 'was dealt damage this turn' restriction (Rooftop Assassin)" {
+        // "target creature an opponent controls that was dealt damage this turn" -> the passive
+        // .wasDealtDamageThisTurn() state-predicate suffix composed with the controller suffix.
         val dealtDamage = obj(
             """{"_Permanents":"And","args":[""" +
                 """{"_Permanents":"IsCardtype","args":"Creature"},""" +
@@ -266,11 +268,30 @@ class TargetRecoveryTest : StringSpec({
                 """{"_Permanents":"WasDealtDamageThisTurn"}]}""",
         )
         ctx.creatureFilterDsl(dealtDamage) shouldBe
-            "TargetFilter.Creature.dealtDamageThisTurn().opponentControls()"
+            "TargetFilter.Creature.wasDealtDamageThisTurn().opponentControls()"
+    }
+
+    "creatureFilterDsl renders an active 'dealt damage this turn' restriction (Red Guardian)" {
+        // "target creature an opponent controls that dealt damage this turn" -> the active
+        // .hasDealtDamageThisTurn() suffix. The active IR tag is a substring of the passive one, so this
+        // also pins that the passive suffix is NOT emitted alongside it.
+        //
+        // The node is fabricated, not lifted from the corpus: the local sample is truncated and
+        // pre-MSH, so the bare `DealtDamageThisTurn` spelling is an unconfirmed guess at mtgish's
+        // active tag. This test therefore pins the *rendering* of that shape, not that mtgish ever
+        // produces it.
+        val dealtDamage = obj(
+            """{"_Permanents":"And","args":[""" +
+                """{"_Permanents":"IsCardtype","args":"Creature"},""" +
+                """{"_Permanents":"ControlledByAPlayer","args":{"_Players":"Opponent"}},""" +
+                """{"_Permanents":"DealtDamageThisTurn"}]}""",
+        )
+        ctx.creatureFilterDsl(dealtDamage) shouldBe
+            "TargetFilter.Creature.hasDealtDamageThisTurn().opponentControls()"
     }
 
     "creatureFilterDsl declines 'dealt damage this turn' combined with an unrenderable shape" {
-        // The .dealtDamageThisTurn() suffix only composes on the plain-creature path; combined with a
+        // The damage-history suffixes only compose on the plain-creature path; combined with a
         // creature-subtype clause (a branch that returns before the suffix) it would be silently dropped,
         // so the recovery declines (-> SCAFFOLD) rather than widen the kill.
         val dealtDamageGoblin = obj(
@@ -345,5 +366,56 @@ class TargetRecoveryTest : StringSpec({
                 """{"_Permanents":"IsCardtype","args":"Planeswalker"}]}""",
         )
         ctx.gameObjectFilterDsl(creatureOrPlaneswalker) shouldBe "GameObjectFilter.CreatureOrPlaneswalker"
+    }
+
+    "creatureFilterDsl renders 'target creature you don't control' as opponentControls" {
+        // The TARGET path's counterpart to the group-filter case above. It used to scan the serialized
+        // blob for a bare `"You"`, which read `Other(You)` ("a player other than you") as youControl and
+        // inverted the restriction — Affectionate Indrik's enters trigger could then only fight the
+        // controller's OWN creatures. Same defect hit Primal Might and Bite Down.
+        val youDontControl = obj(
+            """{"_Permanents":"And","args":[{"_Permanents":"IsCardtype","args":"Creature"},""" +
+                """{"_Permanents":"ControlledByAPlayer","args":{"_Players":"Other","args":{"_Player":"You"}}}]}""",
+        )
+        ctx.creatureFilterDsl(youDontControl) shouldBe "TargetFilter.Creature.opponentControls()"
+    }
+
+    "creatureFilterDsl still renders the plain 'you control' and 'an opponent controls' scopes" {
+        val youControl = obj(
+            """{"_Permanents":"And","args":[{"_Permanents":"IsCardtype","args":"Creature"},""" +
+                """{"_Permanents":"ControlledByAPlayer","args":{"_Players":"SinglePlayer","args":{"_Player":"You"}}}]}""",
+        )
+        ctx.creatureFilterDsl(youControl) shouldBe "TargetFilter.Creature.youControl()"
+
+        val opponentControls = obj(
+            """{"_Permanents":"And","args":[{"_Permanents":"IsCardtype","args":"Creature"},""" +
+                """{"_Permanents":"ControlledByAPlayer","args":{"_Players":"Opponent"}}]}""",
+        )
+        ctx.creatureFilterDsl(opponentControls) shouldBe "TargetFilter.Creature.opponentControls()"
+    }
+
+    "creatureFilterDsl declines a controller scope it cannot render exactly" {
+        // YourTeam has no rendering here. Widening to every creature would be confidently wrong, so the
+        // card must decline to SCAFFOLD. (The old substring scan also declined — via `"\"You\""` not
+        // matching `"YourTeam"` — but only by accident; this pins it structurally.)
+        val yourTeam = obj(
+            """{"_Permanents":"And","args":[{"_Permanents":"IsCardtype","args":"Creature"},""" +
+                """{"_Permanents":"ControlledByAPlayer","args":{"_Players":"YourTeam"}}]}""",
+        )
+        ctx.creatureFilterDsl(yourTeam).shouldBeNull()
+    }
+
+    "a non-creature target still declines a trigger's implied-opponent player ref (Dawning Purist)" {
+        // "destroy target enchantment THAT PLAYER controls" — the IR names one specific player, so
+        // collapsing it to opponentControls is exact only in a two-player game. The plain-creature
+        // surface takes that trade (Skirk Commando); the single-cardtype surface never has, and must
+        // keep declining to SCAFFOLD rather than quietly widen to any opponent's enchantment.
+        val thatPlayersEnchantment = obj(
+            """{"_Target":"TargetPermanent","args":{"_Permanents":"And","args":[""" +
+                """{"_Permanents":"IsCardtype","args":"Enchantment"},""" +
+                """{"_Permanents":"ControlledByAPlayer","args":""" +
+                """{"_Players":"SinglePlayer","args":{"_Player":"Trigger_ThatPlayer"}}}]}}""",
+        )
+        ctx.targetDsl(thatPlayersEnchantment).shouldBeNull()
     }
 })

@@ -38,8 +38,8 @@
         "imageUri": "https://cards.scryfall.io/normal/front/6/2/62090c97-7e3e-4854-bc44-c4a900133ec5.jpg?1783940604"
     },
     "colorIdentityOverride": [
-        "BLUE",
-        "BLACK"
+        "BLACK",
+        "BLUE"
     ]
 }
 
@@ -74,9 +74,9 @@
                     ],
                     "creatureTypes": [
                         "Goblin"
-                    ],
-                    "imageUri": "https://cards.scryfall.io/normal/front/0/9/09faad62-42ff-4e37-b8a5-d8e8a0f6d096.jpg?1783903425"
-                }
+                    ]
+                },
+                "descriptionOverride": "When this creature enters, create two 1/1 red Goblin creature tokens."
             }
         ]
     },
@@ -120,9 +120,9 @@
                     ],
                     "creatureTypes": [
                         "Boar"
-                    ],
-                    "imageUri": "https://cards.scryfall.io/normal/front/8/a/8a911fad-7af3-4bc4-bafc-cac2d5f18f22.jpg?1783921674"
-                }
+                    ]
+                },
+                "descriptionOverride": "When this creature dies, create a 3/3 green Boar creature token."
             }
         ]
     },
@@ -220,7 +220,7 @@
                     ],
                     "imageUri": "https://cards.scryfall.io/normal/front/2/4/248ade83-ac57-42d6-985c-1e4cc3639f36.jpg?1783903570"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "EntityProperty",
@@ -491,7 +491,7 @@
                     },
                     "id": "permanent"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "EntityProperty",
@@ -716,10 +716,13 @@
                 },
                 "binding": "ANY",
                 "effect": {
-                    "type": "AttachEquipment",
-                    "target": "TriggeringEntity"
-                },
-                "optional": true
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "AttachEquipment",
+                        "target": "TriggeringEntity"
+                    }
+                }
             }
         ],
         "activatedAbilities": [
@@ -838,33 +841,7 @@
         "collectorNumber": "104",
         "rarity": "UNCOMMON",
         "artist": "Izzy",
-        "imageUri": "https://cards.scryfall.io/normal/front/c/e/ceb4df89-a97e-4479-b7f0-7083417a9565.jpg?1783940595",
-        "rulings": [
-            {
-                "date": "2021-06-18",
-                "text": "A spell's mana value is determined only by its mana cost. Ignore any alternative costs, additional costs, cost increases, or cost reductions."
-            },
-            {
-                "date": "2021-06-18",
-                "text": "Cascade triggers when you cast the spell, meaning that it resolves before that spell. If you end up casting the exiled card, it will go on the stack above the spell with cascade."
-            },
-            {
-                "date": "2021-06-18",
-                "text": "When the cascade ability resolves, you must exile cards. The only optional part of the ability is whether or not you cast the last card exiled."
-            },
-            {
-                "date": "2021-06-18",
-                "text": "If a spell with cascade is countered, the cascade ability will still resolve normally."
-            },
-            {
-                "date": "2021-06-18",
-                "text": "If the card has {X} in its mana cost, you must choose 0 as the value of X when casting it without paying its mana cost."
-            },
-            {
-                "date": "2021-06-18",
-                "text": "Due to a 2021 rules change to cascade, not only do you stop exiling cards if you exile a nonland card with lesser mana value than the spell with cascade, but the resulting spell you cast must also have lesser mana value."
-            }
-        ]
+        "imageUri": "https://cards.scryfall.io/normal/front/c/e/ceb4df89-a97e-4479-b7f0-7083417a9565.jpg?1783940595"
     },
     "colorIdentityOverride": [
         "GREEN",

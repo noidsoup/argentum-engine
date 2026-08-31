@@ -53,10 +53,11 @@ class AnyPlayerMayPayExecutor(
         val sourceCard = sourceContainer.get<CardComponent>()
             ?: return EffectResult.error(state, "Source has no card component")
 
-        // Get players in APNAP order
-        val activePlayer = state.activePlayerId
-            ?: return EffectResult.error(state, "No active player")
-        val apnapOrder = listOf(activePlayer) + state.turnOrder.filter { it != activePlayer }
+        // Get players in APNAP order (CR 101.4), skipping anyone who has left the game
+        if (state.activePlayerId == null) {
+            return EffectResult.error(state, "No active player")
+        }
+        val apnapOrder = state.apnapOrder
 
         // Scope to the players the effect offers the choice to ("any opponent may…" vs
         // "any player may…"), preserving APNAP order. Opponents are relative to the controller.
@@ -103,7 +104,8 @@ class AnyPlayerMayPayExecutor(
                 sourceId,
                 context.pipeline.storedCollections,
                 context.triggeringEntityId,
-                context.triggeringPlayerId
+                context.triggeringPlayerId,
+                context.pipeline.iterationTarget
             )
         }
 
@@ -129,7 +131,7 @@ class AnyPlayerMayPayExecutor(
     ): Boolean {
         return when (val atom = (cost as? PayCost.Atom)?.atom) {
             is CostAtom.Sacrifice -> {
-                val validPermanents = findValidPermanentsOnBattlefield(state, playerId, atom.filter, sourceId)
+                val validPermanents = findValidPermanentsOnBattlefield(state, playerId, atom, sourceId)
                 validPermanents.size >= atom.count
             }
             // CR 119.4: a player may pay life only if their life total is at least the amount.
@@ -152,7 +154,7 @@ class AnyPlayerMayPayExecutor(
         playerOrder: List<EntityId>,
         currentIndex: Int
     ): EffectResult {
-        val validPermanents = findValidPermanentsOnBattlefield(state, playerId, cost.filter, sourceId)
+        val validPermanents = findValidPermanentsOnBattlefield(state, playerId, cost, sourceId)
 
         val prompt = "You may sacrifice ${cost.count} ${cost.filter.description}s to cause $sourceName to be sacrificed, or skip"
 
@@ -269,7 +271,8 @@ class AnyPlayerMayPayExecutor(
         filter = filter,
         storedCollections = context.pipeline.storedCollections,
         triggeringEntityId = context.triggeringEntityId,
-        triggeringPlayerId = context.triggeringPlayerId
+        triggeringPlayerId = context.triggeringPlayerId,
+        iterationTarget = context.pipeline.iterationTarget
     )
 
     /**
@@ -283,28 +286,40 @@ class AnyPlayerMayPayExecutor(
         sourceId: EntityId,
         storedCollections: Map<String, List<EntityId>>,
         triggeringEntityId: EntityId? = null,
-        triggeringPlayerId: EntityId? = null
+        triggeringPlayerId: EntityId? = null,
+        iterationTarget: EntityId? = null
     ): EffectResult {
         if (consequence == null) return EffectResult.success(state)
         val executor = executeEffect ?: return EffectResult.success(state)
         val context = EffectContext(
             sourceId = sourceId,
             controllerId = controllerId,
-            pipeline = PipelineState(storedCollections = storedCollections),
+            pipeline = PipelineState(
+                storedCollections = storedCollections,
+                iterationTarget = iterationTarget
+            ),
             triggeringEntityId = triggeringEntityId,
             triggeringPlayerId = triggeringPlayerId
         )
         return executor(state, consequence, context)
     }
 
+    /**
+     * The permanents [playerId] may sacrifice to pay a [CostAtom.Sacrifice] whose source is
+     * [sourceId] — the same source-relative rule the resumer applies when it asks the *next* player
+     * (see `SacrificeAndPayContinuationResumer.askNextPlayerForAnyPlayerMayPay`): the atom's own
+     * `excludeSelf` decides whether the source is in the pool, and nothing else does.
+     */
     private fun findValidPermanentsOnBattlefield(
         state: GameState,
         playerId: EntityId,
-        filter: com.wingedsheep.sdk.scripting.GameObjectFilter,
+        cost: CostAtom.Sacrifice,
         sourceId: EntityId
-    ): List<EntityId> {
-        return BattlefieldFilterUtils.findMatchingOnBattlefield(
-            state, filter.youControl(), PredicateContext(controllerId = playerId)
+    ): List<EntityId> =
+        BattlefieldFilterUtils.findMatchingOnBattlefield(
+            state,
+            cost.filter.youControl(),
+            PredicateContext(controllerId = playerId),
+            excludeSelfId = if (cost.excludeSelf) sourceId else null
         )
-    }
 }

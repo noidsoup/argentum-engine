@@ -78,7 +78,7 @@
                     "to": "Battlefield"
                 },
                 "effect": "GrantPlayerProtection",
-                "triggerCondition": "WasCast"
+                "interveningIf": "WasCast"
             },
             {
                 "id": "ability_2",
@@ -423,7 +423,7 @@
                         }
                     ]
                 },
-                "triggerCondition": "YouChoseOtherCreatureAsRingBearer",
+                "interveningIf": "YouChoseOtherCreatureAsRingBearer",
                 "descriptionOverride": "Whenever the Ring tempts you, if you chose a creature other than Aragorn as your Ring-bearer, put your choice of a counter from among first strike, vigilance, deathtouch, and lifelink on Aragorn."
             },
             {
@@ -1342,7 +1342,7 @@
                     "type": "AttachEquipment",
                     "target": {
                         "type": "BoundVariable",
-                        "name": "Halfling you control"
+                        "name": "Halfling creature you control"
                     }
                 },
                 "targetRequirements": [
@@ -1351,10 +1351,12 @@
                         "filter": {
                             "baseFilter": "creature Halfling ctrl:you"
                         },
-                        "id": "Halfling you control"
+                        "id": "Halfling creature you control"
                     }
                 ],
-                "timing": "SorcerySpeed"
+                "timing": "SorcerySpeed",
+                "isEquipAbility": true,
+                "equipQuality": "Halfling"
             },
             {
                 "id": "ability_3",
@@ -1800,17 +1802,17 @@
             {
                 "chapter": 3,
                 "effect": {
-                    "type": "Composite",
-                    "effects": [
-                        {
-                            "type": "ForEach",
-                            "space": {
-                                "type": "IterationSpace.Group",
-                                "filter": {
-                                    "baseFilter": "creature ctrl:you"
-                                }
-                            },
-                            "body": {
+                    "type": "ForEach",
+                    "space": {
+                        "type": "IterationSpace.Group",
+                        "filter": {
+                            "baseFilter": "creature ctrl:you"
+                        }
+                    },
+                    "body": {
+                        "type": "Composite",
+                        "effects": [
+                            {
                                 "type": "ModifyStats",
                                 "powerModifier": {
                                     "type": "Fixed",
@@ -1821,23 +1823,14 @@
                                     "amount": 0
                                 },
                                 "target": "Self"
-                            }
-                        },
-                        {
-                            "type": "ForEach",
-                            "space": {
-                                "type": "IterationSpace.Group",
-                                "filter": {
-                                    "baseFilter": "creature ctrl:you"
-                                }
                             },
-                            "body": {
+                            {
                                 "type": "GrantKeyword",
                                 "keyword": "MENACE",
                                 "target": "Self"
                             }
-                        }
-                    ]
+                        ]
+                    }
                 }
             }
         ]
@@ -1912,7 +1905,7 @@
                     "type": "Counter",
                     "targetSource": "CounterTargetSource.TriggeringEntity"
                 },
-                "triggerCondition": "TriggeringSpellCastWithoutPayingMana"
+                "interveningIf": "TriggeringSpellCastWithoutPayingMana"
             }
         ],
         "activatedAbilities": [
@@ -2076,7 +2069,7 @@
                     "type": "CreatePredefinedToken",
                     "tokenType": "Food"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Not",
                     "condition": {
                         "type": "Exists",
@@ -2573,8 +2566,10 @@
                         }
                     }
                 },
-                "activeZone": "Graveyard",
-                "triggerCondition": {
+                "activeZones": [
+                    "Graveyard"
+                ],
+                "interveningIf": {
                     "type": "Exists",
                     "player": "You",
                     "zone": "Battlefield",
@@ -2852,7 +2847,7 @@
                     ],
                     "imageUri": "https://cards.scryfall.io/normal/front/a/6/a6181330-7521-4ec6-be6c-b35487c2d2d4.jpg?1699974464"
                 },
-                "triggerCondition": "ControlledCreatureDiedThisTurn"
+                "interveningIf": "ControlledCreatureDiedThisTurn"
             }
         ],
         "activatedAbilities": [
@@ -3199,7 +3194,8 @@
                     }
                 ],
                 "timing": "SorcerySpeed",
-                "descriptionOverride": "Equip Human {1}"
+                "isEquipAbility": true,
+                "equipQuality": "Human"
             },
             {
                 "id": "ability_2",
@@ -3269,9 +3265,9 @@
                     "filter": "land ctrl:you",
                     "to": "Battlefield"
                 },
-                "binding": "OTHER",
+                "binding": "ANY",
                 "effect": "TheRingTemptsYou",
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Exists",
                     "player": "You",
                     "zone": "Battlefield",
@@ -3421,17 +3417,17 @@
                     "to": "Battlefield"
                 },
                 "effect": {
-                    "type": "Composite",
-                    "effects": [
-                        {
-                            "type": "ForEach",
-                            "space": {
-                                "type": "IterationSpace.Group",
-                                "filter": {
-                                    "baseFilter": "creature ctrl:you"
-                                }
-                            },
-                            "body": {
+                    "type": "ForEach",
+                    "space": {
+                        "type": "IterationSpace.Group",
+                        "filter": {
+                            "baseFilter": "creature ctrl:you"
+                        }
+                    },
+                    "body": {
+                        "type": "Composite",
+                        "effects": [
+                            {
                                 "type": "ModifyStats",
                                 "powerModifier": {
                                     "type": "Fixed",
@@ -3442,23 +3438,14 @@
                                     "amount": 0
                                 },
                                 "target": "Self"
-                            }
-                        },
-                        {
-                            "type": "ForEach",
-                            "space": {
-                                "type": "IterationSpace.Group",
-                                "filter": {
-                                    "baseFilter": "creature ctrl:you"
-                                }
                             },
-                            "body": {
+                            {
                                 "type": "GrantKeyword",
                                 "keyword": "FIRST_STRIKE",
                                 "target": "Self"
                             }
-                        }
-                    ]
+                        ]
+                    }
                 }
             }
         ]
@@ -3689,7 +3676,7 @@
                         ]
                     }
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "TurnTracking",
@@ -4387,7 +4374,7 @@
                 "id": "ability_1",
                 "trigger": {
                     "type": "ZoneChangeEvent",
-                    "filter": "creature Human ctrl:you",
+                    "filter": "permanent Human ctrl:you",
                     "to": "Battlefield"
                 },
                 "binding": "ANY",
@@ -4953,7 +4940,7 @@
                         "amount": 1
                     }
                 },
-                "triggerCondition": "ControlledCreatureDiedThisTurn"
+                "interveningIf": "ControlledCreatureDiedThisTurn"
             },
             {
                 "id": "ability_2",
@@ -4972,7 +4959,7 @@
                     ],
                     "imageUri": "https://cards.scryfall.io/normal/front/a/6/a6181330-7521-4ec6-be6c-b35487c2d2d4.jpg?1699974464"
                 },
-                "triggerCondition": "YouChoseOtherCreatureAsRingBearer"
+                "interveningIf": "YouChoseOtherCreatureAsRingBearer"
             }
         ]
     },
@@ -6218,7 +6205,7 @@
                     "type": "Scry",
                     "count": 3
                 },
-                "triggerCondition": "YouChoseOtherCreatureAsRingBearer"
+                "interveningIf": "YouChoseOtherCreatureAsRingBearer"
             },
             {
                 "id": "ability_2",
@@ -6649,7 +6636,7 @@
                         "amount": 1
                     }
                 },
-                "triggerCondition": "YouChoseOtherCreatureAsRingBearer"
+                "interveningIf": "YouChoseOtherCreatureAsRingBearer"
             }
         ],
         "staticAbilities": [
@@ -6730,12 +6717,15 @@
                     "to": "Graveyard"
                 },
                 "effect": {
-                    "type": "MoveToZone",
-                    "target": "Self",
-                    "destination": "Library",
-                    "positionFromTop": 4
-                },
-                "optional": true
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "MoveToZone",
+                        "target": "Self",
+                        "destination": "Library",
+                        "positionFromTop": 4
+                    }
+                }
             }
         ]
     },
@@ -9648,12 +9638,12 @@
                         "tap": false
                     }
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "EntityMatches",
                     "entity": "Self",
                     "filter": "tapped"
                 },
-                "oncePerTurn": true
+                "effectOncePerTurn": true
             },
             {
                 "id": "ability_2",
@@ -10709,7 +10699,7 @@
                         "amount": 1
                     }
                 },
-                "triggerCondition": {
+                "triggerRestriction": {
                     "type": "Exists",
                     "player": "You",
                     "zone": "Battlefield",
@@ -12904,21 +12894,20 @@
         ],
         "replacementEffects": [
             {
-                "type": "ModifyDrawAmount",
-                "modifier": 1,
+                "type": "ReplaceDrawWith",
+                "replacementEffect": {
+                    "type": "DrawCards",
+                    "count": {
+                        "type": "Fixed",
+                        "amount": 2
+                    }
+                },
                 "restrictions": [
                     {
-                        "type": "Compare",
-                        "left": {
-                            "type": "Count",
-                            "player": "You",
-                            "zone": "Hand"
-                        },
-                        "operator": "LTE",
-                        "right": {
-                            "type": "Fixed",
-                            "amount": 0
-                        }
+                        "type": "Exists",
+                        "player": "You",
+                        "zone": "Hand",
+                        "negate": true
                     }
                 ]
             },
@@ -13541,7 +13530,7 @@
                     "space": {
                         "type": "IterationSpace.Group",
                         "filter": {
-                            "baseFilter": "creature Human ctrl:you"
+                            "baseFilter": "permanent Human ctrl:you"
                         }
                     },
                     "body": {
@@ -13855,7 +13844,7 @@
                         }
                     ]
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "EntityMatches",
                     "entity": "Self",
                     "filter": {
@@ -14042,7 +14031,9 @@
                     "target": "Self",
                     "destination": "Hand"
                 },
-                "activeZone": "Graveyard"
+                "activeZones": [
+                    "Graveyard"
+                ]
             }
         ]
     },
@@ -15706,7 +15697,7 @@
                 "type": "GrantKeyword",
                 "keyword": "HASTE",
                 "filter": {
-                    "baseFilter": "creature Horse ctrl:you"
+                    "baseFilter": "permanent Horse ctrl:you"
                 }
             }
         ]
@@ -16245,7 +16236,7 @@
                     },
                     "id": "creature you control"
                 },
-                "triggerCondition": "PermanentLeftBattlefieldThisTurn"
+                "interveningIf": "PermanentLeftBattlefieldThisTurn"
             }
         ]
     },
@@ -16455,7 +16446,7 @@
                 },
                 "binding": "ANY",
                 "effect": "TheRingTemptsYou",
-                "triggerCondition": "ControlledCreatureDiedThisTurn"
+                "interveningIf": "ControlledCreatureDiedThisTurn"
             },
             {
                 "id": "ability_2",
@@ -17114,7 +17105,7 @@
                     "filter": "land ctrl:you",
                     "to": "Battlefield"
                 },
-                "binding": "OTHER",
+                "binding": "ANY",
                 "effect": {
                     "type": "Composite",
                     "effects": [
@@ -17936,7 +17927,7 @@
                     "to": "Battlefield"
                 },
                 "effect": "GrantPlayerProtection",
-                "triggerCondition": "WasCast"
+                "interveningIf": "WasCast"
             },
             {
                 "id": "ability_2",
@@ -18273,7 +18264,7 @@
                     ],
                     "imageUri": "https://cards.scryfall.io/normal/front/e/e/eea4e628-4ae2-4e33-a3b6-176ed87c1840.jpg?1686336819"
                 },
-                "triggerCondition": "IsNotYourTurn"
+                "triggerRestriction": "IsNotYourTurn"
             },
             {
                 "id": "ability_2",
@@ -18491,7 +18482,7 @@
                 "id": "ability_1",
                 "trigger": {
                     "type": "ZoneChangeEvent",
-                    "filter": "creature Human ctrl:you",
+                    "filter": "permanent Human ctrl:you",
                     "to": "Battlefield"
                 },
                 "binding": "ANY",
@@ -19676,7 +19667,7 @@
                     ],
                     "imageUri": "https://cards.scryfall.io/normal/front/a/6/a6181330-7521-4ec6-be6c-b35487c2d2d4.jpg?1699974464"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "All",
                     "conditions": [
                         {

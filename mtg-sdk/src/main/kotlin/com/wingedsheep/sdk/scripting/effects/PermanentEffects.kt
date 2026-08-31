@@ -147,12 +147,31 @@ data class BecomeCreatureEffect(
  *   change (Ultima's blighted land "loses all land types and abilities" but stays a land and keeps
  *   any other card types such as artifact, per its ruling).
  * @property subtypes Subtypes to set, replacing all existing ones (e.g. `setOf("Treasure")`;
- *   `emptySet()` strips all subtypes — "loses all land types")
+ *   `emptySet()` strips all subtypes — "loses all land types"). `null` keeps the permanent's
+ *   existing subtypes unchanged, the sibling of [cardTypes]'s `null` — for a transform that only
+ *   renames or grants ("it becomes a legendary creature named Mileva, the Stalwart", Tenth
+ *   District Hero, which stays whatever creature types it already had). Distinguishing "set to
+ *   nothing" from "don't touch" is why this is nullable rather than defaulting to a no-op.
  * @property colors Colors to set (`emptySet()` = colorless, the default; `null` = keep existing)
  * @property loseAllAbilities Whether the permanent loses all printed/granted-via-projection abilities
+ * @property name Name to set, replacing the permanent's own (CR 612.8 — "loses any names it had
+ *   and has only the specified name"), applied at Layer 3 (TEXT) before the type/color layers.
+ *   `null` keeps the printed name. Used by The Irencrag becoming "Everflame, Heroes' Legacy".
+ *   Only supertypes survive a rename, so two same-controller permanents renamed alike can collide
+ *   under the legend rule.
  * @property grantedAbility A single activated ability the transformed permanent gains (e.g. the
  *   Treasure sac-for-mana ability). Granted via the durable granted-activated-ability record, so it
  *   survives [loseAllAbilities] (which only strips projected abilities).
+ * @property grantedStaticAbilities Static abilities the transformed permanent gains — the static
+ *   counterpart to [grantedAbility], for "it gains equip {3} and \"Equipped creature gets +3/+3\"
+ *   and loses all other abilities" (The Irencrag). These are appended to the permanent's own
+ *   continuous-effect source list, so they project through the layer system (an attached-creature
+ *   `ModifyStats` really does pump the equipped creature) and are exempt from this same effect's
+ *   [loseAllAbilities] wipe — the permanent is the source of that wipe, and a source's own
+ *   continuous effects are never suppressed by it. Because that channel is the permanent's own
+ *   component, the grant lasts for as long as the permanent stays on the battlefield: pair it with
+ *   `Duration.Permanent`, which has the same lifetime. Shorter durations govern the type/color/
+ *   ability-wipe layers only and would leave these grants behind, so the executor ignores them.
  * @property duration How long the transform lasts (`Duration.Permanent` for an indefinite change
  *   that ends only when the permanent leaves the battlefield)
  */
@@ -161,28 +180,35 @@ data class BecomeCreatureEffect(
 data class BecomeArtifactEffect(
     val target: EffectTarget = EffectTarget.ContextTarget(0),
     val cardTypes: Set<String>? = setOf("ARTIFACT"),
-    val subtypes: Set<String> = emptySet(),
+    val subtypes: Set<String>? = emptySet(),
     val colors: Set<com.wingedsheep.sdk.core.Color>? = emptySet(),
     val loseAllAbilities: Boolean = true,
+    val name: String? = null,
     val grantedAbility: com.wingedsheep.sdk.scripting.ActivatedAbility? = null,
+    val grantedStaticAbilities: List<com.wingedsheep.sdk.scripting.StaticAbility> = emptyList(),
     val duration: Duration = Duration.Permanent
 ) : Effect {
     override val description: String = buildString {
         append("${target.description} becomes ")
         if (colors?.isEmpty() == true) append("a colorless ")
-        if (subtypes.isNotEmpty()) append(subtypes.joinToString(" "))
+        if (!subtypes.isNullOrEmpty()) append(subtypes.joinToString(" "))
         if (!cardTypes.isNullOrEmpty()) {
-            if (subtypes.isNotEmpty()) append(" ")
+            if (!subtypes.isNullOrEmpty()) append(" ")
             append(cardTypes.joinToString(" ") { it.lowercase() })
         }
-        grantedAbility?.let { append(" with \"${it.description}\"") }
+        if (name != null) append(" named $name")
+        val gained = listOfNotNull(grantedAbility?.description) + grantedStaticAbilities.map { it.description }
+        if (gained.isNotEmpty()) append(" with ${gained.joinToString(" and ") { "\"$it\"" }}")
         if (loseAllAbilities) append(" and loses all other card types and abilities")
         if (duration.description.isNotEmpty()) append(" ${duration.description}")
     }
 
     override fun applyTextReplacement(replacer: TextReplacer): Effect {
         val newAbility = grantedAbility?.applyTextReplacement(replacer)
-        return if (newAbility !== grantedAbility) copy(grantedAbility = newAbility) else this
+        val newStatics = grantedStaticAbilities.map { it.applyTextReplacement(replacer) }
+        return if (newAbility !== grantedAbility || newStatics != grantedStaticAbilities) {
+            copy(grantedAbility = newAbility, grantedStaticAbilities = newStatics)
+        } else this
     }
 }
 
@@ -252,6 +278,54 @@ data class BecomeSaddledEffect(
     val target: EffectTarget = EffectTarget.Self
 ) : Effect {
     override val description: String = "${target.description} becomes saddled until end of turn"
+}
+
+/**
+ * Target permanent becomes solved (CR 719.3b) — the resolving effect of a Case's "To solve"
+ * triggered ability. Stamps the engine's `SolvedComponent`, which the Case's "Solved —" abilities
+ * read back through `Conditions.SourceIsSolved` / `StatePredicate.IsSolved`.
+ *
+ * The designation is sticky and one-way: once a permanent is solved it stays solved until it
+ * leaves the battlefield, so re-solving is a harmless no-op and there is no inverse effect.
+ * Like saddled it is engine state rather than a copiable value (CR 719.3b), so copying a solved
+ * Case produces an unsolved one.
+ *
+ * Defaults to [EffectTarget.Self] because a Case's "To solve" trigger always solves its own source;
+ * the [target] is parameterized anyway so an outside effect ("solve target Case you control") can
+ * reuse it.
+ *
+ * @property target The permanent to give the solved designation
+ */
+@SerialName("BecomeSolved")
+@Serializable
+data class BecomeSolvedEffect(
+    val target: EffectTarget = EffectTarget.Self
+) : Effect {
+    override val description: String = "${target.description} becomes solved"
+}
+
+/**
+ * Target permanent becomes renowned (CR 702.112b) — the designation half of the renown trigger
+ * the engine derives from [com.wingedsheep.sdk.core.Keyword.RENOWN]. Stamps the engine's
+ * `RenownedComponent`, which renown payoffs read back through `Conditions.SourceIsRenowned` /
+ * `StatePredicate.IsRenowned`.
+ *
+ * Sticky and one-way like [BecomeSolvedEffect]: once a permanent becomes renowned it stays
+ * renowned until it leaves the battlefield, and there is no "unrenown". Renowned is neither an
+ * ability nor part of the permanent's copiable values (CR 702.112b), so a copy of a renowned
+ * creature is not itself renowned.
+ *
+ * Defaults to [EffectTarget.Self] because renown always renowns its own source; the [target] is
+ * parameterized anyway so an outside effect could reuse it.
+ *
+ * @property target The permanent to give the renowned designation
+ */
+@SerialName("BecomeRenowned")
+@Serializable
+data class BecomeRenownedEffect(
+    val target: EffectTarget = EffectTarget.Self
+) : Effect {
+    override val description: String = "${target.description} becomes renowned"
 }
 
 /**
@@ -519,8 +593,8 @@ data class ExploreEffect(
     val target: EffectTarget = EffectTarget.ContextTarget(0),
     /**
      * Recursion guard for explore-replacement effects
-     * ([com.wingedsheep.sdk.scripting.ModifyExplore], CR 614). When a matching `ModifyExplore`
-     * is on the battlefield, `ExploreEffectExecutor` re-issues the explore as
+     * ([com.wingedsheep.sdk.scripting.ModifyKeywordAction] over an `ExploredEvent`, CR 614). When a
+     * matching replacement is on the battlefield, `ExploreEffectExecutor` re-issues the explore as
      * `Composite(prefixEffect, ExploreEffect(target, replacementsApplied = true))`; the flag on
      * the inner explore stops the same replacement from applying a second time. Defaults to
      * `false` (with `encodeDefaults = false`, no existing explore card's snapshot churns).
@@ -548,4 +622,28 @@ data class EmitExploredEventEffect(
     val revealedCardWasLand: Boolean? = null
 ) : Effect {
     override val description: String = "${target.description} explored"
+}
+
+/**
+ * Pair the creature(s) in the [from] collection with this effect's source — the resolution half of
+ * soulbond (CR 702.95a). Both halves gain a `PairedComponent` pointing at each other, and a
+ * `CreaturesPairedEvent` is emitted so watchers and animations can react.
+ *
+ * The collection is normally a one-element selection: either the player's pick among unpaired
+ * creatures they control (soulbond's first ability) or the creature that just entered (its second).
+ * An empty collection is a legal no-op — that is how both "you may" declines and "there was nobody
+ * to pair with" land here.
+ *
+ * CR 702.95c is enforced at execution: if either half is no longer a creature, no longer on the
+ * battlefield, or no longer controlled by the ability's controller, *neither* becomes paired.
+ * CR 702.95d likewise — an already-paired half is skipped rather than stealing a partner.
+ *
+ * @property from Collection slot holding the candidate partner (see `PipelineBuilder.pairWithSource`).
+ */
+@SerialName("PairWithSource")
+@Serializable
+data class PairWithSourceEffect(
+    val from: String
+) : Effect {
+    override val description: String = "pair this creature with the chosen creature"
 }

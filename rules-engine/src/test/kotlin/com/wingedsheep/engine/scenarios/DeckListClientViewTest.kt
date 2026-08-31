@@ -3,6 +3,7 @@ package com.wingedsheep.engine.scenarios
 import com.wingedsheep.engine.state.GameState
 import com.wingedsheep.engine.state.components.identity.ControllerComponent
 import com.wingedsheep.engine.state.components.identity.FaceDownComponent
+import com.wingedsheep.engine.state.components.identity.RevealedToComponent
 import com.wingedsheep.engine.support.ScenarioTestBase
 import com.wingedsheep.engine.view.ClientDeckCard
 import com.wingedsheep.engine.view.ClientStateTransformer
@@ -182,6 +183,24 @@ class DeckListClientViewTest : ScenarioTestBase() {
             row.remaining shouldBe 0
         }
 
+        test("an individually known library card is accounted for without treating the zone as public") {
+            val game = scenario()
+                .withPlayers("Player1", "Player2")
+                .withCardInLibrary(1, "Lightning Bolt")
+                .withCardInLibrary(1, "Lightning Bolt")
+                .build()
+
+            val known = game.state.getLibrary(p1).first()
+            val withKnownTop = game.state.updateEntity(known) {
+                it.with(RevealedToComponent.to(p1))
+            }
+
+            val bolt = row(withKnownTop, "Lightning Bolt")
+            bolt.shouldNotBeNull()
+            bolt.copies shouldBe 2
+            bolt.remaining shouldBe 1
+        }
+
         test("spectators are told nothing about anyone's deck") {
             val game = scenario()
                 .withPlayers("Player1", "Player2")
@@ -226,7 +245,7 @@ class DeckListClientViewTest : ScenarioTestBase() {
             )
             val delta = StateDiffCalculator.computeDelta(before, transformer.transform(drawn, p1))
             delta.deck.shouldNotBeNull()
-            delta.deck!!.single().remaining shouldBe 1
+            delta.deck.single().remaining shouldBe 1
         }
     }
 }

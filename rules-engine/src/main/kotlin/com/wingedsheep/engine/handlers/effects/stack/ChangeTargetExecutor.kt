@@ -62,8 +62,22 @@ class ChangeTargetExecutor : EffectExecutor<ChangeTargetEffect> {
         val currentTarget = spellTargets.first()
         val targetRequirements = targetsComponent?.targetRequirements ?: emptyList()
 
+        // "…if that target is you" (Reflecting Mirror). Checked at resolution, so a spell whose
+        // target changed hands in response is no longer redirectable.
+        if (effect.onlyIfCurrentTargetIsController &&
+            getTargetEntityId(currentTarget) != context.controllerId
+        ) {
+            return EffectResult.success(state)
+        }
+
         // 3. Find all legal new targets based on target requirements
-        val legalNewTargets = findLegalNewTargets(state, currentTarget, targetRequirements, context.controllerId)
+        var legalNewTargets = findLegalNewTargets(state, currentTarget, targetRequirements, context.controllerId)
+
+        // "The new target must be a player" (Reflecting Mirror) — narrowed *after* the spell's own
+        // requirement, so the redirect can never make an otherwise-illegal choice legal.
+        if (effect.newTargetMustBePlayer) {
+            legalNewTargets = legalNewTargets.filter { it in state.turnOrder }
+        }
 
         if (legalNewTargets.isEmpty()) {
             // No other legal targets to redirect to
@@ -133,6 +147,18 @@ class ChangeTargetExecutor : EffectExecutor<ChangeTargetEffect> {
                 }
                 val players = state.turnOrder.filter { state.hasEntity(it) }
                 (creatures + players).filter { it != currentTargetId }
+            }
+
+            // TargetPermanentOrPlayer: permanents matching the filter + players
+            requirement is TargetPermanentOrPlayer -> {
+                val predContext = PredicateContext(controllerId = controllerId)
+                val permanents = state.getBattlefield().filter { entityId ->
+                    predicateEvaluator.matches(
+                        state, projected, entityId, requirement.permanentFilter.baseFilter, predContext
+                    )
+                }
+                val players = state.turnOrder.filter { state.hasEntity(it) }
+                (permanents + players).filter { it != currentTargetId }
             }
 
             // TargetOpponentOrPlaneswalker: opponents + planeswalkers on battlefield

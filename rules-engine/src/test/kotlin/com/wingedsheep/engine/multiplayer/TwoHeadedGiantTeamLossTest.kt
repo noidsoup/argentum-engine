@@ -140,7 +140,7 @@ class TwoHeadedGiantTeamLossTest : FunSpec({
         val protectedState = withId
             .withEntity(
                 permId,
-                ComponentContainer.of(ControllerComponent(p[1]), GrantsCantLoseGameComponent)
+                ComponentContainer.of(ControllerComponent(p[1]), GrantsCantLoseGameComponent())
             )
             .addToZone(ZoneKey(p[1], Zone.BATTLEFIELD), permId)
         // Now drop team 0 to 0 life.
@@ -148,6 +148,28 @@ class TwoHeadedGiantTeamLossTest : FunSpec({
 
         val s = checker().checkAndApply(zeroed).newState
         // The team is protected — neither teammate is marked, game continues.
+        lost(s, p[0]) shouldBe false
+        lost(s, p[1]) shouldBe false
+        s.gameOver shouldBe false
+    }
+
+    test("'you don't lose for having 0 or less life' on either head protects the whole team (CR 810.8a example)") {
+        val (state, p) = boot()
+        // Transcendence-style grant under p1's control (teammate of p0).
+        val (permId, withId) = state.newEntity()
+        val protectedState = withId
+            .withEntity(
+                permId,
+                ComponentContainer.of(
+                    ControllerComponent(p[1]),
+                    com.wingedsheep.engine.state.components.battlefield.GrantsCantLoseGameFromLifeComponent()
+                )
+            )
+            .addToZone(ZoneKey(p[1], Zone.BATTLEFIELD), permId)
+        val zeroed = DamageUtils.loseLife(protectedState, p[0], 30, LifeChangeReason.LIFE_LOSS).first
+
+        val s = checker().checkAndApply(zeroed).newState
+        // CR 810.8a: "If that player's team's life total is 0 or less, that team doesn't lose."
         lost(s, p[0]) shouldBe false
         lost(s, p[1]) shouldBe false
         s.gameOver shouldBe false

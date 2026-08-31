@@ -95,6 +95,227 @@
     ]
 }
 
+// Doomsday
+{
+    "name": "Doomsday",
+    "manaCost": "{B}{B}{B}",
+    "typeLine": "Sorcery",
+    "oracleText": "Search your library and graveyard for five cards and exile the rest. Put the chosen cards on top of your library in any order. You lose half your life, rounded up.",
+    "script": {
+        "spellEffect": {
+            "type": "Composite",
+            "effects": [
+                {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "GatherCards",
+                            "source": {
+                                "type": "FromMultipleZones",
+                                "zones": [
+                                    "Library",
+                                    "Graveyard"
+                                ]
+                            },
+                            "storeAs": "gathered0"
+                        },
+                        {
+                            "type": "SelectFromCollection",
+                            "from": "gathered0",
+                            "selection": {
+                                "type": "ChooseExactly",
+                                "count": {
+                                    "type": "Fixed",
+                                    "amount": 5
+                                }
+                            },
+                            "storeSelected": "selected1",
+                            "storeRemainder": "remainder1",
+                            "prompt": "Choose five cards to put on top of your library",
+                            "selectedLabel": "Put on top of library",
+                            "remainderLabel": "Exile"
+                        },
+                        {
+                            "type": "MoveCollection",
+                            "from": "remainder1",
+                            "destination": {
+                                "type": "ToZone",
+                                "zone": "Exile"
+                            }
+                        },
+                        {
+                            "type": "MoveCollection",
+                            "from": "selected1",
+                            "destination": {
+                                "type": "ToZone",
+                                "zone": "Library",
+                                "placement": "Top"
+                            },
+                            "order": "ControllerChooses"
+                        },
+                        "EmitLibrarySearchedEvent"
+                    ]
+                },
+                {
+                    "type": "LoseLife",
+                    "amount": {
+                        "type": "Divide",
+                        "numerator": {
+                            "type": "LifeTotal",
+                            "player": "You"
+                        },
+                        "denominator": {
+                            "type": "Fixed",
+                            "amount": 2
+                        }
+                    },
+                    "target": "Controller"
+                }
+            ]
+        }
+    },
+    "metadata": {
+        "collectorNumber": "66",
+        "rarity": "RARE",
+        "artist": "Adrian Smith",
+        "imageUri": "https://cards.scryfall.io/normal/front/5/b/5b3c6d87-9383-450b-bba5-33435b6b0d08.jpg?1783946736",
+        "rulings": [
+            {
+                "date": "2018-03-16",
+                "text": "If your graveyard and library combined contain five or more cards, you must choose five cards from among them. You can't choose to find fewer than that."
+            },
+            {
+                "date": "2018-03-16",
+                "text": "If your graveyard and library combined contain fewer than five cards, all of those cards will wind up in your library."
+            }
+        ]
+    },
+    "colorIdentityOverride": [
+        "BLACK"
+    ]
+}
+
+// Festering Evil
+{
+    "name": "Festering Evil",
+    "manaCost": "{3}{B}{B}",
+    "typeLine": "Enchantment",
+    "oracleText": "At the beginning of your upkeep, this enchantment deals 1 damage to each creature and each player.\n{B}{B}, Sacrifice this enchantment: It deals 3 damage to each creature and each player.",
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "StepEvent",
+                    "step": "UPKEEP"
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "ForEach",
+                            "space": {
+                                "type": "IterationSpace.Group",
+                                "filter": {
+                                    "baseFilter": "creature"
+                                }
+                            },
+                            "body": {
+                                "type": "DealDamage",
+                                "amount": {
+                                    "type": "Fixed",
+                                    "amount": 1
+                                },
+                                "target": "Self"
+                            }
+                        },
+                        {
+                            "type": "ForEach",
+                            "space": {
+                                "type": "IterationSpace.Players",
+                                "players": "Each"
+                            },
+                            "body": {
+                                "type": "DealDamage",
+                                "amount": {
+                                    "type": "Fixed",
+                                    "amount": 1
+                                },
+                                "target": "Controller"
+                            }
+                        }
+                    ]
+                }
+            }
+        ],
+        "activatedAbilities": [
+            {
+                "id": "ability_2",
+                "cost": {
+                    "type": "CostComposite",
+                    "costs": [
+                        {
+                            "type": "CostAtomWrapper",
+                            "atom": {
+                                "type": "AtomMana",
+                                "cost": "{B}{B}"
+                            }
+                        },
+                        "CostSacrificeSelf"
+                    ]
+                },
+                "effect": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "ForEach",
+                            "space": {
+                                "type": "IterationSpace.Group",
+                                "filter": {
+                                    "baseFilter": "creature"
+                                }
+                            },
+                            "body": {
+                                "type": "DealDamage",
+                                "amount": {
+                                    "type": "Fixed",
+                                    "amount": 3
+                                },
+                                "target": "Self"
+                            }
+                        },
+                        {
+                            "type": "ForEach",
+                            "space": {
+                                "type": "IterationSpace.Players",
+                                "players": "Each"
+                            },
+                            "body": {
+                                "type": "DealDamage",
+                                "amount": {
+                                    "type": "Fixed",
+                                    "amount": 3
+                                },
+                                "target": "Controller"
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "68",
+        "rarity": "UNCOMMON",
+        "artist": "John Matson",
+        "imageUri": "https://cards.scryfall.io/normal/front/2/d/2d688bda-fee2-496d-9793-794c2568b54e.jpg?1783946734"
+    },
+    "colorIdentityOverride": [
+        "BLACK"
+    ]
+}
+
 // Guided Strike
 {
     "name": "Guided Strike",
@@ -315,5 +536,72 @@
     },
     "colorIdentityOverride": [
         "BLUE"
+    ]
+}
+
+// Thunderbolt
+{
+    "name": "Thunderbolt",
+    "manaCost": "{1}{R}",
+    "typeLine": "Instant",
+    "oracleText": "Choose one —\n• Thunderbolt deals 3 damage to target player or planeswalker.\n• Thunderbolt deals 4 damage to target creature with flying.",
+    "script": {
+        "spellEffect": {
+            "type": "Modal",
+            "modes": [
+                {
+                    "effect": {
+                        "type": "DealDamage",
+                        "amount": {
+                            "type": "Fixed",
+                            "amount": 3
+                        },
+                        "target": {
+                            "type": "BoundVariable",
+                            "name": "target"
+                        }
+                    },
+                    "targetRequirements": [
+                        {
+                            "type": "TargetPlayerOrPlaneswalker",
+                            "id": "target"
+                        }
+                    ],
+                    "description": "Thunderbolt deals 3 damage to target player or planeswalker"
+                },
+                {
+                    "effect": {
+                        "type": "DealDamage",
+                        "amount": {
+                            "type": "Fixed",
+                            "amount": 4
+                        },
+                        "target": {
+                            "type": "BoundVariable",
+                            "name": "target"
+                        }
+                    },
+                    "targetRequirements": [
+                        {
+                            "type": "TargetObject",
+                            "filter": {
+                                "baseFilter": "creature kw:flying"
+                            },
+                            "id": "target"
+                        }
+                    ],
+                    "description": "Thunderbolt deals 4 damage to target creature with flying"
+                }
+            ]
+        }
+    },
+    "metadata": {
+        "collectorNumber": "115",
+        "artist": "Dylan Martens",
+        "flavorText": "\"Most wizards consider a thunderbolt to be a proper retort.\"\n—Ertai, wizard adept",
+        "imageUri": "https://cards.scryfall.io/normal/front/a/0/a0a4b641-2eb3-482b-91a1-236ebe2a7a41.jpg?1783946723"
+    },
+    "colorIdentityOverride": [
+        "RED"
     ]
 }

@@ -28,7 +28,7 @@ interface AttackRestrictionRule {
 
 /**
  * Per-defender attack restriction: checks whether a creature can attack a specific defender.
- * Used for mechanics like CantAttackUnless and CantBeAttackedWithout where the defender matters.
+ * Used for mechanics like CantAttackUnless and CantBeAttackedBy where the defender matters.
  *
  * Returns an error message if the creature CANNOT attack this defender, null if allowed.
  */
@@ -41,7 +41,8 @@ interface AttackDefenderRule {
      * Used by [getValidAttackers] for must-attack requirement validation.
      */
     fun restrictsAllDefenders(ctx: AttackCheckContext): Boolean {
-        val opponents = ctx.state.turnOrder.filter { it != ctx.attackingPlayer }
+        // Real opponents only: not a teammate (CR 805.10b), not a seat that has left (CR 800.4a).
+        val opponents = ctx.state.getOpponents(ctx.attackingPlayer)
         val projected = ctx.projected
         // Collect all valid defenders: opponent players + their planeswalkers
         val allDefenders = opponents.toMutableList()

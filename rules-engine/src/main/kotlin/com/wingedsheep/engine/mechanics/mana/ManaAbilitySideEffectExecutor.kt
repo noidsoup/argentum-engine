@@ -1,5 +1,6 @@
 package com.wingedsheep.engine.mechanics.mana
 
+import com.wingedsheep.engine.core.AbilityActivatedEvent
 import com.wingedsheep.engine.core.EffectResult
 import com.wingedsheep.engine.core.GameEvent
 import com.wingedsheep.engine.core.LifeChangeReason
@@ -7,6 +8,7 @@ import com.wingedsheep.engine.core.TappedEvent
 import com.wingedsheep.engine.core.tap
 import com.wingedsheep.engine.handlers.EffectContext
 import com.wingedsheep.engine.handlers.effects.DamageUtils
+import com.wingedsheep.engine.handlers.effects.life.LifePaymentService
 import com.wingedsheep.engine.registry.CardRegistry
 import com.wingedsheep.engine.state.GameState
 import com.wingedsheep.engine.state.components.identity.CardComponent
@@ -72,11 +74,22 @@ class ManaAbilitySideEffectExecutor(
             event?.let(events::add)
 
             val production = solution.manaProduced[source.entityId]
+            // Resolved once and shared: both the activation event and the side effects want the
+            // same ability, and this loop runs for every auto-tapped source of every payment.
+            val ability = matchingManaAbility(currentState, source.entityId, production?.color)
+
+            // Auto-tapping a source *is* the player activating its mana ability — the fast path is
+            // a UI shortcut, not a different game action (CR 605.3). Emit the activation event the
+            // manual path emits so "whenever you activate an ability" triggers see it (Elrond,
+            // Moon-Reader off an auto-tapped Llanowar Elves). Emitted after the TappedEvent: the
+            // tap is the cost, and the ability is activated once its costs are paid.
+            activationEvent(currentState, source.entityId, controllerId, ability)?.let(events::add)
+
             val (after, sideEvents) = runSideEffects(
                 state = currentState,
                 sourceId = source.entityId,
-                producedColor = production?.color,
                 controllerId = controllerId,
+                matchingAbility = ability,
             )
             currentState = after
             events.addAll(sideEvents)
@@ -84,20 +97,71 @@ class ManaAbilitySideEffectExecutor(
         return currentState to events
     }
 
+    /**
+     * The [AbilityActivatedEvent] for an auto-tapped mana source, or null if [sourceId] isn't a
+     * card (nothing to name in the event).
+     *
+     * `costsTap` is true by construction — this path only ever reaches sources it taps — so the
+     * Antiquities "without {T} in its activation cost" template correctly ignores these. `isExhaust`
+     * is read off the matching printed ability where one is found; an intrinsic land mana ability
+     * has no [ActivatedAbility] entry to consult and is never exhaust anyway.
+     */
+    fun activationEvent(
+        state: GameState,
+        sourceId: EntityId,
+        producedColor: Color?,
+        controllerId: EntityId,
+    ): AbilityActivatedEvent? = activationEvent(
+        state, sourceId, controllerId, matchingManaAbility(state, sourceId, producedColor)
+    )
+
+    private fun activationEvent(
+        state: GameState,
+        sourceId: EntityId,
+        controllerId: EntityId,
+        matchingAbility: ActivatedAbility?,
+    ): AbilityActivatedEvent? {
+        val card = state.getEntity(sourceId)?.get<CardComponent>() ?: return null
+        return AbilityActivatedEvent(
+            sourceId = sourceId,
+            sourceName = card.name,
+            controllerId = controllerId,
+            abilityEntityId = null,
+            costsTap = true,
+            isManaAbility = true,
+            isExhaust = matchingAbility?.isExhaust == true
+        )
+    }
+
+    /** The printed mana ability of [sourceId] that produced [producedColor], if there is one. */
+    private fun matchingManaAbility(
+        state: GameState,
+        sourceId: EntityId,
+        producedColor: Color?,
+    ): ActivatedAbility? {
+        val card = state.getEntity(sourceId)?.get<CardComponent>() ?: return null
+        val cardDef = cardRegistry.getCard(card.cardDefinitionId) ?: return null
+        return cardDef.script.activatedAbilities
+            .filter { it.isManaAbility }
+            .firstOrNull { abilityProducesColor(it, producedColor) }
+    }
+
     fun runSideEffects(
         state: GameState,
         sourceId: EntityId,
         producedColor: Color?,
         controllerId: EntityId,
-    ): Pair<GameState, List<GameEvent>> {
-        val card = state.getEntity(sourceId)?.get<CardComponent>()
-            ?: return state to emptyList()
-        val cardDef = cardRegistry.getCard(card.cardDefinitionId) ?: return state to emptyList()
+    ): Pair<GameState, List<GameEvent>> = runSideEffects(
+        state, sourceId, controllerId, matchingManaAbility(state, sourceId, producedColor)
+    )
 
-        val matchingAbility = cardDef.script.activatedAbilities
-            .filter { it.isManaAbility }
-            .firstOrNull { abilityProducesColor(it, producedColor) }
-            ?: return state to emptyList()
+    private fun runSideEffects(
+        state: GameState,
+        sourceId: EntityId,
+        controllerId: EntityId,
+        matchingAbility: ActivatedAbility?,
+    ): Pair<GameState, List<GameEvent>> {
+        if (matchingAbility == null) return state to emptyList()
 
         var currentState = state
         val events = mutableListOf<GameEvent>()
@@ -110,11 +174,10 @@ class ManaAbilitySideEffectExecutor(
         // priority, but never deducts the life.
         val lifeCost = payLifeCost(matchingAbility.cost)
         if (lifeCost > 0) {
-            val (afterLife, lifeEvent) = DamageUtils.loseLife(
-                currentState, controllerId, lifeCost, LifeChangeReason.PAYMENT
-            )
-            currentState = afterLife
-            lifeEvent?.let(events::add)
+            LifePaymentService.pay(currentState, controllerId, lifeCost)?.let { (afterLife, lifeEvents) ->
+                currentState = afterLife
+                events.addAll(lifeEvents)
+            }
         }
 
         val sideEffects = nonManaSubEffects(matchingAbility.effect)

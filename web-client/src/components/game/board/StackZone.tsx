@@ -1,16 +1,16 @@
 import type React from 'react'
 import { useState } from 'react'
 import { useGameStore } from '@/store/gameStore.ts'
-import { useStackCards, selectGameState } from '@/store/selectors.ts'
-import { seatColor } from '@/styles/seatColors'
+import { useStackCards, selectGameState, selectTeamMap, identitySeatColor } from '@/store/selectors.ts'
 import type { EntityId } from '@/types'
 import type { ClientAbilityIdentity, ClientCard } from '@/types/gameState'
-import { getCardImageUrl } from '@/utils/cardImages.ts'
+import { getCardImageUrl, faceDownImageUrl } from '@/utils/cardImages.ts'
 import { ActiveEffectBadges } from '../card/CardOverlays'
-import { AbilityText } from '../../ui/ManaSymbols'
+import { AbilityText, ManaCost } from '../../ui/ManaSymbols'
+import { useOpenCardMenuOnTap } from '@/hooks/useOpenCardMenuOnTap.ts'
 import { useResponsiveContext, handleImageError } from './shared'
 import { styles } from './styles'
-import { groupStackCards, type StackGroup } from './stackGrouping'
+import { chosenModeGroupsForStack, groupStackCards, type StackGroup } from './stackGrouping'
 import { YieldContextMenu } from './YieldContextMenu'
 
 /**
@@ -26,6 +26,7 @@ export function StackDisplay() {
   const stackCards = useStackCards()
   const responsive = useResponsiveContext()
   const hoverCard = useGameStore((state) => state.hoverCard)
+  const openCardMenuOnTap = useOpenCardMenuOnTap()
   const targetingState = useGameStore((state) => state.targetingState)
   const addTarget = useGameStore((state) => state.addTarget)
   const removeTarget = useGameStore((state) => state.removeTarget)
@@ -53,12 +54,14 @@ export function StackDisplay() {
   // tagged with the caster's name, so "whose spell is that" reads at a glance. 2-player games
   // have only one possible caster per side, so this stays off.
   const players = useGameStore((state) => selectGameState(state)?.players)
+  const teamMap = useGameStore(selectTeamMap)
   const isMulti = (players?.length ?? 0) > 2
   const seatMetaFor = (controllerId: EntityId) => {
     if (!isMulti || !players) return null
     const idx = players.findIndex((p) => p.playerId === controllerId)
     if (idx < 0) return null
-    return { name: players[idx]?.name ?? 'Player', seat: seatColor(idx) }
+    // Identity colour (team hue in 2HG) so the stack agrees with the rail and the plates.
+    return { name: players[idx]?.name ?? 'Player', seat: identitySeatColor(teamMap, controllerId, idx) }
   }
   const seatBorderFor = (controllerId: EntityId): React.CSSProperties => {
     const meta = seatMetaFor(controllerId)
@@ -101,6 +104,20 @@ export function StackDisplay() {
     }
   }
 
+  /**
+   * A tap/click on a stack item. Targeting and decision selection own it whenever either is
+   * running; otherwise the gesture only ever means "let me read this", which without hover has to
+   * go through the action menu's "View card" row — the same route as any other card the player
+   * can't do anything with.
+   */
+  const handleStackItemTap = (cardId: EntityId) => {
+    if (targetingState || decisionSelectionState) {
+      handleStackItemClick(cardId)
+      return
+    }
+    openCardMenuOnTap?.(cardId)
+  }
+
   // A card the player can currently target/select — such a card must never be hidden inside a
   // collapsed pile, so we force-expand any group containing one.
   const isTargetableOrSelectable = (card: ClientCard): boolean =>
@@ -123,6 +140,11 @@ export function StackDisplay() {
     : null
   const stackImageWidth = responsive.isMobile ? 55 : 140
   const stackImageHeight = responsive.isMobile ? 77 : 196
+  // Pre-rotation dimensions for a sideways-printed card, chosen so that after `rotate(90deg)` the
+  // image occupies the full column width and proportional height: the rotation swaps the axes, so
+  // the element's *height* becomes its on-screen width.
+  const landscapeStackImageHeight = stackImageWidth
+  const landscapeStackImageWidth = Math.round(stackImageWidth * stackImageWidth / stackImageHeight)
 
   /**
    * Render one card slot in the fanned pile. `renderIndex` is the slot's position across the whole
@@ -159,6 +181,18 @@ export function StackDisplay() {
             ? { boxShadow: '0 0 8px 2px rgba(60, 140, 255, 0.5)', borderRadius: 6 }
             : {}
 
+    // Badges sharing the top-left corner stack downwards in a fixed order, so adding one never
+    // silently parks it on top of another. `topOf` returns the row a badge occupies, given which
+    // of the ones above it are showing.
+    const topLeftBadges = [
+      card.castProvenanceLabel ? 'provenance' : null,
+      card.costSacrificeLabel ? 'costSacrifice' : null,
+      card.optionalCostLabel ? 'optionalCost' : null,
+      card.giftPromised ? 'gift' : null,
+      card.wasBlightPaid ? 'blight' : null,
+    ].filter((b): b is string => b !== null)
+    const topOf = (badge: string) => 4 + Math.max(0, topLeftBadges.indexOf(badge)) * 22
+
     return (
       <div
         key={opts.domKey}
@@ -170,27 +204,60 @@ export function StackDisplay() {
           ...seatBorderFor(card.controllerId),
           ...highlight,
         }}
-        onClick={opts.onClick ?? (() => handleStackItemClick(card.id))}
+        onClick={opts.onClick ?? (() => handleStackItemTap(card.id))}
         onContextMenu={(e) => openYieldMenu(card, e)}
-        onMouseEnter={(e) => hoverCard(card.id, { x: e.clientX, y: e.clientY })}
-        onMouseLeave={() => hoverCard(null)}
+        /* Pointer events with a touch guard, as on GameCard: a tap synthesizes mouseenter and
+           never the matching mouseleave, which used to open the preview on top of whatever the
+           same tap opened and leave it stranded there. */
+        onPointerEnter={(e) => { if (e.pointerType !== 'touch') hoverCard(card.id, { x: e.clientX, y: e.clientY }) }}
+        onPointerLeave={(e) => { if (e.pointerType !== 'touch') hoverCard(null) }}
       >
-        <img
-          src={getCardImageUrl(card.name, card.imageUri, 'small')}
-          alt={card.name}
-          style={{
-            ...styles.stackItemImage,
-            width: stackImageWidth,
-            height: stackImageHeight,
-            cursor: isValidTarget || opts.onClick ? 'pointer' : 'default',
-            ...(card.sourceZone === 'GRAVEYARD' ? {
-              opacity: 0.7,
-              filter: 'saturate(0.6)',
-            } : {}),
-          }}
-          title={card.name}
-          onError={(e) => handleImageError(e, card.name, 'small')}
-        />
+        {(() => {
+          // A sideways-printed card (split layout, Room, battle) reads landscape only once rotated
+          // 90°. The slot keeps its portrait footprint — the pile's overlap maths assumes a uniform
+          // item height — so the rotated card is scaled to the column width and centred inside it,
+          // costing a little dead space above and below and nothing else.
+          const isLandscape = card.isLandscapeFace === true
+          const dimmed = card.sourceZone === 'GRAVEYARD'
+            ? { opacity: 0.7, filter: 'saturate(0.6)' }
+            : {}
+          // A spell cast face down (morph, disguise) is drawn as its mechanic's helper card on the
+          // stack, the same as the permanent it becomes — the morph helmet, or "A Mysterious
+          // Creature" for disguise. Its controller still sees the real card on hover, exactly as
+          // for their own face-down permanents.
+          const faceDown = card.isFaceDown === true
+          const image = (
+            <img
+              src={faceDown
+                ? faceDownImageUrl(card.faceDownMode)
+                : getCardImageUrl(card.name, card.imageUri, 'small')}
+              alt={faceDown ? 'Face-down spell' : card.name}
+              style={{
+                ...styles.stackItemImage,
+                ...(isLandscape
+                  ? {
+                      position: 'absolute' as const,
+                      top: '50%',
+                      left: '50%',
+                      width: landscapeStackImageWidth,
+                      height: landscapeStackImageHeight,
+                      transform: 'translate(-50%, -50%) rotate(90deg)',
+                    }
+                  : { width: stackImageWidth, height: stackImageHeight }),
+                cursor: isValidTarget || opts.onClick ? 'pointer' : 'default',
+                ...dimmed,
+              }}
+              title={faceDown ? undefined : card.name}
+              onError={(e) => { if (!faceDown) handleImageError(e, card.name, 'small') }}
+            />
+          )
+          if (!isLandscape) return image
+          return (
+            <div style={{ position: 'relative', width: stackImageWidth, height: stackImageHeight }}>
+              {image}
+            </div>
+          )
+        })()}
         {/* Collapsed-pile count pip */}
         {opts.countBadge != null && (
           <div style={styles.stackCountBadge} title={`${opts.countBadge} identical items`}>
@@ -247,19 +314,59 @@ export function StackDisplay() {
             X={card.chosenX}
           </div>
         )}
-        {/* Show kicked badge */}
-        {card.wasKicked && (
-          <div style={styles.stackKickedBadge}>
-            Kicked
+        {/* Show how the spell was cast — "Disturb · Graveyard" — for anything but a plain hand cast.
+            The tooltip carries the whole story, since a spell with something on top of it is clipped
+            to its first badge row. */}
+        {card.castProvenanceLabel && (
+          <div
+            style={{ ...styles.stackCastProvenanceBadge, top: topOf('provenance') }}
+            title={[
+              `Cast: ${card.castProvenanceLabel}`,
+              card.costSacrificeLabel,
+              card.manaPaidCost && `Paid ${card.manaPaidCost}`,
+            ].filter(Boolean).join(' · ')}
+          >
+            {card.castProvenanceLabel}
+          </div>
+        )}
+        {/* The mana that actually paid, for any alternative-cost cast — the printed pips on the card
+            were never what was spent. Top-*right*, so it shares the one badge row that stays visible
+            when a cast trigger (or any later spell) covers the rest of this card. Shifted left when
+            an X badge already owns that corner. */}
+        {card.manaPaidCost && (
+          <div
+            style={{
+              ...styles.stackManaPaidBadge,
+              top: topOf('provenance'),
+              right: card.chosenX != null ? 44 : 4,
+            }}
+            title={`Paid ${card.manaPaidCost}`}
+          >
+            <span style={{ opacity: 0.75 }}>Paid</span>
+            <ManaCost cost={card.manaPaidCost} size={9} gap={1} />
+          </div>
+        )}
+        {/* What the alternative cost ate — "Sacrificed Niblis of the Urn". Emerge (CR 702.119a)
+            prices itself off that creature's mana value, so without this the cheap cast has no
+            visible cause from the other seat. */}
+        {card.costSacrificeLabel && (
+          <div
+            style={{ ...styles.stackCostSacrificeBadge, top: topOf('costSacrifice') }}
+            title={card.costSacrificeLabel}
+          >
+            {card.costSacrificeLabel}
+          </div>
+        )}
+        {/* Show the declared optional additional cost — Kicked / Bargained / Offspring */}
+        {card.optionalCostLabel && (
+          <div style={{ ...styles.stackKickedBadge, top: topOf('optionalCost') }}>
+            {card.optionalCostLabel}
           </div>
         )}
         {/* Show gift badge when the caster promised a gift (Bloomburrow) */}
         {card.giftPromised && (
           <div
-            style={{
-              ...styles.stackGiftBadge,
-              top: card.wasKicked ? 26 : 4,
-            }}
+            style={{ ...styles.stackGiftBadge, top: topOf('gift') }}
             title="Gift promised"
           >
             <i className="ms ms-ability-gift" style={{ fontSize: 12 }} />
@@ -269,10 +376,7 @@ export function StackDisplay() {
         {/* Show blight-paid badge when the optional Blight additional cost was paid (Lorwyn Eclipsed) */}
         {card.wasBlightPaid && (
           <div
-            style={{
-              ...styles.stackBlightPaidBadge,
-              top: 4 + (card.wasKicked ? 22 : 0) + (card.giftPromised ? 22 : 0),
-            }}
+            style={{ ...styles.stackBlightPaidBadge, top: topOf('blight') }}
             title="Blight cost paid"
           >
             <i className="ms ms-counter-minus" style={{ fontSize: 12 }} />
@@ -362,7 +466,7 @@ export function StackDisplay() {
 
   return (
     <>
-    <div style={{
+    <div data-learn="stack" style={{
       position: 'fixed',
       left: responsive.isMobile ? 12 : 120,
       top: '50%',
@@ -454,8 +558,10 @@ export function StackDisplay() {
           {/* Source card image */}
           {sourceCard && (
             <div
-              onMouseEnter={(e) => sourceCard && hoverCard(pendingDecision.context.sourceId!, { x: e.clientX, y: e.clientY })}
-              onMouseLeave={() => hoverCard(null)}
+              onPointerEnter={(e) => { if (e.pointerType !== 'touch' && sourceCard) hoverCard(pendingDecision.context.sourceId!, { x: e.clientX, y: e.clientY }) }}
+              onPointerLeave={(e) => { if (e.pointerType !== 'touch') hoverCard(null) }}
+              onClick={() => handleStackItemTap(pendingDecision.context.sourceId!)}
+              style={{ cursor: openCardMenuOnTap ? 'pointer' : 'default' }}
             >
               <img
                 src={getCardImageUrl(sourceCard.name, sourceCard.imageUri, 'small')}
@@ -504,10 +610,11 @@ export function StackDisplay() {
       if (!topCard) return null
       const isAbility = topCard.typeLine === 'Ability' || topCard.typeLine === 'Triggered Ability'
 
-      // Modal spells with cast-time mode choices (700.2) render per-mode descriptions with their
-      // chosen targets below, so opponents can see exactly what's been committed before responding.
-      const perModeGroups = topCard.perModeTargets ?? []
-      if (!isAbility && perModeGroups.length > 0) {
+      // Modal spells and triggered abilities render their chosen modes (and any targets) below,
+      // so opponents can see exactly what's been committed before responding. Triggered modes are
+      // chosen as the ability is put on the stack, just like a modal spell's cast-time choice.
+      const perModeGroups = chosenModeGroupsForStack(topCard)
+      if (perModeGroups.length > 0) {
         return (
           <div style={{
             padding: responsive.isMobile ? '4px 6px' : '6px 10px',

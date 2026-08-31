@@ -27,7 +27,7 @@ enum class LkiPolicy {
 fun lkiPolicyFor(reference: EntityReference): LkiPolicy = when (reference) {
     // A self-sacrificing/exiling source, the triggering permanent of a dies/leaves trigger, an
     // enchanted creature whose aura detached, and cost-paid permanents (sacrificed / tapped /
-    // chosen) are all routinely read after they have left the battlefield (CR 112.7a / 608.2h).
+    // chosen) are all routinely read after they have left the battlefield (CR 113.7a / 608.2h).
     EntityReference.Source,
     EntityReference.Triggering,
     EntityReference.EnchantedCreature,
@@ -43,6 +43,11 @@ fun lkiPolicyFor(reference: EntityReference): LkiPolicy = when (reference) {
     EntityReference.AmassedArmy,
     is EntityReference.Target,
     is EntityReference.RingBearer,
+    // An Imprint pile's card is *never* on the battlefield — it is a card in exile, and its
+    // characteristics are the printed ones. There is nothing to snapshot, and asking for a snapshot
+    // would be wrong: the read must fall through to base characteristics, which is what LIVE_ONLY
+    // does. The reference itself already resolves to null once the card leaves exile.
+    is EntityReference.LinkedExiledCard,
     -> LkiPolicy.LIVE_ONLY
 }
 

@@ -10,16 +10,19 @@ import com.wingedsheep.engine.core.EffectResult
 import com.wingedsheep.engine.core.TargetRequirementInfo
 import com.wingedsheep.engine.handlers.EffectContext
 import com.wingedsheep.engine.handlers.TargetFinder
+import com.wingedsheep.engine.handlers.effects.ChooserResolution
 import com.wingedsheep.engine.handlers.actions.spell.CastSpellHandler
 import com.wingedsheep.engine.handlers.effects.EffectExecutor
 import com.wingedsheep.engine.registry.CardRegistry
 import com.wingedsheep.engine.state.GameState
 import com.wingedsheep.engine.state.components.identity.CardComponent
+import com.wingedsheep.engine.state.components.identity.AfterResolveDestinationComponent
 import com.wingedsheep.engine.state.components.identity.PlayWithoutPayingCostComponent
 import com.wingedsheep.engine.state.permissions.MayPlayPermission
 import com.wingedsheep.engine.state.permissions.addMayPlayPermission
 import com.wingedsheep.engine.state.permissions.removeMayPlayPermission
 import com.wingedsheep.sdk.model.EntityId
+import com.wingedsheep.sdk.scripting.effects.AfterResolveDestination
 import com.wingedsheep.sdk.scripting.effects.CastFromCollectionWithoutPayingCostEffect
 import com.wingedsheep.sdk.scripting.effects.ModalEffect
 import java.util.UUID
@@ -69,11 +72,31 @@ class CastFromCollectionWithoutPayingCostExecutor(
         val cards: List<EntityId> = context.pipeline.storedCollections[effect.from].orEmpty()
         if (cards.isEmpty()) return EffectResult.success(state)
         val cardId = cards.first()
-        val controllerId = context.controllerId
+        // `Chooser.Controller` (the default) is `context.controllerId`; the only other value a
+        // printed card needs is `SourceController`, which survives the per-iteration controller
+        // swap `ForEachPlayerEffect` performs (Jetsam casts from each opponent's graveyard, but
+        // *you* are the caster). Anything that can't be resolved — no opponent, several opponents
+        // to pick between — falls back to the iterating controller rather than pausing: this
+        // executor casts inside another effect's resolution and has no window to ask.
+        val controllerId = (
+            ChooserResolution.resolve(state, effect.caster, context, cards)
+                as? ChooserResolution.Outcome.Resolved
+            )?.playerId ?: context.controllerId
+
+        // "Cast it transformed" needs a face to turn over to. A card with no back face — a token,
+        // or a single-faced card that became a copy of a transforming one — simply isn't cast, and
+        // per the CR 310.12b ruling it stays where it is (in exile, for the Siege defeat trigger)
+        // rather than being cast front face up.
+        if (effect.castTransformed && !hasBackFace(state, cardId)) {
+            return EffectResult.success(state)
+        }
 
         // Check targeting *before* granting: a grant made ahead of a cast that never happens
         // would follow the card out of exile and stay live until end-of-turn cleanup.
-        val prep = prepareTargetSelection(state, cardId, controllerId, cardRegistry, targetFinder, effect.storeCastTo)
+        val prep = prepareTargetSelection(
+            state, cardId, controllerId, cardRegistry, targetFinder, effect.storeCastTo,
+            castTransformed = effect.castTransformed,
+        )
         if (prep is TargetPrep.NoLegalTargets) {
             // CR 601.2c — if no legal targets exist for a required slot, the cast can't
             // initiate; the chosen card simply stays where it is.
@@ -89,6 +112,8 @@ class CastFromCollectionWithoutPayingCostExecutor(
             controllerId = controllerId,
             sourceId = context.sourceId,
             withoutPayingCost = !effect.payManaCost,
+            castTransformed = effect.castTransformed,
+            insteadOfGraveyard = effect.insteadOfGraveyard,
         )
 
         if (prep is TargetPrep.NeedsTargets) {
@@ -101,6 +126,12 @@ class CastFromCollectionWithoutPayingCostExecutor(
 
         // No targets needed (or modal — CastSpellHandler will handle per-mode targets).
         return invokeCast(newState, controllerId, cardId, permId, emptyList(), effect.storeCastTo)
+    }
+
+    /** True when [cardId]'s definition has a back face to be cast transformed as. */
+    private fun hasBackFace(state: GameState, cardId: EntityId): Boolean {
+        val cardComponent = state.getEntity(cardId)?.get<CardComponent>() ?: return false
+        return cardRegistry.getCard(cardComponent.cardDefinitionId)?.backFace != null
     }
 
     private fun invokeCast(
@@ -181,9 +212,20 @@ class CastFromCollectionWithoutPayingCostExecutor(
             controllerId: EntityId,
             sourceId: EntityId?,
             withoutPayingCost: Boolean = true,
+            castTransformed: Boolean = false,
+            insteadOfGraveyard: AfterResolveDestination? = null,
         ): Pair<EntityId, GameState> {
-            val stamped = if (!withoutPayingCost) state else state.updateEntity(cardId) { container ->
+            var stamped = if (!withoutPayingCost) state else state.updateEntity(cardId) { container ->
                 container.with(PlayWithoutPayingCostComponent(controllerId = controllerId))
+            }
+            // The cast-this-way rider rides the card, not the permission, so it survives the move
+            // onto the stack and is still there when StackResolver picks the spell's destination.
+            // Stamped here rather than by the caller so every entry point that grants a
+            // synthesized cast — inline, post-target-pause, the any-number loop — carries it.
+            if (insteadOfGraveyard != null) {
+                stamped = stamped.updateEntity(cardId) { container ->
+                    container.with(AfterResolveDestinationComponent(destination = insteadOfGraveyard))
+                }
             }
             val (permId, stateWithPerm) = stamped.newEntity()
             val granted = stateWithPerm.addMayPlayPermission(
@@ -192,9 +234,7 @@ class CastFromCollectionWithoutPayingCostExecutor(
                     cardIds = setOf(cardId),
                     controllerId = controllerId,
                     sourceId = sourceId,
-                    // Synthesized casts happen during the resolving effect's resolution; ignore
-                    // sorcery-speed timing (Etali, Silent-Blade Oni, Kellan, …).
-                    asThoughFlash = true,
+                    castTransformed = castTransformed,
                     timestamp = stateWithPerm.timestamp,
                 )
             )
@@ -206,6 +246,10 @@ class CastFromCollectionWithoutPayingCostExecutor(
             val withoutPermission = permissionId?.let { state.removeMayPlayPermission(it) } ?: state
             return withoutPermission.updateEntity(cardId) { container ->
                 container.without<PlayWithoutPayingCostComponent>()
+                    // A cast that never initiated must not leave its destination rider behind on
+                    // a card still sitting in exile or a graveyard: the next time that card was
+                    // cast by any means it would silently skip the graveyard.
+                    .without<AfterResolveDestinationComponent>()
             }
         }
 
@@ -224,6 +268,10 @@ class CastFromCollectionWithoutPayingCostExecutor(
          * `targetRequirements`, so a free-cast Aura (Pacifism) would otherwise reach
          * CastSpellHandler with no target. Mirrors CastSpellHandler's own
          * `targetRequirements + auraTarget` union.
+         *
+         * [castTransformed] reads all of that off the **back** face instead, because that is the
+         * face the spell will have on the stack (CR 712.8c) — the same rule that makes a disturb
+         * cast's targets come from the back face.
          */
         fun prepareTargetSelection(
             state: GameState,
@@ -232,9 +280,11 @@ class CastFromCollectionWithoutPayingCostExecutor(
             cardRegistry: CardRegistry,
             targetFinder: TargetFinder,
             storeCastTo: String? = null,
+            castTransformed: Boolean = false,
         ): TargetPrep {
             val cardComponent = state.getEntity(cardId)?.get<CardComponent>()
-            val cardDef = cardComponent?.let { cardRegistry.getCard(it.cardDefinitionId) }
+            val printedDef = cardComponent?.let { cardRegistry.getCard(it.cardDefinitionId) }
+            val cardDef = if (castTransformed) printedDef?.backFace ?: printedDef else printedDef
             val isModalSpell = cardDef?.script?.spellEffect is ModalEffect
             val targetRequirements = buildList {
                 addAll(cardDef?.script?.targetRequirements.orEmpty())
@@ -267,7 +317,9 @@ class CastFromCollectionWithoutPayingCostExecutor(
                 return TargetPrep.NoLegalTargets
             }
 
-            val cardName = cardComponent?.name ?: "spell"
+            // Name the face being cast — a transformed cast prompts for "Deluge of the Dead",
+            // not for the front face the player exiled.
+            val cardName = (if (castTransformed) cardDef?.name else null) ?: cardComponent?.name ?: "spell"
             val decisionId = UUID.randomUUID().toString()
             val decision = ChooseTargetsDecision(
                 id = decisionId,

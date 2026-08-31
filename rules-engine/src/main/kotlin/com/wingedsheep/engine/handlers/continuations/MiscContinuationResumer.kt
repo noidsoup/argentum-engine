@@ -2,7 +2,16 @@ package com.wingedsheep.engine.handlers.continuations
 
 import com.wingedsheep.engine.core.*
 import com.wingedsheep.engine.handlers.EffectContext
+import com.wingedsheep.engine.handlers.effects.CoinFlipService
 import com.wingedsheep.engine.handlers.effects.ReplacementEffectUtils
+import com.wingedsheep.engine.handlers.effects.composite.FlipCoinExecutor
+import com.wingedsheep.engine.handlers.effects.composite.FlipTwoCoinsExecutor
+import com.wingedsheep.sdk.scripting.effects.FlipCoinEffect
+import com.wingedsheep.sdk.scripting.effects.FlipCoinsEffect
+import com.wingedsheep.sdk.scripting.effects.FlipCoinsUntilLossEffect
+import com.wingedsheep.sdk.scripting.effects.FlipTwoCoinsEffect
+import com.wingedsheep.engine.handlers.effects.permanent.counters.ProliferateExecutor
+import com.wingedsheep.engine.handlers.effects.permanent.counters.RemoveAnyNumberOfCountersFlow
 import com.wingedsheep.engine.state.GameState
 import com.wingedsheep.sdk.model.EntityId
 
@@ -23,6 +32,8 @@ class MiscContinuationResumer(
     override fun resumers(): List<ContinuationResumer<*>> = listOf(
         resumer(DrawUpToContinuation::class, ::resumeDrawUpTo),
         resumer(RepeatWhileContinuation::class, ::resumeRepeatWhile),
+        resumer(FlipCoinsUntilLossContinuation::class, ::resumeFlipCoinsUntilLoss),
+        resumer(CoinFlipChoiceContinuation::class, ::resumeCoinFlipChoice),
         resumer(StormCopyTargetContinuation::class, ::resumeStormCopyTarget),
         resumer(StormCopyModalTargetContinuation::class, ::resumeStormCopyModalTarget),
         resumer(CopyEachSpellContinuation::class, ::resumeCopyEachSpell),
@@ -32,6 +43,8 @@ class MiscContinuationResumer(
         resumer(DistributeCountersContinuation::class, ::resumeDistributeCounters),
         resumer(RemoveAnyNumberOfCountersContinuation::class, ::resumeRemoveAnyNumberOfCounters),
         resumer(AddCountersUpToContinuation::class, ::resumeAddCountersUpTo),
+        resumer(com.wingedsheep.engine.core.PayAnyAmountOfLifeAsEntersContinuation::class, ::resumePayAnyAmountOfLifeAsEnters),
+        resumer(PayCountersContinuation::class, ::resumePayCounters),
         resumer(ConvertCountersToTokensContinuation::class, ::resumeConvertCountersToTokens),
         resumer(MoveChosenCountersToTargetContinuation::class, ::resumeMoveChosenCountersToTarget),
         resumer(ProliferateContinuation::class, ::resumeProliferate),
@@ -199,6 +212,78 @@ class MiscContinuationResumer(
         return checkForMore(result.state, result.events.toList())
     }
 
+    /**
+     * Pay the chosen amount of life and stamp it on the entering permanent (Nameless Race). The
+     * stamp happens even when the player chose 0, because "entered having paid 0" is a real answer
+     * its characteristic-defining P/T has to read as 0/0 rather than as "no record".
+     */
+    private fun resumePayAnyAmountOfLifeAsEnters(
+        state: GameState,
+        continuation: com.wingedsheep.engine.core.PayAnyAmountOfLifeAsEntersContinuation,
+        response: DecisionResponse,
+        checkForMore: CheckForMore
+    ): ExecutionResult {
+        if (response !is NumberChosenResponse) {
+            return ExecutionResult.error(state, "Expected number response for pay-any-amount-of-life")
+        }
+        val chosen = response.number.coerceAtLeast(0)
+
+        var newState = com.wingedsheep.engine.handlers.effects.player
+            .PayAnyAmountOfLifeAsEntersExecutor.recordValue(state, continuation.permanentId, chosen)
+
+        if (chosen > 0) {
+            val payEffect = com.wingedsheep.sdk.scripting.effects.PayLifeEffect(amount = chosen)
+            val payContext = EffectContext(
+                sourceId = continuation.permanentId,
+                controllerId = continuation.controllerId,
+            )
+            val result = services.effectExecutorRegistry.execute(newState, payEffect, payContext)
+                .toExecutionResult()
+            if (result.isPaused) return result
+            return checkForMore(result.state, result.events.toList())
+        }
+
+        return checkForMore(newState, emptyList())
+    }
+
+    private fun resumePayCounters(
+        state: GameState,
+        continuation: PayCountersContinuation,
+        response: DecisionResponse,
+        checkForMore: CheckForMore
+    ): ExecutionResult {
+        if (response !is NumberChosenResponse) {
+            return ExecutionResult.error(state, "Expected number response for pay-counters")
+        }
+
+        var newState = state
+        val events = mutableListOf<GameEvent>()
+
+        val chosen = response.number.coerceAtLeast(0)
+        val counterType = com.wingedsheep.engine.handlers.effects.permanent.counters
+            .resolveCounterType(continuation.counterType)
+
+        if (chosen > 0) {
+            val current = newState.getEntity(continuation.playerId)
+                ?.get<com.wingedsheep.engine.state.components.battlefield.CountersComponent>()
+                ?: com.wingedsheep.engine.state.components.battlefield.CountersComponent()
+            newState = newState.updateEntity(continuation.playerId) { container ->
+                container.with(current.withRemoved(counterType, chosen))
+            }
+            events.add(
+                CountersRemovedEvent(continuation.playerId, continuation.counterType, chosen)
+            )
+        }
+
+        // Store the paid amount for a composed follow-up effect (e.g. DealDamage) to read via
+        // DynamicAmount.VariableReference — same mechanism DrawUpToEffect.storeAs uses.
+        val storeResult = com.wingedsheep.engine.handlers.effects.drawing.DrawUpToExecutor
+            .injectStoredNumber(newState, continuation.storeAmountAs, chosen)
+        newState = storeResult.newState
+
+        return checkForMore(newState, events)
+    }
+
     private fun resumeDrawUpTo(
         state: GameState,
         continuation: DrawUpToContinuation,
@@ -281,6 +366,179 @@ class MiscContinuationResumer(
                 return checkForMore(result.state, result.events.toList())
             }
         }
+    }
+
+    /**
+     * Resume a "flip a coin until you lose a flip or choose to stop flipping" run after the flipper
+     * answers whether to keep going (Fiery Gambit).
+     *
+     * "Stop" ends the run and publishes the tally the frame has been carrying; "continue" hands the
+     * tally back to [FlipCoinsUntilLossExecutor.flipOnce], which flips exactly one more coin and
+     * either finishes or pauses again.
+     *
+     * The tally is published with [exposeCollectionsToNextFrame], not with the resumer's own return
+     * value: the consumer is the sibling effect beneath this one in the same composite (the payoff
+     * tiers gating on "if you win N or more flips"), and that frame is where a pipeline number has to
+     * land to be read after the stack round-trip.
+     */
+    private fun resumeFlipCoinsUntilLoss(
+        state: GameState,
+        continuation: FlipCoinsUntilLossContinuation,
+        response: DecisionResponse,
+        checkForMore: CheckForMore
+    ): ExecutionResult {
+        if (response !is YesNoResponse) {
+            return ExecutionResult.error(state, "Expected yes/no response for flip-until-loss")
+        }
+
+        if (!response.choice) {
+            val published = exposeCollectionsToNextFrame(
+                state,
+                collections = emptyMap(),
+                numbers = mapOf(continuation.storeWinsAs to continuation.winsSoFar)
+            )
+            return checkForMore(published, emptyList())
+        }
+
+        val result = com.wingedsheep.engine.handlers.effects.composite.FlipCoinsUntilLossExecutor.flipOnce(
+            state = state,
+            effect = com.wingedsheep.sdk.scripting.effects.FlipCoinsUntilLossEffect(continuation.storeWinsAs),
+            context = com.wingedsheep.engine.handlers.effects.composite.FlipCoinsUntilLossExecutor
+                .contextFor(continuation.flipperId, continuation.sourceId),
+            winsSoFar = continuation.winsSoFar,
+            cardRegistry = services.cardRegistry,
+            decisionHandler = com.wingedsheep.engine.handlers.DecisionHandler(),
+            priorEvents = emptyList()
+        )
+
+        if (result.isPaused) return result.toExecutionResult()
+
+        val published = exposeCollectionsToNextFrame(
+            result.state,
+            collections = emptyMap(),
+            numbers = result.updatedStoredNumbers
+        )
+        return checkForMore(published, result.events.toList())
+    }
+
+    /**
+     * Resume a coin flip after the flipper says which coin to keep — the pause a
+     * [com.wingedsheep.sdk.scripting.FlipAdditionalCoins] replacement (Krark's Thumb) puts inside
+     * every flip.
+     *
+     * A batch can owe more than one answer (one per coin that came up mixed), so
+     * [CoinFlipService.advanceAfterAnswer] may hand back another question; only once it reports the
+     * whole batch settled does the flip effect get to act on its results. What "act on its results"
+     * means is read off the frame's own [CoinFlipChoiceContinuation.effect], which is why all four
+     * flip effects share this one resumer.
+     */
+    private fun resumeCoinFlipChoice(
+        state: GameState,
+        continuation: CoinFlipChoiceContinuation,
+        response: DecisionResponse,
+        checkForMore: CheckForMore
+    ): ExecutionResult {
+        if (response !is YesNoResponse) {
+            return ExecutionResult.error(state, "Expected keep-heads/keep-tails response for a coin flip")
+        }
+
+        val decisionHandler = com.wingedsheep.engine.handlers.DecisionHandler()
+        val resolution = CoinFlipService.advanceAfterAnswer(
+            state = state,
+            pending = continuation.pending,
+            keepHeads = response.choice,
+            decisionHandler = decisionHandler
+        )
+
+        // Still coins left to choose between: park the same frame again with the batch advanced.
+        if (resolution is CoinFlipService.Resolution.NeedsChoice) {
+            return ExecutionResult.paused(
+                resolution.state.pushContinuation(
+                    continuation.copy(
+                        decisionId = resolution.decision.id,
+                        pending = resolution.pending
+                    )
+                ),
+                resolution.decision,
+                resolution.events
+            )
+        }
+
+        val settled = resolution as CoinFlipService.Resolution.Resolved
+        val context = continuation.effectContext
+
+        return when (val effect = continuation.effect) {
+            is FlipCoinEffect -> {
+                val subEffect = FlipCoinExecutor.subEffectFor(effect, settled.results)
+                runSubEffect(settled.state, subEffect, context, settled.events, checkForMore)
+            }
+
+            is FlipTwoCoinsEffect -> {
+                val subEffect = FlipTwoCoinsExecutor.subEffectFor(effect, settled.results)
+                runSubEffect(settled.state, subEffect, context, settled.events, checkForMore)
+            }
+
+            is FlipCoinsEffect -> {
+                // The heads tally goes to the frame beneath, not this resumer's return value: its
+                // consumer is the sibling effect in the same composite, and that is where a pipeline
+                // number has to land to survive the stack round-trip.
+                val published = exposeCollectionsToNextFrame(
+                    settled.state,
+                    collections = emptyMap(),
+                    numbers = mapOf(effect.storeHeadsAs to settled.results.count { it })
+                )
+                checkForMore(published, settled.events)
+            }
+
+            is FlipCoinsUntilLossEffect -> {
+                val result = com.wingedsheep.engine.handlers.effects.composite.FlipCoinsUntilLossExecutor
+                    .afterFlip(
+                        state = settled.state,
+                        effect = effect,
+                        context = context,
+                        won = settled.results.firstOrNull() == true,
+                        winsSoFar = continuation.winsSoFar,
+                        decisionHandler = decisionHandler,
+                        priorEvents = settled.events
+                    )
+                if (result.isPaused) return result.toExecutionResult()
+                val published = exposeCollectionsToNextFrame(
+                    result.state,
+                    collections = emptyMap(),
+                    numbers = result.updatedStoredNumbers
+                )
+                checkForMore(published, result.events.toList())
+            }
+
+            else -> ExecutionResult.error(
+                settled.state,
+                "Coin-flip choice resumed for an effect that does not flip coins: " +
+                    effect::class.simpleName
+            )
+        }
+    }
+
+    /**
+     * Run the branch a settled flip selected, or finish with just the flip events when that branch
+     * is empty ("flip a coin. If you win the flip, …" with no losing half).
+     */
+    private fun runSubEffect(
+        state: GameState,
+        subEffect: com.wingedsheep.sdk.scripting.effects.Effect?,
+        context: EffectContext,
+        flipEvents: List<com.wingedsheep.engine.core.GameEvent>,
+        checkForMore: CheckForMore
+    ): ExecutionResult {
+        if (subEffect == null) return checkForMore(state, flipEvents)
+        val result = effectRunner.executeRemainingEffects(state, listOf(subEffect), context)
+        if (result.isPaused) {
+            return ExecutionResult.paused(
+                result.state,
+                result.pendingDecision!!,
+                flipEvents + result.events
+            )
+        }
+        return checkForMore(result.state, flipEvents + result.events)
     }
 
     private fun resumeCopyEachSpell(
@@ -561,8 +819,16 @@ class MiscContinuationResumer(
                 newState = newState.updateEntity(targetId) { container ->
                     container.with(targetCounters.withAdded(counterType, modifiedAmount))
                 }
+                // The distributing effect's controller is the placer (CR 122.5 for the "move"
+                // shape, plain placement for the "distribute N new counters" one); record the kind
+                // and the placer so the scoped readings of ReceivedCounterThisTurn see this.
                 val (afterMark, firstThisTurn) = com.wingedsheep.engine.handlers.effects.DamageUtils
-                    .recordCounterPlacement(newState, targetId)
+                    .recordCounterPlacement(
+                        newState,
+                        targetId,
+                        com.wingedsheep.engine.handlers.effects.permanent.counters.counterTypeToString(counterType),
+                        placerId = continuation.controllerId,
+                    )
                 newState = afterMark
 
                 val targetName = newState.getEntity(targetId)
@@ -635,96 +901,45 @@ class MiscContinuationResumer(
             return ExecutionResult.error(state, "Expected number response for remove-any-counters")
         }
 
-        val chosen = response.number.coerceIn(0, continuation.currentMaxAmount)
-        val counterType = com.wingedsheep.engine.handlers.effects.permanent.counters
-            .resolveCounterType(continuation.currentCounterType)
+        // Coerce into the prompt's own bounds, not just its ceiling: `currentMinAmount` is the
+        // share of the effect's `minTotal` that the kinds after this one can no longer cover, so
+        // honoring it here is what actually makes "remove a counter" mandatory. A client that sends
+        // 0 under a floor of 1 must not be able to talk its way out of the removal.
+        val chosen = response.number.coerceIn(continuation.currentMinAmount, continuation.currentMaxAmount)
 
         var newState = state
         val events = mutableListOf<GameEvent>()
 
-        if (chosen > 0) {
-            val current = newState.getEntity(continuation.targetId)
-                ?.get<com.wingedsheep.engine.state.components.battlefield.CountersComponent>()
-                ?: com.wingedsheep.engine.state.components.battlefield.CountersComponent()
-            newState = newState.updateEntity(continuation.targetId) { container ->
-                container.with(current.withRemoved(counterType, chosen))
-            }
-            events.add(
-                CountersRemovedEvent(
-                    continuation.targetId,
-                    continuation.currentCounterType,
-                    chosen,
-                    continuation.targetName
-                )
-            )
-        }
-
-        // Decrement the total budget when one is in force; stop entirely once it is exhausted.
-        val remainingBudget = continuation.remainingBudget?.minus(chosen)
-        if (remainingBudget != null && remainingBudget <= 0) {
-            return checkForMore(newState, events)
-        }
-
-        // If more counter kinds remain, prompt for the next one. Re-read live counts so a
-        // counter kind that was removed by an interaction during this resolution is skipped.
-        val live = newState.getEntity(continuation.targetId)
-            ?.get<com.wingedsheep.engine.state.components.battlefield.CountersComponent>()
-        val nextPrompt = continuation.remainingCounterTypes
-            .map { (type, _) ->
-                type to (live?.getCount(
-                    com.wingedsheep.engine.handlers.effects.permanent.counters.resolveCounterType(type)
-                ) ?: 0)
-            }
-            .firstOrNull { it.second > 0 }
-
-        if (nextPrompt == null) {
-            return checkForMore(newState, events)
-        }
-
-        val (nextType, nextCount) = nextPrompt
-        // Cap the next prompt at the remaining budget when one is in force.
-        val nextMax = remainingBudget?.let { minOf(nextCount, it) } ?: nextCount
-        val remainingAfter = continuation.remainingCounterTypes
-            .dropWhile { it.first != nextType }
-            .drop(1)
-
-        val decisionId = java.util.UUID.randomUUID().toString()
-        val decision = ChooseNumberDecision(
-            id = decisionId,
-            playerId = continuation.controllerId,
-            prompt = "Remove how many $nextType counters from ${continuation.targetName}? (0-$nextMax)",
-            context = DecisionContext(
-                sourceId = continuation.sourceId,
-                sourceName = continuation.sourceName,
-                phase = DecisionPhase.RESOLUTION
-            ),
-            minValue = 0,
-            maxValue = nextMax
+        val (afterRemoval, removalEvent) = RemoveAnyNumberOfCountersFlow.removeCounters(
+            newState,
+            continuation.targetId,
+            continuation.currentCounterType,
+            chosen,
+            continuation.targetName
         )
-        val nextContinuation = RemoveAnyNumberOfCountersContinuation(
-            decisionId = decisionId,
+        newState = afterRemoval
+        removalEvent?.let { events.add(it) }
+
+        // Carry the walk on over the kinds still to come, with the budget and the floor both
+        // decremented by what just came off.
+        val outcome = RemoveAnyNumberOfCountersFlow.advance(
+            state = newState,
             targetId = continuation.targetId,
             controllerId = continuation.controllerId,
-            currentCounterType = nextType,
-            currentMaxAmount = nextMax,
-            remainingCounterTypes = remainingAfter,
             targetName = continuation.targetName,
             sourceId = continuation.sourceId,
             sourceName = continuation.sourceName,
-            remainingBudget = remainingBudget
+            order = continuation.remainingCounterTypes,
+            budget = continuation.remainingBudget?.minus(chosen),
+            floor = (continuation.remainingFloor - chosen).coerceAtLeast(0),
+            priorEvents = events
         )
-        events.add(
-            DecisionRequestedEvent(
-                decisionId = decisionId,
-                playerId = continuation.controllerId,
-                decisionType = "CHOOSE_NUMBER",
-                prompt = decision.prompt
-            )
-        )
-        val pausedState = newState
-            .withPendingDecision(decision)
-            .pushContinuation(nextContinuation)
-        return ExecutionResult.paused(pausedState, decision, events)
+        return when (outcome) {
+            is RemoveAnyNumberOfCountersFlow.Outcome.Done ->
+                checkForMore(outcome.state, outcome.events)
+            is RemoveAnyNumberOfCountersFlow.Outcome.Prompt ->
+                ExecutionResult.paused(outcome.state, outcome.decision, outcome.events)
+        }
     }
 
     private fun resumeMoveChosenCountersToTarget(
@@ -777,7 +992,12 @@ class MiscContinuationResumer(
                         container.with(destCounters.withAdded(counterType, modified))
                     }
                     val (afterMark, firstThisTurn) = com.wingedsheep.engine.handlers.effects.DamageUtils
-                        .recordCounterPlacement(newState, continuation.destinationId)
+                        .recordCounterPlacement(
+                            newState,
+                            continuation.destinationId,
+                            com.wingedsheep.engine.handlers.effects.permanent.counters.counterTypeToString(counterType),
+                            placerId = continuation.controllerId,
+                        )
                     newState = afterMark
                     events.add(
                         CountersAddedEvent(
@@ -903,47 +1123,10 @@ class MiscContinuationResumer(
             return checkForMore(state, emptyList())
         }
 
-        var newState = state
-        val events = mutableListOf<GameEvent>()
-
-        for (entityId in chosen) {
-            val current = newState.getEntity(entityId)
-                ?.get<com.wingedsheep.engine.state.components.battlefield.CountersComponent>()
-                ?: continue
-            // Snapshot the kinds present at decision time per the entity's current state.
-            val kinds = current.counters.filterValues { it > 0 }.keys.toList()
-            if (kinds.isEmpty()) continue
-
-            val entityName = newState.getEntity(entityId)
-                ?.get<com.wingedsheep.engine.state.components.identity.CardComponent>()?.name ?: ""
-
-            for (counterType in kinds) {
-                val modifiedAmount = ReplacementEffectUtils.applyCounterPlacementModifiers(
-                    newState, entityId, counterType, 1, placerId = continuation.controllerId
-                )
-                if (modifiedAmount <= 0) continue
-
-                val before = newState.getEntity(entityId)
-                    ?.get<com.wingedsheep.engine.state.components.battlefield.CountersComponent>()
-                    ?: com.wingedsheep.engine.state.components.battlefield.CountersComponent()
-                newState = newState.updateEntity(entityId) { container ->
-                    container.with(before.withAdded(counterType, modifiedAmount))
-                }
-                val (afterMark, firstThisTurn) = com.wingedsheep.engine.handlers.effects.DamageUtils
-                    .recordCounterPlacement(newState, entityId)
-                newState = afterMark
-                events.add(
-                    CountersAddedEvent(
-                        entityId,
-                        com.wingedsheep.engine.handlers.effects.permanent.counters.counterTypeToString(counterType),
-                        modifiedAmount,
-                        entityName,
-                        firstThisTurn,
-                        placedBy = continuation.controllerId
-                    )
-                )
-            }
-        }
+        // Same placement rule as the targeted form of the effect (Powerful Broker) — only the
+        // way the recipients were chosen differs.
+        val (newState, events) =
+            ProliferateExecutor.addOneOfEachKind(state, chosen, continuation.controllerId)
 
         return checkForMore(newState, events)
     }

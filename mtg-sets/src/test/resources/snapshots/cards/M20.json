@@ -1,3 +1,48 @@
+// Agonizing Syphon
+{
+    "name": "Agonizing Syphon",
+    "manaCost": "{3}{B}",
+    "typeLine": "Sorcery",
+    "oracleText": "Agonizing Syphon deals 3 damage to any target and you gain 3 life.",
+    "script": {
+        "spellEffect": {
+            "type": "Composite",
+            "effects": [
+                {
+                    "type": "DealDamage",
+                    "amount": {
+                        "type": "Fixed",
+                        "amount": 3
+                    },
+                    "target": {
+                        "type": "ContextTarget",
+                        "index": 0
+                    }
+                },
+                {
+                    "type": "GainLife",
+                    "amount": {
+                        "type": "Fixed",
+                        "amount": 3
+                    }
+                }
+            ]
+        },
+        "targetRequirements": [
+            "AnyTarget"
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "83",
+        "artist": "Seb McKinnon",
+        "flavorText": "\"Your death will take a mere moment, but it will feel like an eternity.\"\n—Vilis, Broker of Blood",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/d/0d8efd95-1c2f-4dd1-b70b-3cfb10ff3a28.jpg?1783933001"
+    },
+    "colorIdentityOverride": [
+        "BLACK"
+    ]
+}
+
 // Angel of Vitality
 {
     "name": "Angel of Vitality",
@@ -82,7 +127,7 @@
                     "count": 1,
                     "target": "Self"
                 },
-                "triggerCondition": "IsNotYourTurn",
+                "triggerRestriction": "IsNotYourTurn",
                 "descriptionOverride": "Whenever you cast a spell during an opponent's turn, put a +1/+1 counter on this creature."
             }
         ]
@@ -173,6 +218,48 @@
         "imageUri": "https://cards.scryfall.io/normal/front/f/d/fde9e9cb-68ab-4856-8ad6-30f66666dd93.jpg?1783932938"
     },
     "colorIdentityOverride": []
+}
+
+// Dawning Angel
+{
+    "name": "Dawning Angel",
+    "manaCost": "{4}{W}",
+    "typeLine": "Creature — Angel",
+    "oracleText": "Flying\nWhen this creature enters, you gain 4 life.",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 2
+    },
+    "keywords": [
+        "FLYING"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "GainLife",
+                    "amount": {
+                        "type": "Fixed",
+                        "amount": 4
+                    }
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "11",
+        "artist": "Yongjae Choi",
+        "flavorText": "\"As the sun rose behind the Bone Spire, an angel appeared over the charnel fields, bringing a surge of new hope.\" —Krinnea, *Siege of the Bone Spire*",
+        "imageUri": "https://cards.scryfall.io/normal/front/4/f/4f3d90ef-6f70-4897-85c1-4e1beeb33363.jpg?1783933032"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
 }
 
 // Devout Decree
@@ -308,6 +395,75 @@
     ]
 }
 
+// Drawn from Dreams
+{
+    "name": "Drawn from Dreams",
+    "manaCost": "{2}{U}{U}",
+    "typeLine": "Sorcery",
+    "oracleText": "Look at the top seven cards of your library. Put two of them into your hand and the rest on the bottom of your library in a random order.",
+    "script": {
+        "spellEffect": {
+            "type": "Composite",
+            "effects": [
+                {
+                    "type": "GatherCards",
+                    "source": {
+                        "type": "TopOfLibrary",
+                        "count": {
+                            "type": "Fixed",
+                            "amount": 7
+                        }
+                    },
+                    "storeAs": "looked"
+                },
+                {
+                    "type": "SelectFromCollection",
+                    "from": "looked",
+                    "selection": {
+                        "type": "ChooseExactly",
+                        "count": {
+                            "type": "Fixed",
+                            "amount": 2
+                        }
+                    },
+                    "storeSelected": "kept",
+                    "storeRemainder": "rest",
+                    "selectedLabel": "Put in hand",
+                    "remainderLabel": "Put on bottom"
+                },
+                {
+                    "type": "MoveCollection",
+                    "from": "kept",
+                    "destination": {
+                        "type": "ToZone",
+                        "zone": "Hand"
+                    }
+                },
+                {
+                    "type": "MoveCollection",
+                    "from": "rest",
+                    "destination": {
+                        "type": "ToZone",
+                        "zone": "Library",
+                        "placement": "Bottom"
+                    },
+                    "order": "Random"
+                }
+            ]
+        }
+    },
+    "metadata": {
+        "collectorNumber": "56",
+        "rarity": "RARE",
+        "artist": "Chris Seaman",
+        "flavorText": "\"From a sea of infinite possibilities, our choices create the future.\"\n—Mu Yanling",
+        "imageUri": "https://cards.scryfall.io/normal/front/5/6/5677cd48-de9f-4827-94d7-8a2301945742.jpg"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
+
 // Empyrean Eagle
 {
     "name": "Empyrean Eagle",
@@ -344,6 +500,51 @@
     "colorIdentityOverride": [
         "WHITE",
         "BLUE"
+    ]
+}
+
+// Ferocious Pup
+{
+    "name": "Ferocious Pup",
+    "manaCost": "{2}{G}",
+    "typeLine": "Creature — Wolf",
+    "oracleText": "When this creature enters, create a 2/2 green Wolf creature token.",
+    "creatureStats": {
+        "power": 0,
+        "toughness": 1
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "CreateToken",
+                    "power": 2,
+                    "toughness": 2,
+                    "colors": [
+                        "GREEN"
+                    ],
+                    "creatureTypes": [
+                        "Wolf"
+                    ],
+                    "imageUri": "https://cards.scryfall.io/normal/front/d/5/d5f1e139-3054-4273-8a4d-faaaa9c383a8.jpg?1783924694"
+                },
+                "descriptionOverride": "When this creature enters, create a 2/2 green Wolf creature token."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "171",
+        "artist": "Rudy Siswanto",
+        "flavorText": "The strongest pack has the fiercest pups.",
+        "imageUri": "https://cards.scryfall.io/normal/front/2/3/2354cb24-5c70-4aaa-8636-46866f0950c1.jpg?1783932968"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
     ]
 }
 
@@ -443,6 +644,371 @@
     ]
 }
 
+// Hanged Executioner
+{
+    "name": "Hanged Executioner",
+    "manaCost": "{2}{W}",
+    "typeLine": "Creature — Spirit",
+    "oracleText": "Flying\nWhen this creature enters, create a 1/1 white Spirit creature token with flying.\n{3}{W}, Exile this creature: Exile target creature.",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 1
+    },
+    "keywords": [
+        "FLYING"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "CreateToken",
+                    "power": 1,
+                    "toughness": 1,
+                    "colors": [
+                        "WHITE"
+                    ],
+                    "creatureTypes": [
+                        "Spirit"
+                    ],
+                    "keywords": [
+                        "FLYING"
+                    ]
+                }
+            }
+        ],
+        "activatedAbilities": [
+            {
+                "id": "ability_2",
+                "cost": {
+                    "type": "CostComposite",
+                    "costs": [
+                        {
+                            "type": "CostAtomWrapper",
+                            "atom": {
+                                "type": "AtomMana",
+                                "cost": "{3}{W}"
+                            }
+                        },
+                        "CostExileSelf"
+                    ]
+                },
+                "effect": {
+                    "type": "MoveToZone",
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "target creature"
+                    },
+                    "destination": "Exile"
+                },
+                "targetRequirements": [
+                    {
+                        "type": "TargetObject",
+                        "filter": {
+                            "baseFilter": "creature"
+                        },
+                        "id": "target creature"
+                    }
+                ]
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "22",
+        "rarity": "RARE",
+        "artist": "Johann Bodin",
+        "imageUri": "https://cards.scryfall.io/normal/front/e/0/e0d6cea1-83d1-4045-b4da-40560af86df9.jpg?1783933026"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
+// Imperial Outrider
+{
+    "name": "Imperial Outrider",
+    "manaCost": "{3}{W}",
+    "typeLine": "Creature — Human Knight",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 5
+    },
+    "metadata": {
+        "collectorNumber": "307",
+        "artist": "Scott Murphy",
+        "flavorText": "Her mount's hollow crest can produce a trumpeting warning that carries for miles, summoning more knights to her aid.",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/d/0dd3aca5-516f-4500-9d7f-95630401d3ae.jpg?1783932913"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
+// Infuriate
+{
+    "name": "Infuriate",
+    "manaCost": "{R}",
+    "typeLine": "Instant",
+    "oracleText": "Target creature gets +3/+2 until end of turn.",
+    "script": {
+        "spellEffect": {
+            "type": "ModifyStats",
+            "powerModifier": {
+                "type": "Fixed",
+                "amount": 3
+            },
+            "toughnessModifier": {
+                "type": "Fixed",
+                "amount": 2
+            },
+            "target": {
+                "type": "BoundVariable",
+                "name": "target"
+            }
+        },
+        "targetRequirements": [
+            {
+                "type": "TargetObject",
+                "filter": {
+                    "baseFilter": "creature"
+                },
+                "id": "target"
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "145",
+        "artist": "Caio Monteiro",
+        "flavorText": "\"No shirt, no shoes, no service.\"\n—Marketplace sign",
+        "imageUri": "https://cards.scryfall.io/normal/front/7/a/7ac778f6-8997-47ee-a676-3eb9f8d1592f.jpg"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
+// Ironroot Warlord
+{
+    "name": "Ironroot Warlord",
+    "manaCost": "{1}{G}{W}",
+    "typeLine": "Creature — Treefolk Soldier",
+    "oracleText": "Ironroot Warlord's power is equal to the number of creatures you control.\n{3}{G}{W}: Create a 1/1 white Soldier creature token.",
+    "creatureStats": {
+        "power": {
+            "type": "Dynamic",
+            "source": {
+                "type": "AggregateBattlefield",
+                "player": "You",
+                "filter": "creature"
+            }
+        },
+        "toughness": 5
+    },
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": {
+                    "type": "CostAtomWrapper",
+                    "atom": {
+                        "type": "AtomMana",
+                        "cost": "{3}{G}{W}"
+                    }
+                },
+                "effect": {
+                    "type": "CreateToken",
+                    "power": 1,
+                    "toughness": 1,
+                    "colors": [
+                        "WHITE"
+                    ],
+                    "creatureTypes": [
+                        "Soldier"
+                    ]
+                },
+                "descriptionOverride": "{3}{G}{W}: Create a 1/1 white Soldier creature token."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "209",
+        "rarity": "UNCOMMON",
+        "artist": "Filip Burburan",
+        "flavorText": "\"Alone, it's a fortification. At the head of its troops, it's a battering ram.\"\n—Skerk Hobnett, wilderness guide",
+        "imageUri": "https://cards.scryfall.io/normal/front/e/d/edec85ce-7daa-48c2-b25d-b22941e01e73.jpg?1783932951"
+    },
+    "colorIdentityOverride": [
+        "GREEN",
+        "WHITE"
+    ]
+}
+
+// Kykar, Wind's Fury
+{
+    "name": "Kykar, Wind's Fury",
+    "manaCost": "{1}{U}{R}{W}",
+    "typeLine": "Legendary Creature — Bird Wizard",
+    "oracleText": "Flying\nWhenever you cast a noncreature spell, create a 1/1 white Spirit creature token with flying.\nSacrifice a Spirit: Add {R}.",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 3
+    },
+    "keywords": [
+        "FLYING"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "SpellCastEvent",
+                    "spellFilter": {
+                        "cardPredicates": [
+                            "IsNoncreature"
+                        ]
+                    }
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "CreateToken",
+                    "power": 1,
+                    "toughness": 1,
+                    "colors": [
+                        "WHITE"
+                    ],
+                    "creatureTypes": [
+                        "Spirit"
+                    ],
+                    "keywords": [
+                        "FLYING"
+                    ]
+                }
+            }
+        ],
+        "activatedAbilities": [
+            {
+                "id": "ability_2",
+                "cost": {
+                    "type": "CostAtomWrapper",
+                    "atom": {
+                        "type": "AtomSacrifice",
+                        "filter": "permanent Spirit"
+                    }
+                },
+                "effect": {
+                    "type": "AddMana",
+                    "color": "RED"
+                },
+                "timing": "ManaAbility",
+                "isManaAbility": true
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "212",
+        "rarity": "MYTHIC",
+        "artist": "G-host Lee",
+        "flavorText": "\"The raging gale fans the flames of righteous wrath.\"",
+        "imageUri": "https://cards.scryfall.io/normal/front/5/9/594cb7dc-ea88-4909-ab40-1d40fecc9817.jpg?1783932950"
+    },
+    "colorIdentityOverride": [
+        "RED",
+        "BLUE",
+        "WHITE"
+    ]
+}
+
+// Octoprophet
+{
+    "name": "Octoprophet",
+    "manaCost": "{3}{U}",
+    "typeLine": "Creature — Octopus",
+    "oracleText": "When this creature enters, scry 2. (Look at the top two cards of your library, then put any number of them on the bottom and the rest on top in any order.)",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 3
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "Scry",
+                    "count": 2
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "70",
+        "artist": "Grzegorz Rutkowski",
+        "flavorText": "In every swirl of the tide, it sees the awakening of things yet to come.",
+        "imageUri": "https://cards.scryfall.io/normal/front/1/3/13becea1-e745-4c96-bfc2-6a277fb60ee1.jpg?1783933006"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
+
+// Pyroclastic Elemental
+{
+    "name": "Pyroclastic Elemental",
+    "manaCost": "{3}{R}{R}",
+    "typeLine": "Creature — Elemental",
+    "oracleText": "{1}{R}{R}: This creature deals 1 damage to target player.",
+    "creatureStats": {
+        "power": 5,
+        "toughness": 4
+    },
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": {
+                    "type": "CostAtomWrapper",
+                    "atom": {
+                        "type": "AtomMana",
+                        "cost": "{1}{R}{R}"
+                    }
+                },
+                "effect": {
+                    "type": "DealDamage",
+                    "amount": {
+                        "type": "Fixed",
+                        "amount": 1
+                    },
+                    "target": {
+                        "type": "ContextTarget",
+                        "index": 0
+                    }
+                },
+                "targetRequirements": [
+                    "TargetPlayer"
+                ],
+                "descriptionOverride": "{1}{R}{R}: This creature deals 1 damage to target player."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "296",
+        "rarity": "UNCOMMON",
+        "artist": "Svetlin Velinov",
+        "flavorText": "\"Whoever thought of making mobile volcanoes was a genius.\"\n—Chandra Nalaar",
+        "imageUri": "https://cards.scryfall.io/normal/front/2/d/2d57f8b5-fde9-498d-82bf-34bfb2370703.jpg?1783932918"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
 // Rapacious Dragon
 {
     "name": "Rapacious Dragon",
@@ -481,6 +1047,46 @@
     },
     "colorIdentityOverride": [
         "RED"
+    ]
+}
+
+// Savannah Sage
+{
+    "name": "Savannah Sage",
+    "manaCost": "{1}{W}",
+    "typeLine": "Creature — Cat Cleric",
+    "oracleText": "When this creature enters, you gain 2 life.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 2
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "GainLife",
+                    "amount": {
+                        "type": "Fixed",
+                        "amount": 2
+                    }
+                },
+                "descriptionOverride": "When this creature enters, you gain 2 life."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "284",
+        "artist": "Bayard Wu",
+        "flavorText": "\"Now is not the time for your light to fade.\"",
+        "imageUri": "https://cards.scryfall.io/normal/front/5/b/5b5fa4bb-e061-456f-808e-8d98b2c8abf5.jpg?1783932921"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
     ]
 }
 
@@ -782,7 +1388,8 @@
                 "count": {
                     "type": "AggregateBattlefield",
                     "player": "You",
-                    "filter": "creature attacking"
+                    "filter": "creature",
+                    "excludeSelf": true
                 }
             }
         ]
@@ -857,5 +1464,45 @@
     },
     "colorIdentityOverride": [
         "WHITE"
+    ]
+}
+
+// Winged Words
+{
+    "name": "Winged Words",
+    "manaCost": "{2}{U}",
+    "typeLine": "Sorcery",
+    "oracleText": "This spell costs {1} less to cast if you control a creature with flying.\nDraw two cards.",
+    "script": {
+        "spellEffect": {
+            "type": "DrawCards",
+            "count": {
+                "type": "Fixed",
+                "amount": 2
+            }
+        },
+        "staticAbilities": [
+            {
+                "type": "ModifySpellCost",
+                "target": "SelfCast",
+                "modification": {
+                    "type": "ReduceGenericBy",
+                    "source": {
+                        "type": "FixedIfControlFilter",
+                        "amount": 1,
+                        "filter": "creature kw:flying"
+                    }
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "80",
+        "artist": "Chris Seaman",
+        "flavorText": "Magic written across the sky falls like rain on thirsty ground, bringing forth wisdom in its season.",
+        "imageUri": "https://cards.scryfall.io/normal/front/f/f/ff765065-b160-49b6-99ac-cd695bd0d903.jpg?1783933001"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
     ]
 }

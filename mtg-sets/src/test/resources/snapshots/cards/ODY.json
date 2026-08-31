@@ -367,14 +367,17 @@
                     "to": "Battlefield"
                 },
                 "effect": {
-                    "type": "MoveToZone",
-                    "target": {
-                        "type": "BoundVariable",
-                        "name": "target"
-                    },
-                    "destination": "Hand"
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "MoveToZone",
+                        "target": {
+                            "type": "BoundVariable",
+                            "name": "target"
+                        },
+                        "destination": "Hand"
+                    }
                 },
-                "optional": true,
                 "targetRequirement": {
                     "type": "TargetObject",
                     "filter": {
@@ -549,13 +552,16 @@
                     "to": "Graveyard"
                 },
                 "effect": {
-                    "type": "DrawCards",
-                    "count": {
-                        "type": "Fixed",
-                        "amount": 1
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "DrawCards",
+                        "count": {
+                            "type": "Fixed",
+                            "amount": 1
+                        }
                     }
-                },
-                "optional": true
+                }
             }
         ]
     },
@@ -1731,9 +1737,7 @@
                             }
                         }
                     ]
-                },
-                "timing": "ManaAbility",
-                "isManaAbility": true
+                }
             }
         ]
     },
@@ -1945,6 +1949,44 @@
     },
     "colorIdentityOverride": [
         "BLUE"
+    ]
+}
+
+// Demolish
+{
+    "name": "Demolish",
+    "manaCost": "{3}{R}",
+    "typeLine": "Sorcery",
+    "oracleText": "Destroy target artifact or land.",
+    "script": {
+        "spellEffect": {
+            "type": "MoveToZone",
+            "target": {
+                "type": "BoundVariable",
+                "name": "target"
+            },
+            "destination": "Graveyard",
+            "byDestruction": true
+        },
+        "targetRequirements": [
+            {
+                "type": "TargetObject",
+                "filter": {
+                    "baseFilter": "artifact|land"
+                },
+                "id": "target"
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "183",
+        "rarity": "UNCOMMON",
+        "artist": "Gary Ruddell",
+        "flavorText": "\"Pound the steel until it fits. Doesn't work? Bash to bits.\"\n—Dwarven forging song",
+        "imageUri": "https://cards.scryfall.io/normal/front/9/1/9162a4df-ca6d-4f07-ae48-d333f1cb74b9.jpg?1783945234"
+    },
+    "colorIdentityOverride": [
+        "RED"
     ]
 }
 
@@ -2871,6 +2913,36 @@
     ]
 }
 
+// Ivy Elemental
+{
+    "name": "Ivy Elemental",
+    "manaCost": "{X}{G}",
+    "typeLine": "Creature — Elemental",
+    "oracleText": "This creature enters with X +1/+1 counters on it.",
+    "creatureStats": {
+        "power": 0,
+        "toughness": 0
+    },
+    "script": {
+        "replacementEffects": [
+            {
+                "type": "EntersWithDynamicCounters",
+                "count": "XValue"
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "245",
+        "rarity": "RARE",
+        "artist": "Ron Spencer",
+        "flavorText": "In the gardens of the centaurs, many travelers have mysteriously vanished while admiring the elaborate topiaries.",
+        "imageUri": "https://cards.scryfall.io/normal/front/f/c/fc441d3a-e917-4dd6-b5f9-f99075ec398f.jpg"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
 // Kamahl, Pit Fighter
 {
     "name": "Kamahl, Pit Fighter",
@@ -3323,6 +3395,50 @@
     ]
 }
 
+// Millikin
+{
+    "name": "Millikin",
+    "manaCost": "{2}",
+    "typeLine": "Artifact Creature — Construct",
+    "oracleText": "{T}, Mill a card: Add {C}. (Activate only as an instant. To mill a card, put the top card of your library into your graveyard.)",
+    "creatureStats": {
+        "power": 0,
+        "toughness": 1
+    },
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": {
+                    "type": "CostComposite",
+                    "costs": [
+                        "CostTap",
+                        {
+                            "type": "CostAtomWrapper",
+                            "atom": "AtomMill"
+                        }
+                    ]
+                },
+                "effect": {
+                    "type": "AddColorlessMana",
+                    "amount": {
+                        "type": "Fixed",
+                        "amount": 1
+                    }
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "302",
+        "rarity": "UNCOMMON",
+        "artist": "Alex Horley-Orlandelli",
+        "flavorText": "The toymaker frowned in bewilderment. None of his creations had ever sneezed before.",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/5/0550133b-22cf-4ecd-b89a-8c2f0beeaa22.jpg?1783945203"
+    },
+    "colorIdentityOverride": []
+}
+
 // Minotaur Explorer
 {
     "name": "Minotaur Explorer",
@@ -3547,9 +3663,7 @@
                             }
                         }
                     ]
-                },
-                "timing": "ManaAbility",
-                "isManaAbility": true
+                }
             }
         ]
     },
@@ -3779,6 +3893,60 @@
     },
     "colorIdentityOverride": [
         "RED"
+    ]
+}
+
+// Nimble Mongoose
+{
+    "name": "Nimble Mongoose",
+    "manaCost": "{G}",
+    "typeLine": "Creature — Mongoose",
+    "oracleText": "Shroud (This creature can't be the target of spells or abilities.)\nThreshold — This creature gets +2/+2 as long as there are seven or more cards in your graveyard.",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 1
+    },
+    "keywords": [
+        "SHROUD"
+    ],
+    "script": {
+        "staticAbilities": [
+            {
+                "type": "ConditionalStaticAbility",
+                "ability": {
+                    "type": "ModifyStats",
+                    "powerBonus": 2,
+                    "toughnessBonus": 2,
+                    "filter": {
+                        "baseFilter": "permanent",
+                        "scope": "Self"
+                    }
+                },
+                "condition": {
+                    "type": "Compare",
+                    "left": {
+                        "type": "Count",
+                        "player": "You",
+                        "zone": "Graveyard"
+                    },
+                    "operator": "GTE",
+                    "right": {
+                        "type": "Fixed",
+                        "amount": 7
+                    }
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "258",
+        "rarity": "UNCOMMON",
+        "artist": "Terese Nielsen",
+        "flavorText": "Faster than a cobra's bite.",
+        "imageUri": "https://cards.scryfall.io/normal/front/9/9/99e5ecf5-a662-4df0-a6ba-9177c62b6503.jpg?1783945213"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
     ]
 }
 
@@ -4712,9 +4880,7 @@
                             }
                         }
                     ]
-                },
-                "timing": "ManaAbility",
-                "isManaAbility": true
+                }
             }
         ]
     },
@@ -4782,6 +4948,54 @@
     "colorIdentityOverride": [
         "BLACK",
         "RED"
+    ]
+}
+
+// Shadowmage Infiltrator
+{
+    "name": "Shadowmage Infiltrator",
+    "manaCost": "{1}{U}{B}",
+    "typeLine": "Creature — Human Wizard",
+    "oracleText": "Fear (This creature can't be blocked except by artifact creatures and/or black creatures.)\nWhenever this creature deals combat damage to a player, you may draw a card.",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 3
+    },
+    "keywords": [
+        "FEAR"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "DealsDamageEvent",
+                    "damageType": "DamageCombat",
+                    "recipient": "AnyPlayer"
+                },
+                "effect": {
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "DrawCards",
+                        "count": {
+                            "type": "Fixed",
+                            "amount": 1
+                        }
+                    }
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "294",
+        "rarity": "RARE",
+        "artist": "Rick Farrell",
+        "imageUri": "https://cards.scryfall.io/normal/front/9/3/932ce702-565f-4d8c-b9fc-2d7c939ef7d7.jpg"
+    },
+    "colorIdentityOverride": [
+        "BLUE",
+        "BLACK"
     ]
 }
 
@@ -4911,9 +5125,7 @@
                             }
                         }
                     ]
-                },
-                "timing": "ManaAbility",
-                "isManaAbility": true
+                }
             }
         ]
     },
@@ -5253,9 +5465,7 @@
                             }
                         }
                     ]
-                },
-                "timing": "ManaAbility",
-                "isManaAbility": true
+                }
             }
         ]
     },
@@ -5865,6 +6075,50 @@
     ]
 }
 
+// Zombie Infestation
+{
+    "name": "Zombie Infestation",
+    "manaCost": "{1}{B}",
+    "typeLine": "Enchantment",
+    "oracleText": "Discard two cards: Create a 2/2 black Zombie creature token.",
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": {
+                    "type": "CostAtomWrapper",
+                    "atom": {
+                        "type": "AtomDiscard",
+                        "count": 2
+                    }
+                },
+                "effect": {
+                    "type": "CreateToken",
+                    "power": 2,
+                    "toughness": 2,
+                    "colors": [
+                        "BLACK"
+                    ],
+                    "creatureTypes": [
+                        "Zombie"
+                    ]
+                },
+                "descriptionOverride": "Discard two cards: Create a 2/2 black Zombie creature token."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "170",
+        "rarity": "UNCOMMON",
+        "artist": "Thomas M. Baxa",
+        "flavorText": "The nomads' funeral pyres are more practical than ceremonial.",
+        "imageUri": "https://cards.scryfall.io/normal/front/c/c/ccd5f98a-7ab5-44b3-850c-b50963dace66.jpg?1783945237"
+    },
+    "colorIdentityOverride": [
+        "BLACK"
+    ]
+}
+
 // Zombify
 {
     "name": "Zombify",
@@ -5878,7 +6132,8 @@
                 "type": "BoundVariable",
                 "name": "target creature card from your graveyard"
             },
-            "destination": "Battlefield"
+            "destination": "Battlefield",
+            "fromZone": "Graveyard"
         },
         "targetRequirements": [
             {

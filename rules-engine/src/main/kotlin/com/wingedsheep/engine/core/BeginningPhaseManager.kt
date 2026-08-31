@@ -2,16 +2,20 @@ package com.wingedsheep.engine.core
 
 import com.wingedsheep.engine.handlers.DecisionHandler
 import com.wingedsheep.engine.handlers.EffectContext
+import com.wingedsheep.engine.handlers.predicates.receivedCounterThisTurn
 import com.wingedsheep.engine.state.ComponentContainer
 import com.wingedsheep.engine.state.GameState
 import com.wingedsheep.engine.state.ZoneKey
 import com.wingedsheep.engine.state.components.battlefield.CountersComponent
 import com.wingedsheep.engine.state.components.battlefield.SagaComponent
 import com.wingedsheep.engine.state.components.battlefield.EnteredThisTurnComponent
+import com.wingedsheep.engine.state.components.battlefield.ExertedComponent
+import com.wingedsheep.engine.state.components.battlefield.HasDealtDamageComponent
 import com.wingedsheep.engine.state.components.battlefield.PhasedOutComponent
 import com.wingedsheep.engine.state.components.battlefield.SummoningSicknessComponent
 import com.wingedsheep.engine.state.components.battlefield.TappedComponent
 import com.wingedsheep.engine.state.components.identity.CardComponent
+import com.wingedsheep.engine.state.components.player.CardsInHandAtTurnStartComponent
 import com.wingedsheep.engine.state.components.player.SkipUntapComponent
 import com.wingedsheep.engine.mechanics.layers.ProjectedState
 import com.wingedsheep.sdk.core.AbilityFlag
@@ -54,6 +58,18 @@ class BeginningPhaseManager(
         val events = mutableListOf<GameEvent>()
         var newState = state
 
+        // CR 502 — snapshot every player's hand size before anything else happens this turn.
+        // "At the beginning of this turn" has to be captured here rather than read later: by the
+        // upkeep, the very cards a card like Mindstorm Crown is measuring may already have moved.
+        // Recorded for every player, not just the active one, so an opponent-scoped reading of the
+        // same tracker is available for free.
+        for (pid in newState.turnOrder) {
+            val handSize = newState.getZone(ZoneKey(pid, Zone.HAND)).size
+            newState = newState.updateEntity(pid) { container ->
+                container.with(CardsInHandAtTurnStartComponent(count = handSize))
+            }
+        }
+
         // Phase in permanents that phased out under each active-team member's control. In a shared
         // team turn both teammates phase in together (CR 805.4); for a non-team game the active
         // team is just the active player. This happens during the untap step, before untapping
@@ -62,8 +78,24 @@ class BeginningPhaseManager(
             newState = phaseInPermanents(newState, member, events)
         }
 
-        // Check if the player has a SkipUntapComponent
-        val skipUntap = newState.getEntity(activePlayer)?.get<SkipUntapComponent>()
+        // CR 502.2 / 731.2 — the second turn-based action of the untap step: check the previous
+        // active side's spell counts and change the day/night designation if warranted. If it's day
+        // and nobody on that side cast a spell, it becomes night; if it's night and any one of them
+        // cast two or more, it becomes day; if it's neither, nothing happens (731.2c). No stack, no
+        // priority. TurnManager.startTurn took the snapshot before resetting the counters. Any
+        // daybound/nightbound transforms this designation change entails are
+        // cascaded by DayNightService in the same event batch, and those events flow up through advanceStep
+        // to PassPriorityHandler's detectTriggers so "whenever this transforms" abilities fire (CR 702.145b/e).
+        run {
+            val (afterDayNight, dayNightEvents) = com.wingedsheep.engine.mechanics.daynight.DayNightService
+                .checkUntapStepDesignation(newState, cardRegistry)
+            newState = afterDayNight
+            events.addAll(dayNightEvents)
+        }
+
+        // Each active-team member's own "doesn't untap" marker applies to the permanents *they*
+        // control — in a shared team turn (CR 805.4) both heads untap, each under their own marker.
+        val skipUntapByPlayer = activeTeam.associateWith { newState.getEntity(it)?.get<SkipUntapComponent>() }
 
         // Use projected state for controller checks (control-changing effects like Annex).
         // Recomputed from newState so just-phased-in permanents are visible.
@@ -74,7 +106,8 @@ class BeginningPhaseManager(
             projected.getController(entityId) in activeTeam &&
                 container.has<TappedComponent>()
         }.keys.filter { entityId ->
-            // If there's a skip untap component, check if this permanent should be skipped
+            // If the controller has a skip untap component, check if this permanent should be skipped
+            val skipUntap = skipUntapByPlayer[projected.getController(entityId)]
             if (skipUntap != null) {
                 val cardComponent = newState.getEntity(entityId)?.get<CardComponent>()
                 val typeLine = cardComponent?.typeLine
@@ -90,9 +123,10 @@ class BeginningPhaseManager(
             }
         }
 
-        // Remove the SkipUntapComponent after processing (it's been consumed)
-        if (skipUntap != null) {
-            newState = newState.updateEntity(activePlayer) { container ->
+        // Remove the SkipUntapComponents after processing (they've been consumed)
+        for ((member, skipUntap) in skipUntapByPlayer) {
+            if (skipUntap == null) continue
+            newState = newState.updateEntity(member) { container ->
                 container.without<SkipUntapComponent>()
             }
         }
@@ -102,8 +136,15 @@ class BeginningPhaseManager(
         // Temporal Distortion's hourglass counters route through DOESNT_UNTAP via a
         // counter-keyed static ability (so the restriction is projection-scoped and
         // disappears if Temporal Distortion leaves play).
+        //
+        // Exerted permanents (CR 701.43a, ExertedComponent — a one-shot per-object marker, not a
+        // continuous static ability) are filtered the same way. Unlike DOESNT_UNTAP, the marker is
+        // cleared unconditionally below regardless of whether this filter actually skipped an
+        // untap (2024-06-07 ruling: an exerted-but-already-untapped permanent's marker still
+        // expires having done nothing).
         val permanentsAfterCantUntap = permanentsToUntap.filter { entityId ->
-            !projected.doesntUntapDuringUntapStep(entityId)
+            !projected.doesntUntapDuringUntapStep(entityId) &&
+                newState.getEntity(entityId)?.has<ExertedComponent>() != true
         }
 
         // Check if any permanents have MAY_NOT_UNTAP keyword (e.g., Everglove Courier)
@@ -262,16 +303,28 @@ class BeginningPhaseManager(
             newState = newState.updateEntity(entityId) { it.without<EnteredThisTurnComponent>() }
         }
 
-        // Wipe "put into graveyard from battlefield this turn" markers on every turn
-        // boundary so the predicate (Samwise, Lobelia — LTR) matches only cards that
-        // arrived in a graveyard this turn, not last turn. Scans all entities (the
+        // Clear exert markers (CR 701.43a — "your next untap step") for every permanent the
+        // active team controls, unconditionally: an exerted permanent that was already untapped
+        // (or already had its untap replaced/skipped above) still has the marker expire here per
+        // the 2024-06-07 ruling, having prevented nothing. Scoped to the active team, not every
+        // permanent, since exert only ever refers to its controller's own next untap step.
+        val exertedForActiveTeam = newState.entities.filter { (entityId, container) ->
+            container.has<ExertedComponent>() && projectedAfterUntap.getController(entityId) in activeTeam
+        }.keys
+        for (entityId in exertedForActiveTeam) {
+            newState = newState.updateEntity(entityId) { it.without<ExertedComponent>() }
+        }
+
+        // Wipe "put into a graveyard this turn" markers on every turn boundary so the
+        // predicates (Abyssal Harvester — FDN; Samwise, Lobelia — LTR) match only cards
+        // that arrived in a graveyard this turn, not last turn. Scans all entities (the
         // marker lives on graveyard cards, not battlefield permanents).
         val stampedThisTurn = newState.entities.filter { (_, container) ->
-            container.has<com.wingedsheep.engine.state.components.identity.PutIntoGraveyardFromBattlefieldThisTurnMarker>()
+            container.has<com.wingedsheep.engine.state.components.identity.PutIntoGraveyardThisTurnComponent>()
         }.keys
         for (entityId in stampedThisTurn) {
             newState = newState.updateEntity(entityId) {
-                it.without<com.wingedsheep.engine.state.components.identity.PutIntoGraveyardFromBattlefieldThisTurnMarker>()
+                it.without<com.wingedsheep.engine.state.components.identity.PutIntoGraveyardThisTurnComponent>()
             }
         }
 
@@ -328,14 +381,18 @@ class BeginningPhaseManager(
 
     /**
      * Add a lore counter to each Saga the active player controls (Rule 714.3c).
-     * This is a turn-based action that happens at the beginning of precombat main phase.
+     * This is a turn-based action that happens at the beginning of precombat main phase. In a
+     * shared team turn (CR 805.4) the precombat main phase belongs to both heads, so each
+     * teammate's Sagas advance; outside shared team turns the team is the active player alone.
      */
     fun addLoreCountersToSagas(state: GameState, activePlayer: EntityId): ExecutionResult {
         var newState = state
         val events = mutableListOf<GameEvent>()
 
-        val battlefieldZone = ZoneKey(activePlayer, Zone.BATTLEFIELD)
-        for (entityId in newState.getZone(battlefieldZone)) {
+        val sagaIds = state.sharedTurnTeam(activePlayer).flatMap { member ->
+            newState.getZone(ZoneKey(member, Zone.BATTLEFIELD))
+        }
+        for (entityId in sagaIds) {
             val container = newState.getEntity(entityId) ?: continue
             val cardComponent = container.get<CardComponent>() ?: continue
             val sagaComponent = container.get<SagaComponent>() ?: continue
@@ -424,10 +481,32 @@ class BeginningPhaseManager(
         predicate: StatePredicate,
         container: ComponentContainer
     ): Boolean = when (predicate) {
-        // Graveyard-only predicate; untap filters never see a card with the marker.
+        // Graveyard-only predicates; untap filters never see a card with the marker.
+        StatePredicate.PutIntoGraveyardThisTurn -> false
         StatePredicate.PutIntoGraveyardFromBattlefieldThisTurn -> false
         // No granter context in untap filtering — granter-relative exclusion is resolution-time only.
         StatePredicate.IsGrantingPermanent -> false
+        // Counter history is plain per-entity state, so answer it exactly rather than falling open.
+        // In practice cleanup wiped the marker at the end of the previous turn, so this is false for
+        // every permanent by the time the untap step runs on a normal turn.
+        is StatePredicate.ReceivedCounterThisTurn ->
+            receivedCounterThisTurn(container, predicate)
+        // Damage history is likewise plain per-entity state, and both windows are answerable here
+        // without the turn number. Every caller of this helper runs during an untap step — the first
+        // step of the first phase of a turn (CR 500.1 / 501.1), in which no player receives priority
+        // (CR 500.3) — and `turnNumber` has already been incremented by the time it runs, so nothing
+        // can have dealt damage *this* turn yet: the per-turn window is exactly `false` for every
+        // permanent. Falling into the "no constraint" group below would answer `true` instead, which
+        // for an "each creature that dealt damage this turn" untap filter is the maximally wrong
+        // answer (match everything rather than nothing). The lifetime window is just the marker.
+        is StatePredicate.HasDealtDamage ->
+            if (predicate.thisTurnOnly) false else container.has<HasDealtDamageComponent>()
+        // Tap history, by the same argument as the per-turn damage window above: the untap step is
+        // the first step of the turn, so no permanent has become tapped this turn yet and nothing can
+        // have become tapped exactly once. Answered exactly rather than falling open, because an
+        // "untap each creature that became tapped for the first time this turn" filter that matched
+        // everything would untap the whole board.
+        StatePredicate.BecameTappedOnlyOnceThisTurn -> false
         is StatePredicate.HasCounter -> {
             val countersComponent = container.get<CountersComponent>()
             if (countersComponent == null) {
@@ -441,46 +520,74 @@ class BeginningPhaseManager(
                 counterType != null && countersComponent.getCount(counterType) > 0
             }
         }
+        // Soulbond pairing (CR 702.95b) is plain per-entity state, so unlike the fail-open group
+        // below it can be answered exactly here — an "untap each paired creature" filter must not
+        // silently untap everything.
+        StatePredicate.IsPaired ->
+            container.has<com.wingedsheep.engine.state.components.battlefield.PairedComponent>()
+        // Solved (CR 719.3b) is likewise plain per-entity state and survives the turn boundary,
+        // so an "untap each solved Case" filter is answered exactly rather than falling open.
+        StatePredicate.IsSolved ->
+            container.has<com.wingedsheep.engine.state.components.battlefield.SolvedComponent>()
+        // Renowned (CR 702.112b) is the same shape as solved — sticky per-entity state that
+        // survives the turn boundary — so "untap each renowned creature" is answered exactly.
+        StatePredicate.IsRenowned ->
+            container.has<com.wingedsheep.engine.state.components.battlefield.RenownedComponent>()
         is StatePredicate.Or -> predicate.predicates.any { matchesStatePredicateForUntap(it, container) }
         is StatePredicate.And -> predicate.predicates.all { matchesStatePredicateForUntap(it, container) }
         is StatePredicate.Not -> !matchesStatePredicateForUntap(predicate.predicate, container)
+        // Relational battlefield predicates need the whole projected battlefield, which this
+        // narrow untap helper deliberately does not receive. Fail closed rather than untapping an
+        // unrelated permanent.
+        is StatePredicate.HasLeastManaValueAmong -> false
         // Untap-during-other-untap-step filters only meaningfully restrict by counter type
         // and structural combinators. Tap / combat / face-down / damage-history / equipment
         // predicates would either be redundant at this point in the turn (e.g. IsTapped is
         // implied; combat is empty) or would require state we don't have here. Returning
         // true preserves the historical "no constraint" behavior, but the case is now
         // explicit so adding a new StatePredicate variant becomes a compile-time decision.
+        StatePredicate.IsOnBattlefield,
         StatePredicate.IsTapped,
         StatePredicate.IsUntapped,
         StatePredicate.IsAttacking,
+        StatePredicate.IsAttackingAlone,
+        StatePredicate.IsAttackingAnOpponent,
+        StatePredicate.IsAttackingYouOrYourPlaneswalkers,
+        StatePredicate.IsAttackingEnchantedPlayer,
         StatePredicate.IsBlocking,
         StatePredicate.IsBlocked,
         StatePredicate.IsUnblocked,
         StatePredicate.InSameBandAsSource,
         StatePredicate.IsBlockingSource,
+        StatePredicate.IsCombatPairedWithSource,
+        StatePredicate.IsBlockingIterationEntity,
         StatePredicate.CreatedBySource,
         StatePredicate.EnteredThisTurn,
         StatePredicate.WasDealtDamageThisTurn,
-        StatePredicate.HasDealtDamage,
         StatePredicate.HasDealtCombatDamageToPlayer,
         StatePredicate.DealtCombatDamageToSourceControllerThisTurn,
         StatePredicate.ControllerDealtCombatDamageBySourceThisTurn,
         StatePredicate.AttackedThisTurn,
+        StatePredicate.CouldNotHaveAttackedThisTurn,
+        StatePredicate.AttackedLastTurn,
         StatePredicate.AttackedThisCombat,
         StatePredicate.BlockedThisCombat,
+        StatePredicate.BlockedThisTurn,
         StatePredicate.BlockedOrWasBlockedByLegendaryThisTurn,
         StatePredicate.IsFaceDown,
         StatePredicate.IsFaceUp,
         StatePredicate.HasMorphAbility,
+        StatePredicate.HasDisguiseAbility,
         StatePredicate.IsRingBearer,
         StatePredicate.HasAnyCounter,
         StatePredicate.HasGreatestPower,
         StatePredicate.HasLeastPowerAmongAllCreatures,
         StatePredicate.HasLeastPower,
         StatePredicate.IsEquipped,
+        StatePredicate.IsEnchanted,
         StatePredicate.IsModified,
         StatePredicate.IsSaddled,
-        StatePredicate.IsPaired,
+        StatePredicate.IsSuspected,
         StatePredicate.HasLockedDoor,
         StatePredicate.CrewedOrSaddledSourceThisTurn,
         StatePredicate.CrewedOrSaddledBySourceThisTurn,
@@ -494,5 +601,7 @@ class BeginningPhaseManager(
         is StatePredicate.WasCastFromZone -> true
         is StatePredicate.AttachedToCardType -> true
         is StatePredicate.AttachedTo -> true
+        is StatePredicate.ControllerControls -> true
+        is StatePredicate.IsEnchantedByAura -> true
     }
 }

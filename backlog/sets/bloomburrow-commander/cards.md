@@ -2,7 +2,7 @@
 
 **Set Size:** 312 cards
 **Release Date:** August 2, 2024
-**Implemented:** 110 / 312
+**Implemented:** 119 / 312
 | Color      | Total | Done |
 |------------|-------|------|
 | White      | 37    | 0    |
@@ -69,7 +69,7 @@
 - [ ] Chittering Witch
 - [ ] Chitterspitter
 - [x] Cinder Glade
-- [ ] Circuit Mender
+- [x] Circuit Mender
 - [x] Clifftop Retreat
 - [ ] Cloudblazer
 - [ ] Coiling Oracle
@@ -118,7 +118,7 @@
 - [ ] Gilded Goose
 - [x] Gilded Lotus
 - [ ] Glacial Fortress
-- [ ] Golgari Rot Farm
+- [x] Golgari Rot Farm
 - [ ] Golgari Signet
 - [x] Goreclaw, Terror of Qal Sisma
 - [ ] Gourmand's Talent
@@ -145,11 +145,11 @@
 - [ ] Inferno Titan
 - [ ] Ink-Eyes, Servant of Oni
 - [ ] Insatiable Frugivore
-- [ ] Inspiring Overseer
+- [x] Inspiring Overseer
 - [ ] Intellectual Offering
 - [ ] Ishai, Ojutai Dragonspeaker
 - [ ] Izzet Signet
-- [ ] Jace, the Mind Sculptor
+- [x] Jace, the Mind Sculptor
 - [ ] Jacked Rabbit
 - [ ] Jazal Goldmane
 - [ ] Jolrael, Mwonvuli Recluse
@@ -232,7 +232,7 @@
 - [x] Rootbound Crag
 - [ ] Rootcast Apprenticeship
 - [ ] Rose Room Treasurer
-- [ ] Rowdy Research
+- [x] Rowdy Research
 - [ ] Rugged Prairie
 - [x] Sakura-Tribe Elder
 - [ ] Saw in Half
@@ -241,7 +241,7 @@
 - [ ] Seaside Citadel
 - [ ] Second Harvest
 - [ ] Secret Rendezvous
-- [ ] Selfless Spirit
+- [x] Selfless Spirit
 - [ ] Selvala, Explorer Returned
 - [ ] Shamanic Revelation
 - [x] Sheltered Thicket
@@ -257,7 +257,7 @@
 - [ ] Solemn Simulacrum
 - [ ] Sphinx of Enlightenment
 - [x] Spine of Ish Sah
-- [ ] Spirited Companion
+- [x] Spirited Companion
 - [ ] Spore Frog
 - [ ] Squirrel Mob
 - [ ] Squirrel Nest
@@ -281,7 +281,7 @@
 - [ ] Tainted Wood
 - [x] Talisman of Impulse
 - [ ] Talisman of Resilience
-- [ ] Tamiyo, Field Researcher
+- [x] Tamiyo, Field Researcher
 - [ ] Tear Asunder
 - [ ] Teferi, Time Raveler
 - [x] Temple of Abandon
@@ -297,7 +297,7 @@
 - [ ] Tenuous Truce
 - [x] Terramorphic Expanse
 - [x] Tetsuko Umezawa, Fugitive
-- [ ] The Gitrog Monster
+- [x] The Gitrog Monster
 - [ ] The Odd Acorn Gang
 - [x] Thickest in the Thicket
 - [ ] Thopter Engineer

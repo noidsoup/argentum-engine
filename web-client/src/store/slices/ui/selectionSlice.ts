@@ -10,7 +10,7 @@ import type {
   BlightVariableSelectionState,
   PayXLifeSelectionState,
   ConvokeSelectionState,
-  WaterbendSelectionState,
+  TapForGenericSelectionState,
   HarmonizeSelectionState,
   TapForPowerSelectionState,
   DelveSelectionState,
@@ -38,7 +38,7 @@ export interface SelectionSliceState {
   blightVariableSelectionState: BlightVariableSelectionState | null
   payXLifeSelectionState: PayXLifeSelectionState | null
   convokeSelectionState: ConvokeSelectionState | null
-  waterbendSelectionState: WaterbendSelectionState | null
+  tapForGenericSelectionState: TapForGenericSelectionState | null
   harmonizeSelectionState: HarmonizeSelectionState | null
   tapForPowerSelectionState: TapForPowerSelectionState | null
   delveSelectionState: DelveSelectionState | null
@@ -67,16 +67,17 @@ export interface SelectionSliceActions {
   toggleConvokeCreature: (entityId: EntityId, name: string, payingColor: string | null) => void
   cancelConvokeSelection: () => void
   confirmConvokeSelection: () => void
-  startWaterbendSelection: (state: WaterbendSelectionState) => void
-  toggleWaterbendPermanent: (entityId: EntityId) => void
-  cancelWaterbendSelection: () => void
-  confirmWaterbendSelection: () => void
+  startTapForGenericSelection: (state: TapForGenericSelectionState) => void
+  toggleTapForGenericPermanent: (entityId: EntityId) => void
+  cancelTapForGenericSelection: () => void
+  confirmTapForGenericSelection: () => void
   startHarmonizeSelection: (state: HarmonizeSelectionState) => void
   toggleHarmonizeCreature: (entityId: EntityId) => void
   cancelHarmonizeSelection: () => void
   confirmHarmonizeSelection: () => void
   startTapForPowerSelection: (state: TapForPowerSelectionState) => void
   toggleTapForPowerCreature: (entityId: EntityId) => void
+  setTapForPowerCreatures: (entityIds: readonly EntityId[]) => void
   cancelTapForPowerSelection: () => void
   confirmTapForPowerSelection: () => void
   startDelveSelection: (state: DelveSelectionState) => void
@@ -92,6 +93,7 @@ export interface SelectionSliceActions {
   confirmDecisionSelection: () => void
   startManaSelection: (actionInfo: LegalActionInfo) => void
   toggleManaSource: (entityId: EntityId) => void
+  togglePhyrexianLifePayment: (pipIndex: number) => void
   cancelManaSelection: () => void
   confirmManaSelection: () => void
 }
@@ -104,7 +106,7 @@ export const createSelectionSlice: SliceCreator<SelectionSlice> = (set, get) => 
   blightVariableSelectionState: null,
   payXLifeSelectionState: null,
   convokeSelectionState: null,
-  waterbendSelectionState: null,
+  tapForGenericSelectionState: null,
   harmonizeSelectionState: null,
   tapForPowerSelectionState: null,
   delveSelectionState: null,
@@ -282,44 +284,44 @@ export const createSelectionSlice: SliceCreator<SelectionSlice> = (set, get) => 
     get().advancePipeline({ type: 'convoke', convokedCreatures })
   },
 
-  // Waterbend selection actions (Avatar: The Last Airbender). Generic-only — clicking an
-  // eligible artifact/creature toggles whether it is tapped to pay {1} of the cost.
-  startWaterbendSelection: (waterbendSelectionState) => {
-    set({ waterbendSelectionState })
+  // Tap-for-generic selection actions (improvise CR 702.126 / waterbend). Generic-only —
+  // clicking an eligible permanent toggles whether it is tapped to pay {1} of the cost.
+  startTapForGenericSelection: (tapForGenericSelectionState) => {
+    set({ tapForGenericSelectionState })
   },
 
-  toggleWaterbendPermanent: (entityId) => {
+  toggleTapForGenericPermanent: (entityId) => {
     set((state) => {
-      if (!state.waterbendSelectionState) return state
-      const { selectedPermanents, maxTaps } = state.waterbendSelectionState
+      if (!state.tapForGenericSelectionState) return state
+      const { selectedPermanents, maxTaps } = state.tapForGenericSelectionState
       const alreadySelected = selectedPermanents.includes(entityId)
-      // Can't tap more permanents than the generic mana in the waterbend cost (CR). Ignore an
-      // attempt to select beyond the cap; deselecting is always allowed.
+      // Can't tap more permanents than the generic mana being paid this way (CR 702.126a for
+      // improvise). Ignore an attempt to select beyond the cap; deselecting is always allowed.
       if (!alreadySelected && selectedPermanents.length >= maxTaps) return state
       const newSelected = alreadySelected
         ? selectedPermanents.filter((id) => id !== entityId)
         : [...selectedPermanents, entityId]
       return {
-        waterbendSelectionState: {
-          ...state.waterbendSelectionState,
+        tapForGenericSelectionState: {
+          ...state.tapForGenericSelectionState,
           selectedPermanents: newSelected,
         },
       }
     })
   },
 
-  cancelWaterbendSelection: () => {
+  cancelTapForGenericSelection: () => {
     const { pipelineState, cancelPipeline } = get()
     if (pipelineState) { cancelPipeline(); return }
-    set({ waterbendSelectionState: null })
+    set({ tapForGenericSelectionState: null })
   },
 
-  confirmWaterbendSelection: () => {
-    const { waterbendSelectionState, pipelineState } = get()
-    if (!waterbendSelectionState || !pipelineState) return
-    const waterbendPermanents = [...waterbendSelectionState.selectedPermanents]
-    set({ waterbendSelectionState: null })
-    get().advancePipeline({ type: 'waterbend', waterbendPermanents })
+  confirmTapForGenericSelection: () => {
+    const { tapForGenericSelectionState, pipelineState } = get()
+    if (!tapForGenericSelectionState || !pipelineState) return
+    const tapForGenericPermanents = [...tapForGenericSelectionState.selectedPermanents]
+    set({ tapForGenericSelectionState: null })
+    get().advancePipeline({ type: 'tapForGeneric', tapForGenericPermanents })
   },
 
   // Harmonize creature-tap selection actions (cast from graveyard via Harmonize). At most
@@ -381,6 +383,19 @@ export const createSelectionSlice: SliceCreator<SelectionSlice> = (set, get) => 
         },
       }
     })
+  },
+
+  setTapForPowerCreatures: (entityIds) => {
+    set((state) =>
+      state.tapForPowerSelectionState
+        ? {
+            tapForPowerSelectionState: {
+              ...state.tapForPowerSelectionState,
+              selectedCreatures: [...entityIds],
+            },
+          }
+        : state
+    )
   },
 
   cancelTapForPowerSelection: () => {
@@ -551,8 +566,8 @@ export const createSelectionSlice: SliceCreator<SelectionSlice> = (set, get) => 
 
   // Mana source selection actions (pre-cast)
   startManaSelection: (actionInfo) => {
-    const sources = actionInfo.availableManaSources
-    if (!sources || sources.length === 0) return
+    const sources = actionInfo.availableManaSources ?? []
+    if (sources.length === 0 && !(actionInfo.manaCostString ?? '').includes('/P}')) return
     const sourceColors: Record<string, readonly string[]> = {}
     const sourceManaAmounts: Record<string, number> = {}
     for (const source of sources) {
@@ -567,10 +582,30 @@ export const createSelectionSlice: SliceCreator<SelectionSlice> = (set, get) => 
     // sources to also cover xValue * (number of {X} symbols).
     const action = actionInfo.action as {
       xValue?: number
+      targets?: readonly unknown[]
       alternativePayment?: { harmonizeCreature?: EntityId | null }
+      additionalCostPayment?: { sacrificedPermanents?: readonly EntityId[] }
     }
     const xValue = action.xValue ?? 0
-    const manaCost = actionInfo.manaCostString ?? ''
+    // Emerge (CR 702.119): the creature chosen in the prior costPayment phase reduces the emerge
+    // cost by its mana value, so the printed `manaCostString` overstates what's owed. The server
+    // sent the resulting cost for every candidate, so price this step off the chosen entry rather
+    // than re-deriving the (generic-only) reduction here — that clamp is a rule, not client math.
+    const emergeSacrifice = action.additionalCostPayment?.sacrificedPermanents?.[0]
+    const emergeCost = emergeSacrifice
+      ? actionInfo.additionalCostInfo?.costAfterSacrifice?.[emergeSacrifice]
+      : undefined
+    // "This spell costs {W}{U} more to cast for each target beyond the first" (Officious
+    // Interrogation): the server advertises the one-target minimum, because it prices the cost
+    // before any target exists. `computePhases` puts targeting ahead of this step precisely so the
+    // tax is knowable here — append one copy of the increment per target beyond the first. Same
+    // shape as the emerge/harmonize adjustments around it: the server owns the rule, the client
+    // only applies the choice the player has since made.
+    const perExtraTarget = actionInfo.manaCostPerExtraTarget
+    const extraTargets = Math.max(0, (action.targets?.length ?? 0) - 1)
+    const targetTax =
+      perExtraTarget && extraTargets > 0 ? perExtraTarget.repeat(extraTargets) : ''
+    const manaCost = (emergeCost ?? actionInfo.manaCostString ?? '') + targetTax
     const xSymbolCount = Math.max(1, (manaCost.match(/\{X\}/g)?.length ?? 0))
 
     // Harmonize creature-tap (chosen in the prior `harmonize` phase) reduces the
@@ -599,6 +634,7 @@ export const createSelectionSlice: SliceCreator<SelectionSlice> = (set, get) => 
           harmonizeReduction,
           sourceColors,
           sourceManaAmounts,
+          phyrexianLifePipIndices: [],
         },
       })
       return
@@ -612,8 +648,10 @@ export const createSelectionSlice: SliceCreator<SelectionSlice> = (set, get) => 
     // [autoTapPreview] is null. Once convoke/delve has trimmed the cost we can
     // compute a fresh preview from [availableManaSources] so the player isn't
     // left to hand-pick lands.
+    // An emerge cast's server preview was solved for the *first* candidate; the player may have
+    // picked a different creature, so recompute from the cost that choice actually left.
     const reducedSymbols = parseManaCostUtil(manaCost)
-    const preSelectedIds: EntityId[] = (actionInfo.autoTapPreview && actionInfo.autoTapPreview.length > 0)
+    const preSelectedIds: EntityId[] = (!emergeCost && actionInfo.autoTapPreview && actionInfo.autoTapPreview.length > 0)
       ? [...actionInfo.autoTapPreview]
       : (reducedSymbols.length > 0 ? computeAutoTapPreview(sources, reducedSymbols) : [])
     if (xManaNeeded > 0) {
@@ -647,6 +685,7 @@ export const createSelectionSlice: SliceCreator<SelectionSlice> = (set, get) => 
         harmonizeReduction: 0,
         sourceColors,
         sourceManaAmounts,
+        phyrexianLifePipIndices: [],
       },
     })
   },
@@ -662,6 +701,21 @@ export const createSelectionSlice: SliceCreator<SelectionSlice> = (set, get) => 
           selectedSources: isSelected
             ? selectedSources.filter(id => id !== entityId)
             : [...selectedSources, entityId],
+        },
+      }
+    })
+  },
+
+  togglePhyrexianLifePayment: (pipIndex) => {
+    set((state) => {
+      if (!state.manaSelectionState) return state
+      const selected = state.manaSelectionState.phyrexianLifePipIndices
+      return {
+        manaSelectionState: {
+          ...state.manaSelectionState,
+          phyrexianLifePipIndices: selected.includes(pipIndex)
+            ? selected.filter((index) => index !== pipIndex)
+            : [...selected, pipIndex],
         },
       }
     })

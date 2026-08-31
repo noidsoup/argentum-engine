@@ -15,9 +15,11 @@ data class TypeLine(
     val isInstant: Boolean get() = CardType.INSTANT in cardTypes
     val isEnchantment: Boolean get() = CardType.ENCHANTMENT in cardTypes
     val isArtifact: Boolean get() = CardType.ARTIFACT in cardTypes
+    val isBattle: Boolean get() = CardType.BATTLE in cardTypes
     val isPermanent: Boolean get() = cardTypes.any { it.isPermanent }
 
     val isAura: Boolean get() = isEnchantment && hasSubtype(Subtype.AURA)
+    val isCase: Boolean get() = isEnchantment && hasSubtype(Subtype.CASE)
     val isClass: Boolean get() = isEnchantment && hasSubtype(Subtype.CLASS)
     val isRole: Boolean get() = isEnchantment && hasSubtype(Subtype.ROLE)
     val isSaga: Boolean get() = isEnchantment && hasSubtype(Subtype.SAGA)
@@ -25,6 +27,7 @@ data class TypeLine(
     val isVehicle: Boolean get() = isArtifact && hasSubtype(Subtype.VEHICLE)
     val isArtifactCreature: Boolean get() = isArtifact && isCreature
     val isRoom: Boolean get() = isEnchantment && hasSubtype(Subtype.ROOM)
+    val isSiege: Boolean get() = isBattle && hasSubtype(Subtype.SIEGE)
 
     val isBasicLand: Boolean get() = isLand && Supertype.BASIC in supertypes
     val isLegendary: Boolean get() = Supertype.LEGENDARY in supertypes
@@ -47,8 +50,15 @@ data class TypeLine(
     }
 
     companion object {
+        /**
+         * Splits the types from the subtypes. An em/en dash always separates; an ASCII "-"
+         * only when it stands alone between spaces, so hyphenated subtypes ("Assembly-Worker",
+         * "Power-Plant") keep their hyphen instead of being cut in half.
+         */
+        private val TYPE_SUBTYPE_SEPARATOR = Regex("[—–]|\\s+-\\s+")
+
         fun parse(typeLineString: String): TypeLine {
-            val parts = typeLineString.split("—", "–", "-").map { it.trim() }
+            val parts = typeLineString.split(TYPE_SUBTYPE_SEPARATOR).map { it.trim() }
             val typesPart = parts[0]
             val subtypesPart = parts.getOrNull(1)
 

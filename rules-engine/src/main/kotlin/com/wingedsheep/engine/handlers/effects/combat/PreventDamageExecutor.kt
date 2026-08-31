@@ -80,7 +80,11 @@ class PreventDamageExecutor(
         // (via base-state fallback) stack spells.
         val matchFilter = (effect.sourceFilter as? PreventionSourceFilter.ChosenSourceMatching)?.filter
         val predicateEvaluator = if (matchFilter != null) PredicateEvaluator() else null
-        val predicateContext = PredicateContext(controllerId = controllerId)
+        // The eligibility filter is evaluated *relative to the ability's source*, so it can name the
+        // source itself or something hanging off it — "a source that shares a color with the card
+        // exiled with this artifact" (Mourner's Shield). Without `sourceId` every such predicate
+        // silently matched nothing and the player was offered every source on the board.
+        val predicateContext = PredicateContext(controllerId = controllerId, sourceId = context.sourceId)
         fun matchesEligibility(entityId: EntityId): Boolean =
             matchFilter == null ||
                 predicateEvaluator!!.matches(state, state.projectedState, entityId, matchFilter, predicateContext)
@@ -134,8 +138,20 @@ class PreventDamageExecutor(
             return EffectResult.paused(newState, decision)
         } else {
             // Prevention-only path: prevent N damage (or all, when amount is null) from chosen source
-            val targetId = context.resolveTarget(effect.target)
-                ?: return EffectResult.error(state, "Could not resolve target for PreventDamageEffect with ChosenSource")
+            //
+            // `direction = FromTarget` with no amount means the prevention has no recipient clause at
+            // all — "prevent all damage that would be dealt this turn by a source of your choice"
+            // (Mourner's Shield) rather than "…dealt to you by a source of your choice" (Samite
+            // Ministration). The shield then keys on the chosen source, so there is no recipient to
+            // resolve and `effect.target` is irrelevant.
+            val silenceChosenSource =
+                effect.direction == PreventionDirection.FromTarget && effect.amount == null
+            val targetId = if (silenceChosenSource) {
+                controllerId
+            } else {
+                context.resolveTarget(effect.target)
+                    ?: return EffectResult.error(state, "Could not resolve target for PreventDamageEffect with ChosenSource")
+            }
             val amount = effect.amount?.let { amountEvaluator.evaluate(state, it, context) }
             if (amount != null && amount <= 0) return EffectResult.success(state)
 
@@ -143,11 +159,13 @@ class PreventDamageExecutor(
                 decisionId = decisionId,
                 controllerId = controllerId,
                 targetId = targetId,
+                silenceChosenSource = silenceChosenSource,
                 amount = amount,
                 gainLifeFromColors = effect.gainLifeFromColors.map { it.name }.toSet(),
                 sourceId = context.sourceId,
                 sourceName = context.sourceId?.let { state.getEntity(it)?.get<CardComponent>()?.name },
-                nextInstanceOnly = effect.nextInstanceOnly
+                nextInstanceOnly = effect.nextInstanceOnly,
+                halvePreventedDamage = effect.halvePreventedDamage
             )
             val newState = state.withPendingDecision(decision).pushContinuation(continuation)
             return EffectResult.paused(newState, decision)
@@ -184,19 +202,44 @@ class PreventDamageExecutor(
         effect: PreventDamageEffect,
         context: EffectContext
     ): EffectResult {
+        if (effect.direction == PreventionDirection.FromTarget && effect.onPrevented != null) {
+            val targetId = context.resolveTarget(effect.target)
+                ?: return EffectResult.success(state)
+            state.getEntity(targetId) ?: return EffectResult.success(state)
+            val newState = state.installPreventAndReactShield(
+                damageSourceId = targetId,
+                protectedEntityId = null,
+                controllerId = context.controllerId,
+                effectSourceId = context.sourceId,
+                effectSourceName = context.sourceId?.let { state.getEntity(it)?.get<CardComponent>()?.name },
+                onPrevented = effect.onPrevented,
+                preventDamage = effect.preventDamage
+            )
+            return EffectResult.success(newState)
+        }
+
         // Determine affected entities
         val affectedEntities: Set<EntityId>
         val modification: SerializableModification
 
         when {
-            // Recipient-group prevention: "prevent all damage that would be dealt to creatures you
-            // control this turn". No specific affected entity is stored; the recipient filter is
-            // evaluated against projected state at damage time with the shield controller as "you".
-            effect.recipientGroup != null -> {
+            // Recipient-side prevention: "prevent all damage that would be dealt to creatures you
+            // control this turn", and the two shapes that include the player — "to you and creatures
+            // you control" (group + flag) and "to you" alone (flag, no group; Scarecrow). No specific
+            // affected entity is stored; the recipient filter is evaluated against projected state at
+            // damage time with the shield controller as "you".
+            effect.recipientGroup != null || effect.recipientGroupIncludesController -> {
                 affectedEntities = emptySet()
                 modification = SerializableModification.PreventAllDamageToGroup(
-                    filter = effect.recipientGroup!!.baseFilter,
-                    combatOnly = effect.scope == PreventionScope.CombatOnly
+                    filter = effect.recipientGroup?.baseFilter,
+                    combatOnly = effect.scope == PreventionScope.CombatOnly,
+                    includesController = effect.recipientGroupIncludesController,
+                    // "… by creatures" — a FromGroup source filter narrows a recipient-group shield
+                    // to matching damage sources. Other PreventionSourceFilter kinds are
+                    // recipient-agnostic shield shapes handled by the branches below and are not
+                    // combinable with a recipient group.
+                    sourceFilter = (effect.sourceFilter as? PreventionSourceFilter.FromGroup)
+                        ?.filter?.baseFilter
                 )
             }
 

@@ -8,7 +8,7 @@
  * model — every state change comes from the server as a fresh `quickGameLobbyState` message,
  * so we just store and re-render.
  */
-import type { DeckFormat, QuickGameLobbyStateMessage } from '@/types'
+import type { AiDeckSpec, DeckFormat, QuickGameLobbyStateMessage } from '@/types'
 import {
   createCreateQuickGameLobbyMessage,
   createJoinQuickGameLobbyMessage,
@@ -19,6 +19,9 @@ import {
   createSetQuickGameLobbyPublicMessage,
   createSetQuickGameLobbyRankedMessage,
   createSetQuickGameLobbyFormatMessage,
+  createSetQuickGameAiDeckMessage,
+  createAddQuickGameAiMessage,
+  createRemoveQuickGameAiMessage,
 } from '@/types'
 import type { SliceCreator } from './types'
 import { getWebSocket } from './shared'
@@ -38,12 +41,20 @@ export interface QuickGameLobbySliceActions {
   ) => void
   joinQuickGameLobby: (lobbyId: string) => void
   leaveQuickGameLobby: () => void
-  submitQuickGameLobbyDeck: (deckList: Record<string, number>, commander?: string | null) => void
+  submitQuickGameLobbyDeck: (
+    deckList: Record<string, number>,
+    commander?: string | null,
+    sideboard?: Record<string, number>,
+  ) => void
   setQuickGameLobbyReady: (ready: boolean) => void
-  setQuickGameLobbySetCode: (setCode: string | null) => void
+  setQuickGameLobbySetCode: (setCodes: readonly string[]) => void
   setQuickGameLobbyPublic: (isPublic: boolean) => void
   setQuickGameLobbyRanked: (ranked: boolean) => void
   setQuickGameLobbyFormat: (format: DeckFormat | null, momirBasic?: boolean) => void
+  /** Host-only: choose what the AI opponent plays. No-op in a human lobby (server rejects). */
+  setQuickGameAiDeck: (spec: AiDeckSpec) => void
+  addQuickGameAi: () => void
+  removeQuickGameAi: () => void
 }
 
 export type QuickGameLobbySlice = QuickGameLobbySliceState & QuickGameLobbySliceActions
@@ -64,16 +75,18 @@ export const createQuickGameLobbySlice: SliceCreator<QuickGameLobbySlice> = (set
     set({ quickGameLobbyState: null })
   },
 
-  submitQuickGameLobbyDeck: (deckList, commander) => {
-    getWebSocket()?.send(createSubmitQuickGameLobbyDeckMessage(deckList, commander))
+  submitQuickGameLobbyDeck: (deckList, commander, sideboard) => {
+    getWebSocket()?.send(
+      createSubmitQuickGameLobbyDeckMessage(deckList, commander, undefined, undefined, sideboard),
+    )
   },
 
   setQuickGameLobbyReady: (ready) => {
     getWebSocket()?.send(createSetQuickGameLobbyReadyMessage(ready))
   },
 
-  setQuickGameLobbySetCode: (setCode) => {
-    getWebSocket()?.send(createSetQuickGameLobbySetCodeMessage(setCode))
+  setQuickGameLobbySetCode: (setCodes) => {
+    getWebSocket()?.send(createSetQuickGameLobbySetCodeMessage(setCodes))
   },
 
   setQuickGameLobbyPublic: (isPublic) => {
@@ -86,5 +99,17 @@ export const createQuickGameLobbySlice: SliceCreator<QuickGameLobbySlice> = (set
 
   setQuickGameLobbyFormat: (format, momirBasic) => {
     getWebSocket()?.send(createSetQuickGameLobbyFormatMessage(format, momirBasic))
+  },
+
+  setQuickGameAiDeck: (spec) => {
+    getWebSocket()?.send(createSetQuickGameAiDeckMessage(spec))
+  },
+
+  addQuickGameAi: () => {
+    getWebSocket()?.send(createAddQuickGameAiMessage())
+  },
+
+  removeQuickGameAi: () => {
+    getWebSocket()?.send(createRemoveQuickGameAiMessage())
   },
 })

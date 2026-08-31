@@ -157,7 +157,7 @@ data class CardScript(
      * A spell-level **waterbend** additional cost (Avatar: The Last Airbender) —
      * *"As an additional cost to cast this spell, [you may] waterbend {N}."* Kept separate from
      * [additionalCosts] because waterbend is paid through the alternative-payment channel
-     * ([com.wingedsheep.sdk.scripting.AlternativePaymentChoice.waterbendPermanents], tapping
+     * ([com.wingedsheep.sdk.scripting.AlternativePaymentChoice.tapForGenericPermanents], tapping
      * artifacts/creatures), not the additional-cost payment continuation. See
      * [com.wingedsheep.sdk.scripting.SpellWaterbendCost].
      */
@@ -207,18 +207,23 @@ data class CardScript(
     val conditionalFlash: @Serializable Condition? = null,
 
     /**
-     * Alternate target requirements used when this spell is kicked.
-     * When non-empty and the spell is kicked, these replace [targetRequirements].
-     * Used for kicker spells where kicked mode has completely different targeting
-     * (e.g., Fight with Fire: unkicked targets one creature, kicked divides among any targets).
+     * Alternate target requirements used when this spell declared an optional additional cost.
+     * When non-empty and the cast declared *any* slot on that rail, these replace
+     * [targetRequirements] (e.g., Fight with Fire: unkicked targets one creature, kicked divides
+     * among any targets; Brave the Wilds: only the bargained cast chooses a target, CR 702.166d).
+     *
+     * Named for kicker because that's the mechanic that came first and because the field name is
+     * serialized into pinned replay card definitions — renaming it would silently change how old
+     * recordings resolve. It is not kicker-specific: bargain uses the same slot.
      */
     val kickerTargetRequirements: List<TargetRequirement> = emptyList(),
 
     /**
-     * Alternate spell effect used when this spell is kicked.
-     * When non-null and the spell is kicked, this replaces [spellEffect].
-     * Used for kicker spells where kicked mode has a completely different effect type
-     * (e.g., Fight with Fire: unkicked deals 5 to one creature, kicked divides 10 among any targets).
+     * Alternate spell effect used when this spell declared an optional additional cost.
+     * When non-null and the cast declared *any* slot on that rail, this replaces [spellEffect]
+     * (e.g., Fight with Fire: unkicked deals 5 to one creature, kicked divides 10 among any
+     * targets). Paired with [kickerTargetRequirements]; see there for why the kicker naming stays
+     * even though bargain shares the slot.
      */
     val kickerSpellEffect: Effect? = null,
 
@@ -265,6 +270,45 @@ data class CardScript(
      * Used for cards like Karn's Temporal Sundering that say "Exile <card name>."
      */
     val selfExileOnResolve: Boolean = false,
+
+    /**
+     * Whether this spell shuffles itself into its owner's library on resolution instead of going to
+     * the graveyard. Used for cards that say "Shuffle <card name> into its owner's library." — the
+     * Mirrodin Besieged Zenith cycle (Green Sun's Zenith and its four siblings).
+     *
+     * The sibling of [selfExileOnResolve], and the same seam: both replace the destination of
+     * CR 608.2n ("as the final part of an instant or sorcery spell's resolution, the spell is put
+     * into its owner's graveyard"). The two are mutually exclusive — a card prints one clause or the
+     * other, never both — and setting both is **rejected**, by the `init` block below and again in
+     * the DSL, where the message can name the offending card.
+     *
+     * Three things this deliberately is **not**:
+     *  - not a zone-change replacement — [com.wingedsheep.sdk.scripting.ReplacementEffect] shapes
+     *    such as `RedirectZoneChange` apply to any card heading to a graveyard from anywhere, while
+     *    this is one printed instruction about the spell's own resolution;
+     *  - not the cast-this-way rider
+     *    ([com.wingedsheep.sdk.scripting.effects.AfterResolveDestination]), which another effect
+     *    stamps onto a spell *it* is casting — and which this **outranks**: those riders are
+     *    written "if that spell *would be put into a graveyard*, [somewhere] instead" (Kylox's
+     *    Voltstrider), and a spell that shuffles itself into its owner's library never would be, so
+     *    the rider has nothing to replace. On the countered and fizzled paths, where the card really
+     *    is put into a graveyard, the rider still wins;
+     *  - not "put it on the bottom of its owner's library" — the card is shuffled in, so the
+     *    library is randomized and a `LibraryShuffledEvent` is emitted (contrast
+     *    [com.wingedsheep.sdk.scripting.effects.AfterResolveDestination.BOTTOM_OF_LIBRARY], which
+     *    does not shuffle).
+     *
+     * It does **not** outrank flashback (CR 702.34a) or harmonize (CR 702.180a), printed or granted.
+     * Those two are worded "exile this card instead of putting it anywhere else any time it would
+     * leave the stack" rather than naming the graveyard, so unlike every other clause at this seam
+     * they still apply to a spell that shuffles itself in: a flashbacked Blue Sun's Zenith is
+     * exiled, not shuffled into its owner's library.
+     *
+     * Read at resolution-destination time, so — like [selfExileOnResolve] — it is correctly inert
+     * when the spell is countered or fizzles: those paths never reach CR 608.2n, and the card goes
+     * to its owner's graveyard as usual.
+     */
+    val selfShuffleIntoLibraryOnResolve: Boolean = false,
 
     /**
      * Paradigm (Secrets of Strixhaven). When true, this spell exiles itself on resolution
@@ -343,6 +387,18 @@ data class CardScript(
      */
     val castTimeCaptures: List<CastTimeCapture> = emptyList()
 ) {
+    init {
+        // "Exile <card name>." and "Shuffle <card name> into its owner's library." are two
+        // spellings of one slot — the CR 608.2n destination — so a script that sets both has no
+        // answer, only whichever clause `StackResolver` happens to test first. The DSL rejects it
+        // too, with a message that names the card; this backstop covers the paths that build a
+        // CardScript directly (test fixtures, the Assay compiler), where the DSL guard never runs.
+        require(!(selfExileOnResolve && selfShuffleIntoLibraryOnResolve)) {
+            "A CardScript sets both selfExileOnResolve and selfShuffleIntoLibraryOnResolve; a " +
+                "spell has one CR 608.2n destination, so pick the clause the card actually prints"
+        }
+    }
+
     /**
      * Whether this card has any scripted behavior.
      * Vanilla creatures and basic lands return false.

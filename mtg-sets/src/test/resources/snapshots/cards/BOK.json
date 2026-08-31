@@ -1,3 +1,43 @@
+// Frost Ogre
+{
+    "name": "Frost Ogre",
+    "manaCost": "{3}{R}{R}",
+    "typeLine": "Creature — Ogre Warrior",
+    "creatureStats": {
+        "power": 5,
+        "toughness": 3
+    },
+    "metadata": {
+        "collectorNumber": "102",
+        "artist": "Dan Murayama Scott",
+        "flavorText": "Mountain ogres allowed blizzards to sheathe them in ice, both to reinforce their armor and to hide their pungent musk from potential prey.",
+        "imageUri": "https://cards.scryfall.io/normal/front/1/a/1a91e5f1-9179-4763-b7c9-b7ad5451f6d0.jpg?1783944191"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
+// Gnarled Mass
+{
+    "name": "Gnarled Mass",
+    "manaCost": "{1}{G}{G}",
+    "typeLine": "Creature — Spirit",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 3
+    },
+    "metadata": {
+        "collectorNumber": "127",
+        "artist": "Tony Szczudlo",
+        "flavorText": "\"On the fifty-seventh day of the Battle of Silk, the bell again tolled in hopes of summoning mortal aid. This time, a new breed of kami rose to answer its call.\"\n—*Great Battles of Kamigawa*",
+        "imageUri": "https://cards.scryfall.io/normal/front/5/c/5c28728d-4839-4cdf-91d4-b9fb4b5d0449.jpg?1783944185"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
 // Higure, the Still Wind
 {
     "name": "Higure, the Still Wind",
@@ -27,43 +67,47 @@
                     "recipient": "AnyPlayer"
                 },
                 "effect": {
-                    "type": "Composite",
-                    "effects": [
-                        {
-                            "type": "GatherCards",
-                            "source": {
-                                "type": "FromZone",
-                                "zone": "Library",
-                                "filter": "Ninja"
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "Composite",
+                        "effects": [
+                            {
+                                "type": "GatherCards",
+                                "source": {
+                                    "type": "FromZone",
+                                    "zone": "Library",
+                                    "filter": "Ninja"
+                                },
+                                "storeAs": "searchable"
                             },
-                            "storeAs": "searchable"
-                        },
-                        {
-                            "type": "SelectFromCollection",
-                            "from": "searchable",
-                            "selection": {
-                                "type": "ChooseUpTo",
-                                "count": {
-                                    "type": "Fixed",
-                                    "amount": 1
-                                }
+                            {
+                                "type": "SelectFromCollection",
+                                "from": "searchable",
+                                "selection": {
+                                    "type": "ChooseUpTo",
+                                    "count": {
+                                        "type": "Fixed",
+                                        "amount": 1
+                                    }
+                                },
+                                "storeSelected": "found"
                             },
-                            "storeSelected": "found"
-                        },
-                        {
-                            "type": "MoveCollection",
-                            "from": "found",
-                            "destination": {
-                                "type": "ToZone",
-                                "zone": "Hand"
+                            {
+                                "type": "MoveCollection",
+                                "from": "found",
+                                "destination": {
+                                    "type": "ToZone",
+                                    "zone": "Hand"
+                                },
+                                "revealed": true
                             },
-                            "revealed": true
-                        },
-                        "ShuffleLibrary",
-                        "EmitLibrarySearchedEvent"
-                    ]
+                            "ShuffleLibrary",
+                            "EmitLibrarySearchedEvent"
+                        ]
+                    },
+                    "descriptionOverride": "Whenever Higure deals combat damage to a player, you may search your library for a Ninja card, reveal it, put it into your hand, then shuffle."
                 },
-                "optional": true,
                 "descriptionOverride": "Whenever Higure deals combat damage to a player, you may search your library for a Ninja card, reveal it, put it into your hand, then shuffle."
             }
         ],
@@ -152,15 +196,18 @@
                     "recipient": "AnyPlayer"
                 },
                 "effect": {
-                    "type": "MoveToZone",
-                    "target": {
-                        "type": "BoundVariable",
-                        "name": "target creature card in that player's graveyard"
-                    },
-                    "destination": "Battlefield",
-                    "controllerOverride": "Controller"
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "MoveToZone",
+                        "target": {
+                            "type": "BoundVariable",
+                            "name": "target creature card in that player's graveyard"
+                        },
+                        "destination": "Battlefield",
+                        "controllerOverride": "Controller"
+                    }
                 },
-                "optional": true,
                 "targetRequirement": {
                     "type": "TargetObject",
                     "filter": {
@@ -288,13 +335,16 @@
                     "recipient": "AnyPlayer"
                 },
                 "effect": {
-                    "type": "DrawCards",
-                    "count": {
-                        "type": "Fixed",
-                        "amount": 1
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "DrawCards",
+                        "count": {
+                            "type": "Fixed",
+                            "amount": 1
+                        }
                     }
-                },
-                "optional": true
+                }
             }
         ]
     },
@@ -380,6 +430,7 @@
                                     "amount": 2
                                 }
                             },
+                            "chooser": "DefendingPlayer",
                             "storeSelected": "discarded",
                             "prompt": "Choose 2 cards to discard"
                         },

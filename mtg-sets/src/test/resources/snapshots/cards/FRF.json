@@ -1,3 +1,103 @@
+// Bathe in Dragonfire
+{
+    "name": "Bathe in Dragonfire",
+    "manaCost": "{2}{R}",
+    "typeLine": "Sorcery",
+    "oracleText": "Bathe in Dragonfire deals 4 damage to target creature.",
+    "script": {
+        "spellEffect": {
+            "type": "DealDamage",
+            "amount": {
+                "type": "Fixed",
+                "amount": 4
+            },
+            "target": {
+                "type": "ContextTarget",
+                "index": 0
+            }
+        },
+        "targetRequirements": [
+            {
+                "type": "TargetObject",
+                "filter": {
+                    "baseFilter": "creature"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "92",
+        "artist": "Chris Rallis",
+        "flavorText": "The scent of cooked flesh lingers in the charred landscape of Tarkir.",
+        "imageUri": "https://cards.scryfall.io/normal/front/b/8/b8cc6931-2005-4d0a-a42a-ce8bc279372e.jpg?1783938691"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
+// Collateral Damage
+{
+    "name": "Collateral Damage",
+    "manaCost": "{R}",
+    "typeLine": "Instant",
+    "oracleText": "As an additional cost to cast this spell, sacrifice a creature.\nCollateral Damage deals 3 damage to any target.",
+    "script": {
+        "spellEffect": {
+            "type": "DealDamage",
+            "amount": {
+                "type": "Fixed",
+                "amount": 3
+            },
+            "target": {
+                "type": "ContextTarget",
+                "index": 0
+            }
+        },
+        "targetRequirements": [
+            "AnyTarget"
+        ],
+        "additionalCosts": [
+            {
+                "type": "AdditionalAtom",
+                "atom": {
+                    "type": "AtomSacrifice",
+                    "filter": "creature"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "95",
+        "artist": "Ryan Barger",
+        "flavorText": "It is much easier to create fire than to contain it.",
+        "imageUri": "https://cards.scryfall.io/normal/front/f/b/fb738362-b0b4-4811-9fbf-5f45c852c822.jpg?1783938691"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
+// Feral Krushok
+{
+    "name": "Feral Krushok",
+    "manaCost": "{4}{G}",
+    "typeLine": "Creature — Beast",
+    "creatureStats": {
+        "power": 5,
+        "toughness": 4
+    },
+    "metadata": {
+        "collectorNumber": "128",
+        "artist": "Kev Walker",
+        "flavorText": "In a stunning act of diplomacy, Yasova Dragonclaw ceded a portion of Temur lands to the Sultai. Her clan protested until they saw she had given the Sultai the breeding grounds of the krushoks. They hadn't realized she had a sense of humor.",
+        "imageUri": "https://cards.scryfall.io/normal/front/5/0/5041996b-c265-4c4f-a52c-dfe29b2e282d.jpg?1783938681"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
 // Flamewake Phoenix
 {
     "name": "Flamewake Phoenix",
@@ -36,8 +136,10 @@
                         "destination": "Battlefield"
                     }
                 },
-                "activeZone": "Graveyard",
-                "triggerCondition": {
+                "activeZones": [
+                    "Graveyard"
+                ],
+                "interveningIf": {
                     "type": "Exists",
                     "player": "You",
                     "zone": "Battlefield",
@@ -57,6 +159,187 @@
     },
     "colorIdentityOverride": [
         "RED"
+    ]
+}
+
+// Gore Swine
+{
+    "name": "Gore Swine",
+    "manaCost": "{2}{R}",
+    "typeLine": "Creature — Boar",
+    "creatureStats": {
+        "power": 4,
+        "toughness": 1
+    },
+    "metadata": {
+        "collectorNumber": "103",
+        "artist": "Jack Wang",
+        "flavorText": "\"The Mardu are like the gore swine. We are wild, hunt in packs, and rarely clean the blood from our blades.\"\n—Vallash, Mardu warrior",
+        "imageUri": "https://cards.scryfall.io/normal/front/3/1/31c36d53-1173-4a55-8fb8-63a624fde7de.jpg?1783938688"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
+// Great-Horn Krushok
+{
+    "name": "Great-Horn Krushok",
+    "manaCost": "{4}{W}",
+    "typeLine": "Creature — Beast",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 5
+    },
+    "metadata": {
+        "collectorNumber": "13",
+        "artist": "YW Tang",
+        "flavorText": "Perfectly suited for life in the Shifting Wastes, the krushok is well protected by its horn, its hide, and its temper.",
+        "imageUri": "https://cards.scryfall.io/normal/front/1/2/122e08cb-407b-4b3d-8af0-077ff96bf160.jpg?1783938713"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
+// Mardu Strike Leader
+{
+    "name": "Mardu Strike Leader",
+    "manaCost": "{2}{B}",
+    "typeLine": "Creature — Human Warrior",
+    "oracleText": "Whenever this creature attacks, create a 2/1 black Warrior creature token.\nDash {3}{B} (You may cast this spell for its dash cost. If you do, it gains haste, and it's returned from the battlefield to its owner's hand at the beginning of the next end step.)",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 2
+    },
+    "keywordAbilities": [
+        {
+            "type": "Dash",
+            "cost": "{3}{B}"
+        }
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": "AttackEvent",
+                "effect": {
+                    "type": "CreateToken",
+                    "power": 2,
+                    "toughness": 1,
+                    "colors": [
+                        "BLACK"
+                    ],
+                    "creatureTypes": [
+                        "Warrior"
+                    ]
+                },
+                "descriptionOverride": "Whenever this creature attacks, create a 2/1 black Warrior creature token."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "75",
+        "rarity": "RARE",
+        "artist": "Jason Rainville",
+        "imageUri": "https://cards.scryfall.io/normal/front/c/9/c93fd5f0-fb62-42cc-8c7d-c0368e191c4b.jpg?1783938696"
+    },
+    "colorIdentityOverride": [
+        "BLACK"
+    ]
+}
+
+// Monastery Mentor
+{
+    "name": "Monastery Mentor",
+    "manaCost": "{2}{W}",
+    "typeLine": "Creature — Human Monk",
+    "oracleText": "Prowess (Whenever you cast a noncreature spell, this creature gets +1/+1 until end of turn.)\nWhenever you cast a noncreature spell, create a 1/1 white Monk creature token with prowess.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 2
+    },
+    "keywords": [
+        "PROWESS"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "SpellCastEvent",
+                    "spellFilter": {
+                        "cardPredicates": [
+                            "IsNoncreature"
+                        ]
+                    }
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "ModifyStats",
+                    "powerModifier": {
+                        "type": "Fixed",
+                        "amount": 1
+                    },
+                    "toughnessModifier": {
+                        "type": "Fixed",
+                        "amount": 1
+                    },
+                    "target": "Self"
+                }
+            },
+            {
+                "id": "ability_2",
+                "trigger": {
+                    "type": "SpellCastEvent",
+                    "spellFilter": {
+                        "cardPredicates": [
+                            "IsNoncreature"
+                        ]
+                    }
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "CreateToken",
+                    "power": 1,
+                    "toughness": 1,
+                    "colors": [
+                        "WHITE"
+                    ],
+                    "creatureTypes": [
+                        "Monk"
+                    ],
+                    "keywords": [
+                        "PROWESS"
+                    ],
+                    "imageUri": "https://cards.scryfall.io/normal/front/3/1/3142cb28-23cc-405f-9db5-7c4d168aab19.jpg?1783938663"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "20",
+        "rarity": "MYTHIC",
+        "artist": "Magali Villeneuve",
+        "flavorText": "\"Speak little. Do much.\"",
+        "imageUri": "https://cards.scryfall.io/normal/front/a/b/abcd0e32-2e6b-419b-9e8a-af38f2b48a66.jpg?1783938710",
+        "rulings": [
+            {
+                "date": "2014-11-24",
+                "text": "Casting a noncreature spell will cause both prowess and Monastery Mentor's other ability to trigger. You can put these abilities on the stack in either order. Whichever ability is put on the stack last will resolve first."
+            },
+            {
+                "date": "2014-11-24",
+                "text": "The spell that causes Monastery Mentor's second ability to trigger will not cause the prowess ability of the Monk token that's created to trigger."
+            },
+            {
+                "date": "2014-11-24",
+                "text": "Any spell you cast that doesn't have the type creature will cause prowess to trigger. If a spell has multiple types, and one of those types is creature (such as an artifact creature), casting it won't cause prowess to trigger. Playing a land also won't cause prowess to trigger."
+            }
+        ]
+    },
+    "colorIdentityOverride": [
+        "WHITE"
     ]
 }
 
@@ -83,15 +366,18 @@
                     "to": "Graveyard"
                 },
                 "effect": {
-                    "type": "MoveToZone",
-                    "target": {
-                        "type": "BoundVariable",
-                        "name": "target"
-                    },
-                    "destination": "Graveyard",
-                    "byDestruction": true
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "MoveToZone",
+                        "target": {
+                            "type": "BoundVariable",
+                            "name": "target"
+                        },
+                        "destination": "Graveyard",
+                        "byDestruction": true
+                    }
                 },
-                "optional": true,
                 "targetRequirement": {
                     "type": "TargetObject",
                     "filter": {
@@ -157,7 +443,7 @@
                         }
                     ]
                 },
-                "triggerCondition": {
+                "triggerRestriction": {
                     "type": "SourceChosenModeIs",
                     "modeId": "khans"
                 }
@@ -185,7 +471,7 @@
                     "type": "AnyTarget",
                     "id": "target"
                 },
-                "triggerCondition": {
+                "triggerRestriction": {
                     "type": "SourceChosenModeIs",
                     "modeId": "dragons"
                 }

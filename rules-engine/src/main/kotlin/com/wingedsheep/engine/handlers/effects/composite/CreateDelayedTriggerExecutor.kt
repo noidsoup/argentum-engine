@@ -15,19 +15,24 @@ import com.wingedsheep.sdk.scripting.effects.AddManaEffect
 import com.wingedsheep.sdk.scripting.effects.CompositeEffect
 import com.wingedsheep.sdk.scripting.effects.CreateDelayedTriggerEffect
 import com.wingedsheep.sdk.scripting.effects.CreateTokenCopyOfTargetEffect
+import com.wingedsheep.sdk.scripting.effects.CreateTokenEffect
+import com.wingedsheep.sdk.scripting.effects.DelayedTriggerExpiry
 import com.wingedsheep.sdk.scripting.effects.DelayedTriggerTiming
 import com.wingedsheep.sdk.scripting.effects.DealDamagePerEntityInZoneEffect
 import com.wingedsheep.sdk.scripting.effects.Effect
 import com.wingedsheep.sdk.scripting.effects.DestroyAllEquipmentOnTargetEffect
+import com.wingedsheep.sdk.scripting.effects.FlipCoinEffect
 import com.wingedsheep.sdk.scripting.effects.Gate
 import com.wingedsheep.sdk.scripting.effects.GatedEffect
 import com.wingedsheep.sdk.scripting.effects.SacrificeTargetEffect
 import com.wingedsheep.sdk.scripting.effects.WarpExileEffect
 import com.wingedsheep.sdk.scripting.targets.EffectTarget
 import com.wingedsheep.sdk.scripting.effects.MoveToZoneEffect
+import com.wingedsheep.sdk.scripting.effects.MoveTrackedBattlefieldObjectEffect
 import com.wingedsheep.sdk.core.Step
 import com.wingedsheep.sdk.core.Subtype
 import com.wingedsheep.sdk.scripting.EventPattern
+import com.wingedsheep.sdk.scripting.GameObjectFilter
 import com.wingedsheep.sdk.scripting.TriggerSpec
 import com.wingedsheep.sdk.scripting.predicates.CardPredicate
 import com.wingedsheep.sdk.scripting.values.DynamicAmount
@@ -103,7 +108,10 @@ class CreateDelayedTriggerExecutor : EffectExecutor<CreateDelayedTriggerEffect> 
             resolved
         }
 
-        // The earliest turn this delayed trigger may fire, derived from effect.timing:
+        // The earliest turn this delayed trigger may fire, derived from effect.timing. Because
+        // GameState.turnNumber counts player turns, `+ 1` means "not this turn" — the very next
+        // turn any player takes qualifies. Narrowing that to a particular player's turn is
+        // fireOnPlayer's job, not this floor's.
         //  - NEXT_END_STEP ("at the beginning of your next end step"): fires at the next
         //    upcoming end step on the controller's turn. If we're still before the end step
         //    on the controller's current turn, that end step qualifies — don't skip to the
@@ -116,11 +124,22 @@ class CreateDelayedTriggerExecutor : EffectExecutor<CreateDelayedTriggerEffect> 
         val notBeforeTurn = when (effect.timing) {
             DelayedTriggerTiming.NEXT_TURN -> state.turnNumber + 1
             DelayedTriggerTiming.NEXT_END_STEP -> {
-                val onControllersTurn = context.controllerId == state.activePlayerId
+                val onControllersTurn = state.isActiveTurnFor(context.controllerId)
                 val endStepAlreadyStarted = state.step == Step.END || state.step == Step.CLEANUP
                 if (onControllersTurn && endStepAlreadyStarted) state.turnNumber + 1 else null
             }
             DelayedTriggerTiming.CURRENT_TURN_OR_LATER -> null
+            DelayedTriggerTiming.THIS_TURN_ONLY -> null
+        }
+
+        // A step-based one-shot normally carries no expiry: "at the beginning of your next end
+        // step" has to survive the turn boundary when it's scheduled during the end step itself.
+        // THIS_TURN_ONLY is the opposite promise — "the next [step] *this turn*" — so it takes the
+        // end-of-turn sweep, and a turn with no further matching step drops it unfired.
+        val expiry = when {
+            effect.trigger != null || effect.repeatAtEachMatchingStep -> effect.expiry
+            effect.timing == DelayedTriggerTiming.THIS_TURN_ONLY -> DelayedTriggerExpiry.EndOfTurn
+            else -> null
         }
 
         val delayedTrigger = DelayedTriggeredAbility(
@@ -133,10 +152,12 @@ class CreateDelayedTriggerExecutor : EffectExecutor<CreateDelayedTriggerEffect> 
             trigger = resolvedTrigger,
             watchedEntityId = watchedEntityId,
             watchedRecipientId = watchedRecipientId,
-            expiry = if (effect.trigger != null) effect.expiry else null,
+            expiry = expiry,
             fireOnce = effect.trigger != null && effect.fireOnce,
+            repeatAtEachMatchingStep = effect.trigger == null && effect.repeatAtEachMatchingStep,
             notBeforeTurn = notBeforeTurn,
             targetRequirement = effect.targetRequirement,
+            additionalTargetRequirements = effect.additionalTargetRequirements,
             fireOnPlayerId = fireOnPlayerId
         )
 
@@ -158,20 +179,50 @@ class CreateDelayedTriggerExecutor : EffectExecutor<CreateDelayedTriggerEffect> 
     private fun bakeChosenValuesIntoTrigger(trigger: TriggerSpec, context: EffectContext): TriggerSpec {
         val chosen = context.pipeline.chosenValues
         if (chosen.isEmpty()) return trigger
-        val event = trigger.event
-        if (event !is EventPattern.SpellCastEvent) return trigger
-        val filter = event.spellFilter
+        return when (val event = trigger.event) {
+            is EventPattern.SpellCastEvent -> {
+                val newFilter = bakeChosenValuesIntoFilter(event.spellFilter, chosen) ?: return trigger
+                trigger.copy(event = event.copy(spellFilter = newFilter))
+            }
+            // The Clone Saga ch. III: "whenever a creature with the chosen name deals combat damage
+            // to a player this turn, draw a card." The chosen name is baked into the damage source
+            // filter now, so the delayed-trigger matcher can evaluate it without the (gone) pipeline.
+            is EventPattern.DealsDamageEvent -> {
+                val filter = event.sourceFilter ?: return trigger
+                val newFilter = bakeChosenValuesIntoFilter(filter, chosen) ?: return trigger
+                trigger.copy(event = event.copy(sourceFilter = newFilter))
+            }
+            else -> trigger
+        }
+    }
+
+    /**
+     * Rewrite chosen-value-dependent card predicates in [filter] into concrete ones using [chosen]
+     * (= `EffectContext.pipeline.chosenValues`). Returns null when nothing changed so the caller
+     * keeps the original TriggerSpec instance.
+     *
+     *  - `HasSubtypeFromVariable(v)` → `HasSubtype(Subtype(chosen[v]))` (Long List of the Ents)
+     *  - `NameEqualsChosen(v)`       → `NameEquals(chosen[v])`          (The Clone Saga ch. III)
+     */
+    private fun bakeChosenValuesIntoFilter(
+        filter: GameObjectFilter,
+        chosen: Map<String, String>
+    ): GameObjectFilter? {
         val newPredicates = filter.cardPredicates.map { predicate ->
-            if (predicate is CardPredicate.HasSubtypeFromVariable) {
-                val value = chosen[predicate.variableName] ?: return@map predicate
-                CardPredicate.HasSubtype(Subtype(value))
-            } else {
-                predicate
+            when (predicate) {
+                is CardPredicate.HasSubtypeFromVariable -> {
+                    val value = chosen[predicate.variableName] ?: return@map predicate
+                    CardPredicate.HasSubtype(Subtype(value))
+                }
+                is CardPredicate.NameEqualsChosen -> {
+                    val value = chosen[predicate.variableName] ?: return@map predicate
+                    CardPredicate.NameEquals(value)
+                }
+                else -> predicate
             }
         }
-        if (newPredicates == filter.cardPredicates) return trigger
-        val newFilter = filter.copy(cardPredicates = newPredicates)
-        return trigger.copy(event = event.copy(spellFilter = newFilter))
+        if (newPredicates == filter.cardPredicates) return null
+        return filter.copy(cardPredicates = newPredicates)
     }
 
     /**
@@ -188,6 +239,50 @@ class CreateDelayedTriggerExecutor : EffectExecutor<CreateDelayedTriggerEffect> 
         if (amount is DynamicAmount.Fixed) return amount
         val value = dynamicAmountEvaluator.evaluate(state, amount, context)
         return DynamicAmount.Fixed(value)
+    }
+
+    /**
+     * Freeze [amount] into a [DynamicAmount.Fixed] **only if** some part of it reads the pipeline
+     * that is running this effect — a stored collection or a stored number. Those live in the
+     * `EffectContext` of the resolution that scheduled the delayed trigger and are gone by the time
+     * it fires, so a lazy read would silently answer 0.
+     *
+     * Anything else is returned untouched. That distinction is the whole point: a *board-state*
+     * amount ("for each creature you control") on a delayed trigger is supposed to be counted when
+     * the trigger fires, and blanket-snapshotting would silently freeze every such card to its
+     * scheduling-time value.
+     *
+     * When the tree does read the pipeline, the *whole* expression is evaluated now rather than
+     * only its pipeline leaves. That is the correct reading for the wording this exists to serve —
+     * "for each creature returned to your hand **this way**" is settled at the moment the returns
+     * happen — and it keeps the substitution a single evaluate rather than a partial rebuild.
+     */
+    private fun snapshotPipelineAmount(
+        amount: DynamicAmount,
+        context: EffectContext,
+        state: GameState
+    ): DynamicAmount {
+        if (!readsPipeline(amount)) return amount
+        return DynamicAmount.Fixed(dynamicAmountEvaluator.evaluate(state, amount, context))
+    }
+
+    /** Whether [amount] anywhere reads a pipeline-scoped collection or stored number. */
+    private fun readsPipeline(amount: DynamicAmount): Boolean = when (amount) {
+        is DynamicAmount.DistinctEntitiesInCollections,
+        is DynamicAmount.DistinctCardTypesInCollections,
+        is DynamicAmount.ManaValueSumOfCollection,
+        is DynamicAmount.StoredCardManaValue,
+        is DynamicAmount.VariableReference -> true
+
+        is DynamicAmount.Add -> readsPipeline(amount.left) || readsPipeline(amount.right)
+        is DynamicAmount.Subtract -> readsPipeline(amount.left) || readsPipeline(amount.right)
+        is DynamicAmount.Max -> readsPipeline(amount.left) || readsPipeline(amount.right)
+        is DynamicAmount.Min -> readsPipeline(amount.left) || readsPipeline(amount.right)
+        is DynamicAmount.Multiply -> readsPipeline(amount.amount)
+        is DynamicAmount.IfPositive -> readsPipeline(amount.amount)
+        is DynamicAmount.Power -> readsPipeline(amount.exponent)
+        is DynamicAmount.Conditional -> readsPipeline(amount.ifTrue) || readsPipeline(amount.ifFalse)
+        else -> false
     }
 
     /**
@@ -223,6 +318,17 @@ class CreateDelayedTriggerExecutor : EffectExecutor<CreateDelayedTriggerEffect> 
                     // Snapshot the tracked object's entry stamp NOW (CR 603.7c), mirroring the
                     // StackResolver warp path — a permanent that leaves and re-enters before
                     // the trigger fires is a new object the exile must not hit.
+                    val entryTimestamp = state.getEntity(resolvedId)
+                        ?.get<BattlefieldEntryTimestampComponent>()?.timestamp
+                    effect.copy(
+                        target = EffectTarget.SpecificEntity(resolvedId),
+                        enteredBattlefieldTimestamp = entryTimestamp
+                    )
+                } else effect
+            }
+            is MoveTrackedBattlefieldObjectEffect -> {
+                val resolvedId = context.resolveTarget(effect.target)
+                if (resolvedId != null) {
                     val entryTimestamp = state.getEntity(resolvedId)
                         ?.get<BattlefieldEntryTimestampComponent>()?.timestamp
                     effect.copy(
@@ -269,6 +375,17 @@ class CreateDelayedTriggerExecutor : EffectExecutor<CreateDelayedTriggerEffect> 
                 val snapshot = snapshotAmount(effect.amount, context, state)
                 if (snapshot !== effect.amount) effect.copy(amount = snapshot) else effect
             }
+            // "At the beginning of the next upkeep, create a 4/4 … token **for each creature
+            // returned to your hand this way**" (The Eagles Are Coming!). The count reads the
+            // pipeline collection that ran this effect, and that pipeline is gone by the time the
+            // trigger fires — a lazy read would find no collection and make zero tokens. Only
+            // pipeline-scoped reads are frozen (see [snapshotPipelineAmount]); a board-state count
+            // stays lazy so "at the beginning of your end step, create a token for each …" keeps
+            // counting when the card says to count.
+            is CreateTokenEffect -> {
+                val count = snapshotPipelineAmount(effect.count, context, state)
+                if (count !== effect.count) effect.copy(count = count) else effect
+            }
             is DealDamagePerEntityInZoneEffect -> {
                 // Resolve collection name to concrete entity IDs from the pipeline
                 val resolvedIds = effect.collectionName?.let { name ->
@@ -285,6 +402,15 @@ class CreateDelayedTriggerExecutor : EffectExecutor<CreateDelayedTriggerEffect> 
             }
             is CompositeEffect -> effect.copy(
                 effects = effect.effects.map { resolveContextTargets(it, context, state) }
+            )
+            // "Flip a coin at the beginning of the next end step. If you lose the flip, sacrifice
+            // that creature" (Goblin Kites) — the flip happens when the delayed trigger fires, but
+            // "that creature" was chosen now, so each branch needs the same baking the top-level
+            // effect gets. Without this the branch keeps an unresolvable ContextTarget and does
+            // nothing when the trigger resolves.
+            is FlipCoinEffect -> effect.copy(
+                wonEffect = effect.wonEffect?.let { resolveContextTargets(it, context, state) },
+                lostEffect = effect.lostEffect?.let { resolveContextTargets(it, context, state) },
             )
             is GatedEffect -> {
                 // Former MayEffect shape: resolve ContextTargets inside the optional `then` payoff,

@@ -2,6 +2,7 @@ package com.wingedsheep.gameserver.scenario
 
 import com.wingedsheep.engine.registry.CardRegistry
 import com.wingedsheep.engine.registry.PrintingRegistry
+import com.wingedsheep.engine.registry.TokenArtRegistry
 import com.wingedsheep.engine.state.GameState
 import com.wingedsheep.engine.state.components.identity.PlayerComponent
 import com.wingedsheep.engine.view.ClientStateTransformer
@@ -25,6 +26,7 @@ import java.util.UUID
 class ScenarioSessionFactory(
     private val cardRegistry: CardRegistry,
     private val printingRegistry: PrintingRegistry,
+    private val tokenArtRegistry: TokenArtRegistry,
     private val gameRepository: GameRepository,
     private val sessionRegistry: SessionRegistry,
     private val aiGameManager: AiGameManager,
@@ -54,10 +56,23 @@ class ScenarioSessionFactory(
         val player1Id = build.player1Id
         val player2Id = build.player2Id
 
+        // The build's registry, not the injected one: a scenario carrying custom cards was built
+        // against an overlay ([AssayCardService]), and a session that could not resolve those names
+        // would show blank cards for the very cards the scenario exists to test. It *is* the live
+        // registry for every ordinary scenario, so this costs nothing on that path.
+        val playRegistry = build.cardRegistry
         val gameSession = GameSession(
-            cardRegistry = cardRegistry,
-            stateTransformer = stateTransformer,
+            cardRegistry = playRegistry,
+            stateTransformer = if (playRegistry === cardRegistry) {
+                stateTransformer
+            } else {
+                ClientStateTransformer(playRegistry)
+            },
             printingRegistry = printingRegistry,
+            // Without this a scenario mints every token with the engine-wide generic art for its
+            // creature type, so the one surface built for eyeballing a card is the one that shows
+            // the wrong picture. Same registry the lobby and tournament handlers pass.
+            tokenArtRegistry = tokenArtRegistry,
         )
         gameSession.injectStateForDevScenario(build.state)
 
@@ -180,6 +195,10 @@ class ScenarioSessionFactory(
             cardRegistry = cardRegistry,
             stateTransformer = stateTransformer,
             printingRegistry = printingRegistry,
+            // Without this a scenario mints every token with the engine-wide generic art for its
+            // creature type, so the one surface built for eyeballing a card is the one that shows
+            // the wrong picture. Same registry the lobby and tournament handlers pass.
+            tokenArtRegistry = tokenArtRegistry,
         )
         gameSession.injectStateForDevScenario(state)
         gameRepository.save(gameSession)

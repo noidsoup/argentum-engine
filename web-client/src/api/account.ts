@@ -120,6 +120,27 @@ export async function fetchMe(): Promise<AccountUser | null> {
 
 // ----- Saved decks -----
 
+/**
+ * Learn to Play progress on the account — the client's own document, stored verbatim by the
+ * server. `{}` when the course was never started there. See `learn/progressStore.ts` for the merge.
+ */
+export async function fetchLearnProgress(): Promise<unknown> {
+  const res = await fetch('/api/auth/me/learn-progress', { headers: authHeaders() })
+  if (res.status === 401) throw new UnauthorizedError()
+  if (!res.ok) throw new Error(`Failed to load course progress (${res.status})`)
+  return res.json()
+}
+
+export async function saveLearnProgress(progress: unknown): Promise<void> {
+  const res = await fetch('/api/auth/me/learn-progress', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(progress),
+  })
+  if (res.status === 401) throw new UnauthorizedError()
+  if (!res.ok) throw new Error(`Failed to save course progress (${res.status})`)
+}
+
 export interface DeckSummary {
   readonly id: number
   readonly name: string
@@ -191,6 +212,74 @@ export async function upsertDeckByName(deck: SharedDeck): Promise<DeckDetail> {
   const existing = await listDecks()
   const match = existing.find((d) => d.name.toLowerCase() === deck.name.toLowerCase())
   return match ? updateDeck(match.id, deck) : saveDeck(deck)
+}
+
+// ----- Saved cubes -----
+
+/**
+ * A cube as stored in the account — card names + counts, not resolved cards, so a cube can name a
+ * card that isn't implemented yet and stays valid as sets land. Mirrors `SavedCube` minus the local
+ * id/timestamp, and the server's `CubeList`.
+ */
+export interface SharedCube {
+  readonly name: string
+  readonly cards: ReadonlyArray<{ readonly name: string; readonly count: number }>
+  readonly basicLandSetCode: string
+  readonly packSize: number
+}
+
+export interface CubeSummary {
+  readonly id: number
+  readonly name: string
+  readonly cardCount: number
+  readonly updatedAt: string
+}
+
+export interface CubeDetail extends CubeSummary {
+  readonly cube: SharedCube
+}
+
+export async function listCubes(): Promise<CubeSummary[]> {
+  const res = await fetch('/api/account/cubes', { headers: authHeaders() })
+  if (res.status === 401) throw new UnauthorizedError()
+  if (!res.ok) throw new Error(`Failed to load cubes (${res.status})`)
+  return (await res.json()) as CubeSummary[]
+}
+
+/** Full detail for every saved cube in one request (`?full`) — used by the unified cube library. */
+export async function listCubeDetails(): Promise<CubeDetail[]> {
+  const res = await fetch('/api/account/cubes?full', { headers: authHeaders() })
+  if (res.status === 401) throw new UnauthorizedError()
+  if (!res.ok) throw new Error(`Failed to load cubes (${res.status})`)
+  return (await res.json()) as CubeDetail[]
+}
+
+export async function saveCube(cube: SharedCube): Promise<CubeDetail> {
+  const res = await fetch('/api/account/cubes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(cube),
+  })
+  if (res.status === 401) throw new UnauthorizedError()
+  if (!res.ok) throw new Error(`Failed to save cube (${res.status})`)
+  return (await res.json()) as CubeDetail
+}
+
+export async function updateCube(id: number, cube: SharedCube): Promise<CubeDetail> {
+  const res = await fetch(`/api/account/cubes/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(cube),
+  })
+  if (res.status === 401) throw new UnauthorizedError()
+  if (!res.ok) throw new Error(`Failed to update cube (${res.status})`)
+  return (await res.json()) as CubeDetail
+}
+
+export async function deleteCube(id: number): Promise<void> {
+  const res = await fetch(`/api/account/cubes/${id}`, { method: 'DELETE', headers: authHeaders() })
+  if (res.status === 401) throw new UnauthorizedError()
+  if (!res.ok && res.status !== 404) throw new Error(`Failed to delete cube (${res.status})`)
 }
 
 // ----- Stats -----

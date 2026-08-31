@@ -1,3 +1,254 @@
+// Black Cat
+{
+    "name": "Black Cat",
+    "manaCost": "{1}{B}",
+    "typeLine": "Creature — Zombie Cat",
+    "oracleText": "When this creature dies, target opponent discards a card at random.",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 1
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "from": "Battlefield",
+                    "to": "Graveyard"
+                },
+                "effect": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "GatherCards",
+                            "source": {
+                                "type": "FromZone",
+                                "zone": "Hand",
+                                "player": {
+                                    "type": "ContextPlayer",
+                                    "index": 0
+                                }
+                            },
+                            "storeAs": "hand"
+                        },
+                        {
+                            "type": "SelectFromCollection",
+                            "from": "hand",
+                            "selection": {
+                                "type": "Random",
+                                "count": {
+                                    "type": "Fixed",
+                                    "amount": 1
+                                }
+                            },
+                            "storeSelected": "discarded"
+                        },
+                        {
+                            "type": "MoveCollection",
+                            "from": "discarded",
+                            "destination": {
+                                "type": "ToZone",
+                                "zone": "Graveyard",
+                                "player": {
+                                    "type": "ContextPlayer",
+                                    "index": 0
+                                }
+                            },
+                            "moveType": "Discard"
+                        }
+                    ]
+                },
+                "targetRequirement": {
+                    "type": "TargetOpponent",
+                    "id": "target opponent"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "54",
+        "artist": "David Palumbo",
+        "flavorText": "Its last life is spent tormenting your dreams.",
+        "imageUri": "https://cards.scryfall.io/normal/front/b/b/bb1c6379-69d5-48aa-8d06-257c0592794e.jpg?1783940835"
+    },
+    "colorIdentityOverride": [
+        "BLACK"
+    ]
+}
+
+// Briarpack Alpha
+{
+    "name": "Briarpack Alpha",
+    "manaCost": "{3}{G}",
+    "typeLine": "Creature — Wolf",
+    "oracleText": "Flash (You may cast this spell any time you could cast an instant.)\nWhen this creature enters, target creature gets +2/+2 until end of turn.",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 3
+    },
+    "keywords": [
+        "FLASH"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "ModifyStats",
+                    "powerModifier": {
+                        "type": "Fixed",
+                        "amount": 2
+                    },
+                    "toughnessModifier": {
+                        "type": "Fixed",
+                        "amount": 2
+                    },
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "target creature"
+                    }
+                },
+                "targetRequirement": {
+                    "type": "TargetObject",
+                    "filter": {
+                        "baseFilter": "creature"
+                    },
+                    "id": "target creature"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "108",
+        "rarity": "UNCOMMON",
+        "artist": "Daarken",
+        "flavorText": "\"The wolves turned on us and a chill swept over me. The pack had a new leader.\" —Alena, trapper of Kessig",
+        "imageUri": "https://cards.scryfall.io/normal/front/a/0/a052e945-7535-4b0a-b580-cf76377633f3.jpg?1783940811"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
+// Chalice of Life
+{
+    "name": "Chalice of Life",
+    "manaCost": "{3}",
+    "typeLine": "Artifact",
+    "oracleText": "{T}: You gain 1 life. Then if you have at least 10 life more than your starting life total, transform this artifact.",
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": "CostTap",
+                "effect": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "GainLife",
+                            "amount": {
+                                "type": "Fixed",
+                                "amount": 1
+                            }
+                        },
+                        {
+                            "type": "Gated",
+                            "gate": {
+                                "type": "Gate.WhenCondition",
+                                "condition": {
+                                    "type": "Compare",
+                                    "left": {
+                                        "type": "LifeTotal",
+                                        "player": "You"
+                                    },
+                                    "operator": "GTE",
+                                    "right": {
+                                        "type": "Add",
+                                        "left": {
+                                            "type": "StartingLifeTotal",
+                                            "player": "You"
+                                        },
+                                        "right": {
+                                            "type": "Fixed",
+                                            "amount": 10
+                                        }
+                                    }
+                                }
+                            },
+                            "then": "Transform"
+                        }
+                    ]
+                },
+                "descriptionOverride": "Gain 1 life, then transform Chalice of Life if you have at least 10 life more than your starting life total."
+            }
+        ]
+    },
+    "backFace": {
+        "name": "Chalice of Death",
+        "manaCost": "",
+        "typeLine": "Artifact",
+        "oracleText": "{T}: Target player loses 5 life.",
+        "script": {
+            "activatedAbilities": [
+                {
+                    "id": "ability_2",
+                    "cost": "CostTap",
+                    "effect": {
+                        "type": "LoseLife",
+                        "amount": {
+                            "type": "Fixed",
+                            "amount": 5
+                        },
+                        "target": {
+                            "type": "BoundVariable",
+                            "name": "target player"
+                        }
+                    },
+                    "targetRequirements": [
+                        {
+                            "type": "TargetPlayer",
+                            "id": "target player"
+                        }
+                    ],
+                    "descriptionOverride": "Target player loses 5 life."
+                }
+            ]
+        },
+        "metadata": {
+            "collectorNumber": "146",
+            "rarity": "UNCOMMON",
+            "artist": "Ryan Yee",
+            "flavorText": "The bitter taste of life's only certainty.",
+            "imageUri": "https://cards.scryfall.io/normal/back/9/d/9d9c1c46-7aa7-464c-87b0-b29b9663daef.jpg?1783940798"
+        },
+        "colorIdentityOverride": [],
+        "hasNoManaCost": true
+    },
+    "metadata": {
+        "collectorNumber": "146",
+        "rarity": "UNCOMMON",
+        "artist": "Ryan Yee",
+        "flavorText": "The sweet taste of hope's promise.",
+        "imageUri": "https://cards.scryfall.io/normal/front/9/d/9d9c1c46-7aa7-464c-87b0-b29b9663daef.jpg?1783940798",
+        "rulings": [
+            {
+                "date": "2011-01-22",
+                "text": "Your starting life total is the life total you began the game with."
+            },
+            {
+                "date": "2011-01-22",
+                "text": "You check your life total to see if Chalice of Life transforms only when its ability resolves."
+            }
+        ]
+    },
+    "colorIdentityOverride": []
+}
+
 // Deadly Allure
 {
     "name": "Deadly Allure",
@@ -442,6 +693,109 @@
     ]
 }
 
+// Grim Backwoods
+{
+    "name": "Grim Backwoods",
+    "manaCost": "",
+    "typeLine": "Land",
+    "oracleText": "{T}: Add {C}.\n{2}{B}{G}, {T}, Sacrifice a creature: Draw a card.",
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": "CostTap",
+                "effect": {
+                    "type": "AddColorlessMana",
+                    "amount": {
+                        "type": "Fixed",
+                        "amount": 1
+                    }
+                },
+                "timing": "ManaAbility",
+                "isManaAbility": true
+            },
+            {
+                "id": "ability_2",
+                "cost": {
+                    "type": "CostComposite",
+                    "costs": [
+                        {
+                            "type": "CostAtomWrapper",
+                            "atom": {
+                                "type": "AtomMana",
+                                "cost": "{2}{B}{G}"
+                            }
+                        },
+                        "CostTap",
+                        {
+                            "type": "CostAtomWrapper",
+                            "atom": {
+                                "type": "AtomSacrifice",
+                                "filter": "creature"
+                            }
+                        }
+                    ]
+                },
+                "effect": {
+                    "type": "DrawCards",
+                    "count": {
+                        "type": "Fixed",
+                        "amount": 1
+                    }
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "156",
+        "rarity": "RARE",
+        "artist": "Vincent Proce",
+        "flavorText": "\"I love what they've done with the place.\"\n—Liliana Vess",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/4/045abeeb-f5e5-4f3f-9836-5b1553e03f11.jpg?1783940790"
+    },
+    "colorIdentityOverride": [
+        "BLACK",
+        "GREEN"
+    ]
+}
+
+// Griptide
+{
+    "name": "Griptide",
+    "manaCost": "{3}{U}",
+    "typeLine": "Instant",
+    "oracleText": "Put target creature on top of its owner's library.",
+    "script": {
+        "spellEffect": {
+            "type": "MoveToZone",
+            "target": {
+                "type": "BoundVariable",
+                "name": "target"
+            },
+            "destination": "Library",
+            "placement": "Top"
+        },
+        "targetRequirements": [
+            {
+                "type": "TargetObject",
+                "filter": {
+                    "baseFilter": "creature"
+                },
+                "id": "target"
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "38",
+        "artist": "Igor Kieryluk",
+        "flavorText": "\"Beware the seagrafs just off the shore. These waters are filled with hungry geists looking for an easy meal.\"\n—Captain Eberhart",
+        "imageUri": "https://cards.scryfall.io/normal/front/2/7/27f92b74-86bb-4bb3-8f78-640984698f28.jpg"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
+
 // Havengul Runebinder
 {
     "name": "Havengul Runebinder",
@@ -634,6 +988,243 @@
     "colorIdentityOverride": []
 }
 
+// Hollowhenge Beast
+{
+    "name": "Hollowhenge Beast",
+    "manaCost": "{3}{G}{G}",
+    "typeLine": "Creature — Beast",
+    "creatureStats": {
+        "power": 5,
+        "toughness": 5
+    },
+    "metadata": {
+        "collectorNumber": "118",
+        "artist": "Dave Kendall",
+        "flavorText": "In a world of monsters, it's the stuff of nightmares.",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/5/052ab91f-ac01-43f4-9276-9af35dbfbf71.jpg?1783940805"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
+// Huntmaster of the Fells
+{
+    "name": "Huntmaster of the Fells",
+    "manaCost": "{2}{R}{G}",
+    "typeLine": "Creature — Human Werewolf",
+    "oracleText": "Whenever this creature enters or transforms into Huntmaster of the Fells, create a 2/2 green Wolf creature token and you gain 2 life.\nAt the beginning of each upkeep, if no spells were cast last turn, transform this creature.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 2
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "CreateToken",
+                            "power": 2,
+                            "toughness": 2,
+                            "colors": [
+                                "GREEN"
+                            ],
+                            "creatureTypes": [
+                                "Wolf"
+                            ],
+                            "imageUri": "https://cards.scryfall.io/normal/front/8/9/89b89a55-3ea2-4186-b946-06831bc16169.jpg?1783907965"
+                        },
+                        {
+                            "type": "GainLife",
+                            "amount": {
+                                "type": "Fixed",
+                                "amount": 2
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "id": "ability_2",
+                "trigger": {
+                    "type": "TransformEvent",
+                    "intoBackFace": false
+                },
+                "effect": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "CreateToken",
+                            "power": 2,
+                            "toughness": 2,
+                            "colors": [
+                                "GREEN"
+                            ],
+                            "creatureTypes": [
+                                "Wolf"
+                            ],
+                            "imageUri": "https://cards.scryfall.io/normal/front/8/9/89b89a55-3ea2-4186-b946-06831bc16169.jpg?1783907965"
+                        },
+                        {
+                            "type": "GainLife",
+                            "amount": {
+                                "type": "Fixed",
+                                "amount": 2
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "id": "ability_3",
+                "trigger": {
+                    "type": "StepEvent",
+                    "step": "UPKEEP",
+                    "player": "Each"
+                },
+                "binding": "ANY",
+                "effect": "Transform",
+                "interveningIf": {
+                    "type": "Compare",
+                    "left": "SpellsCastLastTurn",
+                    "operator": "EQ",
+                    "right": {
+                        "type": "Fixed",
+                        "amount": 0
+                    }
+                }
+            }
+        ]
+    },
+    "backFace": {
+        "name": "Ravager of the Fells",
+        "manaCost": "",
+        "typeLine": "Creature — Werewolf",
+        "oracleText": "Trample\nWhenever this creature transforms into Ravager of the Fells, it deals 2 damage to target opponent or planeswalker and 2 damage to up to one target creature that player or that planeswalker's controller controls.\nAt the beginning of each upkeep, if a player cast two or more spells last turn, transform this creature.",
+        "creatureStats": {
+            "power": 4,
+            "toughness": 4
+        },
+        "keywords": [
+            "TRAMPLE"
+        ],
+        "script": {
+            "triggeredAbilities": [
+                {
+                    "id": "ability_4",
+                    "trigger": {
+                        "type": "TransformEvent",
+                        "intoBackFace": true
+                    },
+                    "effect": {
+                        "type": "Composite",
+                        "effects": [
+                            {
+                                "type": "DealDamage",
+                                "amount": {
+                                    "type": "Fixed",
+                                    "amount": 2
+                                },
+                                "target": {
+                                    "type": "BoundVariable",
+                                    "name": "target opponent or planeswalker"
+                                }
+                            },
+                            {
+                                "type": "DealDamage",
+                                "amount": {
+                                    "type": "Fixed",
+                                    "amount": 2
+                                },
+                                "target": {
+                                    "type": "BoundVariable",
+                                    "name": "target creature that player controls"
+                                }
+                            }
+                        ]
+                    },
+                    "targetRequirement": {
+                        "type": "TargetOpponentOrPlaneswalker",
+                        "id": "target opponent or planeswalker"
+                    },
+                    "additionalTargetRequirements": [
+                        {
+                            "type": "TargetObject",
+                            "optional": true,
+                            "filter": {
+                                "baseFilter": {
+                                    "cardPredicates": [
+                                        "IsCreature"
+                                    ],
+                                    "controllerPredicate": {
+                                        "type": "ControlledByReferencedPlayer",
+                                        "target": {
+                                            "type": "BoundVariable",
+                                            "name": "target opponent or planeswalker"
+                                        }
+                                    }
+                                }
+                            },
+                            "id": "target creature that player controls"
+                        }
+                    ]
+                },
+                {
+                    "id": "ability_5",
+                    "trigger": {
+                        "type": "StepEvent",
+                        "step": "UPKEEP",
+                        "player": "Each"
+                    },
+                    "binding": "ANY",
+                    "effect": "Transform",
+                    "interveningIf": {
+                        "type": "Compare",
+                        "left": "SpellsCastLastTurn",
+                        "operator": "GTE",
+                        "right": {
+                            "type": "Fixed",
+                            "amount": 2
+                        }
+                    }
+                }
+            ]
+        },
+        "metadata": {
+            "collectorNumber": "140",
+            "rarity": "MYTHIC",
+            "artist": "Chris Rahn",
+            "imageUri": "https://cards.scryfall.io/normal/back/a/a/aae6fb12-b252-453b-bca7-1ea2a0d6c8dc.jpg?1783940803"
+        },
+        "colorIdentityOverride": [
+            "RED",
+            "GREEN"
+        ],
+        "colorIndicator": [
+            "RED",
+            "GREEN"
+        ],
+        "hasNoManaCost": true
+    },
+    "metadata": {
+        "collectorNumber": "140",
+        "rarity": "MYTHIC",
+        "artist": "Chris Rahn",
+        "imageUri": "https://cards.scryfall.io/normal/front/a/a/aae6fb12-b252-453b-bca7-1ea2a0d6c8dc.jpg?1783940803"
+    },
+    "colorIdentityOverride": [
+        "RED",
+        "GREEN"
+    ]
+}
+
 // Increasing Devotion
 {
     "name": "Increasing Devotion",
@@ -736,6 +1327,46 @@
     ]
 }
 
+// Midnight Guard
+{
+    "name": "Midnight Guard",
+    "manaCost": "{2}{W}",
+    "typeLine": "Creature — Human Soldier",
+    "oracleText": "Whenever another creature enters, untap this creature.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 3
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "filter": "creature",
+                    "to": "Battlefield"
+                },
+                "binding": "OTHER",
+                "effect": {
+                    "type": "TapUntap",
+                    "target": "Self",
+                    "tap": false
+                },
+                "descriptionOverride": "Whenever another creature enters, untap this creature."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "14",
+        "artist": "Jason A. Engle",
+        "flavorText": "\"When you're on watch, no noise is harmless and no shadow can be ignored.\" —Olgard of the Skiltfolk",
+        "imageUri": "https://cards.scryfall.io/normal/front/2/2/2264b760-c527-470d-bad0-d8baaf543631.jpg?1783940853"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
 // Mystic Retrieval
 {
     "name": "Mystic Retrieval",
@@ -783,6 +1414,31 @@
     ]
 }
 
+// Nephalia Seakite
+{
+    "name": "Nephalia Seakite",
+    "manaCost": "{3}{U}",
+    "typeLine": "Creature — Bird",
+    "oracleText": "Flash (You may cast this spell any time you could cast an instant.)\nFlying",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 3
+    },
+    "keywords": [
+        "FLASH",
+        "FLYING"
+    ],
+    "metadata": {
+        "collectorNumber": "43",
+        "artist": "Wayne England",
+        "flavorText": "\"Keep one eye on the cliff road or you may fall to your death. Keep one eye on the sky or your death may fall on you.\"\n—Manfried Ulmach, Elgaud Master-at-Arms",
+        "imageUri": "https://cards.scryfall.io/normal/front/1/7/174a1d08-cd79-43d6-897f-3ee9a682d15e.jpg"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
+
 // Niblis of the Urn
 {
     "name": "Niblis of the Urn",
@@ -802,13 +1458,16 @@
                 "id": "ability_1",
                 "trigger": "AttackEvent",
                 "effect": {
-                    "type": "TapUntap",
-                    "target": {
-                        "type": "BoundVariable",
-                        "name": "target"
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "TapUntap",
+                        "target": {
+                            "type": "BoundVariable",
+                            "name": "target"
+                        }
                     }
                 },
-                "optional": true,
                 "targetRequirement": {
                     "type": "TargetObject",
                     "filter": {
@@ -914,10 +1573,185 @@
         "collectorNumber": "45",
         "rarity": "UNCOMMON",
         "artist": "Karl Kopinski",
-        "imageUri": "https://cards.scryfall.io/normal/front/b/3/b3304cab-0dc9-47e4-ac68-00974b64f5a0.jpg?1783940838"
+        "imageUri": "https://cards.scryfall.io/normal/front/b/3/b3304cab-0dc9-47e4-ac68-00974b64f5a0.jpg?1783940838",
+        "rulings": [
+            {
+                "date": "2013-04-15",
+                "text": "You must exile exactly one creature card from your graveyard to cast this spell; you cannot cast it without exiling a creature card, and you cannot exile additional creature cards."
+            },
+            {
+                "date": "2013-04-15",
+                "text": "Players can only respond once this spell has been cast and all its costs have been paid. No one can try to otherwise remove the creature card you exiled in order to prevent you from casting this spell."
+            },
+            {
+                "date": "2011-01-22",
+                "text": "When Relentless Skaabs returns to the battlefield because of its undying ability, it's not being cast. You won't exile a creature card from your graveyard."
+            }
+        ]
     },
     "colorIdentityOverride": [
         "BLUE"
+    ]
+}
+
+// Russet Wolves
+{
+    "name": "Russet Wolves",
+    "manaCost": "{3}{R}",
+    "typeLine": "Creature — Wolf",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 3
+    },
+    "metadata": {
+        "collectorNumber": "102",
+        "artist": "Christopher Moeller",
+        "flavorText": "\"The wolves of our valley are bred to detest the scent of ghouls. For centuries they have kept our estates clear of such carrion.\"\n—Olivia Voldaren",
+        "imageUri": "https://cards.scryfall.io/normal/front/b/3/b3c7c972-5a11-4709-b3ef-e2acb3b51dd9.jpg?1783940814"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
+// Sanctuary Cat
+{
+    "name": "Sanctuary Cat",
+    "manaCost": "{W}",
+    "typeLine": "Creature — Cat",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 2
+    },
+    "metadata": {
+        "collectorNumber": "19",
+        "artist": "David Palumbo",
+        "flavorText": "Cats prowl the corridors of Avacyn's churches in search of devils or signs of their mischief.",
+        "imageUri": "https://cards.scryfall.io/normal/front/9/6/96865440-01ad-40f2-90d7-9ecd0b4efecc.jpg?1783940850"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
+// Scorned Villager
+{
+    "name": "Scorned Villager",
+    "manaCost": "{1}{G}",
+    "typeLine": "Creature — Human Werewolf",
+    "oracleText": "{T}: Add {G}.\nAt the beginning of each upkeep, if no spells were cast last turn, transform this creature.",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 1
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "StepEvent",
+                    "step": "UPKEEP",
+                    "player": "Each"
+                },
+                "binding": "ANY",
+                "effect": "Transform",
+                "interveningIf": {
+                    "type": "Compare",
+                    "left": "SpellsCastLastTurn",
+                    "operator": "EQ",
+                    "right": {
+                        "type": "Fixed",
+                        "amount": 0
+                    }
+                }
+            }
+        ],
+        "activatedAbilities": [
+            {
+                "id": "ability_2",
+                "cost": "CostTap",
+                "effect": {
+                    "type": "AddMana",
+                    "color": "GREEN"
+                },
+                "timing": "ManaAbility",
+                "isManaAbility": true
+            }
+        ]
+    },
+    "backFace": {
+        "name": "Moonscarred Werewolf",
+        "manaCost": "",
+        "typeLine": "Creature — Werewolf",
+        "oracleText": "Vigilance\n{T}: Add {G}{G}.\nAt the beginning of each upkeep, if a player cast two or more spells last turn, transform this creature.",
+        "creatureStats": {
+            "power": 2,
+            "toughness": 2
+        },
+        "keywords": [
+            "VIGILANCE"
+        ],
+        "script": {
+            "triggeredAbilities": [
+                {
+                    "id": "ability_3",
+                    "trigger": {
+                        "type": "StepEvent",
+                        "step": "UPKEEP",
+                        "player": "Each"
+                    },
+                    "binding": "ANY",
+                    "effect": "Transform",
+                    "interveningIf": {
+                        "type": "Compare",
+                        "left": "SpellsCastLastTurn",
+                        "operator": "GTE",
+                        "right": {
+                            "type": "Fixed",
+                            "amount": 2
+                        }
+                    }
+                }
+            ],
+            "activatedAbilities": [
+                {
+                    "id": "ability_4",
+                    "cost": "CostTap",
+                    "effect": {
+                        "type": "AddMana",
+                        "color": "GREEN",
+                        "amount": {
+                            "type": "Fixed",
+                            "amount": 2
+                        }
+                    },
+                    "timing": "ManaAbility",
+                    "isManaAbility": true
+                }
+            ]
+        },
+        "metadata": {
+            "collectorNumber": "125",
+            "artist": "Cynthia Sheppard",
+            "flavorText": "\". . . and I will bring the fury of the wild back to my village.\"",
+            "imageUri": "https://cards.scryfall.io/normal/back/6/f/6f35e364-81d9-4888-993b-acc7a53d963c.jpg?1783940808"
+        },
+        "colorIdentityOverride": [
+            "GREEN"
+        ],
+        "colorIndicator": [
+            "GREEN"
+        ],
+        "hasNoManaCost": true
+    },
+    "metadata": {
+        "collectorNumber": "125",
+        "artist": "Cynthia Sheppard",
+        "flavorText": "\"My village's fear drove me into the wild . . .\"",
+        "imageUri": "https://cards.scryfall.io/normal/front/6/f/6f35e364-81d9-4888-993b-acc7a53d963c.jpg?1783940808"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
     ]
 }
 
@@ -1063,6 +1897,65 @@
     },
     "colorIdentityOverride": [
         "WHITE"
+    ]
+}
+
+// Torch Fiend
+{
+    "name": "Torch Fiend",
+    "manaCost": "{1}{R}",
+    "typeLine": "Creature — Devil",
+    "oracleText": "{R}, Sacrifice this creature: Destroy target artifact.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 1
+    },
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": {
+                    "type": "CostComposite",
+                    "costs": [
+                        {
+                            "type": "CostAtomWrapper",
+                            "atom": {
+                                "type": "AtomMana",
+                                "cost": "{R}"
+                            }
+                        },
+                        "CostSacrificeSelf"
+                    ]
+                },
+                "effect": {
+                    "type": "MoveToZone",
+                    "target": {
+                        "type": "ContextTarget",
+                        "index": 0
+                    },
+                    "destination": "Graveyard",
+                    "byDestruction": true
+                },
+                "targetRequirements": [
+                    {
+                        "type": "TargetObject",
+                        "filter": {
+                            "baseFilter": "artifact"
+                        }
+                    }
+                ],
+                "descriptionOverride": "{R}, Sacrifice this creature: Destroy target artifact."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "106",
+        "artist": "Winona Nelson",
+        "flavorText": "Devils redecorate every room with fire.",
+        "imageUri": "https://cards.scryfall.io/normal/front/d/5/d596feee-6ccc-4648-884b-ed2eeb1cffc0.jpg?1783940810"
+    },
+    "colorIdentityOverride": [
+        "RED"
     ]
 }
 
@@ -1276,6 +2169,30 @@
     },
     "colorIdentityOverride": [
         "RED",
+        "GREEN"
+    ]
+}
+
+// Young Wolf
+{
+    "name": "Young Wolf",
+    "manaCost": "{G}",
+    "typeLine": "Creature — Wolf",
+    "oracleText": "Undying (When this creature dies, if it had no +1/+1 counters on it, return it to the battlefield under its owner's control with a +1/+1 counter on it.)",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 1
+    },
+    "keywords": [
+        "UNDYING"
+    ],
+    "metadata": {
+        "collectorNumber": "134",
+        "artist": "Ryan Pancoast",
+        "flavorText": "The Ulvenwald makes no allowances for youth. Today's newborn is either tomorrow's hunter or tomorrow's lunch.",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/c/0c39aa40-ef5f-40f1-a6dd-fbce91172c50.jpg?1783940798"
+    },
+    "colorIdentityOverride": [
         "GREEN"
     ]
 }

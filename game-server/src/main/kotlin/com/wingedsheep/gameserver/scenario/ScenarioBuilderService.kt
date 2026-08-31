@@ -35,6 +35,13 @@ import java.util.concurrent.atomic.AtomicLong
 data class ScenarioBuildResult(
     val state: GameState,
     val playerIds: List<EntityId>,
+    /**
+     * The registry the state was built against, and the one the session has to be *played*
+     * against. Normally the live corpus registry; a scenario carrying custom cards
+     * ([AssayCardService]) gets an overlay, and a session handed the parent instead would fail to
+     * resolve the very cards it was built with.
+     */
+    val cardRegistry: CardRegistry,
 ) {
     val player1Id: EntityId get() = playerIds[0]
     val player2Id: EntityId get() = playerIds[1]
@@ -63,7 +70,15 @@ class ScenarioBuilderService(
      * when [enforceLimits] is set (production) — size caps, so the public endpoint rejects
      * abusive or malformed input cleanly instead of throwing deep in the builder.
      */
-    fun validate(request: ScenarioRequest, enforceLimits: Boolean): List<String> {
+    fun validate(
+        request: ScenarioRequest,
+        enforceLimits: Boolean,
+        /**
+         * The registry names are checked against. Defaults to the live corpus; a scenario with
+         * custom cards passes the overlay so its own cards are not reported as unknown.
+         */
+        registry: CardRegistry = cardRegistry,
+    ): List<String> {
         val errors = mutableListOf<String>()
         var total = 0
 
@@ -74,7 +89,7 @@ class ScenarioBuilderService(
                 errors += "Too many cards in $label (${list.size}); max $MAX_CARDS_PER_ZONE."
             }
             for (name in list) {
-                if (!cardRegistry.hasCard(name)) errors += "Unknown card: $name"
+                if (!registry.hasCard(name)) errors += "Unknown card: $name"
             }
         }
 
@@ -84,6 +99,7 @@ class ScenarioBuilderService(
             checkZone("$label graveyard", config.graveyard)
             checkZone("$label library", config.library)
             checkZone("$label exile", config.exile)
+            checkZone("$label sideboard", config.sideboard)
             checkZone("$label commanders", config.commanders)
             val battlefield = config.battlefield ?: emptyList()
             total += battlefield.size
@@ -91,7 +107,7 @@ class ScenarioBuilderService(
                 errors += "Too many cards on $label battlefield (${battlefield.size}); max $MAX_CARDS_PER_ZONE."
             }
             for (card in battlefield) {
-                if (!cardRegistry.hasCard(card.name)) errors += "Unknown card: ${card.name}"
+                if (!registry.hasCard(card.name)) errors += "Unknown card: ${card.name}"
                 card.counters?.keys?.forEach { key ->
                     if (runCatching { CounterType.valueOf(key) }.isFailure) {
                         errors += "Unknown counter type '$key' on ${card.name}."
@@ -127,9 +143,13 @@ class ScenarioBuilderService(
     }
 
     /** Construct the scenario state. Assumes [validate] has already passed. */
-    fun buildScenario(request: ScenarioRequest): ScenarioBuildResult {
+    fun buildScenario(
+        request: ScenarioRequest,
+        /** The registry cards are resolved from — the custom-card overlay, when there is one. */
+        registry: CardRegistry = cardRegistry,
+    ): ScenarioBuildResult {
         val seats = request.seats()
-        val builder = ScenarioBuilder(cardRegistry)
+        val builder = ScenarioBuilder(registry)
         builder.withPlayers(seats.map { it.first })
 
         seats.forEachIndexed { i, (_, config) -> applyPlayer(builder, i + 1, config) }
@@ -143,7 +163,7 @@ class ScenarioBuilderService(
         request.teams?.let { builder.withTeams(it, teamVsTeam = request.teamVsTeam == true) }
 
         val (state, playerIds) = builder.build()
-        return ScenarioBuildResult(state, playerIds)
+        return ScenarioBuildResult(state, playerIds, registry)
     }
 
     private fun applyPlayer(builder: ScenarioBuilder, n: Int, config: PlayerConfig?) {
@@ -158,6 +178,7 @@ class ScenarioBuilderService(
                 summoningSickness = card.summoningSickness ?: false,
                 counters = card.counters ?: emptyMap(),
                 chosenCreatureType = card.chosenCreatureType,
+                chosenCardType = card.chosenCardType,
                 chosenColor = card.chosenColor
             )
         }
@@ -167,6 +188,7 @@ class ScenarioBuilderService(
         config.graveyard?.forEach { builder.withCardInGraveyard(n, it) }
         config.library?.forEach { builder.withCardInLibrary(n, it) }
         config.exile?.forEach { builder.withCardInExile(n, it) }
+        config.sideboard?.forEach { builder.withCardInSideboard(n, it) }
     }
 
     private fun phaseToDefaultStep(phase: Phase): Step = when (phase) {
@@ -217,7 +239,10 @@ class ScenarioBuilderService(
 
             // Initialize empty zones for every player
             for (playerId in playerIds) {
-                for (zoneType in listOf(Zone.HAND, Zone.LIBRARY, Zone.GRAVEYARD, Zone.BATTLEFIELD, Zone.EXILE, Zone.COMMAND)) {
+                for (zoneType in listOf(
+                    Zone.HAND, Zone.LIBRARY, Zone.GRAVEYARD, Zone.BATTLEFIELD,
+                    Zone.EXILE, Zone.COMMAND, Zone.SIDEBOARD
+                )) {
                     val zoneKey = ZoneKey(playerId, zoneType)
                     state = state.copy(zones = state.zones + (zoneKey to emptyList()))
                 }
@@ -243,6 +268,7 @@ class ScenarioBuilderService(
             summoningSickness: Boolean = false,
             counters: Map<String, Int> = emptyMap(),
             chosenCreatureType: String? = null,
+            chosenCardType: String? = null,
             chosenColor: String? = null
         ): ScenarioBuilder {
             val playerId = playerFor(playerNumber)
@@ -269,6 +295,12 @@ class ScenarioBuilderService(
             if (chosenCreatureType != null) {
                 container = container.withCastChoice(
                     ChoiceSlot.CREATURE_TYPE, ChoiceValue.TextChoice(chosenCreatureType)
+                )
+            }
+
+            if (chosenCardType != null) {
+                container = container.withCastChoice(
+                    ChoiceSlot.CARD_TYPE, ChoiceValue.TextChoice(chosenCardType)
                 )
             }
 
@@ -356,6 +388,14 @@ class ScenarioBuilderService(
             return this
         }
 
+        /** Put a card in the player's sideboard — "outside the game" (CR 400.11). */
+        fun withCardInSideboard(playerNumber: Int, cardName: String): ScenarioBuilder {
+            val playerId = playerFor(playerNumber)
+            val cardId = createCard(cardName, playerId)
+            state = state.addToZone(ZoneKey(playerId, Zone.SIDEBOARD), cardId)
+            return this
+        }
+
         /**
          * Designate a card as the player's commander, placing it in the command zone with a
          * [CommanderComponent] and appending it to the player's [CommanderRegistryComponent].
@@ -376,9 +416,8 @@ class ScenarioBuilderService(
 
         fun withLifeTotal(playerNumber: Int, life: Int): ScenarioBuilder {
             val playerId = playerFor(playerNumber)
-            state = state.updateEntity(playerId) { container ->
-                container.with(LifeTotalComponent(life))
-            }
+            // Through the resolver so a team's shared total (CR 810.9a) lands on its canonical owner.
+            state = state.withLifeTotal(playerId, life)
             return this
         }
 
@@ -462,6 +501,9 @@ class ScenarioBuilderService(
                 // Mirror CardEntityFactory so CardPredicate.HasAdventure (Frantic Firebolt's
                 // graveyard tally) sees adventurer cards created in dev scenarios.
                 hasAdventure = cardDef.isAdventure,
+                // Likewise for CardPredicate.IsDoubleFaced ("If it's a double-faced card, you may
+                // transform it") — a dev-scenario DFC must still report itself as one.
+                isDoubleFaced = cardDef.isDoubleFaced,
             )
 
             var container = ComponentContainer.of(

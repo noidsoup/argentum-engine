@@ -30,7 +30,7 @@ import java.net.http.HttpResponse
  * Production scenario endpoint `POST /api/scenarios`. Unlike the dev endpoint this is NOT
  * gated behind `game.dev-endpoints.enabled` (note its absence below), so these tests double as
  * the proof that the feature ships to all players. Covers: hotseat (SELF) wiring, the exile
- * zone, and validation of unknown card names.
+ * and sideboard zones, and validation of unknown card names.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class ScenarioControllerTest(
@@ -109,6 +109,58 @@ class ScenarioControllerTest(
         exile.shouldNotBeNull()
         val names = exile.mapNotNull { state.getEntity(it)?.get<com.wingedsheep.engine.state.components.identity.CardComponent>()?.name }
         names shouldContain "Grizzly Bears"
+    }
+
+    test("sideboard zone is populated from the request") {
+        // Without this zone nothing can reach "outside the game" (CR 400.11), so Strixhaven's
+        // Learn (CR 701.48) could only ever take its discard branch and every wish was a blank.
+        val response = post(
+            """
+            {
+              "player1": { "lifeTotal": 20, "sideboard": ["Boomerang Basics", "Grizzly Bears"] },
+              "player2": { "lifeTotal": 20 },
+              "mode": "TWO_PLAYER"
+            }
+            """.trimIndent()
+        )
+        response.statusCode() shouldBe 200
+        val body = json.parseToJsonElement(response.body()).jsonObject
+        val sessionId = body["sessionId"]!!.jsonPrimitive.content
+        val p1Id = EntityId.of(body["player1"]!!.jsonObject["playerId"]!!.jsonPrimitive.content)
+
+        val state = gameRepository.findById(sessionId).shouldNotBeNull().getStateForTesting().shouldNotBeNull()
+        val sideboard = state.getZone(ZoneKey(p1Id, Zone.SIDEBOARD))
+        sideboard.shouldNotBeNull()
+        val names = sideboard.mapNotNull {
+            state.getEntity(it)?.get<com.wingedsheep.engine.state.components.identity.CardComponent>()?.name
+        }
+        names shouldContain "Boomerang Basics"
+        names shouldContain "Grizzly Bears"
+    }
+
+    test("a scenario session resolves set-scoped token art") {
+        // The scenario page is where a card gets eyeballed, so it is the worst place to render the
+        // wrong token: it shipped passing no TokenArtRegistry, and every token it minted quietly
+        // fell through to the engine-wide generic art for its creature type. Nothing failed — the
+        // picture was just wrong. Asserted on both session-creating endpoints below.
+        val response = post(
+            """{ "player1": { "lifeTotal": 20 }, "player2": { "lifeTotal": 20 }, "mode": "SELF" }"""
+        )
+        response.statusCode() shouldBe 200
+        val sessionId = json.parseToJsonElement(response.body()).jsonObject["sessionId"]!!.jsonPrimitive.content
+
+        gameRepository.findById(sessionId).shouldNotBeNull().hasTokenArtForTesting() shouldBe true
+    }
+
+    test("a from-state session resolves set-scoped token art too") {
+        val build = scenarioBuilderService.buildScenario(
+            ScenarioRequest(player1 = PlayerConfig(lifeTotal = 20), player2 = PlayerConfig(lifeTotal = 20))
+        )
+        val response = postFromState(persistenceJson.encodeToString(GameState.serializer(), build.state))
+        response.statusCode() shouldBe 200
+        val sessionId = json.parseToJsonElement(response.body()).jsonObject["sessionId"]!!.jsonPrimitive.content
+
+        gameRepository.findById(sessionId).shouldNotBeNull().hasTokenArtForTesting() shouldBe true
     }
 
     test("unknown card name is rejected with a 400 and a clear message") {

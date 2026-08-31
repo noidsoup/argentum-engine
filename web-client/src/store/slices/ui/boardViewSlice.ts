@@ -30,6 +30,36 @@ export function hasPendingInputSelection(state: GameStore): boolean {
   )
 }
 
+/**
+ * Follow-the-action as the camera actually behaves right now: the persisted setting, minus a
+ * manual pin holding the view still. This is what the rail's Follow button shows.
+ */
+export function isFollowingAction(state: Pick<GameStore, 'followAction' | 'viewPinned'>): boolean {
+  return state.followAction && !state.viewPinned
+}
+
+/**
+ * True when the local player's own seat is out of a multiplayer game the others are still
+ * playing (CR 800.4a). That's the spectator layout: a survivor takes over the bottom half of
+ * the table and all action UI hides.
+ *
+ * Derived from the authoritative roster (`hasLost`) rather than from the elimination message
+ * or the "Keep watching" click, so it holds however the seat died — conceding, damage, decking
+ * out, poison — and survives a refresh or reconnect.
+ *
+ * False while watching a spectator/replay stream (no seat of our own to lose), in a hotseat pod
+ * (this client still drives the living seats), and once the game itself is over — fewer than two
+ * seats left standing is the game-over overlay's business, not the spectator layout's.
+ */
+export function isViewerEliminated(state: GameStore): boolean {
+  const gameState = state.gameState
+  const playerId = state.playerId
+  if (state.spectatingState || !gameState || !playerId) return false
+  if (gameState.players.length <= 2 || gameState.hotseat) return false
+  if (!gameState.players.find((p) => p.playerId === playerId)?.hasLost) return false
+  return gameState.players.filter((p) => !p.hasLost).length >= 2
+}
+
 function loadFollowAction(): boolean {
   try {
     return localStorage.getItem(FOLLOW_ACTION_KEY) !== 'false'
@@ -47,7 +77,9 @@ export interface BoardViewSliceState {
   viewedOpponentId: EntityId | null
   /**
    * True when the player manually selected a board — suspends follow-the-action
-   * until unpinned (re-click the viewed chip / Esc).
+   * until unpinned (re-click the viewed chip / Esc / the Follow button). A pin never
+   * touches [followAction]: it is a *suspension* of the setting, not a change to it, so
+   * unpinning brings the camera straight back.
    */
   viewPinned: boolean
   /** Follow-the-action camera setting (persisted). Default on. */
@@ -66,9 +98,11 @@ export interface BoardViewSliceState {
    */
   collapsedSeats: readonly EntityId[]
   /**
-   * The local player was eliminated from a multiplayer game and chose "Keep watching"
-   * on the defeat overlay: their dead bottom half collapses, the freed space goes to the
-   * opponent boards, and all action UI hides. Cleared on reset (new game / leave).
+   * The local player dismissed the defeat overlay with "Keep watching" and stayed at the
+   * table. Only records that choice — the spectator *layout* is derived from the roster by
+   * [isViewerEliminated], so it is already correct while the overlay is still up and for a
+   * seat that died without an elimination message reaching it. Cleared on reset (new game /
+   * leave).
    */
   eliminatedSpectating: boolean
   /**
@@ -97,6 +131,13 @@ export interface BoardViewSliceState {
    * the rail shows a single shared-life team header or per-player life.
    */
   teamSharedLife: boolean
+  /**
+   * True when the format gives each team one shared turn and one shared priority (Two-Headed
+   * Giant — CR 805 / 810.2). False for Team vs. Team (CR 808.4), whose teammates take individual
+   * turns. Drives whether the client offers actions while a *teammate* holds the priority baton
+   * (CR 805.5a) — see `hasPriority` in types/gameState.
+   */
+  teamSharedTurns: boolean
 }
 
 export interface BoardViewSliceActions {
@@ -131,9 +172,17 @@ export interface BoardViewSliceActions {
   /**
    * Stamp the seat → team map from the game-start roster (2HG / Team vs. Team). Pass an empty map
    * for a non-team game (the default). [sharedLife] is true only when the team shares one life total
-   * (2HG); Team vs. Team passes false. Persists until the next reset.
+   * (2HG); Team vs. Team passes false. [sharedTurns] likewise for the shared turn + shared priority
+   * (CR 805). Persists until the next reset.
+   *
+   * The spectator and replay rosters don't carry [sharedTurns] and leave it false; neither surface
+   * can act, and `syncSeatTeams` corrects it from the first state update regardless.
    */
-  setSeatTeams: (teamByPlayerId: Record<EntityId, number>, sharedLife?: boolean) => void
+  setSeatTeams: (
+    teamByPlayerId: Record<EntityId, number>,
+    sharedLife?: boolean,
+    sharedTurns?: boolean,
+  ) => void
   /** Reset on game start / leave. */
   resetBoardView: () => void
 }
@@ -151,6 +200,7 @@ export const createBoardViewSlice: SliceCreator<BoardViewSlice> = (set, get) => 
   spectatorBottomSeatId: null,
   teamByPlayerId: {},
   teamSharedLife: false,
+  teamSharedTurns: false,
 
   viewOpponent: (playerId, opts) => {
     const { gameState, playerId: ownId } = get()
@@ -159,23 +209,24 @@ export const createBoardViewSlice: SliceCreator<BoardViewSlice> = (set, get) => 
     if (gameState && !gameState.players.some((p) => p.playerId === playerId)) return
     // The eliminated spectator's chosen bottom board is already fully visible at the
     // bottom — it never also occupies the viewed strip slot.
-    if (get().eliminatedSpectating && playerId === get().eliminatedBottomSeatId) return
+    if (isViewerEliminated(get()) && playerId === get().eliminatedBottomSeatId) return
     const pin = opts?.pin ?? true
-    // Pinning a board and follow-the-action are mutually exclusive: pinning turns follow off
-    // (the camera is locked), so the Follow toggle reflects that rather than lying "on".
+    // A pin suspends follow-the-action (the camera is locked) without flipping the persisted
+    // setting — so Esc / re-clicking the chip hands the camera back to the follow rules, as the
+    // help text promises. The Follow button shows the *effective* state (`isFollowingAction`)
+    // rather than lying "on" while a pin holds the camera still.
     // Picking a single board also exits the table overview — it *is* the focus gesture.
-    set({
-      viewedOpponentId: playerId,
-      viewPinned: pin,
-      overviewMode: false,
-      ...(pin ? { followAction: false } : {}),
-    })
+    set({ viewedOpponentId: playerId, viewPinned: pin, overviewMode: false })
   },
 
   unpinView: () => set({ viewPinned: false }),
 
   toggleFollowAction: () => {
-    const next = !get().followAction
+    const { followAction, viewPinned } = get()
+    // With follow on but suspended by a pin, the button reads "Off" — clicking it means "follow
+    // again", i.e. release the pin, not "turn the setting off" (which would be a second click
+    // that looks like a no-op).
+    const next = viewPinned && followAction ? true : !followAction
     try {
       localStorage.setItem(FOLLOW_ACTION_KEY, String(next))
     } catch {
@@ -223,8 +274,8 @@ export const createBoardViewSlice: SliceCreator<BoardViewSlice> = (set, get) => 
   setSpectatorBottomSeat: (playerId) =>
     set({ spectatorBottomSeatId: playerId, viewedOpponentId: null, viewPinned: false }),
 
-  setSeatTeams: (teamByPlayerId, sharedLife = false) =>
-    set({ teamByPlayerId, teamSharedLife: sharedLife }),
+  setSeatTeams: (teamByPlayerId, sharedLife = false, sharedTurns = false) =>
+    set({ teamByPlayerId, teamSharedLife: sharedLife, teamSharedTurns: sharedTurns }),
 
   resetBoardView: () =>
     set({
@@ -237,5 +288,6 @@ export const createBoardViewSlice: SliceCreator<BoardViewSlice> = (set, get) => 
       spectatorBottomSeatId: null,
       teamByPlayerId: {},
       teamSharedLife: false,
+      teamSharedTurns: false,
     }),
 })

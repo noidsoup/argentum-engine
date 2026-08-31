@@ -223,12 +223,15 @@
                 },
                 "binding": "ANY",
                 "effect": {
-                    "type": "AddCounters",
-                    "counterType": "quest",
-                    "count": 1,
-                    "target": "Self"
-                },
-                "optional": true
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "AddCounters",
+                        "counterType": "quest",
+                        "count": 1,
+                        "target": "Self"
+                    }
+                }
             }
         ],
         "staticAbilities": [
@@ -571,48 +574,6 @@
     ]
 }
 
-// Big Score
-{
-    "name": "Big Score",
-    "manaCost": "{3}{R}",
-    "typeLine": "Instant",
-    "oracleText": "As an additional cost to cast this spell, discard a card.\nDraw two cards and create two Treasure tokens. (They're artifacts with \"{T}, Sacrifice this token: Add one mana of any color.\")",
-    "script": {
-        "spellEffect": {
-            "type": "Composite",
-            "effects": [
-                {
-                    "type": "DrawCards",
-                    "count": {
-                        "type": "Fixed",
-                        "amount": 2
-                    }
-                },
-                {
-                    "type": "CreatePredefinedToken",
-                    "tokenType": "Treasure",
-                    "count": 2
-                }
-            ]
-        },
-        "additionalCosts": [
-            {
-                "type": "AdditionalAtom",
-                "atom": "AtomDiscard"
-            }
-        ]
-    },
-    "metadata": {
-        "collectorNumber": "193",
-        "rarity": "UNCOMMON",
-        "artist": "Daren Bader",
-        "imageUri": "https://cards.scryfall.io/normal/front/2/4/243b460e-e67a-40d7-a874-a61fdb011c5a.jpg?1721429138"
-    },
-    "colorIdentityOverride": [
-        "RED"
-    ]
-}
-
 // Blasphemous Act
 {
     "name": "Blasphemous Act",
@@ -674,41 +635,6 @@
     },
     "colorIdentityOverride": [
         "RED"
-    ]
-}
-
-// Bootleggers' Stash
-{
-    "name": "Bootleggers' Stash",
-    "manaCost": "{5}{G}",
-    "typeLine": "Artifact",
-    "oracleText": "Lands you control have \"{T}: Create a Treasure token.\"",
-    "script": {
-        "staticAbilities": [
-            {
-                "type": "GrantActivatedAbility",
-                "ability": {
-                    "id": "ability_1",
-                    "cost": "CostTap",
-                    "effect": {
-                        "type": "CreatePredefinedToken",
-                        "tokenType": "Treasure"
-                    }
-                },
-                "filter": {
-                    "baseFilter": "land ctrl:you"
-                }
-            }
-        ]
-    },
-    "metadata": {
-        "collectorNumber": "207",
-        "rarity": "MYTHIC",
-        "artist": "Anastasia Ovchinnikova",
-        "imageUri": "https://cards.scryfall.io/normal/front/c/1/c10525b5-067c-4a30-a069-875f11f2ff19.jpg?1721429213"
-    },
-    "colorIdentityOverride": [
-        "GREEN"
     ]
 }
 
@@ -824,6 +750,45 @@
                 }
             }
         }
+    ]
+}
+
+// Calamity of Cinders
+{
+    "name": "Calamity of Cinders",
+    "manaCost": "{5}{R}{R}",
+    "typeLine": "Sorcery",
+    "oracleText": "Convoke (Your creatures can help cast this spell. Each creature you tap while casting this spell pays for {1} or one mana of that creature's color.)\nCalamity of Cinders deals 6 damage to each untapped creature.",
+    "keywords": [
+        "CONVOKE"
+    ],
+    "script": {
+        "spellEffect": {
+            "type": "ForEach",
+            "space": {
+                "type": "IterationSpace.Group",
+                "filter": {
+                    "baseFilter": "creature untapped"
+                }
+            },
+            "body": {
+                "type": "DealDamage",
+                "amount": {
+                    "type": "Fixed",
+                    "amount": 6
+                },
+                "target": "Self"
+            }
+        }
+    },
+    "metadata": {
+        "collectorNumber": "23",
+        "rarity": "RARE",
+        "artist": "Xabi Gaztelua",
+        "imageUri": "https://cards.scryfall.io/normal/front/9/7/97c72d4b-a5d4-4f68-bbcd-b7ed0326fc1c.jpg?1783910732"
+    },
+    "colorIdentityOverride": [
+        "RED"
     ]
 }
 
@@ -1339,99 +1304,6 @@
     ]
 }
 
-// Fellwar Stone
-{
-    "name": "Fellwar Stone",
-    "manaCost": "{2}",
-    "typeLine": "Artifact",
-    "oracleText": "{T}: Add one mana of any color that a land an opponent controls could produce.",
-    "script": {
-        "activatedAbilities": [
-            {
-                "id": "ability_1",
-                "cost": "CostTap",
-                "effect": {
-                    "type": "AddManaOfChoice",
-                    "colorSet": {
-                        "type": "ManaColorSet.LandsCouldProduce",
-                        "scope": "OPPONENTS"
-                    }
-                },
-                "timing": "ManaAbility",
-                "isManaAbility": true
-            }
-        ]
-    },
-    "metadata": {
-        "collectorNumber": "269",
-        "rarity": "UNCOMMON",
-        "artist": "John Avon",
-        "flavorText": "\"What do you have that I cannot obtain?\"\n—Mairsil, the Pretender",
-        "imageUri": "https://cards.scryfall.io/normal/front/e/9/e99c4fec-eb21-4288-a12f-1c58c4946bae.jpg?1721429553"
-    },
-    "colorIdentityOverride": []
-}
-
-// Garruk's Packleader
-{
-    "name": "Garruk's Packleader",
-    "manaCost": "{4}{G}",
-    "typeLine": "Creature — Beast",
-    "oracleText": "Whenever another creature you control with power 3 or greater enters, you may draw a card.",
-    "creatureStats": {
-        "power": 4,
-        "toughness": 4
-    },
-    "script": {
-        "triggeredAbilities": [
-            {
-                "id": "ability_1",
-                "trigger": {
-                    "type": "ZoneChangeEvent",
-                    "filter": "creature pow>=3 ctrl:you",
-                    "to": "Battlefield"
-                },
-                "binding": "OTHER",
-                "effect": {
-                    "type": "Gated",
-                    "gate": "Gate.MayDecide",
-                    "then": {
-                        "type": "DrawCards",
-                        "count": {
-                            "type": "Fixed",
-                            "amount": 1
-                        }
-                    }
-                }
-            }
-        ]
-    },
-    "metadata": {
-        "collectorNumber": "218",
-        "rarity": "UNCOMMON",
-        "artist": "Nils Hamm",
-        "flavorText": "\"He has learned much in his long years. And unlike selfish humans, he's willing to share.\"\n—Garruk Wildspeaker",
-        "imageUri": "https://cards.scryfall.io/normal/front/1/0/109dee37-5de5-40fa-9405-8645be6c5076.jpg?1721429269",
-        "rulings": [
-            {
-                "date": "2012-07-01",
-                "text": "The ability checks the power of each creature as it enters. It will take into account counters the permanent enters with and static abilities that affect its power. After the creature is on the battlefield, raising its power won't cause this ability to retroactively trigger."
-            },
-            {
-                "date": "2012-07-01",
-                "text": "The creature's power is checked only to see if the ability triggers. It doesn't matter what the creature's power is when the ability resolves."
-            },
-            {
-                "date": "2010-08-15",
-                "text": "If Garruk's Packleader and another creature with power 3 or greater enter under your control at the same time, the ability will trigger."
-            }
-        ]
-    },
-    "colorIdentityOverride": [
-        "GREEN"
-    ]
-}
-
 // Ghalta, Primal Hunger
 {
     "name": "Ghalta, Primal Hunger",
@@ -1503,17 +1375,17 @@
                 "id": "ability_1",
                 "trigger": "AttackEvent",
                 "effect": {
-                    "type": "Composite",
-                    "effects": [
-                        {
-                            "type": "ForEach",
-                            "space": {
-                                "type": "IterationSpace.Group",
-                                "filter": {
-                                    "baseFilter": "creature pow>=4 ctrl:you"
-                                }
-                            },
-                            "body": {
+                    "type": "ForEach",
+                    "space": {
+                        "type": "IterationSpace.Group",
+                        "filter": {
+                            "baseFilter": "creature pow>=4 ctrl:you"
+                        }
+                    },
+                    "body": {
+                        "type": "Composite",
+                        "effects": [
+                            {
                                 "type": "ModifyStats",
                                 "powerModifier": {
                                     "type": "Fixed",
@@ -1524,23 +1396,14 @@
                                     "amount": 1
                                 },
                                 "target": "Self"
-                            }
-                        },
-                        {
-                            "type": "ForEach",
-                            "space": {
-                                "type": "IterationSpace.Group",
-                                "filter": {
-                                    "baseFilter": "creature pow>=4 ctrl:you"
-                                }
                             },
-                            "body": {
+                            {
                                 "type": "GrantKeyword",
                                 "keyword": "TRAMPLE",
                                 "target": "Self"
                             }
-                        }
-                    ]
+                        ]
+                    }
                 }
             }
         ],
@@ -1608,14 +1471,17 @@
                     "id": "ability_2",
                     "trigger": "AttackEvent",
                     "effect": {
-                        "type": "Fight",
-                        "target1": "Self",
-                        "target2": {
-                            "type": "ContextTarget",
-                            "index": 0
+                        "type": "Gated",
+                        "gate": "Gate.MayDecide",
+                        "then": {
+                            "type": "Fight",
+                            "target1": "Self",
+                            "target2": {
+                                "type": "ContextTarget",
+                                "index": 0
+                            }
                         }
                     },
-                    "optional": true,
                     "targetRequirement": {
                         "type": "TargetObject",
                         "filter": {
@@ -1771,7 +1637,7 @@
                         }
                     ]
                 },
-                "triggerCondition": "TriggeringEntityWasNotPutByThisSource"
+                "interveningIf": "TriggeringEntityWasNotPutByThisSource"
             }
         ]
     },
@@ -1780,42 +1646,6 @@
         "rarity": "RARE",
         "artist": "Daarken",
         "imageUri": "https://cards.scryfall.io/normal/front/2/e/2ee1d489-0980-444e-8b07-107be791b76e.jpg?1721429321"
-    },
-    "colorIdentityOverride": [
-        "GREEN"
-    ]
-}
-
-// Lotus Cobra
-{
-    "name": "Lotus Cobra",
-    "manaCost": "{1}{G}",
-    "typeLine": "Creature — Snake",
-    "oracleText": "Landfall — Whenever a land you control enters, add one mana of any color.",
-    "creatureStats": {
-        "power": 2,
-        "toughness": 1
-    },
-    "script": {
-        "triggeredAbilities": [
-            {
-                "id": "ability_1",
-                "trigger": {
-                    "type": "ZoneChangeEvent",
-                    "filter": "land ctrl:you",
-                    "to": "Battlefield"
-                },
-                "binding": "OTHER",
-                "effect": "AddManaOfChoice"
-            }
-        ]
-    },
-    "metadata": {
-        "collectorNumber": "229",
-        "rarity": "RARE",
-        "artist": "Sam Rowan",
-        "flavorText": "Its hood blossoms as a warning: receive your gift, but stray no closer.",
-        "imageUri": "https://cards.scryfall.io/normal/front/3/e/3e9cc3c4-82e2-43ba-892d-91836e6ac6fc.jpg?1721429332"
     },
     "colorIdentityOverride": [
         "GREEN"
@@ -1857,7 +1687,7 @@
                     "overridePower": 1,
                     "overrideToughness": 1
                 },
-                "triggerCondition": "WasKicked"
+                "interveningIf": "WasKicked"
             },
             {
                 "id": "ability_2",
@@ -2118,7 +1948,7 @@
                     "type": "WinGame",
                     "message": "Simic Ascendancy reached 20 growth counters."
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "EntityProperty",
@@ -2200,6 +2030,76 @@
     ]
 }
 
+// Steelburr Champion
+{
+    "name": "Steelburr Champion",
+    "manaCost": "{2}{W}",
+    "typeLine": "Creature — Mouse Soldier",
+    "oracleText": "Offspring {1}{W} (You may pay an additional {1}{W} as you cast this spell. If you do, when this creature enters, create a 1/1 token copy of it.)\nVigilance\nWhenever an opponent casts a noncreature spell, put a +1/+1 counter on this creature.",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 1
+    },
+    "keywords": [
+        "VIGILANCE",
+        "OFFSPRING"
+    ],
+    "keywordAbilities": [
+        {
+            "type": "Kicker",
+            "manaCost": "{1}{W}",
+            "displayPrefix": "Offspring",
+            "keyword": "OFFSPRING"
+        }
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "CreateTokenCopyOfSource",
+                    "overridePower": 1,
+                    "overrideToughness": 1
+                },
+                "interveningIf": "WasKicked"
+            },
+            {
+                "id": "ability_2",
+                "trigger": {
+                    "type": "SpellCastEvent",
+                    "spellFilter": {
+                        "cardPredicates": [
+                            "IsNoncreature"
+                        ]
+                    },
+                    "player": "EachOpponent"
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "AddCounters",
+                    "counterType": "+1/+1",
+                    "count": 1,
+                    "target": "Self"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "12",
+        "rarity": "RARE",
+        "artist": "Josiah \"Jo\" Cameron",
+        "flavorText": "\"The secret to victory is simple. Don't lose.\"",
+        "imageUri": "https://cards.scryfall.io/normal/front/7/3/73b1f962-22b7-4394-9796-24f7b0f8a42f.jpg?1783910734"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
 // Tendershoot Dryad
 {
     "name": "Tendershoot Dryad",
@@ -2217,32 +2117,6 @@
         "triggeredAbilities": [
             {
                 "id": "ability_1",
-                "trigger": {
-                    "type": "ZoneChangeEvent",
-                    "to": "Battlefield"
-                },
-                "effect": {
-                    "type": "Gated",
-                    "gate": {
-                        "type": "Gate.WhenCondition",
-                        "condition": {
-                            "type": "Compare",
-                            "left": {
-                                "type": "AggregateBattlefield",
-                                "player": "You"
-                            },
-                            "operator": "GTE",
-                            "right": {
-                                "type": "Fixed",
-                                "amount": 10
-                            }
-                        }
-                    },
-                    "then": "GainCitysBlessing"
-                }
-            },
-            {
-                "id": "ability_2",
                 "trigger": {
                     "type": "StepEvent",
                     "step": "UPKEEP",
@@ -2338,7 +2212,7 @@
                         "amount": 2
                     }
                 },
-                "triggerCondition": {
+                "triggerRestriction": {
                     "type": "All",
                     "conditions": [
                         {

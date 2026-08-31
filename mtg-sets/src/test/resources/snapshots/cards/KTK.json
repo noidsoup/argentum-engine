@@ -358,7 +358,10 @@
                 {
                     "effect": {
                         "type": "DistributeCountersAmongTargets",
-                        "totalCounters": 2
+                        "totalCounters": {
+                            "type": "Fixed",
+                            "amount": 2
+                        }
                     },
                     "targetRequirements": [
                         {
@@ -696,41 +699,36 @@
                 "id": "ability_1",
                 "trigger": {
                     "type": "ZoneChangeEvent",
-                    "filter": "ctrl:you",
+                    "filter": "permanent ctrl:you",
                     "to": "Battlefield"
                 },
                 "binding": "OTHER",
                 "effect": {
-                    "type": "ForEach",
-                    "space": {
-                        "type": "IterationSpace.Players",
-                        "players": "EachOpponent"
-                    },
-                    "body": {
-                        "type": "Composite",
-                        "effects": [
-                            {
-                                "type": "GatherCards",
-                                "source": {
-                                    "type": "TopOfLibrary",
-                                    "count": {
-                                        "type": "Fixed",
-                                        "amount": 1
-                                    },
-                                    "isMill": true
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "GatherCards",
+                            "source": {
+                                "type": "TopOfLibrary",
+                                "count": {
+                                    "type": "Fixed",
+                                    "amount": 1
                                 },
-                                "storeAs": "milled"
+                                "player": "EachOpponent",
+                                "isMill": true
                             },
-                            {
-                                "type": "MoveCollection",
-                                "from": "milled",
-                                "destination": {
-                                    "type": "ToZone",
-                                    "zone": "Graveyard"
-                                }
+                            "storeAs": "milled"
+                        },
+                        {
+                            "type": "MoveCollection",
+                            "from": "milled",
+                            "destination": {
+                                "type": "ToZone",
+                                "zone": "Graveyard",
+                                "player": "EachOpponent"
                             }
-                        ]
-                    }
+                        }
+                    ]
                 }
             }
         ]
@@ -949,7 +947,10 @@
                 },
                 "effect": {
                     "type": "DistributeCountersAmongTargets",
-                    "totalCounters": 2
+                    "totalCounters": {
+                        "type": "Fixed",
+                        "amount": 2
+                    }
                 },
                 "targetRequirement": {
                     "type": "TargetObject",
@@ -2970,7 +2971,8 @@
                         "type": "ToZone",
                         "zone": "Library",
                         "placement": "Bottom"
-                    }
+                    },
+                    "order": "ControllerChooses"
                 }
             ]
         }
@@ -4243,7 +4245,8 @@
                     }
                 ],
                 "timing": "SorcerySpeed",
-                "descriptionOverride": "Equip colorless creature {1}"
+                "isEquipAbility": true,
+                "equipQuality": "colorless"
             },
             {
                 "id": "ability_2",
@@ -4590,30 +4593,18 @@
                 "id": "ability_1",
                 "trigger": "AttackEvent",
                 "effect": {
-                    "type": "Gated",
-                    "gate": {
-                        "type": "Gate.WhenCondition",
-                        "condition": {
-                            "type": "Exists",
-                            "player": "You",
-                            "zone": "Battlefield",
-                            "filter": "creature pow>=4"
-                        }
+                    "type": "ModifyStats",
+                    "powerModifier": {
+                        "type": "Fixed",
+                        "amount": 1
                     },
-                    "then": {
-                        "type": "ModifyStats",
-                        "powerModifier": {
-                            "type": "Fixed",
-                            "amount": 1
-                        },
-                        "toughnessModifier": {
-                            "type": "Fixed",
-                            "amount": 1
-                        },
-                        "target": "Self"
-                    }
+                    "toughnessModifier": {
+                        "type": "Fixed",
+                        "amount": 1
+                    },
+                    "target": "Self"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Exists",
                     "player": "You",
                     "zone": "Battlefield",
@@ -5140,14 +5131,17 @@
                 "id": "ability_1",
                 "trigger": "TurnFaceUpEvent",
                 "effect": {
-                    "type": "MoveToZone",
-                    "target": {
-                        "type": "BoundVariable",
-                        "name": "another creature"
-                    },
-                    "destination": "Hand"
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "MoveToZone",
+                        "target": {
+                            "type": "BoundVariable",
+                            "name": "another creature"
+                        },
+                        "destination": "Hand"
+                    }
                 },
-                "optional": true,
                 "targetRequirement": {
                     "type": "TargetObject",
                     "filter": {
@@ -5354,7 +5348,7 @@
                     },
                     "id": "another creature"
                 },
-                "triggerCondition": "IsYourTurn"
+                "interveningIf": "IsYourTurn"
             }
         ]
     },
@@ -5647,17 +5641,17 @@
                 },
                 {
                     "effect": {
-                        "type": "Composite",
-                        "effects": [
-                            {
-                                "type": "ForEach",
-                                "space": {
-                                    "type": "IterationSpace.Group",
-                                    "filter": {
-                                        "baseFilter": "creature ctrl:you"
-                                    }
-                                },
-                                "body": {
+                        "type": "ForEach",
+                        "space": {
+                            "type": "IterationSpace.Group",
+                            "filter": {
+                                "baseFilter": "creature ctrl:you"
+                            }
+                        },
+                        "body": {
+                            "type": "Composite",
+                            "effects": [
+                                {
                                     "type": "ModifyStats",
                                     "powerModifier": {
                                         "type": "Fixed",
@@ -5668,23 +5662,14 @@
                                         "amount": 1
                                     },
                                     "target": "Self"
-                                }
-                            },
-                            {
-                                "type": "ForEach",
-                                "space": {
-                                    "type": "IterationSpace.Group",
-                                    "filter": {
-                                        "baseFilter": "creature ctrl:you"
-                                    }
                                 },
-                                "body": {
+                                {
                                     "type": "GrantKeyword",
                                     "keyword": "LIFELINK",
                                     "target": "Self"
                                 }
-                            }
-                        ]
+                            ]
+                        }
                     },
                     "description": "Creatures you control get +1/+1 and gain lifelink until end of turn"
                 }
@@ -6835,10 +6820,7 @@
                 "effect": {
                     "type": "CreateDelayedTrigger",
                     "step": "END_COMBAT",
-                    "effect": {
-                        "type": "SacrificeTarget",
-                        "target": "Self"
-                    }
+                    "effect": "SacrificeSelf"
                 }
             },
             {
@@ -6847,10 +6829,7 @@
                 "effect": {
                     "type": "CreateDelayedTrigger",
                     "step": "END_COMBAT",
-                    "effect": {
-                        "type": "SacrificeTarget",
-                        "target": "Self"
-                    }
+                    "effect": "SacrificeSelf"
                 }
             }
         ]
@@ -7074,7 +7053,7 @@
                     "type": "AnyTarget",
                     "id": "any target"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "TurnTracking",
@@ -7132,7 +7111,7 @@
                     ],
                     "imageUri": "https://cards.scryfall.io/normal/front/a/f/af4c9101-85bf-4a4f-a496-ff6db7b531b7.jpg?1562639979"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "TurnTracking",
@@ -7271,7 +7250,7 @@
                     "type": "TargetOpponent",
                     "id": "target opponent"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "TurnTracking",
@@ -7335,7 +7314,7 @@
                         }
                     ]
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "TurnTracking",
@@ -10215,12 +10194,12 @@
                             "amount": 5
                         }
                     },
-                    "storeAs": "revealed",
+                    "storeAs": "looked",
                     "revealed": true
                 },
                 {
                     "type": "SelectFromCollection",
-                    "from": "revealed",
+                    "from": "looked",
                     "selection": {
                         "type": "ChooseUpTo",
                         "count": {
@@ -10231,8 +10210,7 @@
                     "filter": "creature|land",
                     "storeSelected": "kept",
                     "storeRemainder": "rest",
-                    "selectedLabel": "Put in hand",
-                    "remainderLabel": "Put in graveyard",
+                    "prompt": "You may put a creature or land card from among them into your hand",
                     "showAllCards": true
                 },
                 {
@@ -11047,17 +11025,17 @@
                     "change": 1
                 },
                 "effect": {
-                    "type": "Composite",
-                    "effects": [
-                        {
-                            "type": "ForEach",
-                            "space": {
-                                "type": "IterationSpace.Group",
-                                "filter": {
-                                    "baseFilter": "creature ctrl:you"
-                                }
-                            },
-                            "body": {
+                    "type": "ForEach",
+                    "space": {
+                        "type": "IterationSpace.Group",
+                        "filter": {
+                            "baseFilter": "creature ctrl:you"
+                        }
+                    },
+                    "body": {
+                        "type": "Composite",
+                        "effects": [
+                            {
                                 "type": "ModifyStats",
                                 "powerModifier": {
                                     "type": "Fixed",
@@ -11069,24 +11047,15 @@
                                 },
                                 "target": "Self",
                                 "duration": "UntilYourNextTurn"
-                            }
-                        },
-                        {
-                            "type": "ForEach",
-                            "space": {
-                                "type": "IterationSpace.Group",
-                                "filter": {
-                                    "baseFilter": "creature ctrl:you"
-                                }
                             },
-                            "body": {
+                            {
                                 "type": "GrantKeyword",
                                 "keyword": "LIFELINK",
                                 "target": "Self",
                                 "duration": "UntilYourNextTurn"
                             }
-                        }
-                    ]
+                        ]
+                    }
                 },
                 "timing": "SorcerySpeed",
                 "isPlaneswalkerAbility": true
@@ -11696,13 +11665,16 @@
                     "to": "Battlefield"
                 },
                 "effect": {
-                    "type": "ExileUntilLeaves",
-                    "target": {
-                        "type": "BoundVariable",
-                        "name": "creature with toughness 3 or greater"
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "ExileUntilLeaves",
+                        "target": {
+                            "type": "BoundVariable",
+                            "name": "creature with toughness 3 or greater"
+                        }
                     }
                 },
-                "optional": true,
                 "targetRequirement": {
                     "type": "TargetObject",
                     "filter": {
@@ -12496,7 +12468,7 @@
                     },
                     "id": "target"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "TurnTracking",
@@ -13658,7 +13630,7 @@
                     ],
                     "imageUri": "https://cards.scryfall.io/normal/front/a/a/aa788dea-2968-45e8-9e08-c89e3e227d88.jpg?1562639973"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "TurnTracking",
@@ -13718,7 +13690,7 @@
                         "type": "TapUntap",
                         "target": {
                             "type": "BoundVariable",
-                            "name": "creature"
+                            "name": "creature to tap"
                         }
                     },
                     "targetRequirements": [
@@ -13727,7 +13699,7 @@
                             "filter": {
                                 "baseFilter": "creature"
                             },
-                            "id": "creature"
+                            "id": "creature to tap"
                         }
                     ],
                     "description": "Tap target creature"
@@ -13741,52 +13713,10 @@
                         },
                         "target": {
                             "type": "BoundVariable",
-                            "name": "creature"
+                            "name": "creature to damage"
                         }
                     },
                     "targetRequirements": [
-                        {
-                            "type": "TargetObject",
-                            "filter": {
-                                "baseFilter": "creature"
-                            },
-                            "id": "creature"
-                        }
-                    ],
-                    "description": "Winterflame deals 2 damage to target creature"
-                },
-                {
-                    "effect": {
-                        "type": "Composite",
-                        "effects": [
-                            {
-                                "type": "TapUntap",
-                                "target": {
-                                    "type": "BoundVariable",
-                                    "name": "creature to tap"
-                                }
-                            },
-                            {
-                                "type": "DealDamage",
-                                "amount": {
-                                    "type": "Fixed",
-                                    "amount": 2
-                                },
-                                "target": {
-                                    "type": "BoundVariable",
-                                    "name": "creature to damage"
-                                }
-                            }
-                        ]
-                    },
-                    "targetRequirements": [
-                        {
-                            "type": "TargetObject",
-                            "filter": {
-                                "baseFilter": "creature"
-                            },
-                            "id": "creature to tap"
-                        },
                         {
                             "type": "TargetObject",
                             "filter": {
@@ -13795,9 +13725,11 @@
                             "id": "creature to damage"
                         }
                     ],
-                    "description": "Tap target creature and deal 2 damage to target creature"
+                    "description": "Winterflame deals 2 damage to target creature"
                 }
-            ]
+            ],
+            "chooseCount": 2,
+            "minChooseCount": 1
         }
     },
     "metadata": {

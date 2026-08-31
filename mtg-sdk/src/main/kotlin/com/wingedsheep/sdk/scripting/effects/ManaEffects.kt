@@ -3,6 +3,7 @@ package com.wingedsheep.sdk.scripting.effects
 import com.wingedsheep.sdk.core.Color
 import com.wingedsheep.sdk.core.ManaCost
 import com.wingedsheep.sdk.scripting.GameObjectFilter
+import com.wingedsheep.sdk.scripting.targets.EffectTarget
 import com.wingedsheep.sdk.scripting.text.TextReplacer
 import com.wingedsheep.sdk.scripting.values.DynamicAmount
 import com.wingedsheep.sdk.scripting.values.ManaColorSet
@@ -76,6 +77,69 @@ data class PayDynamicManaCostEffect(
 }
 
 /**
+ * "Pay [cost] up to [maxTimes] times" / "…any number of times" — a **repeatable** optional mana
+ * payment made during resolution, whose payoff scales with *how many times* it was paid
+ * (Hawkeye, Master Marksman; Tranquil Frillback; the Innistrad Adversary cycle).
+ *
+ * The payer names a number of repetitions and pays `cost` that many times in one go — one payment,
+ * and (CR 603.12a) one reflexive trigger, not one per repetition. The cap is the smaller of
+ * [maxTimes] and how many repetitions they can actually afford, computed color-aware from `cost * n`
+ * through the same auto-tap predicate the payment itself uses — so the prompt never offers a count
+ * the payment would then fail on. Paying is not optional *within* this effect: the number is
+ * chosen from `1..cap`, and the effect **fails** when the payer cannot afford a single repetition.
+ * The decline path belongs to the wrapper:
+ *
+ *  - `ReflexiveTriggerEffect(action = this, optional = true, reflexiveEffect = …)` — "you **may**
+ *    pay {1} up to three times. **When you do**, …" (CR 603.12). The yes/no is the decline, the
+ *    number chooser is the count, and the reflexive half never triggers when either is refused.
+ *  - `GatedEffect(Gate.MayPay(this), then = …)` for the "if you do" templating.
+ *
+ * The number of repetitions is written into the resolution pipeline under [storeCountAs], read
+ * back with `DynamicAmount.VariableReference` ([com.wingedsheep.sdk.dsl.DynamicAmounts.timesPaid]).
+ * A stored *number* rather than an X value, because an effect result carries no X channel: a
+ * sub-effect can hand its outputs back up as collections, stored numbers and chosen values, and
+ * that is the whole list — there is no way for this effect to *write* an X that the reflexive
+ * ability would later read. (A trigger's own `xValue` does survive the CR 603.12 round-trip; it
+ * rides the carried trigger context. It just isn't something a sub-effect can set.) Feeding the
+ * stored number to a modal's [ModalEffect.dynamicChooseCount] is the "choose up to **that many** —"
+ * payoff.
+ *
+ * Distinct from [Gate.MayPayX], which is one *variable-size* generic payment binding X (no cap, no
+ * repeat unit, no colored pips): here the unit cost is fixed and repeated, so `{G}` three times
+ * costs `{G}{G}{G}` and cannot be paid with three colorless.
+ *
+ * @property cost One repetition's cost. Repeated with `ManaCost.times`, so colored pips repeat too.
+ * @property maxTimes Cap on repetitions; `null` is the uncapped "any number of times" wording.
+ * @property storeCountAs Pipeline variable the repetition count is written to.
+ */
+@SerialName("PayManaCostRepeatedly")
+@Serializable
+data class PayManaCostRepeatedlyEffect(
+    val cost: ManaCost,
+    val maxTimes: Int? = null,
+    val storeCountAs: String = TIMES_PAID
+) : Effect {
+    init {
+        require(maxTimes == null || maxTimes >= 1) {
+            "maxTimes must be at least 1 when set, was $maxTimes"
+        }
+    }
+
+    override val description: String = buildString {
+        append("Pay $cost ")
+        append(
+            if (maxTimes == null) "any number of times"
+            else "up to ${com.wingedsheep.sdk.scripting.util.numberToWord(maxTimes)} times"
+        )
+    }
+
+    companion object {
+        /** Default [storeCountAs] name — the count of repetitions actually paid. */
+        const val TIMES_PAID: String = "times_paid"
+    }
+}
+
+/**
  * Add mana effect.
  * "Add {G}" or "Add {R}{R}" or "Add {R} for each Goblin on the battlefield."
  *
@@ -92,7 +156,16 @@ data class AddManaEffect(
      * mana; [ManaExpiry.END_OF_COMBAT] is firebending-style mana that the pool keeps through
      * combat and discards when combat ends.
      */
-    val expiry: ManaExpiry = ManaExpiry.END_OF_TURN
+    val expiry: ManaExpiry = ManaExpiry.END_OF_TURN,
+    /**
+     * Side-effects attached to the produced mana — what happens to the *spell* this mana is
+     * eventually spent on (Pyromancer's Goggles: "When that mana is spent to cast a red instant or
+     * sorcery spell, copy that spell"). When non-empty, the mana is stored as restricted-mana
+     * entries so the rider set survives in the pool; with [restriction] null,
+     * [ManaRestriction.AnySpend] is used as a no-op marker so the mana still spends on anything.
+     * Mirrors [AddManaOfChoiceEffect.riders].
+     */
+    val riders: Set<ManaSpellRider> = emptySet()
 ) : Effect {
     constructor(color: Color, amount: Int, restriction: ManaRestriction? = null, expiry: ManaExpiry = ManaExpiry.END_OF_TURN) :
         this(color, DynamicAmount.Fixed(amount), restriction, expiry)
@@ -106,6 +179,7 @@ data class AddManaEffect(
         if (expiry == ManaExpiry.END_OF_COMBAT) {
             append(". Until end of combat, you don't lose this mana as steps and phases end")
         }
+        for (rider in riders) append(". ${rider.description}")
     }
 }
 
@@ -148,7 +222,7 @@ data class AddColorlessManaEffect(
  *      mana abilities when the player picked at activation time) or
  *      `EffectContext.chosenColor` (set by a wrapping `ChooseColorThenEffect`). If
  *      neither is present, the engine pauses for a `ChooseManaColorContinuation`.
- *   4. The chosen color is added to the controller's mana pool [amount] times.
+ *   4. The chosen color is added to [recipient]'s mana pool [amount] times.
  *
  * Example bindings:
  *   - "Add one mana of any color" → `AddManaOfChoiceEffect(ManaColorSet.AnyColor)`
@@ -156,6 +230,7 @@ data class AddColorlessManaEffect(
  *   - Mox Amber → `AddManaOfChoiceEffect(ManaColorSet.AmongPermanents(filter))`
  *   - Fellwar Stone → `AddManaOfChoiceEffect(ManaColorSet.LandsCouldProduce(OPPONENTS))`
  *   - Uncharted Haven → `AddManaOfChoiceEffect(ManaColorSet.SourceChosenColor)`
+ *   - Radiant Lotus → `AddManaOfChoiceEffect(..., recipient = EffectTarget.ContextTarget(0))`
  */
 @SerialName("AddManaOfChoice")
 @Serializable
@@ -170,6 +245,17 @@ data class AddManaOfChoiceEffect(
      * (the mana remains spendable on anything).
      */
     val riders: Set<ManaSpellRider> = emptySet(),
+    /**
+     * Whose pool the mana lands in. Defaults to the ability's controller — the only shape a *mana
+     * ability* can have (CR 605.1a), and what every land/rock produces. Point it at a player
+     * reference or a chosen target for "**target player** adds …" (Radiant Lotus), which is by
+     * definition not a mana ability because it targets.
+     *
+     * The *color* is still chosen by the ability's controller, not by the recipient: "Choose a
+     * color. Target player adds three mana of the chosen color …" names no other chooser, so the
+     * choice falls to the controller (CR 608.2). Only the pool the mana is added to moves.
+     */
+    val recipient: EffectTarget = EffectTarget.Controller,
 ) : Effect {
     constructor(colorSet: ManaColorSet, amount: Int, restriction: ManaRestriction? = null) :
         this(colorSet, DynamicAmount.Fixed(amount), restriction)
@@ -179,7 +265,8 @@ data class AddManaOfChoiceEffect(
             is DynamicAmount.Fixed -> if (a.amount == 1) "one mana of" else "${a.amount} mana of"
             else -> "${a.description} mana of"
         }
-        append("Add $amountText ${colorSet.description}")
+        if (recipient == EffectTarget.Controller) append("Add $amountText ${colorSet.description}")
+        else append("${recipient.description} adds $amountText ${colorSet.description}")
         if (restriction != null && restriction.description.isNotEmpty()) append(". ${restriction.description}")
         for (rider in riders) append(". ${rider.description}")
     }

@@ -30,6 +30,11 @@ System.getenv("GRADLE_BUILD_CACHE_DIR")?.let { cacheDir ->
     }
 }
 
+// Cache *retention* (the local build cache had grown to 19 GB) cannot be set from here: Gradle
+// rejects it as "modified from an unsafe location" because it governs the shared Gradle user home,
+// not this build. It lives in gradle/init.d/argentum-cache-retention.init.gradle.kts instead —
+// install it with `just install-gradle-init`.
+
 // Include subprojects in the build.
 // If there are changes in only one of the projects, Gradle will rebuild only the one that has changed.
 // Learn more about structuring projects with Gradle - https://docs.gradle.org/8.7/userguide/multi_project_builds.html
@@ -38,10 +43,32 @@ include(":rules-engine")
 include(":mtg-sdk")
 include(":mtg-sets")
 include(":mtg-search")
+
+// The card corpus, split out of :mtg-sets and nested underneath it. `:mtg-sets` still re-exports
+// all of it, so every existing `project(":mtg-sets")` dependency is unchanged — the split only
+// bounds how much Kotlin has to compile at once. Era boundaries are FIXED year ranges chained
+// oldest-to-newest: a new release year appends a module, and no set ever moves between them.
+//
+// Each era also owns its scenario tests as a `tests` child — a test for an Outlaws of Thunder
+// Junction card lives in `mtg-sets/2024/tests`, right next to the cards it exercises, so a set's
+// PR touches one directory. The test modules depend on the `:mtg-sets` aggregator rather than on
+// their own era, so every scenario still sees the whole catalog; the era only decides where a file
+// lives. Engine tests (not about a specific card) stay in `:rules-engine`'s own suite.
+include(":mtg-sets:core")
+for (era in listOf(
+    "1993-1999", "2000-2002", "2003-2007", "2008-2016", "2017-2022", "2023", "2024", "2025", "2026",
+)) {
+    include(":mtg-sets:$era")
+    include(":mtg-sets:$era:tests")
+}
 include(":ai")
 include(":gym")
 include(":gym-server")
 include(":gym-trainer")
 include(":mtgish-tooling")
+
+// Argentum Assay — the first-party Oracle-text parser (docs/oracle-assay.md). Depends on :mtg-sdk
+// only: the grammar parses directly into SDK types, and it is not a runtime card loader.
+include(":oracle-assay")
 
 rootProject.name = "argentum-engine"

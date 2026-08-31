@@ -86,21 +86,30 @@ class ForEachExecutor(
         items: List<ForEachItem>,
         outerContext: EffectContext
     ): EffectResult {
+        if (items.isEmpty()) {
+            val collected = effect.collectCollections.values.associateWith { aggregate ->
+                outerContext.pipeline.storedCollections[aggregate].orEmpty()
+            }
+            return EffectResult(state = state, updatedCollections = collected)
+        }
+
         var currentState = state
+        var currentOuterContext = outerContext
         val allEvents = mutableListOf<GameEvent>()
 
         for ((index, item) in items.withIndex()) {
             val remainingItems = items.drop(index + 1)
 
-            val iterationContext = bindIterationContext(currentState, outerContext, item)
+            val iterationContext = bindIterationContext(currentState, currentOuterContext, item)
 
-            val stateForExecution = if (remainingItems.isNotEmpty()) {
+            val needsContinuation = remainingItems.isNotEmpty() || effect.collectCollections.isNotEmpty()
+            val stateForExecution = if (needsContinuation) {
                 currentState.pushContinuation(
                     ForEachContinuation(
                         decisionId = "pending",
                         remainingItems = remainingItems,
                         effect = effect,
-                        effectContext = outerContext
+                        effectContext = currentOuterContext
                     )
                 )
             } else {
@@ -121,16 +130,45 @@ class ForEachExecutor(
 
             // Pop the pre-pushed continuation (it wasn't needed). A failed body
             // (per CR 608.2 partial resolution) still continues with the next item.
-            currentState = if (remainingItems.isNotEmpty()) {
+            currentState = if (needsContinuation) {
                 val (_, stateWithoutCont) = result.state.popContinuation()
                 stateWithoutCont
             } else {
                 result.state
             }
             allEvents.addAll(result.events)
+
+            if (effect.collectCollections.isNotEmpty()) {
+                currentOuterContext = appendCollectedCollections(
+                    currentOuterContext,
+                    effect,
+                    result.updatedCollections
+                )
+            }
         }
 
-        return EffectResult.success(currentState, allEvents)
+        val collected = effect.collectCollections.values.associateWith { aggregate ->
+            currentOuterContext.pipeline.storedCollections[aggregate].orEmpty()
+        }
+        return EffectResult(currentState, allEvents, updatedCollections = collected)
+    }
+
+    private fun appendCollectedCollections(
+        context: EffectContext,
+        effect: ForEachEffect,
+        outputs: Map<String, List<EntityId>>
+    ): EffectContext {
+        if (outputs.isEmpty()) return context
+        var collections = context.pipeline.storedCollections
+        for ((localName, aggregateName) in effect.collectCollections) {
+            val iterationOutput = outputs[localName].orEmpty()
+            if (iterationOutput.isNotEmpty()) {
+                collections = collections + (
+                    aggregateName to collections[aggregateName].orEmpty() + iterationOutput
+                )
+            }
+        }
+        return context.copy(pipeline = context.pipeline.copy(storedCollections = collections))
     }
 
     /** Snapshot the iteration space into concrete items. */
@@ -175,6 +213,7 @@ class ForEachExecutor(
     ): EffectContext = when (item) {
         is ForEachItem.OfTarget -> outerContext.copy(
             targets = listOf(item.target),
+            alignedTargets = listOf(item.target),
             pipeline = outerContext.pipeline.copy(storedCollections = emptyMap())
         )
 
@@ -201,10 +240,7 @@ class ForEachExecutor(
     private fun resolvePlayers(player: Player, state: GameState, context: EffectContext): List<EntityId> {
         return when (player) {
             Player.Each -> state.activePlayers
-            Player.ActivePlayerFirst -> {
-                val activePlayer = state.activePlayerId ?: return state.activePlayers
-                listOf(activePlayer) + state.activePlayers.filter { it != activePlayer }
-            }
+            Player.ActivePlayerFirst -> state.apnapOrder
             Player.You -> listOf(context.controllerId)
             Player.EachOpponent -> state.getOpponents(context.controllerId)
             // Distinct owners of the cards still in the source's linked-exile pile. Resolve to
@@ -215,13 +251,19 @@ class ForEachExecutor(
             Player.TargetOpponent, Player.TargetPlayer -> listOfNotNull(
                 TargetResolutionUtils.resolvePlayerRef(player, context, state)
             )
-            // Single-player references (e.g. ControllerOf a targeted spell — Fear of Impostors'
-            // "its controller manifests dread") resolve to exactly that player. Fall back to all
-            // active players only when the reference yields nothing (a truly multi-player or
-            // unresolved ref).
-            else -> TargetResolutionUtils.resolvePlayerRef(player, context, state)
-                ?.let { listOf(it) }
-                ?: state.activePlayers
+            // "those players" — iterate every player among the chosen targets. Needs its own arm:
+            // the `else` below routes through the single-player resolver, which deliberately
+            // returns null for plural references, so a ForEach over them would silently do nothing.
+            Player.EachTargetedPlayer -> context.targets
+                .filterIsInstance<com.wingedsheep.engine.state.components.stack.ChosenTarget.Player>()
+                .map { it.playerId }
+                .distinct()
+            // Single-player references (e.g. ControllerOf a targeted permanent — Unwanted
+            // Remake's "its controller manifests dread") resolve to exactly that player. An
+            // unresolved reference means there is nobody to iterate, not "every player": that
+            // distinction is load-bearing for optional-target abilities whose "its controller"
+            // rider must do nothing when no target was chosen.
+            else -> listOfNotNull(TargetResolutionUtils.resolvePlayerRef(player, context, state))
         }
     }
 

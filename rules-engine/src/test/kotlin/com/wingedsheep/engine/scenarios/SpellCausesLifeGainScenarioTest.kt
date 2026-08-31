@@ -2,7 +2,10 @@ package com.wingedsheep.engine.scenarios
 
 import com.wingedsheep.engine.support.GameTestDriver
 import com.wingedsheep.engine.support.TestCards
+import com.wingedsheep.engine.core.CastSpell
 import com.wingedsheep.engine.core.CycleCard
+import com.wingedsheep.engine.core.PaymentStrategy
+import com.wingedsheep.engine.state.components.stack.ChosenTarget
 import com.wingedsheep.mtg.sets.definitions.ons.cards.RenewedFaith
 import com.wingedsheep.sdk.core.Color
 import com.wingedsheep.sdk.core.Keyword
@@ -484,7 +487,7 @@ class SpellCausesLifeGainScenarioTest : FunSpec({
         d.getLifeTotal(opp) shouldBe oppLife - 6
     }
 
-    test("white divided-damage lifelink after distribution pause still matches") {
+    test("white divided-damage lifelink with cast-time distribution still matches") {
         val d = driver()
         d.initMirrorMatch(deck = Deck.of("Plains" to 40), skipMulligans = true)
         val me = d.activePlayer!!
@@ -501,35 +504,23 @@ class SpellCausesLifeGainScenarioTest : FunSpec({
         val myLife = d.getLifeTotal(me)
         val oppLife = d.getLifeTotal(opp)
 
-        d.castSpell(me, spell, listOf(c1, c2)).isSuccess shouldBe true
-
-        // Legacy DividedDamage pause: choose 1+1, then finish the stack (incl. watcher).
-        var guard = 0
-        while (guard++ < 40) {
-            val decision = d.state.pendingDecision
-            if (decision is com.wingedsheep.engine.core.DistributeDecision) {
-                d.submitDecision(
-                    me,
-                    com.wingedsheep.engine.core.DistributionResponse(
-                        decision.id,
-                        mapOf(c1 to 1, c2 to 1),
-                    ),
-                )
-            } else if (d.pendingDecision != null) {
-                d.autoResolveDecision()
-            } else if (d.stackSize > 0) {
-                d.bothPass()
-            } else {
-                break
-            }
-        }
+        d.submit(
+            CastSpell(
+                playerId = me,
+                cardId = spell,
+                targets = listOf(ChosenTarget.Permanent(c1), ChosenTarget.Permanent(c2)),
+                damageDistribution = mapOf(c1 to 1, c2 to 1),
+                paymentStrategy = PaymentStrategy.FromPool,
+            ),
+        ).isSuccess shouldBe true
+        resolveUntilIdle(d)
 
         // 1+1 damage → two lifelink gains of 1 (sequential packets) → watcher fires twice.
         d.getLifeTotal(me) shouldBe myLife + 2
         d.getLifeTotal(opp) shouldBe oppLife - 6
     }
 
-    test("granted lifelink on red divided damage still applies after distribution pause") {
+    test("granted lifelink on red divided damage still applies with cast-time distribution") {
         val d = driver()
         d.initMirrorMatch(deck = Deck.of("Mountain" to 40), skipMulligans = true)
         val me = d.activePlayer!!
@@ -545,29 +536,17 @@ class SpellCausesLifeGainScenarioTest : FunSpec({
 
         val myLife = d.getLifeTotal(me)
 
-        d.castSpell(me, spell, listOf(c1, c2)).isSuccess shouldBe true
+        d.submit(
+            CastSpell(
+                playerId = me,
+                cardId = spell,
+                targets = listOf(ChosenTarget.Permanent(c1), ChosenTarget.Permanent(c2)),
+                damageDistribution = mapOf(c1 to 1, c2 to 1),
+                paymentStrategy = PaymentStrategy.FromPool,
+            ),
+        ).isSuccess shouldBe true
+        resolveUntilIdle(d)
 
-        var guard = 0
-        while (guard++ < 40) {
-            val decision = d.state.pendingDecision
-            if (decision is com.wingedsheep.engine.core.DistributeDecision) {
-                d.submitDecision(
-                    me,
-                    com.wingedsheep.engine.core.DistributionResponse(
-                        decision.id,
-                        mapOf(c1 to 1, c2 to 1),
-                    ),
-                )
-            } else if (d.pendingDecision != null) {
-                d.autoResolveDecision()
-            } else if (d.stackSize > 0) {
-                d.bothPass()
-            } else {
-                break
-            }
-        }
-
-        // Grant must survive the mid-resolution pause even after the spell left the stack.
         d.getLifeTotal(me) shouldBe myLife + 2
     }
 })

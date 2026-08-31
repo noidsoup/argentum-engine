@@ -11,6 +11,7 @@ import com.wingedsheep.engine.state.GameState
 import com.wingedsheep.engine.state.ZoneKey
 import com.wingedsheep.engine.state.components.player.PlayerTurnsTakenComponent
 import com.wingedsheep.engine.support.TestCards
+import com.wingedsheep.sdk.core.DayNight
 import com.wingedsheep.sdk.core.Format
 import com.wingedsheep.sdk.core.Step
 import com.wingedsheep.sdk.core.Zone
@@ -24,9 +25,9 @@ import io.kotest.matchers.shouldBe
  *
  * A team takes ONE turn together: both members untap and draw (805.4b), each may play a land
  * (805.4c) and act at sorcery speed on the team's turn (805.5a), the turn passes team-by-team
- * (805.4), and the starting team skips its first draw (810.6). Priority still cycles per player —
- * that already gives each teammate a window — so this verifies turn *structure* and the
- * turn-ownership gates, not the priority machinery.
+ * (805.4), and the starting team skips its first draw (810.6). This verifies turn *structure* and
+ * the turn-ownership gates; who may act inside a given priority window is
+ * [TwoHeadedGiantTeamPriorityTest]'s subject (CR 805.5).
  *
  * Teams are [[0,1],[2,3]] with turn order pinned to player order: p0,p1 = team 0 (starting);
  * p2,p3 = team 1.
@@ -112,6 +113,34 @@ class TwoHeadedGiantSharedTurnTest : FunSpec({
         // Both team-1 members took the turn together (805.4): both counters incremented to 1.
         atTeam1.getEntity(p[2])!!.get<PlayerTurnsTakenComponent>()!!.count shouldBe 1
         atTeam1.getEntity(p[3])!!.get<PlayerTurnsTakenComponent>()!!.count shouldBe 1
+    }
+
+    test("day stays day when the previous active player's teammate cast a spell (CR 502.2a)") {
+        val (initial, p, proc) = boot()
+        val withDayAndTeamSpell = initial.copy(
+            dayNight = DayNight.DAY,
+            playerSpellsCastThisTurn = mapOf(p[1] to 1),
+        )
+
+        val atTeam1Main = drive(withDayAndTeamSpell, proc) {
+            it.activePlayerId == p[2] && it.step == Step.PRECOMBAT_MAIN
+        }
+
+        atTeam1Main.dayNight shouldBe DayNight.DAY
+    }
+
+    test("night becomes day when the previous active player's teammate cast two spells (CR 502.2a)") {
+        val (initial, p, proc) = boot()
+        val withNightAndTeamSpells = initial.copy(
+            dayNight = DayNight.NIGHT,
+            playerSpellsCastThisTurn = mapOf(p[1] to 2),
+        )
+
+        val atTeam1Main = drive(withNightAndTeamSpells, proc) {
+            it.activePlayerId == p[2] && it.step == Step.PRECOMBAT_MAIN
+        }
+
+        atTeam1Main.dayNight shouldBe DayNight.DAY
     }
 
     test("the non-active teammate may play a land on the team's turn (CR 805.4c / 805.5a)") {

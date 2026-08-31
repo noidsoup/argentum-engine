@@ -4,9 +4,11 @@ import com.wingedsheep.engine.handlers.effects.TargetResolutionUtils
 import com.wingedsheep.engine.state.GameState
 import com.wingedsheep.engine.state.components.stack.ChosenTarget
 import com.wingedsheep.engine.state.components.stack.EntitySnapshot
+import com.wingedsheep.engine.state.components.stack.TriggeredAbilityOnStackComponent
 import com.wingedsheep.sdk.core.Color
 import com.wingedsheep.sdk.core.Zone
 import com.wingedsheep.sdk.model.EntityId
+import com.wingedsheep.sdk.scripting.ChoiceSlot
 import com.wingedsheep.sdk.scripting.targets.EffectTarget
 import com.wingedsheep.sdk.scripting.targets.TargetRequirement
 import kotlinx.serialization.Serializable
@@ -72,12 +74,28 @@ data class EffectContext(
      */
     val abilityIdentity: com.wingedsheep.sdk.scripting.AbilityIdentity? = null,
     /**
+     * The id of the *activated* ability currently resolving, as recorded in the source's
+     * `AbilityActivatedThisTurnComponent`. Lets an effect read back how many times its own ability
+     * has been activated this turn (`ThisAbilityActivatedThisTurnAtLeast` — Farrelite Priest).
+     * Null for spells, triggered abilities and any activation whose ability opted out of
+     * bookkeeping.
+     */
+    val activatedAbilityId: com.wingedsheep.sdk.scripting.AbilityId? = null,
+    /**
      * The player currently under consideration as a target, bound while evaluating a
      * `TargetPlayer.restriction` / `TargetOpponent.restriction` (CR 115). Resolves
      * [com.wingedsheep.sdk.scripting.references.Player.Candidate]. Null in every normal
      * effect-resolution context — there is no candidate once an effect is executing.
      */
     val candidatePlayerId: EntityId? = null,
+    /**
+     * The face-change tally [sourceId] carried when this ability was put onto the stack (CR
+     * 701.28f). `TransformEffectExecutor` compares it against the source's current tally and
+     * ignores a self-transform when the two differ — the permanent has already turned over since,
+     * so the instruction does nothing. Null for spells, for a non-double-faced source, and for
+     * synthesized abilities that carry no such restriction.
+     */
+    val sourceFaceChanges: Int? = null,
     val targets: List<ChosenTarget> = emptyList(),
     /**
      * Positionally-aligned view of [targets]: the same length as the originally-chosen target
@@ -114,7 +132,15 @@ data class EffectContext(
      * Read by `DynamicAmount.ManaSpentOnX`. Empty when X was unrestricted.
      */
     val manaSpentOnXByColor: Map<Color, Int> = emptyMap(),
-    val wasKicked: Boolean = false,
+    /**
+     * The optional-additional-cost mechanic declared for the spell being cast or resolved
+     * ([com.wingedsheep.sdk.scripting.ChoiceSlot.KICKED] for kicker, `BARGAINED` for bargain), or
+     * null when none was. Read by `WasKicked` and by `CastChoiceMade(slot)` — the latter is how a
+     * spell's own "if this spell was bargained" rider resolves while the spell is still on the
+     * stack, before any durable cast-choices bag exists, and how a `CostGating.OnlyIf` cost
+     * reduction is priced against the branch being enumerated.
+     */
+    val declaredCostSlot: ChoiceSlot? = null,
     /** True if the spell's optional Blight additional cost was paid (BlightOrPay path chosen). */
     val wasBlightPaid: Boolean = false,
     /**
@@ -125,9 +151,13 @@ data class EffectContext(
     val wasWaterbendPaid: Boolean = false,
     /** True if the spell was cast for its sneak cost (CR 702.190). Read by `SneakCostWasPaid`. */
     val wasSneaked: Boolean = false,
+    /** True if the spell was cast using web-slinging (CR 702.188). Read by `WebSlungCostWasPaid`. */
+    val wasWebSlung: Boolean = false,
+    /** True if the spell was cast for its mayhem cost (CR 702.187). Read by `MayhemCostWasPaid`. */
+    val wasMayhem: Boolean = false,
     // --- Cast-time state ---
     /**
-     * Projected snapshots of permanents sacrificed as part of the cost (Rule 112.7a /
+     * Projected snapshots of permanents sacrificed as part of the cost (Rule 113.7a /
      * 608.2h — "as it last existed on the battlefield"). Captured before the zone change
      * so downstream effects can read power, toughness, and subtypes after the permanent
      * has left the battlefield.
@@ -158,11 +188,30 @@ data class EffectContext(
     val additionalCostBlightAmount: Int = 0,
     /** Permanents tapped as part of an activated ability's cost (e.g., Cryptic Gateway) */
     val tappedPermanents: List<EntityId> = emptyList(),
-    /** LKI snapshots for [tappedPermanents] (Rule 112.7a). See [EntitySnapshot]. */
+    /**
+     * Cards exiled to pay an activated ability's cost, recorded at payment time (CR 601.2h — the
+     * cost is paid on activation, long before the ability resolves). Read by
+     * [com.wingedsheep.sdk.scripting.effects.CardSource.ExiledAsCost] so the resolving effect can
+     * name "those exiled cards" (Baron Helmut Zemo). The exile counterpart of [tappedPermanents],
+     * and scoped to *this* activation's payment — unlike a permanent's linked-exile pile, which
+     * accumulates across activations.
+     */
+    val exiledAsCostCards: List<EntityId> = emptyList(),
+    /**
+     * LKI snapshots (Rule 113.7a) for the entries of [exiledAsCostCards] that were exiled **from
+     * the battlefield**, captured before the zone change. A permanent exiled as a cost may be a
+     * token — which ceases to exist and can't be read at resolution — or may have been a Thrull
+     * only through a continuous effect, so "the exiled creature was a Thrull" (Soul Exchange) has
+     * to read what it last was on the battlefield rather than what its card prints. Empty for
+     * exile costs paid from any other zone, where the card is still a real object in exile and its
+     * printed characteristics are the right answer.
+     */
+    val exiledAsCostSnapshots: List<EntitySnapshot> = emptyList(),
+    /** LKI snapshots for [tappedPermanents] (Rule 113.7a). See [EntitySnapshot]. */
     val tappedEntitySnapshots: List<EntitySnapshot> = emptyList(),
     /**
      * Counters (counter-type-string → count) the source had the moment a self-exile /
-     * self-sacrifice cost wiped them (CR 112.7a). Read by
+     * self-sacrifice cost wiped them (CR 113.7a). Read by
      * [com.wingedsheep.sdk.scripting.values.DynamicAmount.LastKnownSourceCounters] so an effect
      * like "Draw a card for each verse counter on this. If it had seven or more..." (Lost Isle
      * Calling) sees the pre-cost count rather than zero.
@@ -170,7 +219,7 @@ data class EffectContext(
     val lastKnownSourceCounters: Map<String, Int> = emptyMap(),
     /**
      * Frozen projected P/T (and subtypes/supertypes) the source had the moment a self-exile /
-     * self-sacrifice cost moved it off the battlefield (CR 112.7a / 608.2h — "as it last existed
+     * self-sacrifice cost moved it off the battlefield (CR 113.7a / 608.2h — "as it last existed
      * on the battlefield"). Mirrors [lastKnownSourceCounters]. Read by [DynamicAmountEvaluator]
      * when an `EntityProperty(EntityReference.Source, …)` power/toughness read resolves after the
      * source is gone, so "Sacrifice this creature: it deals damage equal to its power" reads the
@@ -180,7 +229,7 @@ data class EffectContext(
     val lastKnownSourceSnapshot: EntitySnapshot? = null,
     /**
      * Entity ids of the permanents (Equipment/Auras) that were attached to the source the moment a
-     * self-sacrifice / self-exile cost moved it off the battlefield (CR 112.7a). Captured before the
+     * self-sacrifice / self-exile cost moved it off the battlefield (CR 113.7a). Captured before the
      * cost is paid, while the source still carries its `AttachmentsComponent`. Read by
      * [com.wingedsheep.sdk.scripting.effects.CardSource.LastKnownEquipmentAttachedToSource] so an
      * effect can "attach an Equipment that was attached to it to that creature" (Zack Fair) after the
@@ -189,7 +238,7 @@ data class EffectContext(
      */
     val lastKnownSourceAttachments: List<EntityId> = emptyList(),
     /**
-     * LKI snapshots (Rule 112.7a) for entities chosen via an additional cost
+     * LKI snapshots (Rule 113.7a) for entities chosen via an additional cost
      * step like [com.wingedsheep.sdk.scripting.AdditionalCost.ChooseEntity]
      * with `captureSnapshot = true`. Indexed by entity id via
      * [com.wingedsheep.engine.state.components.stack.snapshotFor]. Read by
@@ -216,12 +265,25 @@ data class EffectContext(
      * Demon". Null when the trigger wasn't driven by a permanent leaving the battlefield.
      */
     val triggerLastKnownSubtypes: Set<String>? = null,
+    /**
+     * Last-known projected card types from a dies/leaves trigger context (CR 603.10). Read by
+     * `TriggeringEntityHadCardType` as an intervening-if — e.g. Tom, Bert, and William's "if they
+     * were a creature". Null when the trigger wasn't driven by a permanent leaving the battlefield.
+     */
+    val triggerLastKnownCardTypes: Set<String>? = null,
     /** The entity that caused the trigger to fire (e.g., creature that dealt damage for Aurification) */
     val triggeringEntityId: EntityId? = null,
     /** The player associated with the trigger event (e.g., the player who cast a spell for SpellCastEvent) */
     val triggeringPlayerId: EntityId? = null,
     /** The spell or ability that targeted a permanent (for ward triggers) */
     val targetingSourceEntityId: EntityId? = null,
+    /**
+     * The host an attachment came *off*, captured when a "becomes unattached" trigger fired. Backs
+     * [com.wingedsheep.sdk.scripting.targets.EffectTarget.AttachedToTriggeringPermanent] there,
+     * where the live `AttachedToComponent` is by resolution either gone or already re-pointed at a
+     * new host — Stitcher's Graft's "sacrifice that permanent". Null for every other trigger.
+     */
+    val triggerUnattachedFromEntityId: EntityId? = null,
     /**
      * The defending player for a per-defender combat legality check (CR 508.1 attack
      * declaration). Bound by [com.wingedsheep.engine.mechanics.combat.rules.CantAttackUnlessDefenderRule]
@@ -303,6 +365,11 @@ data class EffectContext(
      */
     val triggerScryCount: Int? = null,
     /**
+     * Number of cards discarded in the batch that fired this trigger (CR 603.2c). Read by
+     * `ContextPropertyKey.TRIGGER_DISCARD_COUNT` (Magmakin Artillerist).
+     */
+    val triggerDiscardCount: Int? = null,
+    /**
      * Discover value N of the discover that fired this trigger (CR 701.57). Read by
      * `ContextPropertyKey.TRIGGER_DISCOVER_VALUE` (Curator of Sun's Creation).
      */
@@ -329,6 +396,20 @@ data class EffectContext(
     val chosenColor: Color? = null,
     /** Creature type chosen during casting (e.g., Aphetto Dredging) */
     val chosenCreatureType: String? = null,
+    /**
+     * The opponent the controller picked to make a
+     * [com.wingedsheep.sdk.scripting.effects.Chooser.Opponent] decision, when the game has more
+     * than one opponent to choose from (CR 601.7a / 602.3a and the matching resolution-time
+     * rulings). Set by
+     * [com.wingedsheep.engine.core.ChooseOpponentDeciderContinuation]'s resumer just before the
+     * effect is re-executed, and read back by
+     * [com.wingedsheep.engine.handlers.effects.ChooserResolution.resolve].
+     *
+     * Resolution-scoped on purpose: the stamp rides only the re-run context, so each separate
+     * "an opponent chooses" step gets its own prompt. Null in two-player games (a sole opponent
+     * is a forced choice, never asked) and before the pick is made.
+     */
+    val opponentDeciderId: EntityId? = null,
     // --- Zone state ---
     /** Zone the spell was cast from (e.g., HAND, GRAVEYARD for flashback) */
     val castFromZone: Zone? = null,
@@ -467,5 +548,77 @@ data class EffectContext(
             }
             return result
         }
+
+        /**
+         * Build the execution context for a triggered ability sitting on the stack.
+         *
+         * Shared by the two places that need to evaluate the ability's own text against the game
+         * state: [com.wingedsheep.engine.mechanics.stack.StackResolver] when the ability resolves,
+         * and [com.wingedsheep.engine.event.TriggerProcessor] when it resolves a modal
+         * `dynamicChooseCount` as the ability goes onto the stack (CR 603.3c). Both must see the
+         * same trigger payload — an `xValue`, a `MODES_CHOSEN_ON_TRIGGERING_SPELL` count or a
+         * carried pipeline collection that only one of them populated would read as zero/absent.
+         */
+        fun forTriggeredAbility(
+            ability: TriggeredAbilityOnStackComponent,
+            targets: List<ChosenTarget> = emptyList(),
+            targetRequirements: List<TargetRequirement> = emptyList()
+        ): EffectContext = EffectContext(
+            sourceId = ability.sourceId,
+            controllerId = ability.controllerId,
+            granterId = ability.granterId,
+            abilityIdentity = ability.abilityIdentity,
+            sourceFaceChanges = ability.sourceFaceChanges,
+            targets = targets,
+            triggerDamageAmount = ability.triggerDamageAmount,
+            triggerCounterCount = ability.triggerCounterCount,
+            triggerTotalCounterCount = ability.triggerTotalCounterCount,
+            triggerLastKnownCounters = ability.triggerLastKnownCounters,
+            triggerLastKnownSubtypes = ability.triggerLastKnownSubtypes,
+            triggerLastKnownCardTypes = ability.triggerLastKnownCardTypes,
+            triggerLastKnownDamageDealtByPlayers = ability.triggerLastKnownDamageDealtByPlayers,
+            triggerLastKnownBlockingOrBlockedByIds = ability.triggerLastKnownBlockingOrBlockedByIds,
+            triggeringEntityId = ability.triggeringEntityId,
+            triggeringPlayerId = ability.triggeringPlayerId,
+            targetingSourceEntityId = ability.targetingSourceEntityId,
+            triggerUnattachedFromEntityId = ability.triggerUnattachedFromEntityId,
+            triggerLastKnownPower = ability.lastKnownPower,
+            triggerLastKnownToughness = ability.lastKnownToughness,
+            triggerDiedBatchTotalPower = ability.diedBatchTotalPower,
+            enchantedCreatureLastKnownPower = ability.enchantedCreatureLastKnownPower,
+            triggerModesChosenCount = ability.triggerModesChosenCount,
+            triggerScryCount = ability.triggerScryCount,
+            triggerDiscardCount = ability.triggerDiscardCount,
+            triggerDiscoverValue = ability.triggerDiscoverValue,
+            triggerExcessDamageAmount = ability.triggerExcessDamageAmount,
+            triggerRecipientToughness = ability.triggerRecipientToughness,
+            triggerManaSpentOnTriggeringSpell = ability.triggerManaSpentOnTriggeringSpell,
+            triggerColorsSpentOnTriggeringSpell = ability.triggerColorsSpentOnTriggeringSpell,
+            triggerManaValueOfTriggeringSpell = ability.triggerManaValueOfTriggeringSpell,
+            triggerXValueOfTriggeringSpell = ability.triggerXValueOfTriggeringSpell,
+            xValue = ability.xValue,
+            damageDistribution = ability.damageDistribution,
+            chosenModes = ability.chosenModes,
+            modeTargetsOrdered = ability.modeTargetsOrdered,
+            modeTargetRequirements = ability.modeTargetRequirements,
+            pipeline = PipelineState(
+                namedTargets = buildNamedTargets(targetRequirements, targets) +
+                    (ability.carriedPipeline?.namedTargets ?: emptyMap()),
+                // Expose a batch trigger's captured permanents (the matching members of a
+                // PermanentsEnteredEvent batch) so a ForEachInCollectionEffect payoff can iterate
+                // them — "for each of them, create a tapped copy of it" (Kambal). The copy executor
+                // reads each entity at resolution, so any that left the battlefield meanwhile no-op.
+                storedCollections = (if (ability.capturedEntityIds.isNotEmpty()) {
+                    mapOf(PipelineState.TRIGGER_CAPTURED_COLLECTION to ability.capturedEntityIds)
+                } else emptyMap()) + (ability.carriedPipeline?.storedCollections ?: emptyMap()),
+                // A `ReflexiveTriggerEffect`'s action half (e.g. `Amass`, a discard) may have stashed
+                // subtype groups or scalar values the reflexive effect reads (CR 603.12) — carried
+                // across the stack round-trip since this ability builds a fresh context on resolve.
+                storedSubtypeGroups = ability.carriedPipeline?.storedSubtypeGroups ?: emptyMap(),
+                chosenValues = ability.carriedPipeline?.chosenValues ?: emptyMap(),
+                storedNumbers = ability.carriedPipeline?.storedNumbers ?: emptyMap(),
+                storedStringLists = ability.carriedPipeline?.storedStringLists ?: emptyMap()
+            )
+        )
     }
 }

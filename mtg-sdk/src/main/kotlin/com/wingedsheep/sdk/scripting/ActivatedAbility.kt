@@ -1,9 +1,15 @@
 package com.wingedsheep.sdk.scripting
 
 import com.wingedsheep.sdk.core.Color
+import com.wingedsheep.sdk.core.ManaCost
 import com.wingedsheep.sdk.core.Zone
 import com.wingedsheep.sdk.scripting.costs.CostAtom
+import com.wingedsheep.sdk.scripting.costs.manaCostOrNull
+import com.wingedsheep.sdk.scripting.effects.AttachEquipmentEffect
 import com.wingedsheep.sdk.scripting.effects.Effect
+import com.wingedsheep.sdk.scripting.filters.unified.TargetFilter
+import com.wingedsheep.sdk.scripting.targets.EffectTarget
+import com.wingedsheep.sdk.scripting.targets.TargetCreature
 import com.wingedsheep.sdk.scripting.targets.TargetRequirement
 import com.wingedsheep.sdk.scripting.text.TextReplaceable
 import com.wingedsheep.sdk.scripting.text.TextReplacer
@@ -32,8 +38,32 @@ data class ActivatedAbility(
      * and "the first equip ability you activate each turn costs {0}" (Forge Anew).
      */
     val isEquipAbility: Boolean = false,
+    /**
+     * The quality of an "Equip [quality]" variant (CR 702.6c) — `"Human"` for Dúnedain Blade's
+     * *Equip Human {1}*, `"worthy"` for Mjölnir, Hammer of Thor. Null for a plain equip ability and
+     * for everything that isn't one.
+     *
+     * Wording only: the rules half is the [targetRequirements] filter, which is what decides legal
+     * targets. This exists so [describeWithCost] can render the printed "Equip [quality] [cost]"
+     * line instead of the generated "[cost]: Attach this equipment to …", *and* keep doing so when a
+     * cost reduction rewrites the cost — which a static `descriptionOverride` could not.
+     */
+    val equipQuality: String? = null,
     val activateFromZone: Zone = Zone.BATTLEFIELD,
-    val promptOnDraw: Boolean = false,
+    /**
+     * Count this ability's activations for the turn even though no [restrictions] entry needs the
+     * tally. The engine only bookkeeps activations for abilities gated by `OncePerTurn` /
+     * `MaxPerTurn`, because that is all anything used to read; Fallen Empires' burnout mana
+     * creatures (Farrelite Priest, Initiates of the Ebon Hand) read the count *without* being
+     * limited by it — "{1}: Add {W}. If this ability has been activated four or more times this
+     * turn, sacrifice this creature at the beginning of the next end step." (the Initiates add
+     * {B} rather than {W}; the burnout clause is identical).
+     *
+     * Opt-in rather than always-on so the per-activation bookkeeping stays off the hot path for
+     * the overwhelming majority of abilities that never look at it. Pair with
+     * `Conditions.ThisAbilityActivatedThisTurnAtLeast`.
+     */
+    val trackActivations: Boolean = false,
     val descriptionOverride: String? = null,
     val hasConvoke: Boolean = false,
     /**
@@ -59,6 +89,47 @@ data class ActivatedAbility(
      * needed.
      */
     val isExhaust: Boolean = false,
+    /**
+     * True for a *power-up* ability (Marvel Super Heroes; CR 702.193). "Power-up — [cost]: [effect]"
+     * means "[cost]: [effect]. If this permanent entered this turn, this ability's cost is reduced
+     * by this permanent's mana cost. Activate this ability only once."
+     *
+     * Two of those three clauses are carried elsewhere, so this flag is the keyword marker plus the
+     * switch for the third:
+     *  - **"Activate only once"** is an [ActivationRestriction.Once] in [restrictions], which the
+     *    `powerUpAbility(cost) { }` DSL adds automatically — the same arrangement [isExhaust] uses,
+     *    and per CR 400.7 a permanent that leaves and re-enters is a new object whose power-up may
+     *    be activated again, which the per-object `Once` tracker gives for free.
+     *  - **The cost reduction** is the part that needs this flag: the engine reduces the activation
+     *    cost by the source's own printed mana cost, pip-wise per CR 702.193b / 118.7
+     *    ([com.wingedsheep.sdk.core.ManaCost.subtract]), but only while the source entered this
+     *    turn. It is deliberately *not* modelled as [genericCostReduction], which is generic-only
+     *    (CR 118.7a) and so could not express Thanos's `{C}{W}{U}{B}{R}{G}` − `{R}{W}{B}`.
+     *
+     * The flag also lets other cards name the mechanic — Hulk, Gamma Goliath ("power-up abilities of
+     * other creatures you control cost {3} less") and Kang the Conqueror ("power-up abilities can't
+     * be activated") both need to pick power-up abilities out of every other activated ability.
+     */
+    val isPowerUp: Boolean = false,
+    /**
+     * True for a *boast* ability (Kaldheim, returning in Marvel Super Heroes; CR 702.142).
+     * "Boast — [cost]: [effect]" means "[cost]: [effect]. Activate only if this creature attacked
+     * this turn and only once each turn."
+     *
+     * Like [isExhaust] and [isPowerUp] this flag is only the keyword marker — it drives the
+     * "Boast — " prefix in [description] and lets tooling recognise the mechanic. Both rules
+     * clauses are ordinary [restrictions] the `activatedAbility { isBoast = true }` DSL adds:
+     *  - **"only once each turn"** is [ActivationRestriction.OncePerTurn];
+     *  - **"only if this creature attacked this turn"** is an
+     *    [ActivationRestriction.OnlyIfCondition] over `Conditions.SourceAttackedThisTurn`.
+     *
+     * Nothing bespoke is needed for either: "attacked this turn" is already tracked per creature
+     * for the whole turn (it survives the end of combat, so a boast may be activated in the
+     * postcombat main phase or the end step), and the per-turn activation counter already backs
+     * every other "activate only once each turn" ability. Note boast is *once each turn*, not
+     * exhaust's once ever, which is why it does not reuse [ActivationRestriction.Once].
+     */
+    val isBoast: Boolean = false,
     /** When true, prevents auto-pass whenever this ability is available.
      *  Used for abilities that interact with transient game state the player would miss,
      *  such as copying a spell on the stack. */
@@ -83,6 +154,34 @@ data class ActivatedAbility(
      */
     val minimumXValue: Int = 0,
     /**
+     * The value of the `{X}` in this ability's activation cost, **defined by the ability's own
+     * text** (CR 107.3c) instead of chosen by its controller (CR 107.3a).
+     *
+     * Soul Foundry's "{X}, {T}: Create a token that's a copy of the exiled card. X is the mana
+     * value of that card." is the shape: the cost is printed as `{X}`, but the player never picks
+     * a number — the imprinted card decides it. Elite Arcanist, Prototype Portal and Caller of the
+     * Untamed are the same template, and any "X is …" clause attached to an activation cost fits.
+     *
+     * Mechanically this is a *substitution*, not a cost reduction and not a new mana atom: the
+     * amount is evaluated against the source permanent and folded into the cost's `{X}` symbols
+     * with [com.wingedsheep.sdk.core.ManaCost.withXAs] before affordability, the X-choice pause,
+     * or payment ever look at it. Three consequences fall out of that and are the contract here:
+     *  - the ability is offered at its *resolved* price (`{3}, {T}` for an imprinted three-drop),
+     *    while its oracle text keeps saying `{X}`;
+     *  - there is no "choose X" prompt, and [minimumXValue] does not apply — a defined X is not a
+     *    choice to clamp;
+     *  - the same number is bound as the activation's X value, so every other X-linked cost
+     *    ([AbilityCost.PayXLife], [AbilityCost.ExileXFromGraveyard],
+     *    `CostAtom.RemoveCounters(count = XValue)`) and any `DynamicAmount.XValue` read in the
+     *    effect see it too (CR 107.3i, 107.3k).
+     *
+     * X is fixed as the ability is activated, which is when it is paid; an amount that resolves to
+     * nothing (Soul Foundry with no imprint, because the controller declined or the card left
+     * exile) evaluates to 0, leaving a `{0}, {T}` ability that is legal to activate and simply
+     * does nothing — the printed behaviour.
+     */
+    val xDefinedAs: DynamicAmount? = null,
+    /**
      * When true, this activated ability can't be copied by effects that copy abilities (CR 707.10e).
      * The engine tags the ability instance on the stack with a can't-be-copied marker so a
      * copy-ability effect (e.g. another Gogo, Master of Mimicry) produces no copy of it. Models
@@ -101,7 +200,6 @@ data class ActivatedAbility(
         isManaAbility: Boolean = false,
         isPlaneswalkerAbility: Boolean = false,
         activateFromZone: Zone = Zone.BATTLEFIELD,
-        promptOnDraw: Boolean = false,
         descriptionOverride: String? = null
     ) : this(
         id = id,
@@ -113,7 +211,6 @@ data class ActivatedAbility(
         isManaAbility = isManaAbility,
         isPlaneswalkerAbility = isPlaneswalkerAbility,
         activateFromZone = activateFromZone,
-        promptOnDraw = promptOnDraw,
         descriptionOverride = descriptionOverride
     )
 
@@ -129,13 +226,35 @@ data class ActivatedAbility(
      * the keyword-action prefixes in printed order: "Exhaust — Waterbend {N}: ...". The legal-action
      * enumerator calls this when a cost reduction means the printed [cost] no longer matches what the
      * player will pay, so the rebuilt label keeps the same prefixes the [description] getter shows.
+     *
+     * Power-up matters here more than the other prefixes: its cost reduction applies on the turn the
+     * permanent entered, so the printed cost and the payable cost differ on exactly the turn the
+     * player is most likely to activate it, and the menu must show the reduced one.
      */
     fun describeWithCost(effectiveCost: AbilityCost): String {
         // A waterbend cost renders as "Waterbend {N}" (the keyword action precedes the cost).
         val base = effectiveCost.description.ifEmpty { "{0}" }
+        // An equip ability is *printed* as "Equip [cost]" (CR 702.6a) or "Equip [quality] [cost]"
+        // (CR 702.6c) — never as the attach effect's generated text. Rendering it here rather than
+        // via a per-card descriptionOverride means Eowyn's discount and Forge Anew's free first
+        // equip rewrite the cost in the menu, which a static override could not.
+        //
+        // A non-mana equip cost takes the printed em dash instead of a space — "Equip—Sacrifice a
+        // creature" (Demonmail Hauberk, Dissection Tools), not "Equip Sacrifice a creature".
+        if (isEquipAbility) {
+            val keyword = "Equip" + (equipQuality?.let { " $it" } ?: "")
+            return if (effectiveCost.manaCostOrNull != null) "$keyword $base" else "$keyword—$base"
+        }
         val costText = if (hasWaterbend) "Waterbend $base" else base
-        // An exhaust ability prefixes "Exhaust — " before the (already waterbend-prefixed) cost.
-        val prefixed = if (isExhaust) "Exhaust — $costText" else costText
+        // An exhaust, power-up or boast ability prefixes its keyword before the (already
+        // waterbend-prefixed) cost. Exhaust and power-up never co-occur — both mean "activate only
+        // once" — and boast is a third, mutually exclusive keyword over the same slot.
+        val prefixed = when {
+            isExhaust -> "Exhaust — $costText"
+            isPowerUp -> "Power-up — $costText"
+            isBoast -> "Boast — $costText"
+            else -> costText
+        }
         return "$prefixed: ${effect.description}"
     }
 
@@ -150,6 +269,58 @@ data class ActivatedAbility(
         }
         return if (newCost !== cost || newEffect !== effect || trChanged)
             copy(cost = newCost, effect = newEffect, targetRequirements = newTargetReqs) else this
+    }
+
+    companion object {
+
+        /**
+         * The ability "Equip [cost]" *is* — CR 702.6a's "attach this Equipment to target creature you
+         * control. Activate only as a sorcery."
+         *
+         * Equip is a keyword ability the SDK **lowers** rather than stores: a card writes
+         * `equipAbility("{1}")` and gets `CardDefinition.equipCost` plus this synthesized ability.
+         * The lowering lives here rather than inside [com.wingedsheep.sdk.dsl.CardBuilder.equipAbility]
+         * because it has a second caller — Argentum Assay reads the printed "Equip {1}" line back into
+         * a model and compares it against the hand-written card — and two implementations of one
+         * lowering is exactly the drift that gate exists to catch. `equipAbility` is still the way a
+         * *card* spells it; this is the shared body underneath, and the reason it is public.
+         *
+         * [quality] is the wording of an "Equip [quality]" variant (CR 702.6c) and [targetFilter] is
+         * its rules half; see `CardBuilder.equipAbility` for why the two are unchecked against each
+         * other and which test holds them honest.
+         *
+         * [id] is a parameter because no printed word determines it: a card mints one from the DSL's
+         * counter, and a parser that reproduced a counter would be reading construction order rather
+         * than a card.
+         */
+        fun equip(
+            cost: ManaCost,
+            quality: String? = null,
+            targetFilter: TargetFilter = TargetFilter.CreatureYouControl,
+            genericCostReduction: DynamicAmount? = null,
+            id: AbilityId = AbilityId.generate(),
+        ): ActivatedAbility {
+            val label = equipTargetLabel(quality)
+            return ActivatedAbility(
+                id = id,
+                cost = AbilityCost.Atom(CostAtom.Mana(cost)),
+                effect = AttachEquipmentEffect(EffectTarget.BoundVariable(label)),
+                targetRequirements = listOf(TargetCreature(filter = targetFilter, id = label)),
+                isManaAbility = false,
+                isEquipAbility = true,
+                equipQuality = quality,
+                timing = TimingRule.SorcerySpeed,
+                genericCostReduction = genericCostReduction,
+            )
+        }
+
+        /**
+         * The label an equip ability's target requirement carries, which doubles as the name of the
+         * bound variable the attach effect reads. One function because both halves must use the same
+         * string or the effect reads a slot nothing declared.
+         */
+        fun equipTargetLabel(quality: String?): String =
+            if (quality == null) "creature you control" else "$quality creature you control"
     }
 }
 
@@ -198,6 +369,21 @@ sealed interface AbilityCost : TextReplaceable<AbilityCost> {
     @Serializable
     data object Untap : AbilityCost {
         override val description: String = "{Q}"
+    }
+
+    /**
+     * Exert this permanent (CR 701.43a) — choose to have it not untap during your next untap
+     * step. Always payable: a permanent can be exerted even if it's untapped or was already
+     * exerted this turn (701.43b); exerting it more than once before the next untap step doesn't
+     * stack multiple skips (they all expire at that same untap step). Used as a component of an
+     * activated ability's cost — e.g. Arena of Glory's "{R}, {T}, Exert this land: ...". Distinct
+     * from the "you may exert [this] as it attacks" attack-cost template (701.43d), which is a
+     * separate optional-cost-to-attack shape, not an ability cost.
+     */
+    @SerialName("CostExert")
+    @Serializable
+    data object Exert : AbilityCost {
+        override val description: String = "Exert this permanent"
     }
 
     /**
@@ -386,6 +572,21 @@ sealed interface AbilityCost : TextReplaceable<AbilityCost> {
             }
             return if (changed) copy(costs = newCosts) else this
         }
+    }
+
+    /**
+     * Pay the mana cost of the permanent this Aura/Equipment is attached to — Merseine's
+     * "Pay enchanted creature's mana cost: Remove a net counter from this Aura."
+     *
+     * Lowered to a plain [Atom] mana cost against the attached permanent's printed cost before
+     * anything prices or pays it, the same way `PayCost.OwnManaCost` is lowered against its source,
+     * so every downstream path sees a uniform shape. An unattached source, or one attached to a
+     * permanent with no mana cost, prices as {0}.
+     */
+    @SerialName("AttachedPermanentManaCost")
+    @Serializable
+    data object AttachedPermanentManaCost : AbilityCost {
+        override val description: String = "Pay enchanted permanent's mana cost"
     }
 
     /** Tap the creature this aura is attached to ({T} enchanted creature) */

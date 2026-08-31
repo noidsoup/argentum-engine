@@ -1,3 +1,128 @@
+// Armored Wolf-Rider
+{
+    "name": "Armored Wolf-Rider",
+    "manaCost": "{3}{G}{W}",
+    "typeLine": "Creature — Elf Knight",
+    "creatureStats": {
+        "power": 4,
+        "toughness": 6
+    },
+    "metadata": {
+        "collectorNumber": "52",
+        "artist": "Matt Stewart",
+        "flavorText": "Wolf-riders of Selesnya apprentice from a young age. Each rider raises a wolf pup from birth to serve as a mount, hoping that one day the two will share the honor of guarding the Great Concourse.",
+        "imageUri": "https://cards.scryfall.io/normal/front/e/4/e43d959f-6055-4578-a69a-0ec93e993e21.jpg?1783940033"
+    },
+    "colorIdentityOverride": [
+        "WHITE",
+        "GREEN"
+    ]
+}
+
+// Bane Alley Blackguard
+{
+    "name": "Bane Alley Blackguard",
+    "manaCost": "{1}{B}",
+    "typeLine": "Creature — Human Rogue",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 3
+    },
+    "metadata": {
+        "collectorNumber": "21",
+        "artist": "Mike Bierek",
+        "flavorText": "\"I'm in the field of procurement, and business is good. The guilds want all kinds of maps and relics these days, though what they want them for I'm not quite sure.\"",
+        "imageUri": "https://cards.scryfall.io/normal/front/1/5/15fcad03-4567-4f96-976e-01a07d8ab050.jpg?1783940040"
+    },
+    "colorIdentityOverride": [
+        "BLACK"
+    ]
+}
+
+// Clear a Path
+{
+    "name": "Clear a Path",
+    "manaCost": "{R}",
+    "typeLine": "Sorcery",
+    "oracleText": "Destroy target creature with defender.",
+    "script": {
+        "spellEffect": {
+            "type": "MoveToZone",
+            "target": {
+                "type": "BoundVariable",
+                "name": "target creature with defender"
+            },
+            "destination": "Graveyard",
+            "byDestruction": true
+        },
+        "targetRequirements": [
+            {
+                "type": "TargetObject",
+                "filter": {
+                    "baseFilter": "creature kw:defender"
+                },
+                "id": "target creature with defender"
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "32",
+        "artist": "Karl Kopinski",
+        "flavorText": "\"Why do guards always look surprised when we bash them?\" asked Ruric. \"I think they expect a bribe,\" said Thar.",
+        "imageUri": "https://cards.scryfall.io/normal/front/8/a/8a8f904b-a9a3-4bae-9284-4e9cbe7592ee.jpg?1783940038"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
+// Kraul Warrior
+{
+    "name": "Kraul Warrior",
+    "manaCost": "{1}{G}",
+    "typeLine": "Creature — Insect Warrior",
+    "oracleText": "{5}{G}: This creature gets +3/+3 until end of turn.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 2
+    },
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": {
+                    "type": "CostAtomWrapper",
+                    "atom": {
+                        "type": "AtomMana",
+                        "cost": "{5}{G}"
+                    }
+                },
+                "effect": {
+                    "type": "ModifyStats",
+                    "powerModifier": {
+                        "type": "Fixed",
+                        "amount": 3
+                    },
+                    "toughnessModifier": {
+                        "type": "Fixed",
+                        "amount": 3
+                    },
+                    "target": "Self"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "42",
+        "artist": "David Rapoza",
+        "flavorText": "The insectile kraul lurk in the tunnels below street level. Many are loyal to the Golgari Swarm, but others follow their own esoteric caste system.",
+        "imageUri": "https://cards.scryfall.io/normal/front/f/7/f71da8cc-8773-4dcb-aca8-50a000142218.jpg?1783940036"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
 // Maze's End
 {
     "name": "Maze's End",
@@ -127,6 +252,30 @@
             }
         ]
     }
+}
+
+// Murmuring Phantasm
+{
+    "name": "Murmuring Phantasm",
+    "manaCost": "{1}{U}",
+    "typeLine": "Creature — Spirit",
+    "oracleText": "Defender",
+    "creatureStats": {
+        "power": 0,
+        "toughness": 5
+    },
+    "keywords": [
+        "DEFENDER"
+    ],
+    "metadata": {
+        "collectorNumber": "15",
+        "artist": "Peter Mohrbacher",
+        "flavorText": "\"The most insidious thing in the world is nonsense that sounds just plausible enough to listen to.\"\n—Lazav",
+        "imageUri": "https://cards.scryfall.io/normal/front/9/7/9752644c-7c43-429e-a79c-1239b9a0bc8a.jpg?1783940041"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
 }
 
 // Unflinching Courage

@@ -18,7 +18,8 @@
     },
     "colorIdentityOverride": [
         "WHITE"
-    ]
+    ],
+    "hasNoManaCost": true
 }
 
 // Compelling Deterrence
@@ -193,7 +194,8 @@
     },
     "colorIdentityOverride": [
         "WHITE"
-    ]
+    ],
+    "hasNoManaCost": true
 }
 
 // Mindwrack Demon
@@ -314,14 +316,35 @@
                     }
                 },
                 {
+                    "type": "GatherCards",
+                    "source": {
+                        "type": "BattlefieldMatching",
+                        "filter": "land"
+                    },
+                    "storeAs": "lands"
+                },
+                {
+                    "type": "SelectFromCollection",
+                    "from": "lands",
+                    "selection": {
+                        "type": "ChooseUpTo",
+                        "count": {
+                            "type": "Fixed",
+                            "amount": 2
+                        }
+                    },
+                    "storeSelected": "toUntap",
+                    "prompt": "Choose up to two lands to untap"
+                },
+                {
                     "type": "ForEach",
-                    "space": "IterationSpace.Targets",
+                    "space": {
+                        "type": "IterationSpace.Collection",
+                        "collection": "toUntap"
+                    },
                     "body": {
                         "type": "TapUntap",
-                        "target": {
-                            "type": "ContextTarget",
-                            "index": 0
-                        },
+                        "target": "Self",
                         "tap": false
                     }
                 },
@@ -361,18 +384,7 @@
                     ]
                 }
             ]
-        },
-        "targetRequirements": [
-            {
-                "type": "TargetObject",
-                "count": 2,
-                "optional": true,
-                "filter": {
-                    "baseFilter": "land"
-                },
-                "id": "up to two lands"
-            }
-        ]
+        }
     },
     "metadata": {
         "collectorNumber": "28",
@@ -406,7 +418,8 @@
     },
     "colorIdentityOverride": [
         "WHITE"
-    ]
+    ],
+    "hasNoManaCost": true
 }
 
 // Tooth Collector
@@ -480,7 +493,7 @@
                     },
                     "id": "target creature that player controls"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "AggregateZone",
@@ -566,7 +579,7 @@
                     },
                     "id": "target creature that player controls"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "AggregateZone",
@@ -610,5 +623,6 @@
     },
     "colorIdentityOverride": [
         "BLACK"
-    ]
+    ],
+    "hasNoManaCost": true
 }

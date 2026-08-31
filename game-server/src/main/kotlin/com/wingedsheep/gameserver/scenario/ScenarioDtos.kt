@@ -81,7 +81,17 @@ data class ScenarioRequest(
      * The other seat is connected normally over WebSocket with the returned token. Scenarios
      * always use the in-process engine AI — no LLM, no API key.
      */
-    val aiPlayer: Int? = null
+    val aiPlayer: Int? = null,
+    /**
+     * Custom cards for this scenario, each a Scryfall(-style) card object as pasted. Compiled by
+     * Argentum Assay into real `CardDefinition`s and registered into a **session-scoped** overlay
+     * registry, so the names below can be used in any zone exactly like corpus cards while never
+     * touching the live corpus. Dev-gated; see [AssayCardService].
+     *
+     * A card whose Oracle text Assay cannot read *whole* is rejected with the line that stopped it —
+     * a partially-read card would test green while missing an ability.
+     */
+    val customCards: List<String>? = null,
 ) {
     /** The effective mode, deriving from [aiPlayer] when [mode] is unset. */
     val effectiveMode: ScenarioMode
@@ -107,6 +117,12 @@ data class PlayerConfig(
     val library: List<String>? = null,
     val exile: List<String>? = null,
     /**
+     * Cards "outside the game" (CR 400.11) — the player's sideboard. Needed by any card that
+     * reaches outside the game: the wish cycle, and Strixhaven's **Learn** (CR 701.48), whose
+     * Lesson half is simply unreachable without one.
+     */
+    val sideboard: List<String>? = null,
+    /**
      * Commander card names. Each name becomes a card in the player's command zone with
      * [CommanderComponent] attached and registered in [CommanderRegistryComponent].
      * Provide one name for a standard commander, two for Partner / Background.
@@ -129,6 +145,12 @@ data class BattlefieldCardConfig(
     val attachedTo: String? = null,
     /** For permanents with "As this enters, choose a creature type" — skips the ETB choice by pre-setting it. */
     val chosenCreatureType: String? = null,
+    /**
+     * For permanents that durably choose a card type (CR 205.2a — e.g. Arachne, Psionic Weaver's
+     * "choose a card type other than creature") — skips the ETB choice by pre-setting it. Value is a
+     * card-type name, e.g. "Artifact", "Enchantment", "Instant".
+     */
+    val chosenCardType: String? = null,
     /**
      * For permanents with "As this enters, choose a color" — skips the ETB choice by pre-setting it.
      * Value must be a [com.wingedsheep.sdk.core.Color] name, e.g. "WHITE", "GREEN".

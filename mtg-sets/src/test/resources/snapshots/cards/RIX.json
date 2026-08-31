@@ -1,3 +1,85 @@
+// Aquatic Incursion
+{
+    "name": "Aquatic Incursion",
+    "manaCost": "{3}{U}",
+    "typeLine": "Enchantment",
+    "oracleText": "When this enchantment enters, create two 1/1 blue Merfolk creature tokens with hexproof. (They can't be the targets of spells or abilities your opponents control.)\n{3}{U}: Target Merfolk can't be blocked this turn.",
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "CreateToken",
+                    "count": {
+                        "type": "Fixed",
+                        "amount": 2
+                    },
+                    "power": 1,
+                    "toughness": 1,
+                    "colors": [
+                        "BLUE"
+                    ],
+                    "creatureTypes": [
+                        "Merfolk"
+                    ],
+                    "keywords": [
+                        "HEXPROOF"
+                    ],
+                    "imageUri": "https://cards.scryfall.io/normal/front/f/5/f5d353ad-7160-41fa-809c-d76b36478a2a.jpg?1783913608"
+                }
+            }
+        ],
+        "activatedAbilities": [
+            {
+                "id": "ability_2",
+                "cost": {
+                    "type": "CostAtomWrapper",
+                    "atom": {
+                        "type": "AtomMana",
+                        "cost": "{3}{U}"
+                    }
+                },
+                "effect": {
+                    "type": "GrantKeyword",
+                    "keyword": "CANT_BE_BLOCKED",
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "Merfolk"
+                    }
+                },
+                "targetRequirements": [
+                    {
+                        "type": "TargetObject",
+                        "filter": {
+                            "baseFilter": "permanent Merfolk"
+                        },
+                        "id": "Merfolk"
+                    }
+                ]
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "32",
+        "rarity": "UNCOMMON",
+        "artist": "Jason Rainville",
+        "imageUri": "https://cards.scryfall.io/normal/front/5/6/56cb8fa2-337b-4596-9c31-01f0c0b171b7.jpg?1783935328",
+        "rulings": [
+            {
+                "date": "2018-01-19",
+                "text": "Activating the last ability of Aquatic Incursion after a Merfolk has become blocked won't cause it to become unblocked."
+            }
+        ]
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
+
 // Brass's Bounty
 {
     "name": "Brass's Bounty",
@@ -60,6 +142,26 @@
     },
     "colorIdentityOverride": [
         "RED"
+    ]
+}
+
+// Canal Monitor
+{
+    "name": "Canal Monitor",
+    "manaCost": "{4}{B}",
+    "typeLine": "Creature — Lizard",
+    "creatureStats": {
+        "power": 5,
+        "toughness": 3
+    },
+    "metadata": {
+        "collectorNumber": "63",
+        "artist": "Zezhou Chen",
+        "flavorText": "The first goblin tried to swim the canal. The second built a raft. The last and craftiest goblin launched herself from a firecannon and soared over the canal, trailing smoke. All were eaten, but only one was cooked.",
+        "imageUri": "https://cards.scryfall.io/normal/front/7/8/78226edc-87dd-4c38-987c-52aefe0f9531.jpg?1783935316"
+    },
+    "colorIdentityOverride": [
+        "BLACK"
     ]
 }
 
@@ -221,6 +323,30 @@
     ]
 }
 
+// Mist-Cloaked Herald
+{
+    "name": "Mist-Cloaked Herald",
+    "manaCost": "{U}",
+    "typeLine": "Creature — Merfolk Warrior",
+    "oracleText": "This creature can't be blocked.",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 1
+    },
+    "flags": [
+        "CANT_BE_BLOCKED"
+    ],
+    "metadata": {
+        "collectorNumber": "43",
+        "artist": "Anthony Palumbo",
+        "flavorText": "With matchless stealth, the River Heralds fought a running battle against the three enemy forces.",
+        "imageUri": "https://cards.scryfall.io/normal/front/1/8/18c1368e-114b-4618-922b-1d824ba0d1d5.jpg"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
+
 // Moment of Craving
 {
     "name": "Moment of Craving",
@@ -331,6 +457,46 @@
     ]
 }
 
+// Orazca Frillback
+{
+    "name": "Orazca Frillback",
+    "manaCost": "{2}{G}",
+    "typeLine": "Creature — Dinosaur",
+    "creatureStats": {
+        "power": 4,
+        "toughness": 2
+    },
+    "metadata": {
+        "collectorNumber": "140",
+        "artist": "Simon Dominic",
+        "flavorText": "The frillbacks of Orazca soak up the sun on their tall spinal fins. They look slow and sleepy—until they catch the scent of prey.",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/00c81160-192c-4077-8ed1-3643919a2025.jpg?1783935284"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
+// Orazca Raptor
+{
+    "name": "Orazca Raptor",
+    "manaCost": "{2}{R}{R}",
+    "typeLine": "Creature — Dinosaur",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 4
+    },
+    "metadata": {
+        "collectorNumber": "108",
+        "artist": "Jakub Kasper",
+        "flavorText": "\"If you come across a raptor in the city, stay perfectly still. At least then you'll be well rested when you die.\"\n—Captain Brandis Thorn",
+        "imageUri": "https://cards.scryfall.io/normal/front/b/7/b7080f86-0a9f-4471-a52b-0d44d19e6e59.jpg?1783935296"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
 // Path of Discovery
 {
     "name": "Path of Discovery",
@@ -371,6 +537,240 @@
     ]
 }
 
+// Raging Regisaur
+{
+    "name": "Raging Regisaur",
+    "manaCost": "{2}{R}{G}",
+    "typeLine": "Creature — Dinosaur",
+    "oracleText": "Whenever this creature attacks, it deals 1 damage to any target.",
+    "creatureStats": {
+        "power": 4,
+        "toughness": 4
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": "AttackEvent",
+                "effect": {
+                    "type": "DealDamage",
+                    "amount": {
+                        "type": "Fixed",
+                        "amount": 1
+                    },
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "any target"
+                    }
+                },
+                "targetRequirement": {
+                    "type": "AnyTarget",
+                    "id": "any target"
+                },
+                "descriptionOverride": "Whenever this creature attacks, it deals 1 damage to any target."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "168",
+        "rarity": "UNCOMMON",
+        "artist": "Bayard Wu",
+        "flavorText": "Its breath is a gale. Its roar is a volcano. Its anger tears soul from flesh.",
+        "imageUri": "https://cards.scryfall.io/normal/front/a/d/ad6c43a7-e9c5-4b1c-9a6d-0d8798303045.jpg?1783935270"
+    },
+    "colorIdentityOverride": [
+        "GREEN",
+        "RED"
+    ]
+}
+
+// Ravenous Chupacabra
+{
+    "name": "Ravenous Chupacabra",
+    "manaCost": "{2}{B}{B}",
+    "typeLine": "Creature — Beast Horror",
+    "oracleText": "When this creature enters, destroy target creature an opponent controls.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 2
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "MoveToZone",
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "target"
+                    },
+                    "destination": "Graveyard",
+                    "byDestruction": true
+                },
+                "targetRequirement": {
+                    "type": "TargetObject",
+                    "filter": {
+                        "baseFilter": "creature ctrl:opponent"
+                    },
+                    "id": "target"
+                },
+                "descriptionOverride": "When this creature enters, destroy target creature an opponent controls."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "82",
+        "rarity": "UNCOMMON",
+        "artist": "Daarken",
+        "flavorText": "Opening Orazca unleashed more horrors than just the Immortal Sun.",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/2/02551196-ecea-472f-9547-3c9658d0489e.jpg?1783935306"
+    },
+    "colorIdentityOverride": [
+        "BLACK"
+    ]
+}
+
+// Reckless Rage
+{
+    "name": "Reckless Rage",
+    "manaCost": "{R}",
+    "typeLine": "Instant",
+    "oracleText": "Reckless Rage deals 4 damage to target creature you don't control and 2 damage to target creature you control.",
+    "script": {
+        "spellEffect": {
+            "type": "Composite",
+            "effects": [
+                {
+                    "type": "DealDamage",
+                    "amount": {
+                        "type": "Fixed",
+                        "amount": 4
+                    },
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "target creature you don't control"
+                    }
+                },
+                {
+                    "type": "DealDamage",
+                    "amount": {
+                        "type": "Fixed",
+                        "amount": 2
+                    },
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "target creature you control"
+                    }
+                }
+            ]
+        },
+        "targetRequirements": [
+            {
+                "type": "TargetObject",
+                "filter": {
+                    "baseFilter": "creature ctrl:opponent"
+                },
+                "id": "target creature you don't control"
+            },
+            {
+                "type": "TargetObject",
+                "filter": {
+                    "baseFilter": "creature ctrl:you"
+                },
+                "id": "target creature you control"
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "110",
+        "rarity": "UNCOMMON",
+        "artist": "Slawomir Maniak",
+        "flavorText": "\"Hard to starboard! Starb— Abandon ship! Abandon ship!\"",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/e/0e4b97a3-8f6f-461e-aa55-ab752752f539.jpg?1783935296"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
+// Seafloor Oracle
+{
+    "name": "Seafloor Oracle",
+    "manaCost": "{2}{U}{U}",
+    "typeLine": "Creature — Merfolk Wizard",
+    "oracleText": "Whenever a Merfolk you control deals combat damage to a player, draw a card.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 3
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "DealsDamageEvent",
+                    "damageType": "DamageCombat",
+                    "recipient": "AnyPlayer",
+                    "sourceFilter": "permanent Merfolk ctrl:you"
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "DrawCards",
+                    "count": {
+                        "type": "Fixed",
+                        "amount": 1
+                    }
+                },
+                "descriptionOverride": "Whenever a Merfolk you control deals combat damage to a player, draw a card."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "51",
+        "rarity": "RARE",
+        "artist": "Simon Dominic",
+        "flavorText": "Where the light falls dim and blue on broken ships, secrets lie unclaimed.",
+        "imageUri": "https://cards.scryfall.io/normal/front/4/3/4316eacf-4b78-4b99-833c-53ecf49a0ae5.jpg?1783935319",
+        "rulings": [
+            {
+                "date": "2018-01-19",
+                "text": "If Seafloor Oracle is dealt lethal damage at the same time a Merfolk you control deals combat damage to a player, you'll draw a card."
+            }
+        ]
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
+
+// Sun Sentinel
+{
+    "name": "Sun Sentinel",
+    "manaCost": "{1}{W}",
+    "typeLine": "Creature — Human Soldier",
+    "oracleText": "Vigilance (Attacking doesn't cause this creature to tap.)",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 2
+    },
+    "keywords": [
+        "VIGILANCE"
+    ],
+    "metadata": {
+        "collectorNumber": "26",
+        "artist": "James Ryman",
+        "flavorText": "\"I will not sleep until Orazca is ours once more.\"",
+        "imageUri": "https://cards.scryfall.io/normal/front/6/8/6867fd5a-3bbe-416d-96a6-1db0b341260e.jpg"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
 // Swab Goblin
 {
     "name": "Swab Goblin",
@@ -388,6 +788,26 @@
     },
     "colorIdentityOverride": [
         "RED"
+    ]
+}
+
+// Sworn Guardian
+{
+    "name": "Sworn Guardian",
+    "manaCost": "{1}{U}",
+    "typeLine": "Creature — Merfolk Warrior",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 3
+    },
+    "metadata": {
+        "collectorNumber": "58",
+        "artist": "Sara Winters",
+        "flavorText": "For the River Heralds, the Immortal Sun is an object of terror and devastation. The idea that anyone would retrieve it for their own use is utterly abhorrent.",
+        "imageUri": "https://cards.scryfall.io/normal/front/6/4/6452ba94-6bb0-409c-99f7-71e6457c3f2a.jpg?1783935317"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
     ]
 }
 

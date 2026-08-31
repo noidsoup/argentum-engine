@@ -3,6 +3,7 @@ package com.wingedsheep.engine.event
 import com.wingedsheep.engine.core.ZoneChangeEvent
 import com.wingedsheep.engine.mechanics.layers.ProjectedState
 import com.wingedsheep.engine.state.GameState
+import com.wingedsheep.engine.state.components.battlefield.AttachedToComponent
 import com.wingedsheep.engine.state.components.battlefield.DamageDealtToCreaturesThisTurnComponent
 import com.wingedsheep.engine.state.components.identity.CardComponent
 import com.wingedsheep.engine.state.components.identity.FaceDownComponent
@@ -72,6 +73,7 @@ class DeathAndLeaveTriggerDetector(
 
     fun detectDeathTriggers(
         state: GameState,
+        statics: BattlefieldStaticsIndex,
         event: ZoneChangeEvent,
         triggers: MutableList<PendingTrigger>
     ) {
@@ -86,7 +88,7 @@ class DeathAndLeaveTriggerDetector(
 
         // For "When this creature dies" - the creature might be in graveyard now
         // Look up abilities by card definition
-        val abilities = abilityResolver.getTriggeredAbilities(entityId, info.cardDefinitionId, state)
+        val abilities = abilityResolver.getTriggeredAbilities(entityId, info.cardDefinitionId, state, statics)
         val controllerId = event.ownerId
 
         for (ability in abilities) {
@@ -141,6 +143,7 @@ class DeathAndLeaveTriggerDetector(
      */
     fun detectSimultaneousDeathTriggers(
         state: GameState,
+        statics: BattlefieldStaticsIndex,
         events: List<EngineGameEvent>,
         triggers: MutableList<PendingTrigger>
     ) {
@@ -165,7 +168,7 @@ class DeathAndLeaveTriggerDetector(
 
             val info = resolveDyingEntity(state, deadEvent) ?: continue
 
-            val abilities = abilityResolver.getTriggeredAbilities(deadEntityId, info.cardDefinitionId, state)
+            val abilities = abilityResolver.getTriggeredAbilities(deadEntityId, info.cardDefinitionId, state, statics)
             val controllerId = deadEvent.ownerId
 
             for (ability in abilities) {
@@ -198,6 +201,7 @@ class DeathAndLeaveTriggerDetector(
      */
     fun detectDeadAuraAttachmentTriggers(
         state: GameState,
+        statics: BattlefieldStaticsIndex,
         event: ZoneChangeEvent,
         triggers: MutableList<PendingTrigger>
     ) {
@@ -212,7 +216,7 @@ class DeathAndLeaveTriggerDetector(
         val container = state.getEntity(auraEntityId) ?: return
         val cardComponent = container.get<CardComponent>() ?: return
 
-        val abilities = abilityResolver.getTriggeredAbilities(auraEntityId, cardComponent.cardDefinitionId, state)
+        val abilities = abilityResolver.getTriggeredAbilities(auraEntityId, cardComponent.cardDefinitionId, state, statics)
         val controllerId = event.ownerId
 
         for (ability in abilities) {
@@ -255,13 +259,24 @@ class DeathAndLeaveTriggerDetector(
             for (ability in entry.abilities) {
                 val trigger = ability.trigger
                 if (trigger !is EventPattern.CreatureDealtDamageBySourceDiesEvent) continue
-                if (ability.activeZone != Zone.BATTLEFIELD) continue
+                if (Zone.BATTLEFIELD !in ability.activeZones) continue
 
                 val sourceFilter = trigger.sourceFilter
                 val fires = if (sourceFilter == null) {
                     // SELF shape (Soul Collector): the permanent bearing the trigger must itself have
                     // dealt damage to the dying creature this turn.
-                    val container = state.getEntity(entry.entityId) ?: continue
+                    //
+                    // ATTACHED shape (Scythe of the Wretched): the *equipped* creature is the damaging
+                    // source, so the tracker to read hangs off the attachment target rather than off the
+                    // Equipment. Resolved here, at detection time — which is when the creature dies, and
+                    // the Scythe's own ruling says the Equipment must be attached *then*, not when the
+                    // damage was dealt. An unattached Equipment simply never fires.
+                    val damagingSourceId = if (ability.binding == TriggerBinding.ATTACHED) {
+                        state.getEntity(entry.entityId)?.get<AttachedToComponent>()?.targetId ?: continue
+                    } else {
+                        entry.entityId
+                    }
+                    val container = state.getEntity(damagingSourceId) ?: continue
                     val damageTracking = container.get<DamageDealtToCreaturesThisTurnComponent>() ?: continue
                     dyingEntityId in damageTracking.creatureIds
                 } else {
@@ -383,13 +398,12 @@ class DeathAndLeaveTriggerDetector(
     }
 
     /**
-     * Detect undying triggers (CR 702.92) when a nontoken creature dies with no +1/+1 counters on it.
+     * Detect undying triggers (CR 702.93) when a permanent dies with no +1/+1 counters on it.
      *
-     * Undying is a triggered ability keyword: "When this creature dies, if it had no +1/+1 counters
-     * on it, return it to the battlefield under its owner's control with a +1/+1 counter on it."
-     *
-     * Symmetric with [detectPersistTriggers] — same projected-keyword + token-suppression gates,
-     * opposite counter polarity.
+     * The keyword is read from the event's projected last-known information, so printed and granted
+     * instances follow the same path. The synthesized ability resolves from the graveyard and returns
+     * the card under its owner's control with a +1/+1 counter. Tokens are not suppressed here: undying
+     * still triggers for a token, but the token ceases to exist before that trigger can return it.
      */
     fun detectUndyingTriggers(
         state: GameState,
@@ -397,7 +411,6 @@ class DeathAndLeaveTriggerDetector(
         triggers: MutableList<PendingTrigger>
     ) {
         if (event.fromZone != Zone.BATTLEFIELD || event.toZone != Zone.GRAVEYARD) return
-        if (event.lastKnown?.wasToken == true) return
         if ((event.lastKnown?.plusOnePlusOneCounters ?: 0) > 0) return
         if (Keyword.UNDYING.name !in (event.lastKnown?.keywords ?: emptySet())) return
 
@@ -466,7 +479,7 @@ class DeathAndLeaveTriggerDetector(
         if (event.fromZone != Zone.BATTLEFIELD || event.toZone != Zone.GRAVEYARD) return
         if (event.lastKnown?.wasToken == true) return
         if (event.lastKnown?.typeLine?.isCreature != true) return
-        if (Keyword.ENDURING.name !in (event.lastKnown?.keywords ?: emptySet())) return
+        if (Keyword.ENDURING.name !in event.lastKnown.keywords) return
 
         val info = resolveDyingEntity(state, event) ?: return
 
@@ -517,6 +530,7 @@ class DeathAndLeaveTriggerDetector(
      */
     fun detectLeavesBattlefieldTriggers(
         state: GameState,
+        statics: BattlefieldStaticsIndex,
         event: ZoneChangeEvent,
         triggers: MutableList<PendingTrigger>
     ) {
@@ -527,7 +541,7 @@ class DeathAndLeaveTriggerDetector(
         val entityId = event.entityId
         val info = resolveDyingEntity(state, event) ?: return
 
-        val abilities = abilityResolver.getTriggeredAbilities(entityId, info.cardDefinitionId, state)
+        val abilities = abilityResolver.getTriggeredAbilities(entityId, info.cardDefinitionId, state, statics)
         val controllerId = event.ownerId
 
         for (ability in abilities) {

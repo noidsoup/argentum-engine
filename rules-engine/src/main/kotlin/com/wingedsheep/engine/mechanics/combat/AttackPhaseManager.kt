@@ -2,13 +2,13 @@ package com.wingedsheep.engine.mechanics.combat
 
 import com.wingedsheep.engine.core.*
 import com.wingedsheep.engine.mechanics.layers.ProjectedState
-import com.wingedsheep.engine.mechanics.layers.SerializableModification
 import com.wingedsheep.engine.mechanics.mana.ManaPool
 import com.wingedsheep.engine.mechanics.mana.ManaSolver
 import com.wingedsheep.engine.registry.CardRegistry
 import com.wingedsheep.engine.state.GameState
 import com.wingedsheep.engine.state.components.combat.AttackedThisCombatComponent
 import com.wingedsheep.engine.state.components.combat.AttackersDeclaredThisCombatComponent
+import com.wingedsheep.engine.state.components.combat.AttackersDeclaredThisTurnComponent
 import com.wingedsheep.engine.state.components.combat.GoadedComponent
 import com.wingedsheep.engine.state.components.combat.MustAttackPlayerComponent
 import com.wingedsheep.engine.state.components.combat.MustAttackThisTurnComponent
@@ -23,13 +23,13 @@ import com.wingedsheep.engine.mechanics.combat.rules.AttackCheckContext
 import com.wingedsheep.engine.mechanics.combat.rules.AttackDefenderRule
 import com.wingedsheep.engine.mechanics.combat.rules.AttackRestrictionRule
 import com.wingedsheep.sdk.core.Keyword
-import com.wingedsheep.sdk.core.ManaCost
 import com.wingedsheep.sdk.core.ManaSymbol
 import com.wingedsheep.sdk.model.EntityId
-import com.wingedsheep.sdk.scripting.AttackTax
 import com.wingedsheep.sdk.scripting.AttackerCountLimit
 import com.wingedsheep.sdk.scripting.CantAttackUnlessCoAttacker
+import com.wingedsheep.sdk.scripting.MustAttack
 import com.wingedsheep.sdk.scripting.filters.unified.Scope
+import com.wingedsheep.engine.mechanics.battle.Battles
 import com.wingedsheep.engine.handlers.PredicateEvaluator
 import com.wingedsheep.engine.handlers.PredicateContext
 
@@ -49,7 +49,6 @@ internal class AttackPhaseManager(
     private val manaAbilitySideEffectExecutor: com.wingedsheep.engine.mechanics.mana.ManaAbilitySideEffectExecutor,
 ) {
 
-    private val dynamicAmountEvaluator = com.wingedsheep.engine.handlers.DynamicAmountEvaluator()
     private val predicateEvaluator = PredicateEvaluator()
     private val conditionEvaluator = com.wingedsheep.engine.handlers.ConditionEvaluator()
 
@@ -67,10 +66,13 @@ internal class AttackPhaseManager(
     ): ExecutionResult {
         // Validate each attacker
         val projected = state.projectedState
-        // CR 805.10a/b — a creature attacks the opposing team; never a teammate. Exclude the whole
-        // attacking team from legal player targets (in a non-team game this is just the attacker).
+        // CR 805.10a/b — a creature attacks the opposing team; never a teammate. [getOpponents]
+        // excludes the whole attacking team (in a non-team game just the attacker) and — unlike the
+        // raw turn order — every seat that has left the game (CR 800.4a): a departed player is no
+        // longer anyone's opponent, so they can't be attacked. The enumerator already reads the
+        // same set; the handler has to agree with it because actions are client-supplied.
         val attackingTeam = state.teamOf(attackingPlayer)
-        val opponents = state.turnOrder.filter { it !in attackingTeam }
+        val opponents = state.getOpponents(attackingPlayer)
 
         // Validate band declarations (CR 702.22c).
         val bandValidation = validateBands(state, attackers, bands, projected)
@@ -82,16 +84,25 @@ internal class AttackPhaseManager(
             if (validation != null) {
                 return ExecutionResult.error(state, validation)
             }
-            // Validate defender is either an opponent player or a planeswalker controlled by an opponent
+            // Validate the defender: an opponent player, a planeswalker controlled by an opponent,
+            // or a battle protected by an opponent. A battle is keyed off its *protector*, never
+            // its controller (CR 310.9b), which is what lets a player attack a Siege they control.
             if (defenderId !in opponents) {
-                if (!projected.isPlaneswalker(defenderId) || projected.getController(defenderId) in attackingTeam) {
-                    return ExecutionResult.error(state, "Invalid attack target: must be an opponent or their planeswalker")
+                val isAttackableBattle = projected.isBattle(defenderId) &&
+                    Battles.canBeAttackedBy(state, defenderId, attackingPlayer, opponents.toSet())
+                val isAttackablePlaneswalker = projected.isPlaneswalker(defenderId) &&
+                    projected.getController(defenderId) !in attackingTeam
+                if (!isAttackableBattle && !isAttackablePlaneswalker) {
+                    return ExecutionResult.error(
+                        state,
+                        "Invalid attack target: must be an opponent, their planeswalker, or a battle they protect"
+                    )
                 }
                 if (defenderId !in state.getBattlefield()) {
-                    return ExecutionResult.error(state, "Planeswalker is not on the battlefield")
+                    return ExecutionResult.error(state, "Attacked permanent is not on the battlefield")
                 }
             }
-            // Check per-defender restrictions (CantAttackUnless, CantBeAttackedWithout, etc.)
+            // Check per-defender restrictions (CantAttackUnless, CantBeAttackedBy, etc.)
             val ctx = AttackCheckContext(state, projected, attackerId, attackingPlayer, cardRegistry)
             for (rule in attackDefenderRules) {
                 val error = rule.check(ctx, defenderId)
@@ -143,9 +154,19 @@ internal class AttackPhaseManager(
         // Calculate (but don't pay) the attack tax. If non-zero, pause for the attacking
         // player to confirm before we tap any of their mana — otherwise auto-tapping the
         // pool would steal sources they were saving for instants/post-combat plays.
-        val totalTax = calculateTotalAttackTax(state, attackingPlayer, attackers, projected)
+        val totalTax = calculateTotalAttackTax(state, attackers, projected)
         if (totalTax > 0) {
             return pauseForAttackTaxConfirmation(state, attackingPlayer, attackers, totalTax, bands)
+        }
+
+        // Non-mana attack costs: "can't attack unless you sacrifice two Islands" (Leviathan). The
+        // clause is a *restriction* checked at CR 508.1c, and the cost it names is determined and
+        // paid at CR 508.1h–j — not an optional "as it attacks" cost (CR 508.1g), which the player
+        // may always decline. Affordability was already enforced by CantAttackUnlessSacrificeRule,
+        // so reaching here means the cost *can* be paid; what remains is choosing what to sacrifice.
+        val sacrificeCosts = AttackSacrificeCosts.requirementsFor(state, attackers.keys, cardRegistry)
+        if (sacrificeCosts.isNotEmpty()) {
+            return pauseForAttackSacrifice(state, attackingPlayer, attackers, sacrificeCosts, bands)
         }
 
         return commitAttackDeclaration(state, attackingPlayer, attackers, projected, taxEvents = emptyList(), bands = bands)
@@ -200,15 +221,8 @@ internal class AttackPhaseManager(
         // either a player directly, or a planeswalker/battle whose controller is the defending
         // player. Record the set so "did player X attack player Y this turn?" can be answered
         // after combat (Faramir, Prince of Ithilien).
-        val defendingPlayers: Set<EntityId> = attackers.values.mapNotNull { defenderId ->
-            if (defenderId in state.turnOrder) {
-                defenderId
-            } else {
-                state.getEntity(defenderId)
-                    ?.get<com.wingedsheep.engine.state.components.identity.ControllerComponent>()
-                    ?.playerId
-            }
-        }.toSet()
+        val defendingPlayers: Set<EntityId> =
+            attackers.values.mapTo(mutableSetOf()) { CombatDefenders.defendingPlayerOf(state, it) }
 
         // Attackers seen earlier this turn (across prior combat phases) — read before the per-turn
         // set is unioned below so we can flag which of these attackers are attacking for the *first
@@ -224,24 +238,36 @@ internal class AttackPhaseManager(
         // so the fact is stamped here. `defenderId in turnOrder` is the player-identity idiom.
         val attackersAgainstPlayer = attackers.filterValues { it in state.turnOrder }.keys
 
-        newState = newState.updateEntity(attackingPlayer) { container ->
-            var updated = container.with(AttackersDeclaredThisCombatComponent)
-            if (attackers.isNotEmpty()) {
-                updated = updated.with(PlayerAttackedThisTurnComponent)
-                val previous = container.get<PlayerAttackersThisTurnComponent>()?.attackerIds ?: emptySet()
-                updated = updated.with(PlayerAttackersThisTurnComponent(previous + attackers.keys))
-                if (defendingPlayers.isNotEmpty()) {
-                    val previousDefenders = container
-                        .get<com.wingedsheep.engine.state.components.combat.PlayerAttackedPlayersThisTurnComponent>()
-                        ?.defendingPlayerIds ?: emptySet()
-                    updated = updated.with(
-                        com.wingedsheep.engine.state.components.combat.PlayerAttackedPlayersThisTurnComponent(
-                            previousDefenders + defendingPlayers
+        // CR 805.10b — the active team has ONE combined attack, and CR 805.10a makes every
+        // player on it an attacking player. So the declaration is recorded on every member of
+        // the attacking team, not just the seat that submitted it: the teammate is not asked to
+        // declare a second wave (PassPriorityHandler / CombatEnumerator read this marker), and
+        // "you attacked this turn" is true for both heads. Outside shared team turns the team
+        // is the declaring player alone.
+        for (member in state.sharedTurnTeam(attackingPlayer)) {
+            newState = newState.updateEntity(member) { container ->
+                // Both markers are stamped even for an empty declaration: they record that the step
+                // happened, which is what tells "declared nothing" apart from "never got the chance".
+                var updated = container
+                    .with(AttackersDeclaredThisCombatComponent)
+                    .with(AttackersDeclaredThisTurnComponent)
+                if (attackers.isNotEmpty()) {
+                    updated = updated.with(PlayerAttackedThisTurnComponent)
+                    val previous = container.get<PlayerAttackersThisTurnComponent>()?.attackerIds ?: emptySet()
+                    updated = updated.with(PlayerAttackersThisTurnComponent(previous + attackers.keys))
+                    if (defendingPlayers.isNotEmpty()) {
+                        val previousDefenders = container
+                            .get<com.wingedsheep.engine.state.components.combat.PlayerAttackedPlayersThisTurnComponent>()
+                            ?.defendingPlayerIds ?: emptySet()
+                        updated = updated.with(
+                            com.wingedsheep.engine.state.components.combat.PlayerAttackedPlayersThisTurnComponent(
+                                previousDefenders + defendingPlayers
+                            )
                         )
-                    )
+                    }
                 }
+                updated
             }
-            updated
         }
 
         val attackerNames = attackers.keys.map { state.getEntity(it)?.get<CardComponent>()?.name ?: "Creature" }
@@ -278,6 +304,7 @@ internal class AttackPhaseManager(
                 producesColors = source.producesColors,
                 producesColorless = source.producesColorless,
                 requiresSacrifice = source.requiresSacrifice,
+                manaAmount = source.manaAmount,
                 requiresTappingAnotherPermanent = source.tapPermanentsSubCost != null,
             )
         }
@@ -317,6 +344,109 @@ internal class AttackPhaseManager(
         return ExecutionResult.paused(
             state.withPendingDecision(decision).pushContinuation(continuation),
             decision,
+        )
+    }
+
+    /**
+     * Pause the declare-attackers step for the first unpaid sacrifice cost, queueing the rest.
+     *
+     * One decision per paying attacker rather than one combined pile: the costs are separate (two
+     * Leviathans owe two Islands each, not four between them), and a combined prompt could not say
+     * which creature a given Island was paying for.
+     */
+    private fun pauseForAttackSacrifice(
+        state: GameState,
+        attackingPlayer: EntityId,
+        attackers: Map<EntityId, EntityId>,
+        costs: List<Pair<EntityId, com.wingedsheep.sdk.scripting.CantAttackUnlessSacrifice>>,
+        bands: List<Set<EntityId>>,
+    ): ExecutionResult {
+        val (payingAttacker, requirement) = costs.first()
+        val eligible = AttackSacrificeCosts.eligiblePermanents(
+            state, attackingPlayer, payingAttacker, requirement
+        )
+        val attackerName = state.getEntity(payingAttacker)?.get<CardComponent>()?.name ?: "your attacker"
+        val decisionId = java.util.UUID.randomUUID().toString()
+        val decision = com.wingedsheep.engine.core.SelectCardsDecision(
+            id = decisionId,
+            playerId = attackingPlayer,
+            prompt = "Sacrifice ${requirement.count} ${requirement.sacrificeFilter.description} to attack with $attackerName",
+            context = com.wingedsheep.engine.core.DecisionContext(
+                sourceId = payingAttacker,
+                sourceName = attackerName,
+                phase = com.wingedsheep.engine.core.DecisionPhase.COMBAT,
+            ),
+            options = eligible,
+            minSelections = requirement.count,
+            maxSelections = requirement.count,
+        )
+        val continuation = com.wingedsheep.engine.core.AttackSacrificeSelectionContinuation(
+            decisionId = decisionId,
+            attackingPlayer = attackingPlayer,
+            attackers = attackers,
+            payingAttacker = payingAttacker,
+            count = requirement.count,
+            remaining = costs.drop(1).map { (id, req) ->
+                com.wingedsheep.engine.core.PendingAttackSacrifice(id, req.count)
+            },
+            bands = bands,
+        )
+        return ExecutionResult.paused(
+            state.withPendingDecision(decision).pushContinuation(continuation),
+            decision,
+        )
+    }
+
+    /**
+     * Ask for the next queued attack sacrifice after a previous one was paid. Same decision as
+     * [pauseForAttackSacrifice], but carrying the earlier payment's events forward so the
+     * sacrifices are all reported even though only the last resume commits the declaration.
+     */
+    internal fun pauseForNextAttackSacrifice(
+        state: GameState,
+        attackingPlayer: EntityId,
+        attackers: Map<EntityId, EntityId>,
+        payingAttacker: EntityId,
+        count: Int,
+        remaining: List<com.wingedsheep.engine.core.PendingAttackSacrifice>,
+        bands: List<Set<EntityId>>,
+        carryEvents: List<com.wingedsheep.engine.core.GameEvent>,
+    ): ExecutionResult {
+        val requirement = AttackSacrificeCosts.requirementFor(state, payingAttacker, cardRegistry)
+            ?: return commitAttackDeclaration(
+                state, attackingPlayer, attackers, state.projectedState, carryEvents, bands
+            )
+        val eligible = AttackSacrificeCosts.eligiblePermanents(
+            state, attackingPlayer, payingAttacker, requirement
+        )
+        val attackerName = state.getEntity(payingAttacker)?.get<CardComponent>()?.name ?: "your attacker"
+        val decisionId = java.util.UUID.randomUUID().toString()
+        val decision = com.wingedsheep.engine.core.SelectCardsDecision(
+            id = decisionId,
+            playerId = attackingPlayer,
+            prompt = "Sacrifice $count ${requirement.sacrificeFilter.description} to attack with $attackerName",
+            context = com.wingedsheep.engine.core.DecisionContext(
+                sourceId = payingAttacker,
+                sourceName = attackerName,
+                phase = com.wingedsheep.engine.core.DecisionPhase.COMBAT,
+            ),
+            options = eligible,
+            minSelections = count,
+            maxSelections = count,
+        )
+        val continuation = com.wingedsheep.engine.core.AttackSacrificeSelectionContinuation(
+            decisionId = decisionId,
+            attackingPlayer = attackingPlayer,
+            attackers = attackers,
+            payingAttacker = payingAttacker,
+            count = count,
+            remaining = remaining,
+            bands = bands,
+        )
+        return ExecutionResult.paused(
+            state.withPendingDecision(decision).pushContinuation(continuation),
+            decision,
+            carryEvents,
         )
     }
 
@@ -500,7 +630,10 @@ internal class AttackPhaseManager(
         attackingPlayer: EntityId,
         attackers: Map<EntityId, EntityId>
     ): String? {
-        val mustAttack = state.getEntity(attackingPlayer)?.get<MustAttackPlayerComponent>()
+        // Taunt marks the player it was aimed at; in a shared team turn the team's one combined
+        // attack (CR 805.10b) has to satisfy a requirement placed on either head.
+        val mustAttack = state.sharedTurnTeam(attackingPlayer)
+            .firstNotNullOfOrNull { member -> state.getEntity(member)?.get<MustAttackPlayerComponent>() }
             ?: return null
 
         if (!mustAttack.activeThisTurn) {
@@ -613,13 +746,34 @@ internal class AttackPhaseManager(
         return null
     }
 
+    /**
+     * The player an attack aimed at [defenderId] is really aimed at: the player themselves, a
+     * planeswalker's controller, or — for a battle — its protector rather than its controller
+     * (CR 310.9d).
+     */
     private fun defenderControllerOf(
         state: GameState,
         projected: ProjectedState,
         defenderId: EntityId
     ): EntityId {
         if (state.getEntity(defenderId)?.has<LifeTotalComponent>() == true) return defenderId
+        Battles.protectorOf(state, defenderId)?.let { return it }
         return projected.getController(defenderId) ?: defenderId
+    }
+
+    /**
+     * Whether [attackerId] is required to attack this combat by a "must attack" static — either the
+     * projected one (printed `MustAttack`: Valley Dasher, Grand Melee) or an entity-scoped
+     * `MustAttack` granted at runtime and stored in [GameState.grantedStaticAbilities] (Carnage's
+     * reanimated target: "attacks each combat if able"). Granted statics never reach projection, so
+     * they must be consulted here at the point of use, alongside the projected value.
+     */
+    private fun mustAttackThisCombat(state: GameState, attackerId: EntityId): Boolean {
+        if (state.projectedState.mustAttack(attackerId)) return true
+        return state.grantedStaticAbilities.any {
+            it.entityId == attackerId && it.ability is MustAttack &&
+                it.ability.filter.scope is Scope.Self
+        }
     }
 
     /**
@@ -631,10 +785,9 @@ internal class AttackPhaseManager(
         attackers: Map<EntityId, EntityId>
     ): String? {
         val validAttackers = getValidAttackers(state, attackingPlayer)
-        val projected = state.projectedState
 
         for (attackerId in validAttackers) {
-            if (!projected.mustAttack(attackerId)) continue
+            if (!mustAttackThisCombat(state, attackerId)) continue
 
             if (attackerId !in attackers.keys) {
                 val cardName = state.getEntity(attackerId)?.get<CardComponent>()?.name ?: "Creature"
@@ -670,7 +823,6 @@ internal class AttackPhaseManager(
      */
     fun getMandatoryAttackers(state: GameState, attackingPlayer: EntityId): List<EntityId> {
         val validAttackers = getValidAttackers(state, attackingPlayer)
-        val projected = state.projectedState
         val mandatory = mutableSetOf<EntityId>()
 
         // 1. MustAttackPlayerComponent (Taunt effect) — all valid attackers must attack
@@ -687,9 +839,10 @@ internal class AttackPhaseManager(
             }
         }
 
-        // 3. Projected mustAttack (static ability like Valley Dasher, Grand Melee)
+        // 3. Projected mustAttack (static ability like Valley Dasher, Grand Melee) or a granted
+        // entity-scoped MustAttack (Carnage's reanimated target), which never reaches projection.
         for (attackerId in validAttackers) {
-            if (projected.mustAttack(attackerId)) {
+            if (mustAttackThisCombat(state, attackerId)) {
                 mandatory.add(attackerId)
             }
         }
@@ -712,78 +865,12 @@ internal class AttackPhaseManager(
     /**
      * Compute the total generic-mana attack tax owed for [attackers] without paying it.
      * Used by [declareAttackers] to decide whether to pause for player confirmation
-     * before tapping any mana.
+     * before tapping any mana. Shared with the AI via [CombatTaxes], which prices a
+     * proposed attack before proposing it.
      */
     internal fun calculateTotalAttackTax(
         state: GameState,
-        attackingPlayer: EntityId,
         attackers: Map<EntityId, EntityId>,
         projected: ProjectedState
-    ): Int {
-        if (attackers.isEmpty()) return 0
-        val attackersPerDefender = mutableMapOf<EntityId, Int>()
-        for ((_, defenderId) in attackers) {
-            val defenderPlayerId = if (state.turnOrder.contains(defenderId)) {
-                defenderId
-            } else {
-                projected.getController(defenderId)
-            }
-            if (defenderPlayerId != null) {
-                attackersPerDefender[defenderPlayerId] = (attackersPerDefender[defenderPlayerId] ?: 0) + 1
-            }
-        }
-
-        var totalGenericTax = 0
-        for ((defenderId, attackerCount) in attackersPerDefender) {
-            val defenderPermanents = projected.getBattlefieldControlledBy(defenderId)
-            for (entityId in defenderPermanents) {
-                val container = state.getEntity(entityId) ?: continue
-                val cardComponent = container.get<CardComponent>() ?: continue
-                val cardDef = cardRegistry.getCard(cardComponent.cardDefinitionId) ?: continue
-                for (ability in cardDef.staticAbilities) {
-                    if (ability is AttackTax) {
-                        val ctx = com.wingedsheep.engine.handlers.EffectContext(
-                            sourceId = entityId,
-                            controllerId = defenderId,
-                        )
-                        // Gate on the source's state (e.g. Archangel of Tithes — only while untapped).
-                        val condition = ability.condition
-                        if (condition != null && !conditionEvaluator.evaluate(state, condition, ctx)) {
-                            continue
-                        }
-                        val taxPerAttacker = maxOf(0, dynamicAmountEvaluator.evaluate(state, ability.amountPerAttacker, ctx, projected))
-                        totalGenericTax += taxPerAttacker * attackerCount
-                    }
-                }
-            }
-        }
-
-        totalGenericTax += calculatePerCreatureTax(state, attackers.keys, projected)
-        return totalGenericTax
-    }
-
-    /**
-     * Calculate per-creature tax from AttackBlockTaxPerCreatureType floating effects.
-     */
-    private fun calculatePerCreatureTax(
-        state: GameState,
-        creatureIds: Set<EntityId>,
-        projected: ProjectedState
-    ): Int {
-        var totalTax = 0
-        for (creatureId in creatureIds) {
-            for (floatingEffect in state.floatingEffects) {
-                val mod = floatingEffect.effect.modification
-                if (mod !is SerializableModification.AttackBlockTaxPerCreatureType) continue
-                if (creatureId !in floatingEffect.effect.affectedEntities) continue
-
-                val creatureTypeCount = state.getBattlefield().count { entityId ->
-                    projected.isCreature(entityId) && projected.hasSubtype(entityId, mod.creatureType)
-                }
-                val costPerCreature = ManaCost.parse(mod.manaCostPer).cmc
-                totalTax += costPerCreature * creatureTypeCount
-            }
-        }
-        return totalTax
-    }
+    ): Int = CombatTaxes.attackTax(state, cardRegistry, attackers, projected)
 }

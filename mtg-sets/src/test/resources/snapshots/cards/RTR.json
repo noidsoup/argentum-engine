@@ -1,3 +1,66 @@
+// Auger Spree
+{
+    "name": "Auger Spree",
+    "manaCost": "{1}{B}{R}",
+    "typeLine": "Instant",
+    "oracleText": "Target creature gets +4/-4 until end of turn.",
+    "script": {
+        "spellEffect": {
+            "type": "ModifyStats",
+            "powerModifier": {
+                "type": "Fixed",
+                "amount": 4
+            },
+            "toughnessModifier": {
+                "type": "Fixed",
+                "amount": -4
+            },
+            "target": {
+                "type": "ContextTarget",
+                "index": 0
+            }
+        },
+        "targetRequirements": [
+            {
+                "type": "TargetObject",
+                "filter": {
+                    "baseFilter": "creature"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "144",
+        "artist": "Raymond Swanland",
+        "flavorText": "\"Finally, a weapon the Boros can't confiscate!\"\n—Juri, proprietor of the Juri Revue",
+        "imageUri": "https://cards.scryfall.io/normal/front/9/5/9580a40b-b413-4f0d-9b38-13903a9d367d.jpg?1783940345"
+    },
+    "colorIdentityOverride": [
+        "BLACK",
+        "RED"
+    ]
+}
+
+// Axebane Stag
+{
+    "name": "Axebane Stag",
+    "manaCost": "{6}{G}",
+    "typeLine": "Creature — Elk",
+    "creatureStats": {
+        "power": 6,
+        "toughness": 7
+    },
+    "metadata": {
+        "collectorNumber": "116",
+        "artist": "Martina Pilcerova",
+        "flavorText": "\"When the spires have burned and the cobblestones are dust, he will take his rightful place as king of the wilds.\"\n—Kirce, Axebane guardian",
+        "imageUri": "https://cards.scryfall.io/normal/front/b/f/bfce7c02-ccc3-44cd-8087-627eaa6a072e.jpg?1783940351"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
 // Azorius Guildgate
 {
     "name": "Azorius Guildgate",
@@ -40,6 +103,183 @@
     "colorIdentityOverride": [
         "WHITE",
         "BLUE"
+    ]
+}
+
+// Bellows Lizard
+{
+    "name": "Bellows Lizard",
+    "manaCost": "{R}",
+    "typeLine": "Creature — Lizard",
+    "oracleText": "{1}{R}: This creature gets +1/+0 until end of turn.",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 1
+    },
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": {
+                    "type": "CostAtomWrapper",
+                    "atom": {
+                        "type": "AtomMana",
+                        "cost": "{1}{R}"
+                    }
+                },
+                "effect": {
+                    "type": "ModifyStats",
+                    "powerModifier": {
+                        "type": "Fixed",
+                        "amount": 1
+                    },
+                    "toughnessModifier": {
+                        "type": "Fixed",
+                        "amount": 0
+                    },
+                    "target": "Self"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "88",
+        "artist": "Jack Wang",
+        "flavorText": "As the price of wood and coal rose, smiths found creative ways to keep their forges burning.",
+        "imageUri": "https://cards.scryfall.io/normal/front/5/d/5da4a644-9809-4591-9007-6b70b5f9d923.jpg"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
+// Brushstrider
+{
+    "name": "Brushstrider",
+    "manaCost": "{1}{G}",
+    "typeLine": "Creature — Beast",
+    "oracleText": "Vigilance (Attacking doesn't cause this creature to tap.)",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 1
+    },
+    "keywords": [
+        "VIGILANCE"
+    ],
+    "metadata": {
+        "collectorNumber": "117",
+        "rarity": "UNCOMMON",
+        "artist": "Raoul Vitale",
+        "flavorText": "Magistrate Ludy agreed to designate land for the brushstriders only after several broken windows and dozens of missing blini-cakes.",
+        "imageUri": "https://cards.scryfall.io/normal/front/5/9/59bd1534-52d1-4946-b430-d26f039a9067.jpg?1783940350"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
+// Catacomb Slug
+{
+    "name": "Catacomb Slug",
+    "manaCost": "{4}{B}",
+    "typeLine": "Creature — Slug",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 6
+    },
+    "metadata": {
+        "collectorNumber": "58",
+        "artist": "Nils Hamm",
+        "flavorText": "\"The entire murder scene was covered in dripping, oozing slime. No need for a soothsayer to solve that one.\"\n—Pel Javya, Wojek investigator",
+        "imageUri": "https://cards.scryfall.io/normal/front/5/3/53b36fba-6a0e-4f03-8bee-03919062537f.jpg?1783940365"
+    },
+    "colorIdentityOverride": [
+        "BLACK"
+    ]
+}
+
+// Chromatic Lantern
+{
+    "name": "Chromatic Lantern",
+    "manaCost": "{3}",
+    "typeLine": "Artifact",
+    "oracleText": "Lands you control have \"{T}: Add one mana of any color.\"\n{T}: Add one mana of any color.",
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": "CostTap",
+                "effect": "AddManaOfChoice",
+                "timing": "ManaAbility",
+                "isManaAbility": true
+            }
+        ],
+        "staticAbilities": [
+            {
+                "type": "GrantActivatedAbility",
+                "ability": {
+                    "id": "ability_2",
+                    "cost": "CostTap",
+                    "effect": "AddManaOfChoice",
+                    "timing": "ManaAbility",
+                    "isManaAbility": true
+                },
+                "filter": {
+                    "baseFilter": "land ctrl:you"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "226",
+        "rarity": "RARE",
+        "artist": "Jung Park",
+        "flavorText": "Dimir mages put the lanterns to good use, creating shapeshifters and sleeper agents from mana foreign to them.",
+        "imageUri": "https://cards.scryfall.io/normal/front/5/7/57f4e0f0-13d1-43ed-8d95-13cff94a26e7.jpg?1783940325"
+    }
+}
+
+// Cobblebrute
+{
+    "name": "Cobblebrute",
+    "manaCost": "{3}{R}",
+    "typeLine": "Creature — Elemental",
+    "creatureStats": {
+        "power": 5,
+        "toughness": 2
+    },
+    "metadata": {
+        "collectorNumber": "91",
+        "artist": "Eytan Zana",
+        "flavorText": "The most ancient streets take on a life of their own. A few have decided to move to nicer neighborhoods.",
+        "imageUri": "https://cards.scryfall.io/normal/front/4/e/4e038376-801f-454e-a635-0e2d58ccbf7c.jpg?1783940356"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
+// Concordia Pegasus
+{
+    "name": "Concordia Pegasus",
+    "manaCost": "{1}{W}",
+    "typeLine": "Creature — Pegasus",
+    "oracleText": "Flying",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 3
+    },
+    "keywords": [
+        "FLYING"
+    ],
+    "metadata": {
+        "collectorNumber": "8",
+        "artist": "Winona Nelson",
+        "flavorText": "\"A kick from its hooves is like a bolt of lightning. I'd know. I've been hit by both.\"\n—Rencz, Izzet chemister's aide",
+        "imageUri": "https://cards.scryfall.io/normal/front/f/0/f0333d0b-ae42-48aa-83d8-a4f2c7483a46.jpg"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
     ]
 }
 
@@ -100,6 +340,98 @@
         "rarity": "RARE",
         "artist": "Jason Chan",
         "imageUri": "https://cards.scryfall.io/normal/front/8/2/8242fade-754c-4404-b3fb-f3cccf84b3b6.jpg?1782714261"
+    },
+    "colorIdentityOverride": [
+        "BLACK"
+    ]
+}
+
+// Drainpipe Vermin
+{
+    "name": "Drainpipe Vermin",
+    "manaCost": "{B}",
+    "typeLine": "Creature — Rat",
+    "oracleText": "When this creature dies, you may pay {B}. If you do, target player discards a card.",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 1
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "from": "Battlefield",
+                    "to": "Graveyard"
+                },
+                "effect": {
+                    "type": "Gated",
+                    "gate": {
+                        "type": "Gate.MayPay",
+                        "cost": {
+                            "type": "PayManaCost",
+                            "cost": "{B}"
+                        }
+                    },
+                    "then": {
+                        "type": "Composite",
+                        "effects": [
+                            {
+                                "type": "GatherCards",
+                                "source": {
+                                    "type": "FromZone",
+                                    "zone": "Hand",
+                                    "player": {
+                                        "type": "ContextPlayer",
+                                        "index": 0
+                                    }
+                                },
+                                "storeAs": "hand"
+                            },
+                            {
+                                "type": "SelectFromCollection",
+                                "from": "hand",
+                                "selection": {
+                                    "type": "ChooseExactly",
+                                    "count": {
+                                        "type": "Fixed",
+                                        "amount": 1
+                                    }
+                                },
+                                "chooser": "TargetPlayer",
+                                "storeSelected": "discarded",
+                                "prompt": "Choose 1 card to discard"
+                            },
+                            {
+                                "type": "MoveCollection",
+                                "from": "discarded",
+                                "destination": {
+                                    "type": "ToZone",
+                                    "zone": "Graveyard",
+                                    "player": {
+                                        "type": "ContextPlayer",
+                                        "index": 0
+                                    }
+                                },
+                                "moveType": "Discard"
+                            }
+                        ]
+                    }
+                },
+                "targetRequirement": {
+                    "type": "TargetPlayer",
+                    "id": "target player"
+                },
+                "descriptionOverride": "When this creature dies, you may pay {B}. If you do, target player discards a card."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "66",
+        "artist": "Trevor Claxton",
+        "flavorText": "When times are tough, the poor eat the rats. When times are tougher, the rats eat the poor.",
+        "imageUri": "https://cards.scryfall.io/normal/front/4/d/4d7251f3-df66-4611-a84c-1897f74431f7.jpg?1783940362"
     },
     "colorIdentityOverride": [
         "BLACK"
@@ -167,6 +499,42 @@
     ]
 }
 
+// Goblin Rally
+{
+    "name": "Goblin Rally",
+    "manaCost": "{3}{R}{R}",
+    "typeLine": "Sorcery",
+    "oracleText": "Create four 1/1 red Goblin creature tokens.",
+    "script": {
+        "spellEffect": {
+            "type": "CreateToken",
+            "count": {
+                "type": "Fixed",
+                "amount": 4
+            },
+            "power": 1,
+            "toughness": 1,
+            "colors": [
+                "RED"
+            ],
+            "creatureTypes": [
+                "Goblin"
+            ],
+            "imageUri": "https://cards.scryfall.io/normal/front/e/d/ed418a8b-f158-492d-a323-6265b3175292.jpg?1562640121"
+        }
+    },
+    "metadata": {
+        "collectorNumber": "95",
+        "rarity": "UNCOMMON",
+        "artist": "Nic Klein",
+        "flavorText": "You don't so much hire goblins as put ideas in their heads.",
+        "imageUri": "https://cards.scryfall.io/normal/front/e/4/e4ec8ada-09a6-449a-ac4a-7d3acbd08014.jpg?1783940356"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
 // Golgari Guildgate
 {
     "name": "Golgari Guildgate",
@@ -205,6 +573,27 @@
         "artist": "Eytan Zana",
         "flavorText": "Enter those who are starving and sick. You are welcome among the Swarm when the rest of Ravnica rejects you.",
         "imageUri": "https://cards.scryfall.io/normal/front/8/f/8fe2fd1a-f7d3-48b4-bad8-be5ee45d6121.jpg"
+    },
+    "colorIdentityOverride": [
+        "BLACK",
+        "GREEN"
+    ]
+}
+
+// Golgari Longlegs
+{
+    "name": "Golgari Longlegs",
+    "manaCost": "{3}{B/G}{B/G}",
+    "typeLine": "Creature — Insect",
+    "creatureStats": {
+        "power": 5,
+        "toughness": 4
+    },
+    "metadata": {
+        "collectorNumber": "216",
+        "artist": "Volkan Baǵa",
+        "flavorText": "Despite its enormous stature, it can fold itself into a tunnel with startling quickness, vanishing back into the undercity.",
+        "imageUri": "https://cards.scryfall.io/normal/front/d/4/d44058ba-3419-4777-8d59-05dea5e864e1.jpg?1783940327"
     },
     "colorIdentityOverride": [
         "BLACK",
@@ -309,6 +698,65 @@
     "colorIdentityOverride": [
         "BLUE",
         "RED"
+    ]
+}
+
+// Knightly Valor
+{
+    "name": "Knightly Valor",
+    "manaCost": "{4}{W}",
+    "typeLine": "Enchantment — Aura",
+    "oracleText": "Enchant creature\nWhen this Aura enters, create a 2/2 white Knight creature token with vigilance. (Attacking doesn't cause it to tap.)\nEnchanted creature gets +2/+2 and has vigilance.",
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "CreateToken",
+                    "power": 2,
+                    "toughness": 2,
+                    "colors": [
+                        "WHITE"
+                    ],
+                    "creatureTypes": [
+                        "Knight"
+                    ],
+                    "keywords": [
+                        "VIGILANCE"
+                    ]
+                },
+                "descriptionOverride": "When this Aura enters, create a 2/2 white Knight creature token with vigilance."
+            }
+        ],
+        "staticAbilities": [
+            {
+                "type": "ModifyStats",
+                "powerBonus": 2,
+                "toughnessBonus": 2
+            },
+            {
+                "type": "GrantKeyword",
+                "keyword": "VIGILANCE"
+            }
+        ],
+        "auraTarget": {
+            "type": "TargetObject",
+            "filter": {
+                "baseFilter": "creature"
+            }
+        }
+    },
+    "metadata": {
+        "collectorNumber": "13",
+        "artist": "Matt Stewart",
+        "imageUri": "https://cards.scryfall.io/normal/front/1/2/122d821f-c8dd-4a3c-a6d7-b42fe5491f02.jpg?1783940374"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
     ]
 }
 
@@ -484,6 +932,164 @@
     "colorIdentityOverride": []
 }
 
+// Savage Surge
+{
+    "name": "Savage Surge",
+    "manaCost": "{1}{G}",
+    "typeLine": "Instant",
+    "oracleText": "Target creature gets +2/+2 until end of turn. Untap that creature.",
+    "script": {
+        "spellEffect": {
+            "type": "Composite",
+            "effects": [
+                {
+                    "type": "ModifyStats",
+                    "powerModifier": {
+                        "type": "Fixed",
+                        "amount": 2
+                    },
+                    "toughnessModifier": {
+                        "type": "Fixed",
+                        "amount": 2
+                    },
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "target"
+                    }
+                },
+                {
+                    "type": "TapUntap",
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "target"
+                    },
+                    "tap": false
+                }
+            ]
+        },
+        "targetRequirements": [
+            {
+                "type": "TargetObject",
+                "filter": {
+                    "baseFilter": "creature"
+                },
+                "id": "target"
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "133",
+        "rarity": "UNCOMMON",
+        "artist": "Svetlin Velinov",
+        "flavorText": "Gruul warriors never need to be stirred to battle. They need only to be shown where the battle is.",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/f/0fa74aae-e857-410c-8836-953c8623d0b0.jpg"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
+// Selesnya Charm
+{
+    "name": "Selesnya Charm",
+    "manaCost": "{G}{W}",
+    "typeLine": "Instant",
+    "oracleText": "Choose one —\n• Target creature gets +2/+2 and gains trample until end of turn.\n• Exile target creature with power 5 or greater.\n• Create a 2/2 white Knight creature token with vigilance.",
+    "script": {
+        "spellEffect": {
+            "type": "Modal",
+            "modes": [
+                {
+                    "effect": {
+                        "type": "Composite",
+                        "effects": [
+                            {
+                                "type": "ModifyStats",
+                                "powerModifier": {
+                                    "type": "Fixed",
+                                    "amount": 2
+                                },
+                                "toughnessModifier": {
+                                    "type": "Fixed",
+                                    "amount": 2
+                                },
+                                "target": {
+                                    "type": "BoundVariable",
+                                    "name": "target"
+                                }
+                            },
+                            {
+                                "type": "GrantKeyword",
+                                "keyword": "TRAMPLE",
+                                "target": {
+                                    "type": "BoundVariable",
+                                    "name": "target"
+                                }
+                            }
+                        ]
+                    },
+                    "targetRequirements": [
+                        {
+                            "type": "TargetObject",
+                            "filter": {
+                                "baseFilter": "creature"
+                            },
+                            "id": "target"
+                        }
+                    ],
+                    "description": "Target creature gets +2/+2 and gains trample until end of turn"
+                },
+                {
+                    "effect": {
+                        "type": "MoveToZone",
+                        "target": {
+                            "type": "BoundVariable",
+                            "name": "target"
+                        },
+                        "destination": "Exile"
+                    },
+                    "targetRequirements": [
+                        {
+                            "type": "TargetObject",
+                            "filter": {
+                                "baseFilter": "creature pow>=5"
+                            },
+                            "id": "target"
+                        }
+                    ],
+                    "description": "Exile target creature with power 5 or greater"
+                },
+                {
+                    "effect": {
+                        "type": "CreateToken",
+                        "power": 2,
+                        "toughness": 2,
+                        "colors": [
+                            "WHITE"
+                        ],
+                        "creatureTypes": [
+                            "Knight"
+                        ],
+                        "keywords": [
+                            "VIGILANCE"
+                        ]
+                    }
+                }
+            ]
+        }
+    },
+    "metadata": {
+        "collectorNumber": "194",
+        "rarity": "UNCOMMON",
+        "artist": "Zoltan Boros",
+        "imageUri": "https://cards.scryfall.io/normal/front/a/9/a9848eab-1d3a-4ab0-adf6-c20858aa3afb.jpg"
+    },
+    "colorIdentityOverride": [
+        "WHITE",
+        "GREEN"
+    ]
+}
+
 // Selesnya Guildgate
 {
     "name": "Selesnya Guildgate",
@@ -529,6 +1135,77 @@
     ]
 }
 
+// Seller of Songbirds
+{
+    "name": "Seller of Songbirds",
+    "manaCost": "{2}{W}",
+    "typeLine": "Creature — Human",
+    "oracleText": "When this creature enters, create a 1/1 white Bird creature token with flying.",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 2
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "CreateToken",
+                    "power": 1,
+                    "toughness": 1,
+                    "colors": [
+                        "WHITE"
+                    ],
+                    "creatureTypes": [
+                        "Bird"
+                    ],
+                    "keywords": [
+                        "FLYING"
+                    ],
+                    "imageUri": "https://cards.scryfall.io/normal/front/4/b/4b0c59f8-b407-47e7-8885-8c968f4ceecf.jpg?1783914993"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "22",
+        "artist": "Christopher Moeller",
+        "flavorText": "\"Lady Wren is the one merchant in Keyhole Downs who isn't running a scam.\" —Mirela, Azorius hussar",
+        "imageUri": "https://cards.scryfall.io/normal/front/2/a/2a41edbe-4c5a-4535-a082-235dc3ffe60a.jpg?1783940373"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
+// Trained Caracal
+{
+    "name": "Trained Caracal",
+    "manaCost": "{W}",
+    "typeLine": "Creature — Cat",
+    "oracleText": "Lifelink (Damage dealt by this creature also causes you to gain that much life.)",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 1
+    },
+    "keywords": [
+        "LIFELINK"
+    ],
+    "metadata": {
+        "collectorNumber": "27",
+        "artist": "James Ryman",
+        "flavorText": "Some Ravnicans consider carrying a sword to be beneath them, preferring instead a tooth-and-claw escort.",
+        "imageUri": "https://cards.scryfall.io/normal/front/7/9/797e45d1-d17d-40c0-bfdf-ec533784e676.jpg?1783940372"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
 // Transguild Promenade
 {
     "name": "Transguild Promenade",
@@ -545,7 +1222,13 @@
                 },
                 "effect": {
                     "type": "PayOrSuffer",
-                    "cost": "OwnManaCost",
+                    "cost": {
+                        "type": "PayAtom",
+                        "atom": {
+                            "type": "AtomMana",
+                            "cost": "{1}"
+                        }
+                    },
                     "suffer": "SacrificeSelf"
                 }
             }

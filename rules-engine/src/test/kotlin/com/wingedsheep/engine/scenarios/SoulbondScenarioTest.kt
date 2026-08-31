@@ -1,9 +1,9 @@
 package com.wingedsheep.engine.scenarios
 
-import com.wingedsheep.engine.core.ChooseTargetsDecision
+import com.wingedsheep.engine.core.SelectCardsDecision
 import com.wingedsheep.engine.core.SelectManaSourcesDecision
 import com.wingedsheep.engine.core.YesNoDecision
-import com.wingedsheep.engine.state.components.battlefield.SoulbondPairComponent
+import com.wingedsheep.engine.state.components.battlefield.PairedComponent
 import com.wingedsheep.engine.support.ScenarioTestBase
 import com.wingedsheep.sdk.core.Keyword
 import com.wingedsheep.sdk.core.Phase
@@ -37,15 +37,15 @@ class SoulbondScenarioTest : ScenarioTestBase() {
 
                 // Creature resolves → optional soulbond ETB asks for a target (min 0).
                 val targetDecision = game.state.pendingDecision
-                targetDecision.shouldBeInstanceOf<ChooseTargetsDecision>()
+                targetDecision.shouldBeInstanceOf<SelectCardsDecision>()
                 val bears = game.findPermanent("Grizzly Bears")!!
-                game.selectTargets(listOf(bears)).error shouldBe null
+                game.selectCards(listOf(bears)).error shouldBe null
                 game.resolveStack()
 
                 val gateguards = game.findPermanent("Spectral Gateguards")!!
                 withClue("both creatures should be symmetrically paired") {
-                    game.state.getEntity(gateguards)?.get<SoulbondPairComponent>()?.partnerId shouldBe bears
-                    game.state.getEntity(bears)?.get<SoulbondPairComponent>()?.partnerId shouldBe gateguards
+                    game.state.getEntity(gateguards)?.get<PairedComponent>()?.partnerId shouldBe bears
+                    game.state.getEntity(bears)?.get<PairedComponent>()?.partnerId shouldBe gateguards
                 }
             }
 
@@ -63,14 +63,14 @@ class SoulbondScenarioTest : ScenarioTestBase() {
                 if (game.getPendingDecision() is SelectManaSourcesDecision) game.submitManaSourcesAutoPay()
                 game.resolveStack()
 
-                game.state.pendingDecision.shouldBeInstanceOf<ChooseTargetsDecision>()
-                game.skipTargets().error shouldBe null
+                game.state.pendingDecision.shouldBeInstanceOf<SelectCardsDecision>()
+                game.skipSelection().error shouldBe null
                 game.resolveStack()
 
                 val gateguards = game.findPermanent("Spectral Gateguards")!!
                 val bears = game.findPermanent("Grizzly Bears")!!
-                game.state.getEntity(gateguards)?.get<SoulbondPairComponent>() shouldBe null
-                game.state.getEntity(bears)?.get<SoulbondPairComponent>() shouldBe null
+                game.state.getEntity(gateguards)?.get<PairedComponent>() shouldBe null
+                game.state.getEntity(bears)?.get<PairedComponent>() shouldBe null
             }
 
             test("other creature ETB may pair with an unpaired soulbond permanent") {
@@ -94,8 +94,8 @@ class SoulbondScenarioTest : ScenarioTestBase() {
 
                 val gateguards = game.findPermanent("Spectral Gateguards")!!
                 val bears = game.findPermanent("Grizzly Bears")!!
-                game.state.getEntity(gateguards)?.get<SoulbondPairComponent>()?.partnerId shouldBe bears
-                game.state.getEntity(bears)?.get<SoulbondPairComponent>()?.partnerId shouldBe gateguards
+                game.state.getEntity(gateguards)?.get<PairedComponent>()?.partnerId shouldBe bears
+                game.state.getEntity(bears)?.get<PairedComponent>()?.partnerId shouldBe gateguards
             }
 
             test("leaving the battlefield unpaired the mate (CR 702.95e)") {
@@ -112,15 +112,15 @@ class SoulbondScenarioTest : ScenarioTestBase() {
                 val gateguards = game.findPermanent("Spectral Gateguards")!!
                 val bears = game.findPermanent("Grizzly Bears")!!
                 game.state = game.state
-                    .updateEntity(gateguards) { it.with(SoulbondPairComponent(bears)) }
-                    .updateEntity(bears) { it.with(SoulbondPairComponent(gateguards)) }
+                    .updateEntity(gateguards) { it.with(PairedComponent(bears)) }
+                    .updateEntity(bears) { it.with(PairedComponent(gateguards)) }
 
                 game.castSpell(1, "Doom Blade", gateguards).error shouldBe null
                 if (game.getPendingDecision() is SelectManaSourcesDecision) game.submitManaSourcesAutoPay()
                 game.resolveStack()
 
                 withClue("survivor should be unpaired after the mate leaves") {
-                    game.state.getEntity(bears)?.get<SoulbondPairComponent>() shouldBe null
+                    game.state.getEntity(bears)?.get<PairedComponent>() shouldBe null
                 }
             }
         }
@@ -139,8 +139,8 @@ class SoulbondScenarioTest : ScenarioTestBase() {
                 val gateguards = game.findPermanent("Spectral Gateguards")!!
                 val bears = game.findPermanent("Grizzly Bears")!!
                 game.state = game.state
-                    .updateEntity(gateguards) { it.with(SoulbondPairComponent(bears)) }
-                    .updateEntity(bears) { it.with(SoulbondPairComponent(gateguards)) }
+                    .updateEntity(gateguards) { it.with(PairedComponent(bears)) }
+                    .updateEntity(bears) { it.with(PairedComponent(gateguards)) }
 
                 withClue("both should have vigilance while paired") {
                     game.state.projectedState.hasKeyword(gateguards, Keyword.VIGILANCE) shouldBe true
@@ -148,8 +148,8 @@ class SoulbondScenarioTest : ScenarioTestBase() {
                 }
 
                 game.state = game.state
-                    .updateEntity(gateguards) { it.without<SoulbondPairComponent>() }
-                    .updateEntity(bears) { it.without<SoulbondPairComponent>() }
+                    .updateEntity(gateguards) { it.without<PairedComponent>() }
+                    .updateEntity(bears) { it.without<PairedComponent>() }
 
                 withClue("neither should have vigilance after unpair") {
                     game.state.projectedState.hasKeyword(gateguards, Keyword.VIGILANCE) shouldBe false
@@ -173,8 +173,8 @@ class SoulbondScenarioTest : ScenarioTestBase() {
                 val lookout = game.findPermanent("Tandem Lookout")!!
                 val bears = game.findPermanent("Grizzly Bears")!!
                 game.state = game.state
-                    .updateEntity(lookout) { it.with(SoulbondPairComponent(bears)) }
-                    .updateEntity(bears) { it.with(SoulbondPairComponent(lookout)) }
+                    .updateEntity(lookout) { it.with(PairedComponent(bears)) }
+                    .updateEntity(bears) { it.with(PairedComponent(lookout)) }
 
                 val handBefore = game.handSize(1)
 

@@ -77,7 +77,10 @@ class ConnectionHandler(
             extensionSet = config.extensionSet,
             block = config.block,
             implementedCount = config.distinctCardCount,
-            releaseDate = config.releaseDate
+            releaseDate = config.releaseDate,
+            products = config.extraCardsByProduct.map { (id, cards) ->
+                ServerMessage.SetProduct(id, cards.size)
+            },
         )
     }
 
@@ -174,7 +177,8 @@ class ConnectionHandler(
             }
         }
 
-        // Cancel in-game disconnect timer and notify every opponent (2-player = the one opponent)
+        // Cancel in-game disconnect timer and notify every other seat — opponents and, in a team
+        // game, the returning player's partner (2-player = the one opponent)
         if (identity.gameDisconnectTimer != null) {
             identity.gameDisconnectTimer?.cancel(false)
             identity.gameDisconnectTimer = null
@@ -183,7 +187,7 @@ class ConnectionHandler(
             if (gameSessionId != null) {
                 val gameSession = gameRepository.findById(gameSessionId)
                 if (gameSession != null) {
-                    gameSession.getOpponentIds(identity.playerId).forEach { opponentId ->
+                    gameSession.getOtherPlayerIds(identity.playerId).forEach { opponentId ->
                         val opponentSession = gameSession.getPlayerSession(opponentId)
                         if (opponentSession?.isConnected == true) {
                             sender.send(opponentSession.webSocketSession, ServerMessage.OpponentReconnected)
@@ -269,10 +273,8 @@ class ConnectionHandler(
                 val gameSession = gameRepository.findById(gameSessionId!!)
                 logger.info("Reconnecting to game: found=${gameSession != null}, isStarted=${gameSession?.isStarted}, seats=${gameSession?.getPlayers()?.map { it.playerId.value }}")
                 if (gameSession != null) {
-                    // Remove old player session if exists, then associate new one
-                    if (gameSession.getPlayerSession(identity.playerId) != null) {
-                        gameSession.removePlayer(identity.playerId)
-                    }
+                    // Swap the live socket into the seat this player already has. Don't un-seat them
+                    // first — that would hand back their deck and sideboard mid-game.
                     gameSession.associatePlayer(playerSession)
 
                     // Re-sync the spectator-count badge for the reconnecting player.
@@ -387,8 +389,10 @@ class ConnectionHandler(
                 if (gameSessionId != null) {
                     val gameSession = gameRepository.findById(gameSessionId)
                     if (gameSession != null && !gameSession.isGameOver()) {
-                        // Notify every opponent that this seat dropped (2-player = the one opponent)
-                        gameSession.getOpponentIds(identity.playerId).forEach { opponentId ->
+                        // Notify every other seat that this one dropped — a Two-Headed Giant partner
+                        // needs to know at least as much as an opponent does, since their team
+                        // forfeits with them if the timer runs out (2-player = the one opponent)
+                        gameSession.getOtherPlayerIds(identity.playerId).forEach { opponentId ->
                             val opponentSession = gameSession.getPlayerSession(opponentId)
                             if (opponentSession?.isConnected == true) {
                                 sender.send(opponentSession.webSocketSession,
@@ -631,7 +635,7 @@ class ConnectionHandler(
                 if (opponentSession?.isConnected == true) {
                     sender.send(
                         opponentSession.webSocketSession,
-                        ServerMessage.GameOver(opponentId, GameOverReason.DISCONNECTION)
+                        ServerMessage.GameOver(opponentId, GameOverReason.DISCONNECTION, winnerIds = listOf(opponentId))
                     )
                 }
             }
@@ -718,7 +722,8 @@ class ConnectionHandler(
                 colorIdentity = card.colorIdentity.map { it.name },
                 setCode = card.setCode,
                 collectorNumber = card.metadata.collectorNumber,
-                layout = card.layout.name
+                layout = card.layout.name,
+                isLandscape = card.isLandscapePrint
             )
         }
     }

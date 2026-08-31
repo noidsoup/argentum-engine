@@ -396,7 +396,8 @@
         "colorIdentityOverride": [
             "WHITE",
             "BLUE"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "204",
@@ -616,7 +617,8 @@
             "artist": "Evan Shipard",
             "imageUri": "https://cards.scryfall.io/normal/back/f/e/fea89ca0-8070-4f28-9851-994314f9d248.jpg?1764522003"
         },
-        "colorIdentityOverride": []
+        "colorIdentityOverride": [],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "203",
@@ -2150,7 +2152,8 @@
             "BLACK",
             "RED",
             "GREEN"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "207",
@@ -2307,7 +2310,7 @@
                 "id": "ability_1",
                 "trigger": {
                     "type": "ZoneChangeEvent",
-                    "filter": "creature Ally ctrl:you",
+                    "filter": "permanent Ally ctrl:you",
                     "to": "Battlefield"
                 },
                 "binding": "OTHER",
@@ -3171,6 +3174,7 @@
                     }
                 },
                 "effect": "AddManaOfChoice",
+                "timing": "ManaAbility",
                 "restrictions": [
                     "OncePerTurn"
                 ],
@@ -3414,6 +3418,7 @@
                 "id": "ability_1",
                 "cost": "CostTap",
                 "effect": "AddManaOfChoice",
+                "timing": "ManaAbility",
                 "isManaAbility": true
             }
         ],
@@ -4422,7 +4427,7 @@
                     "type": "MoveAllLastKnownCounters",
                     "target": "Self"
                 },
-                "triggerCondition": "TriggeringEntityHadCounters",
+                "interveningIf": "TriggeringEntityHadCounters",
                 "descriptionOverride": "Whenever another creature you control dies, if it had counters on it, put its counters on this creature."
             }
         ]
@@ -6018,7 +6023,7 @@
                         "amount": 1
                     }
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Exists",
                     "player": "You",
                     "zone": "Graveyard",
@@ -6223,7 +6228,7 @@
                         }
                     }
                 },
-                "oncePerTurn": true,
+                "effectOncePerTurn": true,
                 "descriptionOverride": "Whenever you put one or more +1/+1 counters on a creature, you may gain that much life. Do this only once each turn."
             }
         ]
@@ -6910,7 +6915,7 @@
                     "filter": "land ctrl:you",
                     "to": "Battlefield"
                 },
-                "binding": "OTHER",
+                "binding": "ANY",
                 "effect": {
                     "type": "Composite",
                     "effects": [
@@ -7868,7 +7873,7 @@
                     "type": "CopyTargetSpell",
                     "target": "TriggeringEntity"
                 },
-                "triggerCondition": {
+                "triggerRestriction": {
                     "type": "EntityMatches",
                     "entity": "Self",
                     "filter": "attacking"
@@ -8182,7 +8187,7 @@
                     },
                     "id": "another target creature or Vehicle you control"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "TurnTracking",
@@ -8330,7 +8335,7 @@
                     "type": "CreatePredefinedToken",
                     "tokenType": "Clue"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "TurnTracking",
@@ -9769,7 +9774,9 @@
                 "ability": {
                     "id": "ability_1",
                     "cost": "CostTap",
-                    "effect": "AddManaOfChoice"
+                    "effect": "AddManaOfChoice",
+                    "timing": "ManaAbility",
+                    "isManaAbility": true
                 },
                 "filter": {
                     "baseFilter": "land|Ally ctrl:you"
@@ -10274,7 +10281,10 @@
                 {
                     "effect": {
                         "type": "RemoveAnyNumberOfCounters",
-                        "maxTotal": 3
+                        "maxTotal": {
+                            "type": "Fixed",
+                            "amount": 3
+                        }
                     },
                     "targetRequirements": [
                         {
@@ -10944,7 +10954,7 @@
                 "id": "ability_2",
                 "trigger": {
                     "type": "OneOrMoreDealCombatDamageToPlayerEvent",
-                    "sourceFilter": "creature Ally"
+                    "sourceFilter": "permanent Ally"
                 },
                 "binding": "ANY",
                 "effect": {
@@ -11806,7 +11816,7 @@
                     "count": 1,
                     "target": "Self"
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "EntityMatches",
                     "entity": "Self",
                     "filter": "tapped"
@@ -13140,7 +13150,8 @@
                 "effect": {
                     "type": "MoveToZone",
                     "target": "Self",
-                    "destination": "Hand"
+                    "destination": "Hand",
+                    "fromZone": "Graveyard"
                 },
                 "activateFromZone": "Graveyard"
             }
@@ -14646,7 +14657,7 @@
                 },
                 "binding": "ANY",
                 "effect": "CreateTokenCopyOfSource",
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "TurnTracking",
@@ -14839,7 +14850,7 @@
                         }
                     ]
                 },
-                "oncePerTurn": true
+                "effectOncePerTurn": true
             }
         ],
         "activatedAbilities": [
@@ -15211,7 +15222,7 @@
                     "filter": "land ctrl:you",
                     "to": "Battlefield"
                 },
-                "binding": "OTHER",
+                "binding": "ANY",
                 "effect": {
                     "type": "Composite",
                     "effects": [
@@ -15299,7 +15310,7 @@
                     "type": "CreateTokenCopyOfSource",
                     "removeLegendary": true
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "All",
                     "conditions": [
                         "WasCast",
@@ -16432,9 +16443,10 @@
                 "id": "ability_1",
                 "trigger": {
                     "type": "PermanentsSacrificedEvent",
-                    "filter": "permanent"
+                    "filter": "permanent",
+                    "perPermanent": true
                 },
-                "binding": "ANY",
+                "binding": "OTHER",
                 "effect": {
                     "type": "AddCounters",
                     "counterType": "+1/+1",
@@ -17118,11 +17130,11 @@
                                 "type": "FromZone",
                                 "zone": "Hand"
                             },
-                            "storeAs": "hand"
+                            "storeAs": "discarded_candidates"
                         },
                         {
                             "type": "SelectFromCollection",
-                            "from": "hand",
+                            "from": "discarded_candidates",
                             "selection": {
                                 "type": "ChooseUpTo",
                                 "count": {
@@ -17131,7 +17143,7 @@
                                 }
                             },
                             "storeSelected": "discarded",
-                            "prompt": "Discard up to two cards"
+                            "prompt": "Discard up to 2 cards"
                         },
                         {
                             "type": "MoveCollection",
@@ -17946,7 +17958,7 @@
                         "Ally"
                     ]
                 },
-                "triggerCondition": "IsYourTurn",
+                "triggerRestriction": "IsYourTurn",
                 "oncePerTurn": true
             }
         ],
@@ -19104,7 +19116,8 @@
         },
         "colorIdentityOverride": [
             "BLUE"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "61",
@@ -19268,6 +19281,7 @@
                             "property": "POWER"
                         }
                     },
+                    "timing": "ManaAbility",
                     "isManaAbility": true
                 }
             ],
@@ -19295,7 +19309,8 @@
             "flavorText": "\"Only justice will bring peace.\"",
             "imageUri": "https://cards.scryfall.io/normal/back/4/8/4887ce64-7c98-4bd7-95db-0c43ab71cc6e.jpg?1764846544"
         },
-        "colorIdentityOverride": []
+        "colorIdentityOverride": [],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "186",
@@ -19469,7 +19484,8 @@
         },
         "colorIdentityOverride": [
             "RED"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "145",
@@ -19680,7 +19696,8 @@
         },
         "colorIdentityOverride": [
             "WHITE"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "27",
@@ -20082,7 +20099,8 @@
         },
         "colorIdentityOverride": [
             "BLACK"
-        ]
+        ],
+        "hasNoManaCost": true
     },
     "metadata": {
         "collectorNumber": "117",
@@ -20362,7 +20380,11 @@
             },
             {
                 "id": "ability_2",
-                "trigger": "PermanentsSacrificedEvent",
+                "trigger": {
+                    "type": "PermanentsSacrificedEvent",
+                    "filter": "permanent",
+                    "perPermanent": true
+                },
                 "binding": "ANY",
                 "effect": {
                     "type": "CreateToken",
@@ -20375,7 +20397,7 @@
                         "Ally"
                     ]
                 },
-                "triggerCondition": "IsYourTurn",
+                "triggerRestriction": "IsYourTurn",
                 "oncePerTurn": true
             }
         ]
@@ -21577,7 +21599,8 @@
                 "id": "ability_2",
                 "trigger": {
                     "type": "PermanentsSacrificedEvent",
-                    "filter": "artifact Food"
+                    "filter": "artifact Food",
+                    "perPermanent": true
                 },
                 "binding": "ANY",
                 "effect": {
@@ -21827,7 +21850,7 @@
                         "amount": 2
                     }
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Exists",
                     "player": "You",
                     "zone": "Graveyard",
@@ -22639,7 +22662,7 @@
                 "powerBonus": 1,
                 "toughnessBonus": 1,
                 "filter": {
-                    "baseFilter": "creature Ally ctrl:you",
+                    "baseFilter": "permanent Ally ctrl:you",
                     "excludeSelf": true
                 }
             }
@@ -22739,7 +22762,9 @@
                         ]
                     }
                 },
-                "activeZone": "Graveyard",
+                "activeZones": [
+                    "Graveyard"
+                ],
                 "descriptionOverride": "Whenever you draw your second card each turn, you may pay {B}. If you do, return this card from your graveyard to the battlefield with a finality counter on it."
             }
         ]

@@ -4,22 +4,27 @@ import com.wingedsheep.engine.core.*
 import com.wingedsheep.engine.handlers.DecisionHandler
 import com.wingedsheep.engine.handlers.TargetFinder
 import com.wingedsheep.engine.mechanics.mana.ManaSolver
+import com.wingedsheep.engine.mechanics.modal.ChosenModeMemory
 import com.wingedsheep.engine.mechanics.stack.StackResolver
 import com.wingedsheep.engine.state.GameState
+import com.wingedsheep.engine.state.components.battlefield.TriggeredAbilityEffectAppliedThisTurnComponent
 import com.wingedsheep.engine.state.components.battlefield.TriggeredAbilityFiredEverComponent
 import com.wingedsheep.engine.state.components.battlefield.TriggeredAbilityFiredThisTurnComponent
 import com.wingedsheep.engine.state.components.stack.TriggeredAbilityOnStackComponent
 import com.wingedsheep.engine.state.components.stack.abilityIdentityOf
 import com.wingedsheep.engine.handlers.DynamicAmountEvaluator
 import com.wingedsheep.engine.handlers.EffectContext
+import com.wingedsheep.engine.handlers.effects.TargetResolutionUtils
 import com.wingedsheep.sdk.dsl.LibraryPatterns
 import com.wingedsheep.sdk.model.EntityId
 import com.wingedsheep.sdk.scripting.AbilityId
+import com.wingedsheep.sdk.scripting.TriggeredAbility
 import com.wingedsheep.sdk.scripting.effects.CompositeEffect
 import com.wingedsheep.sdk.scripting.effects.Effect
 import com.wingedsheep.sdk.scripting.effects.FeasibilityCheck
 import com.wingedsheep.sdk.scripting.effects.Gate
 import com.wingedsheep.sdk.scripting.effects.GatedEffect
+import com.wingedsheep.sdk.scripting.effects.isConsentGate
 import com.wingedsheep.sdk.scripting.effects.ModalEffect
 import com.wingedsheep.sdk.scripting.effects.SacrificeEffect
 import com.wingedsheep.engine.handlers.effects.composite.ModalEffectExecutor
@@ -28,8 +33,10 @@ import com.wingedsheep.engine.handlers.effects.composite.asOptionalManaPayment
 import com.wingedsheep.sdk.scripting.effects.SelectFromCollectionEffect
 import com.wingedsheep.sdk.scripting.effects.SelectionMode
 import com.wingedsheep.sdk.scripting.effects.StoreNumberEffect
+import com.wingedsheep.engine.legalactions.utils.TargetEnumerationUtils
 import com.wingedsheep.engine.registry.CardRegistry
 import com.wingedsheep.engine.state.components.player.PlayerLostComponent
+import com.wingedsheep.sdk.scripting.targets.TargetChooser
 import com.wingedsheep.sdk.scripting.targets.TargetObject
 import com.wingedsheep.sdk.scripting.targets.TargetOther
 import com.wingedsheep.sdk.scripting.targets.TargetRequirement
@@ -165,6 +172,13 @@ class TriggerProcessor(
         val ability = trigger.ability
         val targetRequirement = ability.targetRequirement ?: return null
         if (ability.effect.asMayDecide() == null) return null
+        // An `effectOncePerTurn` ability is never batched: its whole point is picking *which* of the
+        // simultaneous instances gets the turn's single action (which damaged creature's number to
+        // mirror, which Villain connives). One shared yes/no would answer for all of them and take
+        // that choice away. It also never reaches the put-on-stack may-question at all — the
+        // lowering in `withEffectBudgetGate` moves consent to resolution time — but this guard reads
+        // the *un-lowered* ability, so it is still load-bearing.
+        if (ability.effectOncePerTurn) return null
         val identity = state.abilityIdentityOf(trigger.sourceId, ability.id) ?: return null
         // Mirror processMayThenTargetTrigger's fizzle guard: a trigger with no legal targets (for a
         // mandatory-target requirement) fizzles without asking, so it must not join a batch.
@@ -183,10 +197,23 @@ class TriggerProcessor(
                 controllerId = trigger.controllerId,
                 triggeringEntityId = trigger.triggerContext.triggeringEntityId,
                 triggeringPlayerId = trigger.triggerContext.triggeringPlayerId,
+                // The X carried by the triggering event (an {X} cycling cost, a megamorph turn-up)
+                // so an X-relative target filter — `manaValueEqualsX()` on Webstrike Elite's
+                // "artifact or enchantment with mana value X" — finds targets at legality time.
+                // Without it those predicates read an unbound X and match nothing.
+                xValue = trigger.triggerContext.xValue,
+                storedCollections = trigger.carriedPipeline?.storedCollections ?: emptyMap(),
+                chosenValues = trigger.carriedPipeline?.chosenValues ?: emptyMap(),
+                storedStringLists = trigger.carriedPipeline?.storedStringLists ?: emptyMap(),
+                storedSubtypeGroups = trigger.carriedPipeline?.storedSubtypeGroups ?: emptyMap(),
             )
         )
         if (legalTargets.isEmpty() && targetRequirement.effectiveMinCount > 0) return null
-        return BatchKey(trigger.controllerId, identity)
+        // Keyed on who is *asked*, not who controls the ability. A card whose "may" names someone
+        // else (Farrel's Mantle's "its controller may") can produce two triggers with the same
+        // controller and the same identity while the question belongs to two different players —
+        // batching those would fan one player's answer onto the other's decision.
+        return BatchKey(askedPlayerFor(state, trigger), identity)
     }
 
     /**
@@ -224,7 +251,9 @@ class TriggerProcessor(
         val decisionId = "batch-may-${java.util.UUID.randomUUID()}"
         val decision = BatchYesNoDecision(
             id = decisionId,
-            playerId = first.controllerId,
+            // Same player the BatchKey was built on, so the auto-answer store is keyed identically
+            // on the batched and single paths.
+            playerId = askedPlayerFor(state, first),
             prompt = ability.effect.description,
             context = DecisionContext(
                 sourceId = first.sourceId,
@@ -266,10 +295,30 @@ class TriggerProcessor(
      * Process a single triggered ability.
      *
      * @param state The current game state
-     * @param trigger The pending trigger to process
+     * @param incomingTrigger The pending trigger to process, before any `effectOncePerTurn` lowering
      * @return ExecutionResult - may be paused if trigger requires targets
      */
-    private fun processSingleTrigger(state: GameState, trigger: PendingTrigger): ExecutionResult {
+    private fun processSingleTrigger(state: GameState, incomingTrigger: PendingTrigger): ExecutionResult {
+        // "Do this only once each turn" (`effectOncePerTurn`). CR 603.2h: the ability "triggers only
+        // if its source's controller has not yet taken the indicated action that turn". Once the
+        // action has been taken this turn the ability simply does not trigger, so this instance is
+        // dropped — silently, with no event: nothing went on the stack and nothing fizzled, and a
+        // phantom ability in the log would be a lie. (Contrast `oncePerTurn`, the *trigger* cap,
+        // which is spent by the first trigger whether or not the action happened.)
+        //
+        // Deliberately ahead of the `consumesDelayedTriggerId` removal and the `triggersOnce` mark
+        // below: an ability that never triggers must not consume its one-shot delayed trigger nor
+        // burn its lifetime fire. No shipped card combines those flags with this one.
+        if (incomingTrigger.ability.effectOncePerTurn &&
+            effectBudgetSpent(state, incomingTrigger.sourceId, incomingTrigger.ability.id)
+        ) {
+            return ExecutionResult.success(state, emptyList())
+        }
+        val trigger = if (incomingTrigger.ability.effectOncePerTurn) {
+            incomingTrigger.copy(ability = withEffectBudgetGate(incomingTrigger.ability))
+        } else {
+            incomingTrigger
+        }
         val ability = trigger.ability
         var currentState = state
 
@@ -309,43 +358,42 @@ class TriggerProcessor(
             return processTargetedTrigger(currentState, trigger, targetRequirement)
         }
 
-        // A no-target optional trigger has no target-selection step to carry the decline through,
-        // so the targeted path's may handling never runs and `optional` (plus any `elseEffect`)
-        // was silently dropped — the trigger resolved as mandatory (the latent bug that made
-        // Yawgmoth Demon do nothing and Song of Stupefaction mill without asking). Lower it into
-        // the unified GatedEffect(Gate.MayDecide) frame so GatedEffectExecutor owns the
-        // resolution-time yes/no and runs `elseEffect` (if any) on decline. Skip the wrap when the
-        // effect already carries its own consent gate (a May* GatedEffect, e.g. `Effects.May` or
-        // an optional mana payment) — double-wrapping would prompt twice. Feasibility derived from
-        // the may-action lets an impossible "may" (e.g. "you may sacrifice an artifact" with no
-        // artifact) fall straight to the else with no prompt — the no-target analogue of
-        // "no legal targets → else".
-        val effectOwnsConsent = (ability.effect as? GatedEffect)?.gate
-            .let { it is Gate.MayDecide || it is Gate.MayPay || it is Gate.MayPayX }
-        if (ability.optional && !effectOwnsConsent) {
-            val gated = GatedEffect(
-                gate = Gate.MayDecide(feasibility = impliedMayFeasibility(ability.effect)),
-                then = ability.effect,
-                otherwise = ability.elseEffect
-            )
-            return putTriggerOnStack(currentState, trigger, emptyList(), gated)
-        }
-
-        // No targets required - put directly on stack
-        return putTriggerOnStack(currentState, trigger, emptyList())
+        // No targets required — put directly on stack, with one derivation applied on the way.
+        return putTriggerOnStack(
+            currentState,
+            trigger,
+            emptyList(),
+            ability.effect.withImpliedMayFeasibility()
+        )
     }
 
     /**
-     * The feasibility a no-target "may" action implies, so a "you may [action]. If you don't, …"
-     * trigger skips the prompt and runs its else branch when the action is impossible (the player
-     * can't, so they "don't"). A [SacrificeEffect] is always controller-self and needs the
-     * controller to control enough matching permanents; other actions (draw, gain life, add a
-     * counter) are always feasible (`null` → always prompt). Extend as further
-     * impossible-when-empty may-actions appear.
+     * Stamp the feasibility a no-target "you may [action]" implies onto its consent gate, so
+     * "you may … If you don't, …" skips the prompt and runs its else branch when the action is
+     * impossible — the player can't, so they "don't". The no-target analogue of
+     * "no legal targets → else".
+     *
+     * **Derived here rather than stored on the card**, and that is the point. Nothing in the printed
+     * text says it: "you may sacrifice an artifact" and "you may draw a card" are the same sentence
+     * shape, and which one is unanswerable follows from the *effect*, not from the wording. A card
+     * that spelled it would be recording a fact it does not know, and a second card written the
+     * other way would then mean something different by accident. Only a gate with no feasibility of
+     * its own is touched — a card that states one (Provisions Merchant) is saying something the
+     * effect cannot imply, and it wins.
+     *
+     * A [SacrificeEffect] is always controller-self and needs the controller to control enough
+     * matching permanents; other actions (draw, gain life, add a counter) are always feasible
+     * (`null` → always prompt). Extend as further impossible-when-empty may-actions appear.
      */
-    private fun impliedMayFeasibility(effect: Effect): FeasibilityCheck? = when (effect) {
-        is SacrificeEffect -> FeasibilityCheck.ControlsPermanentMatching(effect.filter, effect.count)
-        else -> null
+    private fun Effect.withImpliedMayFeasibility(): Effect {
+        val gated = this as? GatedEffect ?: return this
+        val gate = gated.gate as? Gate.MayDecide ?: return this
+        if (gate.feasibility != null) return this
+        val implied = when (val action = gated.then) {
+            is SacrificeEffect -> FeasibilityCheck.ControlsPermanentMatching(action.filter, action.count)
+            else -> return this
+        }
+        return gated.copy(gate = gate.copy(feasibility = implied))
     }
 
     /**
@@ -357,6 +405,26 @@ class TriggerProcessor(
      * Before asking, checks if legal targets exist — if not, the ability fizzles
      * without even asking the may question.
      */
+    /**
+     * The player who answers a "you may" on a triggered ability: the ability's `decisionMaker` when
+     * it names one, else its controller.
+     *
+     * Routed through the shared [TargetResolutionUtils.resolvePlayerTarget] rather than a local
+     * `when`, so every [EffectTarget] player shape it already understands works here too and cannot
+     * drift from the resolution-time answer [GatedEffectExecutor] gives. Anything it cannot resolve
+     * falls back to the controller — what every card without a `decisionMaker` already gets.
+     */
+    private fun askedPlayerFor(state: GameState, trigger: PendingTrigger): EntityId {
+        val chooser = trigger.ability.effect.asMayDecide()?.decisionMaker ?: return trigger.controllerId
+        val context = EffectContext(
+            sourceId = trigger.sourceId,
+            controllerId = trigger.controllerId,
+            triggeringEntityId = trigger.triggerContext.triggeringEntityId,
+            triggeringPlayerId = trigger.triggerContext.triggeringPlayerId,
+        )
+        return TargetResolutionUtils.resolvePlayerTarget(chooser, context, state) ?: trigger.controllerId
+    }
+
     private fun processMayThenTargetTrigger(
         state: GameState,
         trigger: PendingTrigger,
@@ -380,6 +448,15 @@ class TriggerProcessor(
                 controllerId = trigger.controllerId,
                 triggeringEntityId = trigger.triggerContext.triggeringEntityId,
                 triggeringPlayerId = trigger.triggerContext.triggeringPlayerId,
+                // The X carried by the triggering event (an {X} cycling cost, a megamorph turn-up)
+                // so an X-relative target filter — `manaValueEqualsX()` on Webstrike Elite's
+                // "artifact or enchantment with mana value X" — finds targets at legality time.
+                // Without it those predicates read an unbound X and match nothing.
+                xValue = trigger.triggerContext.xValue,
+                storedCollections = trigger.carriedPipeline?.storedCollections ?: emptyMap(),
+                chosenValues = trigger.carriedPipeline?.chosenValues ?: emptyMap(),
+                storedStringLists = trigger.carriedPipeline?.storedStringLists ?: emptyMap(),
+                storedSubtypeGroups = trigger.carriedPipeline?.storedSubtypeGroups ?: emptyMap(),
             )
         )
 
@@ -402,11 +479,17 @@ class TriggerProcessor(
         val sourceName = trigger.sourceName
         val abilityIdentity = state.abilityIdentityOf(trigger.sourceId, ability.id)
 
+        // Who is asked. Normally the ability's controller, but a card can name someone else —
+        // Farrel's Mantle's "its controller may", where "it" is the enchanted creature and the Aura
+        // may sit on an opponent's permanent. This path asks the question before the effect runs,
+        // so GatedEffectExecutor's own decisionMaker handling never gets the chance.
+        val askedPlayerId = askedPlayerFor(state, trigger)
+
         // Persistent auto-answer yield (backlog §C): a remembered yes/no for this ability resolves
         // the may-question without prompting. "Yes" still proceeds to per-instance target selection
         // (only the yes/no is batched, never the targeting — §C.6); "no" skips the trigger.
-        abilityIdentity?.let { state.autoAnswerFor(trigger.controllerId, it) }?.let { auto ->
-            val note = AbilityAutoAnsweredEvent(trigger.sourceId, sourceName, trigger.controllerId, auto)
+        abilityIdentity?.let { state.autoAnswerFor(askedPlayerId, it) }?.let { auto ->
+            val note = AbilityAutoAnsweredEvent(trigger.sourceId, sourceName, askedPlayerId, auto)
             if (!auto) return ExecutionResult.success(state, listOf(note))
             val innerEffect = ability.effect.asMayDecide()!!.then
             val unwrappedTrigger = trigger.copy(ability = ability.copy(effect = innerEffect))
@@ -414,13 +497,19 @@ class TriggerProcessor(
             return result.copy(events = listOf(note) + result.events)
         }
 
-        // Create yes/no decision
+        // Create yes/no decision.
+        //
+        // The card's own `description` wins over the generated effect text. A generated description
+        // is assembled bottom-up from pipeline steps, so a composed effect reads like plumbing —
+        // Safe Haven's upkeep trigger rendered as "You may sacrifice this creature. If you do, look
+        // at cards exiled by this permanent. Put those cards onto the battlefield" instead of its
+        // printed text. Whenever an author wrote the clause out, that is the prompt.
         val decisionResult = decisionHandler.createYesNoDecision(
             state = state,
-            playerId = trigger.controllerId,
+            playerId = askedPlayerId,
             sourceId = trigger.sourceId,
             sourceName = sourceName,
-            prompt = ability.effect.description,
+            prompt = ability.descriptionOverride ?: ability.effect.description,
             phase = DecisionPhase.RESOLUTION,
             abilityIdentity = abilityIdentity
         )
@@ -486,6 +575,15 @@ class TriggerProcessor(
                 controllerId = trigger.controllerId,
                 triggeringEntityId = trigger.triggerContext.triggeringEntityId,
                 triggeringPlayerId = trigger.triggerContext.triggeringPlayerId,
+                // The X carried by the triggering event (an {X} cycling cost, a megamorph turn-up)
+                // so an X-relative target filter — `manaValueEqualsX()` on Webstrike Elite's
+                // "artifact or enchantment with mana value X" — finds targets at legality time.
+                // Without it those predicates read an unbound X and match nothing.
+                xValue = trigger.triggerContext.xValue,
+                storedCollections = trigger.carriedPipeline?.storedCollections ?: emptyMap(),
+                chosenValues = trigger.carriedPipeline?.chosenValues ?: emptyMap(),
+                storedStringLists = trigger.carriedPipeline?.storedStringLists ?: emptyMap(),
+                storedSubtypeGroups = trigger.carriedPipeline?.storedSubtypeGroups ?: emptyMap(),
             )
         )
 
@@ -574,6 +672,13 @@ class TriggerProcessor(
                     controllerId = trigger.controllerId,
                     triggeringEntityId = trigger.triggerContext.triggeringEntityId,
                     triggeringPlayerId = trigger.triggerContext.triggeringPlayerId,
+                    // See the note on the other findLegalTargets call sites: an X-relative target
+                    // filter needs the triggering event's X bound to match anything.
+                    xValue = trigger.triggerContext.xValue,
+                    storedCollections = trigger.carriedPipeline?.storedCollections ?: emptyMap(),
+                    chosenValues = trigger.carriedPipeline?.chosenValues ?: emptyMap(),
+                    storedStringLists = trigger.carriedPipeline?.storedStringLists ?: emptyMap(),
+                    storedSubtypeGroups = trigger.carriedPipeline?.storedSubtypeGroups ?: emptyMap(),
                 ),
             )
             allLegalTargets[index] = legalTargets
@@ -584,8 +689,16 @@ class TriggerProcessor(
         for ((index, req) in allRequirements.withIndex()) {
             val legalTargets = allLegalTargets[index] ?: emptyList()
             if (legalTargets.isEmpty() && req.effectiveMinCount > 0) {
-                if (ability.elseEffect != null) {
-                    return putTriggerOnStack(state, trigger, emptyList(), ability.elseEffect)
+                // The else branch is in one of two places, and both are the same printed clause.
+                // A mandatory ability writes "…; otherwise, X" as `elseEffect`. A "you may … If you
+                // don't, X" ability keeps its else inside the consent gate, because that is where
+                // *declining* is decided — but a target it cannot choose is the other way of not
+                // doing it (Entrails Feaster taps when no graveyard holds a creature card), so the
+                // clause has to run from here too rather than be lost with the fizzled ability.
+                val declineBranch = ability.elseEffect
+                    ?: (ability.effect as? GatedEffect)?.takeIf { it.gate.isConsentGate }?.otherwise
+                if (declineBranch != null) {
+                    return putTriggerOnStack(state, trigger, emptyList(), declineBranch)
                 }
                 return ExecutionResult.success(
                     state,
@@ -602,21 +715,34 @@ class TriggerProcessor(
 
         // Auto-select player targets when there's exactly one legal target and requirement is for exactly one target.
         // Only applies for single-target abilities (not multi-target).
+        //
+        // Safe for a "you may" ability now that consent is a gate rather than a flag: either the
+        // yes/no was already asked and answered before this ran (`processMayThenTargetTrigger`
+        // unwraps the gate and calls back in), or the gate is still on the effect and will ask at
+        // resolution. Neither reading is "there is only one choice, so don't prompt" applied to the
+        // decline — which is what made this branch fail open while the flag existed, so that
+        // "you may have target opponent discard a card" (Ebon Dragon) never asked in a two-player
+        // game. An "up to one target player" requirement skips this via `effectiveMinCount == 0`.
         if (allRequirements.size == 1) {
-            val isPlayerTarget = targetRequirement is com.wingedsheep.sdk.scripting.targets.TargetPlayer ||
-                                 targetRequirement is com.wingedsheep.sdk.scripting.targets.TargetOpponent
             val legalTargets = allLegalTargets[0] ?: emptyList()
-            if (isPlayerTarget && legalTargets.size == 1 && targetRequirement.effectiveMinCount == 1 && targetRequirement.count == 1) {
+            if (TargetEnumerationUtils.shouldAutoSelectPlayerTarget(targetRequirement, legalTargets)) {
                 val autoSelectedTarget = legalTargets.first()
                 val chosenTarget = createChosenTarget(state, autoSelectedTarget)
                 return putTriggerOnStack(state, trigger, listOf(chosenTarget))
             }
         }
 
-        // Create target requirement infos for the decision
-        // If the ability is optional (e.g., "you may"), allow selecting 0 targets to decline
+        // Create target requirement infos for the decision.
+        //
+        // A slot's minimum is the *requirement's* — "up to one" allows zero, "target creature" does
+        // not. A "you may" ability used to force every slot to zero here so that choosing nothing
+        // was how you declined; that was the `optional` flag's second, unrelated meaning, and it was
+        // wrong twice over. CR 603.3d chooses targets for a "you may" trigger like any other and
+        // puts the choice at resolution, and an ability whose target is mandatory has to be removed
+        // from the stack when there is no legal one (the loop above) rather than resolve targetless.
+        // Consent is now a gate on the effect, answered on its own — either before this method runs
+        // (`processMayThenTargetTrigger`) or as the ability resolves.
         val requirementInfos = allRequirements.mapIndexed { index, req ->
-            val effectiveMinTargets = if (ability.optional) 0 else req.effectiveMinCount
             // "Any number of target ..." (unlimited) caps at however many legal targets exist,
             // mirroring the cast-time path (TargetEnumerationUtils). Using req.count (always 1
             // for an unlimited requirement) would wrongly clamp the decision to a single target.
@@ -624,9 +750,13 @@ class TriggerProcessor(
             TargetRequirementInfo(
                 index = index,
                 description = req.description,
-                minTargets = effectiveMinTargets,
+                minTargets = req.effectiveMinCount,
                 maxTargets = maxTargets,
-                sameOwner = (req as? com.wingedsheep.sdk.scripting.targets.TargetObject)?.sameOwner == true
+                sameOwner = (req as? com.wingedsheep.sdk.scripting.targets.TargetObject)?.sameOwner == true,
+                totalManaValueAtMost = resolveTotalManaValueAtMost(state, trigger, req),
+                differentNames = (req as? com.wingedsheep.sdk.scripting.targets.TargetObject)?.differentNames == true,
+                differentControllers =
+                    (req as? com.wingedsheep.sdk.scripting.targets.TargetObject)?.differentControllers == true
             )
         }
 
@@ -647,6 +777,8 @@ class TriggerProcessor(
                 triggerCounterCount = trigger.triggerContext.counterCount,
                 triggerTotalCounterCount = trigger.triggerContext.totalCounterCount,
                 triggerLastKnownCounters = trigger.triggerContext.lastKnownCounters,
+            triggerLastKnownSubtypes = trigger.triggerContext.lastKnownSubtypes,
+            triggerLastKnownCardTypes = trigger.triggerContext.lastKnownCardTypes,
                 triggerLastKnownDamageDealtByPlayers =
                     trigger.triggerContext.lastKnownDamageDealtByPlayers,
                 triggerLastKnownBlockingOrBlockedByIds =
@@ -656,22 +788,24 @@ class TriggerProcessor(
                 triggerDiedBatchTotalPower = trigger.triggerContext.diedBatchTotalPower,
                 triggerModesChosenCount = trigger.triggerContext.modesChosenCount,
                 triggerScryCount = trigger.triggerContext.scryCount,
+                triggerDiscardCount = trigger.triggerContext.discardedCardCount,
                 triggerDiscoverValue = trigger.triggerContext.discoverValue,
                 triggerExcessDamageAmount = trigger.triggerContext.excessDamageAmount,
                 triggerRecipientToughness = trigger.triggerContext.recipientToughnessAtDamage,
                 triggerManaSpentOnTriggeringSpell = trigger.triggerContext.manaSpentOnTriggeringSpell,
                 triggerColorsSpentOnTriggeringSpell = trigger.triggerContext.colorsSpentOnTriggeringSpell,
                 triggerManaValueOfTriggeringSpell = trigger.triggerContext.manaValueOfTriggeringSpell,
-                triggerXValueOfTriggeringSpell = trigger.triggerContext.xValueOfTriggeringSpell
+                triggerXValueOfTriggeringSpell = trigger.triggerContext.xValueOfTriggeringSpell,
+                pipeline = trigger.carriedPipeline ?: com.wingedsheep.engine.handlers.PipelineState.EMPTY
             )
-            ability.effect.runtimeDescription { amount -> evaluator.evaluate(state, amount, context) }
+            ability.effect.runtimeDescription { amount -> evaluator.evaluateForDisplay(state, amount, context) }
         } catch (_: Exception) {
             ability.effect.description
         }
 
         val decisionResult = decisionHandler.createTargetDecision(
             state = state,
-            playerId = trigger.controllerId,
+            playerId = resolveTargetChooser(state, trigger, allRequirements),
             sourceId = trigger.sourceId,
             sourceName = trigger.sourceName,
             requirements = requirementInfos,
@@ -700,6 +834,8 @@ class TriggerProcessor(
             triggerCounterCount = trigger.triggerContext.counterCount,
             triggerTotalCounterCount = trigger.triggerContext.totalCounterCount,
             triggerLastKnownCounters = trigger.triggerContext.lastKnownCounters,
+            triggerLastKnownSubtypes = trigger.triggerContext.lastKnownSubtypes,
+            triggerLastKnownCardTypes = trigger.triggerContext.lastKnownCardTypes,
             triggerLastKnownDamageDealtByPlayers =
                 trigger.triggerContext.lastKnownDamageDealtByPlayers,
             triggerLastKnownBlockingOrBlockedByIds =
@@ -710,13 +846,18 @@ class TriggerProcessor(
             triggerModesChosenCount = trigger.triggerContext.modesChosenCount,
             enchantedCreatureLastKnownPower = trigger.triggerContext.enchantedCreatureLastKnownPower,
             triggerScryCount = trigger.triggerContext.scryCount,
+            triggerDiscardCount = trigger.triggerContext.discardedCardCount,
             triggerDiscoverValue = trigger.triggerContext.discoverValue,
             triggerExcessDamageAmount = trigger.triggerContext.excessDamageAmount,
             triggerRecipientToughness = trigger.triggerContext.recipientToughnessAtDamage,
             triggerManaSpentOnTriggeringSpell = trigger.triggerContext.manaSpentOnTriggeringSpell,
             triggerColorsSpentOnTriggeringSpell = trigger.triggerContext.colorsSpentOnTriggeringSpell,
             triggerManaValueOfTriggeringSpell = trigger.triggerContext.manaValueOfTriggeringSpell,
-            triggerXValueOfTriggeringSpell = trigger.triggerContext.xValueOfTriggeringSpell
+            triggerXValueOfTriggeringSpell = trigger.triggerContext.xValueOfTriggeringSpell,
+            xValue = trigger.triggerContext.xValue,
+            carriedPipeline = trigger.carriedPipeline,
+            capturedEntityIds = trigger.triggerContext.capturedEntityIds ?: emptyList(),
+            interveningIf = ability.interveningIf
         )
 
         // Push the continuation onto the stack
@@ -752,6 +893,13 @@ class TriggerProcessor(
             description = ability.description,
             abilityIdentity = state.abilityIdentityOf(trigger.sourceId, ability.id),
             granterId = trigger.granterId,
+            // CR 701.28f — freeze the source's face-change clock as the trigger goes on the stack,
+            // so an instruction inside it to transform that same permanent is ignored if the
+            // permanent turns over first (a second trigger of a countdown card such as
+            // Soulcipher Board must not flip it straight back).
+            sourceFaceChanges = state.getEntity(trigger.sourceId)
+                ?.get<com.wingedsheep.engine.state.components.identity.DoubleFacedComponent>()
+                ?.faceChanges,
             descriptionOverride = ability.descriptionOverride,
             triggerDamageAmount = trigger.triggerContext.damageAmount,
             triggeringEntityId = trigger.triggerContext.triggeringEntityId,
@@ -760,17 +908,21 @@ class TriggerProcessor(
             triggerCounterCount = trigger.triggerContext.counterCount,
             triggerTotalCounterCount = trigger.triggerContext.totalCounterCount,
             triggerLastKnownCounters = trigger.triggerContext.lastKnownCounters,
+            triggerLastKnownSubtypes = trigger.triggerContext.lastKnownSubtypes,
+            triggerLastKnownCardTypes = trigger.triggerContext.lastKnownCardTypes,
             triggerLastKnownDamageDealtByPlayers =
                 trigger.triggerContext.lastKnownDamageDealtByPlayers,
             triggerLastKnownBlockingOrBlockedByIds =
                 trigger.triggerContext.lastKnownBlockingOrBlockedByIds,
             targetingSourceEntityId = trigger.triggerContext.targetingSourceEntityId,
+            triggerUnattachedFromEntityId = trigger.triggerContext.unattachedFromEntityId,
             lastKnownPower = trigger.triggerContext.lastKnownPower,
             lastKnownToughness = trigger.triggerContext.lastKnownToughness,
             diedBatchTotalPower = trigger.triggerContext.diedBatchTotalPower,
             triggerModesChosenCount = trigger.triggerContext.modesChosenCount,
             enchantedCreatureLastKnownPower = trigger.triggerContext.enchantedCreatureLastKnownPower,
             triggerScryCount = trigger.triggerContext.scryCount,
+            triggerDiscardCount = trigger.triggerContext.discardedCardCount,
             triggerDiscoverValue = trigger.triggerContext.discoverValue,
             triggerExcessDamageAmount = trigger.triggerContext.excessDamageAmount,
             triggerRecipientToughness = trigger.triggerContext.recipientToughnessAtDamage,
@@ -779,17 +931,28 @@ class TriggerProcessor(
             triggerManaValueOfTriggeringSpell = trigger.triggerContext.manaValueOfTriggeringSpell,
             triggerXValueOfTriggeringSpell = trigger.triggerContext.xValueOfTriggeringSpell,
             capturedEntityIds = trigger.triggerContext.capturedEntityIds ?: emptyList(),
-            sagaChapterInfo = trigger.sagaChapterInfo
+            sagaChapterInfo = trigger.sagaChapterInfo,
+            carriedPipeline = trigger.carriedPipeline,
+            // CR 603.4 — the intervening-"if" travels with the object so the resolver can check it
+            // the second time. A `triggerRestriction` deliberately does not.
+            interveningIf = ability.interveningIf
         )
 
         val causedByAttack = isAttackCausedTrigger(trigger)
         val outerRequirements = listOfNotNull(ability.targetRequirement)
 
-        // CR 603.3c — a modal triggered ability's modes and targets are chosen as the ability is
-        // put onto the stack, not while it resolves. Pause here so the choices are locked in
-        // before the ability hits the stack; only then do the chosen targets actually *become*
-        // targets, which is what ward (CR 702.21) and "becomes the target" triggers key on.
-        modalNeedingPutOnStackSelection(abilityComponent.effect)?.let { modal ->
+        // CR 603.3c / 700.2b — a modal triggered ability's modes are announced as the ability is
+        // put onto the stack, and CR 603.3d says its targets follow the same way (601.2c–d). Pause
+        // here so both are locked in *before* the ability hits the stack: that is what lets an
+        // opponent see the chosen mode while the ability is still responded-to, and only then do
+        // the chosen targets actually *become* targets, which is what ward (CR 702.21) and
+        // "becomes the target" triggers key on.
+        //
+        // Only a *top-level* ModalEffect is caught here. A modal nested inside another effect (a
+        // gated effect, a reflexive trigger, a pipeline) isn't the ability's own mode question, so
+        // it stays with the resolution-time picker in
+        // [com.wingedsheep.engine.handlers.effects.composite.ModalEffectExecutor].
+        (abilityComponent.effect as? ModalEffect)?.let { modal ->
             return presentTriggerModalModeDecision(
                 state = state,
                 ability = abilityComponent,
@@ -810,28 +973,43 @@ class TriggerProcessor(
     }
 
     /**
-     * The top-level [ModalEffect] whose modes must be picked *before* the trigger reaches the
-     * stack, or null when the effect can keep the simpler resolution-time mode picking.
+     * How many modes this trigger's controller picks, and the minimum they must pick.
      *
-     * Only modal effects with at least one *targeting* mode need the earlier pick: those are the
-     * ones where a resolution-time choice would silently skip the "becomes the target" step. Modes
-     * that only affect the controller's own board carry no such observable, so they stay on the
-     * resolution-time path ([com.wingedsheep.engine.handlers.effects.composite.ModalEffectExecutor]).
-     *
-     * Three shapes are deliberately excluded because they need state that only exists at resolution:
-     * a `dynamicChooseCount` (evaluated against the resolving game state),
-     * `excludePreviouslyChosenModes` (Gandalf the Grey's per-source memory) and
-     * `excludeModesChosenThisTurn` (Breeches, Eager Pillager's turn-scoped per-source memory),
-     * both recorded by the resolution-time continuation.
+     * A [ModalEffect.dynamicChooseCount] ("choose up to X") is evaluated here, once, against the
+     * state the ability is going onto the stack in — CR 601.2c (reached via 603.3d) fixes the count
+     * at that moment, so it can't drift as the picks are made. The floor drops to 0 because "up to"
+     * always permits picking none; that mirrors the resolution-time evaluation in
+     * [com.wingedsheep.engine.handlers.effects.composite.ModalEffectExecutor], which still serves
+     * modal *activated* abilities and nested modals.
      */
-    private fun modalNeedingPutOnStackSelection(effect: Effect): ModalEffect? {
-        val modal = effect as? ModalEffect ?: return null
-        if (modal.dynamicChooseCount != null) return null
-        if (modal.excludePreviouslyChosenModes) return null
-        if (modal.excludeModesChosenThisTurn) return null
-        if (modal.modes.none { it.targetRequirements.isNotEmpty() }) return null
-        return modal
+    private fun effectiveChooseCounts(
+        state: GameState,
+        ability: TriggeredAbilityOnStackComponent,
+        modal: ModalEffect
+    ): Pair<Int, Int> {
+        val dynamic = modal.dynamicChooseCount
+            ?: return modal.chooseCount to modal.minChooseCount
+        val evaluated = DynamicAmountEvaluator().evaluate(
+            state,
+            dynamic,
+            EffectContext.forTriggeredAbility(ability)
+        )
+        return evaluated.coerceIn(0, modal.modes.size) to 0
     }
+
+    /**
+     * CR 603.3c — "If no mode is chosen, the ability is removed from the stack." Reached when every
+     * mode would be illegal, when a "choose up to X" cap evaluated to 0, and when the player
+     * declined every optional pick.
+     */
+    private fun modalTriggerRemovedFromStack(
+        state: GameState,
+        ability: TriggeredAbilityOnStackComponent,
+        reason: String
+    ): ExecutionResult = ExecutionResult.success(
+        state,
+        listOf(AbilityFizzledEvent(ability.sourceId, ability.description, reason))
+    )
 
     /**
      * Build the next mode-pick decision for a modal triggered ability going on the stack, or move
@@ -851,34 +1029,36 @@ class TriggerProcessor(
         availableIndices: List<Int>?,
         causedByAttack: Boolean
     ): ExecutionResult {
-        val candidateIndices = availableIndices ?: modal.modes.indices.toList()
+        val (chooseCount, minChooseCount) = effectiveChooseCounts(state, ability, modal)
+
+        // "Choose one that hasn't been chosen (this turn)" — the source's own memory narrows the
+        // pool before the first pick. Later picks arrive with `availableIndices` already narrowed by
+        // the resumer, so re-applying the memory is a no-op there.
+        val remembered = ChosenModeMemory.excludedFor(state, ability.sourceId, modal)
+        val candidateIndices = (availableIndices ?: modal.modes.indices.toList())
+            .filter { it !in remembered }
         val offerIndices = candidateIndices.filter { index ->
             modeHasLegalTargets(state, ability, modal.modes[index])
         }
 
-        if (offerIndices.isEmpty() && selectedModeIndices.size < modal.minChooseCount) {
-            // No mode can legally be chosen — the ability is removed from the stack (CR 603.3c).
-            return ExecutionResult.success(
-                state,
-                listOf(
-                    AbilityFizzledEvent(
-                        ability.sourceId,
-                        ability.description,
-                        "No legal targets available"
-                    )
+        if (offerIndices.isEmpty() || selectedModeIndices.size >= chooseCount) {
+            if (offerIndices.isEmpty() && selectedModeIndices.size < minChooseCount) {
+                // Every remaining mode is unselectable — no legal target, or already spent by
+                // "…that hasn't been chosen (this turn)".
+                return modalTriggerRemovedFromStack(
+                    state, ability, "No legal mode could be chosen"
                 )
-            )
-        }
-
-        if (offerIndices.isEmpty()) {
+            }
             return presentTriggerModalTargetDecision(
                 state, ability, outerTargets, outerTargetRequirements,
-                modal.modes, selectedModeIndices, emptyList(), currentOrdinal = 0, causedByAttack
+                modal.modes, selectedModeIndices, emptyList(), currentOrdinal = 0, causedByAttack,
+                recordChosenModesOnSource = modal.excludePreviouslyChosenModes,
+                recordChosenModesThisTurn = modal.excludeModesChosenThisTurn
             )
         }
 
-        val doneOffered = selectedModeIndices.size >= modal.minChooseCount &&
-            selectedModeIndices.size < modal.chooseCount
+        val doneOffered = selectedModeIndices.size >= minChooseCount &&
+            selectedModeIndices.size < chooseCount
         // Same decline label the resolution-time modal path uses, so clients (and tests) can
         // recognise "choose up to one"'s opt-out wherever the mode question is raised.
         val optionLabels = offerIndices.map { modal.modes[it].description } +
@@ -890,8 +1070,8 @@ class TriggerProcessor(
             "\nAlready picked: ${selectedModeIndices.joinToString("; ") { modal.modes[it].description }}"
         }
         val basePrompt = "Choose a mode for ${ability.sourceName}"
-        val prompt = if (modal.chooseCount > 1) {
-            "$basePrompt ($pickNumber of ${modal.chooseCount})$alreadyPicked"
+        val prompt = if (chooseCount > 1) {
+            "$basePrompt ($pickNumber of $chooseCount)$alreadyPicked"
         } else basePrompt
 
         val decision = ChooseOptionDecision(
@@ -901,9 +1081,9 @@ class TriggerProcessor(
             context = DecisionContext(
                 sourceId = ability.sourceId,
                 sourceName = ability.sourceName,
-                // The ability isn't on the stack yet, but from the player's seat this is the
-                // trigger going on the stack, not a spell being cast.
-                phase = DecisionPhase.RESOLUTION
+                // Not a resolution-time question: the ability is on its way to the stack and this
+                // pick is part of putting it there (CR 603.3c).
+                phase = DecisionPhase.TRIGGER
             ),
             options = optionLabels
         )
@@ -914,14 +1094,17 @@ class TriggerProcessor(
             outerTargets = outerTargets,
             outerTargetRequirements = outerTargetRequirements,
             modes = modal.modes,
-            chooseCount = modal.chooseCount,
-            minChooseCount = modal.minChooseCount,
+            // The effective counts, so a resolved `dynamicChooseCount` isn't re-evaluated per pick.
+            chooseCount = chooseCount,
+            minChooseCount = minChooseCount,
             allowRepeat = modal.allowRepeat,
             offeredIndices = offerIndices,
-            availableIndices = availableIndices,
+            availableIndices = candidateIndices,
             selectedModeIndices = selectedModeIndices,
             doneOptionOffered = doneOffered,
-            causedByAttack = causedByAttack
+            causedByAttack = causedByAttack,
+            recordChosenModesOnSource = modal.excludePreviouslyChosenModes,
+            recordChosenModesThisTurn = modal.excludeModesChosenThisTurn
         )
 
         return ExecutionResult.paused(
@@ -953,7 +1136,9 @@ class TriggerProcessor(
         chosenModeIndices: List<Int>,
         resolvedModeTargets: List<List<com.wingedsheep.engine.state.components.stack.ChosenTarget>>,
         currentOrdinal: Int,
-        causedByAttack: Boolean
+        causedByAttack: Boolean,
+        recordChosenModesOnSource: Boolean,
+        recordChosenModesThisTurn: Boolean
     ): ExecutionResult {
         var ordinal = currentOrdinal
         var targetsAccum = resolvedModeTargets
@@ -977,13 +1162,11 @@ class TriggerProcessor(
                 )
             }
 
-            // Auto-select the lone legal player target instead of prompting (mirrors
+            // Auto-select the lone mandatory legal player target instead of prompting (mirrors
             // processTargetedTrigger's single-player-target shortcut).
             val soleReq = mode.targetRequirements.singleOrNull()
             val soleLegal = legalTargetsMap[0].orEmpty()
-            val isPlayerTarget = soleReq is com.wingedsheep.sdk.scripting.targets.TargetPlayer ||
-                soleReq is com.wingedsheep.sdk.scripting.targets.TargetOpponent
-            if (isPlayerTarget && soleLegal.size == 1 && soleReq!!.count == 1) {
+            if (soleReq != null && TargetEnumerationUtils.shouldAutoSelectPlayerTarget(soleReq, soleLegal)) {
                 targetsAccum = targetsAccum + listOf(listOf(createChosenTarget(state, soleLegal.first())))
                 ordinal++
                 continue
@@ -1003,7 +1186,8 @@ class TriggerProcessor(
                 context = DecisionContext(
                     sourceId = ability.sourceId,
                     sourceName = ability.sourceName,
-                    phase = DecisionPhase.RESOLUTION,
+                    // Part of putting the ability on the stack, not of resolving it (CR 603.3d).
+                    phase = DecisionPhase.TRIGGER,
                     effectHint = mode.description
                 ),
                 targetRequirements = requirementInfos,
@@ -1019,7 +1203,9 @@ class TriggerProcessor(
                 chosenModeIndices = chosenModeIndices,
                 resolvedModeTargets = targetsAccum,
                 currentOrdinal = ordinal,
-                causedByAttack = causedByAttack
+                causedByAttack = causedByAttack,
+                recordChosenModesOnSource = recordChosenModesOnSource,
+                recordChosenModesThisTurn = recordChosenModesThisTurn
             )
 
             return ExecutionResult.paused(
@@ -1038,7 +1224,8 @@ class TriggerProcessor(
 
         return finalizeModalTrigger(
             state, ability, outerTargets, outerTargetRequirements,
-            modes, chosenModeIndices, targetsAccum, causedByAttack
+            modes, chosenModeIndices, targetsAccum, causedByAttack,
+            recordChosenModesOnSource, recordChosenModesThisTurn
         )
     }
 
@@ -1057,8 +1244,27 @@ class TriggerProcessor(
         modes: List<com.wingedsheep.sdk.scripting.effects.Mode>,
         chosenModeIndices: List<Int>,
         resolvedModeTargets: List<List<com.wingedsheep.engine.state.components.stack.ChosenTarget>>,
-        causedByAttack: Boolean
+        causedByAttack: Boolean,
+        recordChosenModesOnSource: Boolean,
+        recordChosenModesThisTurn: Boolean
     ): ExecutionResult {
+        if (chosenModeIndices.isEmpty()) {
+            // CR 603.3c — no mode was chosen, so the ability never reaches the stack. Either every
+            // mode was illegal, a "choose up to X" cap evaluated to 0, or the player declined all
+            // of an optional set of picks.
+            return modalTriggerRemovedFromStack(state, ability, "No mode was chosen")
+        }
+
+        // "…that hasn't been chosen (this turn)": commit the picks to the source's memory now that
+        // they're final, so the next trigger of this same object offers what's left.
+        val stateWithMemory = chosenModeIndices.fold(state) { acc, modeIndex ->
+            ChosenModeMemory.record(
+                acc, ability.sourceId, modeIndex,
+                ever = recordChosenModesOnSource,
+                thisTurn = recordChosenModesThisTurn
+            )
+        }
+
         val component = ability.copy(
             chosenModes = chosenModeIndices,
             modeTargetsOrdered = resolvedModeTargets,
@@ -1069,7 +1275,7 @@ class TriggerProcessor(
             chosenModeIndices.flatMap { modes[it].targetRequirements }
 
         return stackResolver.putTriggeredAbility(
-            state, component, flatTargets,
+            stateWithMemory, component, flatTargets,
             targetRequirements = flatRequirements,
             causedByAttack = causedByAttack
         )
@@ -1090,6 +1296,13 @@ class TriggerProcessor(
             controllerId = ability.controllerId,
             triggeringEntityId = ability.triggeringEntityId,
             triggeringPlayerId = ability.triggeringPlayerId,
+            // Same reason as the pending-trigger call sites: an X-relative target filter must see
+            // the X the ability went on the stack with, or it re-checks as having no legal targets.
+            xValue = ability.xValue,
+            storedCollections = ability.carriedPipeline?.storedCollections ?: emptyMap(),
+            chosenValues = ability.carriedPipeline?.chosenValues ?: emptyMap(),
+            storedStringLists = ability.carriedPipeline?.storedStringLists ?: emptyMap(),
+            storedSubtypeGroups = ability.carriedPipeline?.storedSubtypeGroups ?: emptyMap(),
         ),
     )
 
@@ -1229,6 +1442,47 @@ class TriggerProcessor(
     }
 
     /**
+     * Which player is asked to pick this trigger's targets.
+     *
+     * The ability's controller, unless a requirement carries a [TargetChooser] naming somebody
+     * else — "that player … of their choice" (Quicksilver Fountain), "its controller chooses target
+     * permanent …" (Confusion in the Ranks). Per [TargetChooser] the chooser is orthogonal to
+     * legality: the legal-target sets above were built relative to `trigger.controllerId` and stay
+     * that way, because these are still the controller's targets (CR 115). Only who answers the
+     * decision changes.
+     *
+     * A chooser that resolves to nobody falls back to the controller rather than dropping the
+     * trigger: a target was already found legal, so somebody has to pick it.
+     *
+     * Choosers are read from the *whole* requirement list and must agree — no printed card splits
+     * one trigger's targets between two deciders, and honoring only the first requirement's chooser
+     * would silently hand the rest to the wrong player. [TargetChooser.Opponent] is deliberately
+     * not handled here: it needs the controller to first pick *which* opponent decides, which is
+     * the activated-ability path's `pauseForOpponentTargetChooser`, and `CardLinter` already
+     * refuses it on a triggered ability.
+     */
+    private fun resolveTargetChooser(
+        state: GameState,
+        trigger: PendingTrigger,
+        requirements: List<TargetRequirement>
+    ): EntityId {
+        val controller = trigger.controllerId
+        val choosers = requirements.map { it.chooser }.distinct()
+        val chooser = choosers.singleOrNull() ?: return controller
+        return when (chooser) {
+            TargetChooser.Controller, TargetChooser.Opponent -> controller
+            TargetChooser.TriggeringPlayer ->
+                trigger.triggerContext.triggeringPlayerId
+                    ?: trigger.triggerContext.triggeringEntityId
+                    ?: controller
+            TargetChooser.ControllerOfTriggeringEntity ->
+                trigger.triggerContext.triggeringEntityId
+                    ?.let { state.projectedState.getController(it) }
+                    ?: controller
+        }
+    }
+
+    /**
      * If the requirement carries a [TargetObject.dynamicMaxCount], evaluate it against
      * the trigger's controller/source and return a copy with `count` rewritten to the
      * resolved value (and `minCount` clamped to the new cap). When `dynamicMaxCount`
@@ -1252,12 +1506,35 @@ class TriggerProcessor(
                         controllerId = trigger.controllerId,
                         triggeringEntityId = trigger.triggerContext.triggeringEntityId,
                         triggeringPlayerId = trigger.triggerContext.triggeringPlayerId,
+                        xValue = trigger.triggerContext.xValue,
+                        triggerDamageAmount = trigger.triggerContext.damageAmount,
+                        triggerCounterCount = trigger.triggerContext.counterCount,
+                        triggerTotalCounterCount = trigger.triggerContext.totalCounterCount,
+                        triggerLastKnownCounters = trigger.triggerContext.lastKnownCounters,
+            triggerLastKnownSubtypes = trigger.triggerContext.lastKnownSubtypes,
+            triggerLastKnownCardTypes = trigger.triggerContext.lastKnownCardTypes,
+                        triggerLastKnownDamageDealtByPlayers = trigger.triggerContext.lastKnownDamageDealtByPlayers,
+                        triggerLastKnownBlockingOrBlockedByIds = trigger.triggerContext.lastKnownBlockingOrBlockedByIds,
+                        triggerLastKnownPower = trigger.triggerContext.lastKnownPower,
+                        triggerLastKnownToughness = trigger.triggerContext.lastKnownToughness,
+                        triggerDiedBatchTotalPower = trigger.triggerContext.diedBatchTotalPower,
+                        triggerModesChosenCount = trigger.triggerContext.modesChosenCount,
+                        triggerManaSpentOnTriggeringSpell = trigger.triggerContext.manaSpentOnTriggeringSpell,
+                        triggerColorsSpentOnTriggeringSpell = trigger.triggerContext.colorsSpentOnTriggeringSpell,
+                        triggerManaValueOfTriggeringSpell = trigger.triggerContext.manaValueOfTriggeringSpell,
+                        triggerXValueOfTriggeringSpell = trigger.triggerContext.xValueOfTriggeringSpell,
                         // The dynamic cap may read trigger-context properties — e.g. Elrond,
                         // Master of Healing's "up to X target creatures, where X is the number of
                         // cards looked at while scrying" (ContextPropertyKey.TRIGGER_SCRY_COUNT).
                         // Without this the cap resolves to 0 and the player can pick no targets.
                         triggerScryCount = trigger.triggerContext.scryCount,
+                        triggerDiscardCount = trigger.triggerContext.discardedCardCount,
                         triggerDiscoverValue = trigger.triggerContext.discoverValue,
+                        triggerExcessDamageAmount = trigger.triggerContext.excessDamageAmount,
+                        triggerRecipientToughness = trigger.triggerContext.recipientToughnessAtDamage,
+                        // A reflexive trigger's dynamic cap may read what its action half stashed
+                        // (e.g. `VariableReference("discarded_count")`, Amass's army reference).
+                        pipeline = trigger.carriedPipeline ?: com.wingedsheep.engine.handlers.PipelineState.EMPTY,
                     )
                     DynamicAmountEvaluator().evaluate(state, dyn, context)
                 } catch (_: Exception) {
@@ -1276,6 +1553,100 @@ class TriggerProcessor(
         }
         else -> requirement
     }
+
+    /**
+     * Resolve a [TargetObject.totalManaValueAtMost] aggregate cap ("...with total mana value X or
+     * less") to a concrete integer at decision-build time — e.g. Fire Lord Sozin's cap reflecting
+     * the X just paid, or a reflexive trigger's action-half payment (CR 603.12) via
+     * [PendingTrigger.carriedPipeline]. `null` when the requirement carries no such cap.
+     */
+    private fun resolveTotalManaValueAtMost(
+        state: GameState,
+        trigger: PendingTrigger,
+        requirement: TargetRequirement
+    ): Int? {
+        val dyn = (requirement as? TargetObject)?.totalManaValueAtMost ?: return null
+        return try {
+            val context = EffectContext(
+                sourceId = trigger.sourceId,
+                controllerId = trigger.controllerId,
+                triggeringEntityId = trigger.triggerContext.triggeringEntityId,
+                triggeringPlayerId = trigger.triggerContext.triggeringPlayerId,
+                xValue = trigger.triggerContext.xValue,
+                triggerDamageAmount = trigger.triggerContext.damageAmount,
+                triggerCounterCount = trigger.triggerContext.counterCount,
+                triggerTotalCounterCount = trigger.triggerContext.totalCounterCount,
+                triggerLastKnownCounters = trigger.triggerContext.lastKnownCounters,
+            triggerLastKnownSubtypes = trigger.triggerContext.lastKnownSubtypes,
+            triggerLastKnownCardTypes = trigger.triggerContext.lastKnownCardTypes,
+                triggerLastKnownDamageDealtByPlayers = trigger.triggerContext.lastKnownDamageDealtByPlayers,
+                triggerLastKnownBlockingOrBlockedByIds = trigger.triggerContext.lastKnownBlockingOrBlockedByIds,
+                triggerLastKnownPower = trigger.triggerContext.lastKnownPower,
+                triggerLastKnownToughness = trigger.triggerContext.lastKnownToughness,
+                triggerDiedBatchTotalPower = trigger.triggerContext.diedBatchTotalPower,
+                triggerModesChosenCount = trigger.triggerContext.modesChosenCount,
+                triggerManaSpentOnTriggeringSpell = trigger.triggerContext.manaSpentOnTriggeringSpell,
+                triggerColorsSpentOnTriggeringSpell = trigger.triggerContext.colorsSpentOnTriggeringSpell,
+                triggerManaValueOfTriggeringSpell = trigger.triggerContext.manaValueOfTriggeringSpell,
+                triggerXValueOfTriggeringSpell = trigger.triggerContext.xValueOfTriggeringSpell,
+                triggerScryCount = trigger.triggerContext.scryCount,
+                triggerDiscardCount = trigger.triggerContext.discardedCardCount,
+                triggerDiscoverValue = trigger.triggerContext.discoverValue,
+                triggerExcessDamageAmount = trigger.triggerContext.excessDamageAmount,
+                triggerRecipientToughness = trigger.triggerContext.recipientToughnessAtDamage,
+                pipeline = trigger.carriedPipeline ?: com.wingedsheep.engine.handlers.PipelineState.EMPTY,
+            )
+            DynamicAmountEvaluator().evaluate(state, dyn, context).coerceAtLeast(0)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Has this source's controller already taken [abilityId]'s "Do this only once each turn" action
+     * this turn (CR 603.2h)? Read-only mirror of the stamp `GatedEffectExecutor` writes when the
+     * spending budget gate passes.
+     */
+    private fun effectBudgetSpent(state: GameState, sourceId: EntityId, abilityId: AbilityId): Boolean =
+        state.getEntity(sourceId)
+            ?.get<TriggeredAbilityEffectAppliedThisTurnComponent>()
+            ?.hasApplied(abilityId) == true
+
+    /**
+     * Lower `TriggeredAbility.effectOncePerTurn` into [Gate.OnceEachTurn] budget gates around the
+     * effect that actually runs (CR 603.2h — see the flag's KDoc).
+     *
+     * Placement is the whole point. When the ability's effect already owns a consent gate (a
+     * `Gate.MayDecide` / `MayPay` / `MayPayX` — "**you may** have it connive", "**you may** have
+     * She-Hulk deal that much damage"), the lowering emits a *sandwich*:
+     *
+     * ```
+     * OnceEachTurn(spend = false)   ← has the action already been taken? if so, resolve silently
+     *   └ MayDecide / MayPay / …    ← the printed "you may", asked only when it can still matter
+     *       └ OnceEachTurn()        ← taking the action spends the turn's single use
+     *           └ the real effect
+     * ```
+     *
+     * The inner, spending gate is why declining costs nothing: the player can decline instance after
+     * instance and still take the action on the one they want. The outer, read-only gate is why an
+     * instance whose turn has already been used up "does nothing as it resolves" (Nykthos Paragon /
+     * Riveteers Ascendancy rulings) instead of raising a yes/no whose answer cannot matter — the
+     * trap of accepting three She-Hulk prompts in one multi-block and getting one mirror.
+     *
+     * A consequence worth stating: with a gate on the outside, `asMayDecide()` no longer matches at
+     * the top of the effect, so `processSingleTrigger` routes a *targeted* capped trigger through
+     * `processTargetedTrigger` rather than `processMayThenTargetTrigger`. Consent therefore moves
+     * from put-on-stack time to resolution time, which is where CR puts it anyway: targets are
+     * chosen on announcement (CR 603.3d) and the "you may" is chosen as the ability resolves (the
+     * Legolas, Counter of Kills ruling says so in as many words). Without that move the three
+     * prompts of a multi-block would all be answered before any instance resolved, so the outer gate
+     * would have nothing to suppress.
+     *
+     * A mandatory capped ability has no consent gate and no prompt to suppress, so a single
+     * spending gate simply wraps the effect.
+     */
+    private fun withEffectBudgetGate(ability: TriggeredAbility): TriggeredAbility =
+        ability.copy(effect = loweredEffectBudget(ability.effect, ability.id))
 
     /**
      * Mark a once-per-turn triggered ability as fired on its source entity.
@@ -1298,5 +1669,97 @@ class TriggerProcessor(
             ?: TriggeredAbilityFiredEverComponent()
         val updated = tracker.withFired(abilityId)
         return state.updateEntity(sourceId) { it.with(updated) }
+    }
+
+    /**
+     * The pure half of the `effectOncePerTurn` lowering. Lives on the companion so the card-registry
+     * guard ([consentGateIsMisplaced]) can be run over every shipped card at build time from a test,
+     * rather than only being exercised when a capped ability happens to trigger in a game.
+     */
+    companion object {
+
+        /**
+         * Wrap [effect] in the [Gate.OnceEachTurn] budget gates for `effectOncePerTurn` — the
+         * sandwich documented on `withEffectBudgetGate`.
+         *
+         * Throws when the ability has a consent gate the lowering cannot reach. That combination is
+         * a silent rules bug if it ships: the budget gate lands *outside* the "you may", so
+         * declining would spend the turn's single use — exactly the defect `effectOncePerTurn`
+         * exists to fix, and invisible at the table because the prompt looks identical. The
+         * condition depends only on the card definition, never on game state, so
+         * `EffectOncePerTurnLoweringTest`'s sweep over the whole registry is what guarantees this
+         * can never fire mid-game.
+         */
+        internal fun loweredEffectBudget(effect: Effect, abilityId: AbilityId): Effect {
+            val spending = withSpendingGate(effect, abilityId)
+            require(spending != null || !containsConsentGate(effect)) {
+                "effectOncePerTurn ability $abilityId has a 'you may' the budget lowering can't " +
+                    "reach — it must be at the top of the effect or the tail of a CompositeEffect, " +
+                    "or declining would spend the turn's use (CR 603.2h). Effect: $effect"
+            }
+            return if (spending != null) {
+                GatedEffect(gate = Gate.OnceEachTurn(abilityId, spend = false), then = spending)
+            } else {
+                GatedEffect(gate = Gate.OnceEachTurn(abilityId), then = effect)
+            }
+        }
+
+        /**
+         * True when [effect] carries a consent gate that [withSpendingGate] would *not* find — a
+         * "you may" buried mid-composite or under some other wrapper. The card-registry guard.
+         */
+        internal fun consentGateIsMisplaced(effect: Effect): Boolean =
+            withSpendingGate(effect, AbilityId("probe")) == null && containsConsentGate(effect)
+
+        /**
+         * Push the *spending* budget gate inside [effect]'s consent gate, or return null when there
+         * is no consent gate to put it inside (a mandatory ability — the caller then wraps the whole
+         * effect in a spending gate instead).
+         *
+         * The consent gate is not always at the top. Planetarium of Wan Shi Tong reads "look at the
+         * top card of your library. You may cast that card without paying its mana cost. Do this
+         * only once each turn", which is `Composite(look, May(cast))` — and its ruling is explicit
+         * that it is the *casting* that spends the turn ("once you choose to cast the top card of
+         * your library, the ability won't trigger again that turn"), not the looking. So the search
+         * descends the **tail** of a [CompositeEffect]: the payoff of a "do X, then you may Y"
+         * instruction is its last step, and that is the step the rider is attached to.
+         */
+        private fun withSpendingGate(effect: Effect, abilityId: AbilityId): Effect? = when (effect) {
+            is GatedEffect ->
+                if (effect.gate.isConsentGate) {
+                    effect.copy(then = GatedEffect(gate = Gate.OnceEachTurn(abilityId), then = effect.then))
+                } else {
+                    null
+                }
+
+            is CompositeEffect ->
+                effect.effects.lastOrNull()
+                    ?.let { withSpendingGate(it, abilityId) }
+                    ?.let { effect.copy(effects = effect.effects.dropLast(1) + it) }
+
+            else -> null
+        }
+
+        /**
+         * Any consent gate anywhere in the gate/composite spine of [effect], however deeply nested —
+         * including inside a `MayPay` cost or a `DoAction` action, which are effects in their own
+         * right. Deliberately broader than [withSpendingGate]: the gap between the two is precisely
+         * the set of shapes whose budget would end up in the wrong place.
+         */
+        private fun containsConsentGate(effect: Effect): Boolean = when (effect) {
+            is GatedEffect ->
+                effect.gate.isConsentGate ||
+                    containsConsentGate(effect.then) ||
+                    effect.otherwise?.let { containsConsentGate(it) } == true ||
+                    when (val gate = effect.gate) {
+                        is Gate.MayPay -> containsConsentGate(gate.cost)
+                        is Gate.DoAction -> containsConsentGate(gate.action)
+                        else -> false
+                    }
+
+            is CompositeEffect -> effect.effects.any { containsConsentGate(it) }
+
+            else -> false
+        }
     }
 }

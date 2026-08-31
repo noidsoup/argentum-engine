@@ -616,7 +616,7 @@
                 "type": "GrantKeyword",
                 "keyword": "MENACE",
                 "filter": {
-                    "baseFilter": "creature Rhino ctrl:you"
+                    "baseFilter": "permanent Rhino ctrl:you"
                 }
             }
         ]
@@ -1248,48 +1248,60 @@
                 "binding": "ANY",
                 "effect": {
                     "type": "Gated",
-                    "gate": "Gate.MayDecide",
+                    "gate": {
+                        "type": "Gate.MayDecide",
+                        "feasibility": {
+                            "type": "HasCardsInZone",
+                            "zone": "Hand"
+                        }
+                    },
                     "then": {
-                        "type": "Composite",
-                        "effects": [
-                            {
-                                "type": "GatherCards",
-                                "source": {
-                                    "type": "FromZone",
-                                    "zone": "Hand"
-                                },
-                                "storeAs": "hand"
-                            },
-                            {
-                                "type": "SelectFromCollection",
-                                "from": "hand",
-                                "selection": {
-                                    "type": "ChooseExactly",
-                                    "count": {
-                                        "type": "Fixed",
-                                        "amount": 1
+                        "type": "Gated",
+                        "gate": {
+                            "type": "Gate.DoAction",
+                            "action": {
+                                "type": "Composite",
+                                "effects": [
+                                    {
+                                        "type": "GatherCards",
+                                        "source": {
+                                            "type": "FromZone",
+                                            "zone": "Hand"
+                                        },
+                                        "storeAs": "hand"
+                                    },
+                                    {
+                                        "type": "SelectFromCollection",
+                                        "from": "hand",
+                                        "selection": {
+                                            "type": "ChooseExactly",
+                                            "count": {
+                                                "type": "Fixed",
+                                                "amount": 1
+                                            }
+                                        },
+                                        "storeSelected": "discarded",
+                                        "prompt": "Choose 1 card to discard"
+                                    },
+                                    {
+                                        "type": "MoveCollection",
+                                        "from": "discarded",
+                                        "destination": {
+                                            "type": "ToZone",
+                                            "zone": "Graveyard"
+                                        },
+                                        "moveType": "Discard"
                                     }
-                                },
-                                "storeSelected": "discarded",
-                                "prompt": "Choose 1 card to discard"
-                            },
-                            {
-                                "type": "MoveCollection",
-                                "from": "discarded",
-                                "destination": {
-                                    "type": "ToZone",
-                                    "zone": "Graveyard"
-                                },
-                                "moveType": "Discard"
-                            },
-                            {
-                                "type": "DrawCards",
-                                "count": {
-                                    "type": "Fixed",
-                                    "amount": 1
-                                }
+                                ]
                             }
-                        ]
+                        },
+                        "then": {
+                            "type": "DrawCards",
+                            "count": {
+                                "type": "Fixed",
+                                "amount": 1
+                            }
+                        }
                     }
                 }
             }
@@ -1711,7 +1723,7 @@
                 "type": "GrantKeyword",
                 "keyword": "DEATHTOUCH",
                 "filter": {
-                    "baseFilter": "creature Ninja attacking ctrl:you"
+                    "baseFilter": "permanent Ninja attacking ctrl:you"
                 }
             }
         ]
@@ -2359,7 +2371,7 @@
                     },
                     "id": "up to one target artifact or creature you control"
                 },
-                "triggerCondition": "TriggeringEntityHadCounters",
+                "interveningIf": "TriggeringEntityHadCounters",
                 "descriptionOverride": "Whenever an artifact you control is put into a graveyard from the battlefield, if it had counters on it, put those counters on up to one target artifact or creature you control."
             }
         ],
@@ -2464,7 +2476,7 @@
                         "amount": 1
                     }
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Exists",
                     "player": "You",
                     "zone": "Battlefield",
@@ -2506,7 +2518,7 @@
                     "filter": "artifact ctrl:you",
                     "to": "Battlefield"
                 },
-                "binding": "OTHER",
+                "binding": "ANY",
                 "effect": {
                     "type": "AddCounters",
                     "counterType": "+1/+1",
@@ -3074,7 +3086,7 @@
                     ],
                     "imageUri": "https://cards.scryfall.io/normal/front/a/7/a7b76498-d696-40d1-b7c7-91657525b44f.jpg?1771590477"
                 },
-                "triggerCondition": "PermanentLeftBattlefieldThisTurn",
+                "interveningIf": "PermanentLeftBattlefieldThisTurn",
                 "descriptionOverride": "Disappear — When this creature enters, if a permanent left the battlefield under your control this turn, create a 1/1 black Ninja creature token."
             }
         ]
@@ -4140,7 +4152,7 @@
                     "type": "Scry",
                     "count": 1
                 },
-                "triggerCondition": "PermanentLeftBattlefieldThisTurn",
+                "interveningIf": "PermanentLeftBattlefieldThisTurn",
                 "descriptionOverride": "Disappear — At the beginning of your end step, if a permanent left the battlefield under your control this turn, scry 1."
             }
         ]
@@ -4839,7 +4851,7 @@
                         ]
                     }
                 },
-                "triggerCondition": "PermanentLeftBattlefieldThisTurn",
+                "interveningIf": "PermanentLeftBattlefieldThisTurn",
                 "descriptionOverride": "Disappear — At the beginning of your end step, if a permanent left the battlefield under your control this turn, you may cast a card exiled with Krang & Shredder without paying its mana cost."
             }
         ]
@@ -4898,7 +4910,7 @@
                         }
                     }
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "Count",
@@ -5061,7 +5073,7 @@
                                 "amount": 2
                             }
                         },
-                        "triggerCondition": "TriggeringEntityHadCounters"
+                        "interveningIf": "TriggeringEntityHadCounters"
                     }
                 ]
             },
@@ -5129,10 +5141,16 @@
                 "effect": {
                     "type": "ReflexiveTrigger",
                     "action": {
-                        "type": "RemoveCounters",
-                        "counterType": "hexproof",
-                        "count": 1,
-                        "target": "Self"
+                        "type": "RemoveAnyNumberOfCounters",
+                        "target": "Self",
+                        "maxTotal": {
+                            "type": "Fixed",
+                            "amount": 1
+                        },
+                        "minTotal": {
+                            "type": "Fixed",
+                            "amount": 1
+                        }
                     },
                     "reflexiveEffect": {
                         "type": "MoveToZone",
@@ -5147,10 +5165,11 @@
                         {
                             "type": "TargetObject",
                             "filter": {
-                                "baseFilter": "artifact|enchantment ctrl:opponent"
+                                "baseFilter": "artifact|enchantment ctrl:triggering-player"
                             }
                         }
-                    ]
+                    ],
+                    "descriptionOverride": "You may remove a counter from Leatherhead. When you do, destroy target artifact or enchantment that player controls."
                 },
                 "descriptionOverride": "Whenever Leatherhead deals combat damage to a player, you may remove a counter from her. When you do, destroy target artifact or enchantment that player controls."
             }
@@ -5375,7 +5394,7 @@
                         "target": "Self"
                     }
                 },
-                "triggerCondition": "SneakCostWasPaid"
+                "interveningIf": "SneakCostWasPaid"
             }
         ],
         "activatedAbilities": [
@@ -5637,7 +5656,7 @@
                         "FLYING"
                     ]
                 },
-                "triggerCondition": "PermanentLeftBattlefieldThisTurn",
+                "interveningIf": "PermanentLeftBattlefieldThisTurn",
                 "descriptionOverride": "Disappear — At the beginning of your end step, if a permanent left the battlefield under your control this turn, create a 1/1 black Insect Warrior creature token with flying."
             }
         ],
@@ -5745,43 +5764,6 @@
     },
     "colorIdentityOverride": [
         "BLACK"
-    ]
-}
-
-// Make Your Move
-{
-    "name": "Make Your Move",
-    "manaCost": "{2}{W}",
-    "typeLine": "Instant",
-    "oracleText": "Destroy target artifact, enchantment, or creature with power 4 or greater.",
-    "script": {
-        "spellEffect": {
-            "type": "MoveToZone",
-            "target": {
-                "type": "BoundVariable",
-                "name": "artifact, enchantment, or creature with power 4 or greater"
-            },
-            "destination": "Graveyard",
-            "byDestruction": true
-        },
-        "targetRequirements": [
-            {
-                "type": "TargetObject",
-                "filter": {
-                    "baseFilter": "artifact|enchantment|pow>=4"
-                },
-                "id": "artifact, enchantment, or creature with power 4 or greater"
-            }
-        ]
-    },
-    "metadata": {
-        "collectorNumber": "20",
-        "artist": "Nathaniel Himawan",
-        "flavorText": "For a moment, there is only relentless snow and frozen breath.",
-        "imageUri": "https://cards.scryfall.io/normal/front/e/d/ed8bdd98-6377-40cf-b381-cee38b1bda2a.jpg?1771502526"
-    },
-    "colorIdentityOverride": [
-        "WHITE"
     ]
 }
 
@@ -6128,7 +6110,7 @@
                     "count": 1,
                     "target": "Self"
                 },
-                "triggerCondition": "PermanentLeftBattlefieldThisTurn",
+                "interveningIf": "PermanentLeftBattlefieldThisTurn",
                 "descriptionOverride": "Disappear — At the beginning of your end step, if a permanent left the battlefield under your control this turn, put a +1/+1 counter on Michelangelo."
             }
         ]
@@ -6975,7 +6957,10 @@
                 "filter": {
                     "baseFilter": "artifact token ctrl:you"
                 },
-                "amount": 1
+                "amount": {
+                    "type": "Fixed",
+                    "amount": 1
+                }
             }
         ]
     },
@@ -7426,7 +7411,7 @@
                         }
                     ]
                 },
-                "triggerCondition": "WasCast",
+                "interveningIf": "WasCast",
                 "descriptionOverride": "When this creature enters, if you cast it, you may put a card you own from outside the game into your hand."
             }
         ]
@@ -7462,6 +7447,7 @@
                         "amount": 1
                     }
                 },
+                "timing": "ManaAbility",
                 "isManaAbility": true
             },
             {
@@ -7696,48 +7682,51 @@
                 "id": "ability_1",
                 "trigger": "AttackEvent",
                 "effect": {
-                    "type": "Composite",
-                    "effects": [
-                        {
-                            "type": "GatherCards",
-                            "source": {
-                                "type": "FromZone",
-                                "zone": "Hand"
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "Composite",
+                        "effects": [
+                            {
+                                "type": "GatherCards",
+                                "source": {
+                                    "type": "FromZone",
+                                    "zone": "Hand"
+                                },
+                                "storeAs": "hand"
                             },
-                            "storeAs": "hand"
-                        },
-                        {
-                            "type": "SelectFromCollection",
-                            "from": "hand",
-                            "selection": {
-                                "type": "ChooseExactly",
+                            {
+                                "type": "SelectFromCollection",
+                                "from": "hand",
+                                "selection": {
+                                    "type": "ChooseExactly",
+                                    "count": {
+                                        "type": "Fixed",
+                                        "amount": 1
+                                    }
+                                },
+                                "storeSelected": "discarded",
+                                "prompt": "Choose a card to discard"
+                            },
+                            {
+                                "type": "MoveCollection",
+                                "from": "discarded",
+                                "destination": {
+                                    "type": "ToZone",
+                                    "zone": "Graveyard"
+                                },
+                                "moveType": "Discard"
+                            },
+                            {
+                                "type": "DrawCards",
                                 "count": {
-                                    "type": "Fixed",
-                                    "amount": 1
+                                    "type": "VariableReference",
+                                    "variableName": "discarded_count"
                                 }
-                            },
-                            "storeSelected": "discarded",
-                            "prompt": "Choose a card to discard"
-                        },
-                        {
-                            "type": "MoveCollection",
-                            "from": "discarded",
-                            "destination": {
-                                "type": "ToZone",
-                                "zone": "Graveyard"
-                            },
-                            "moveType": "Discard"
-                        },
-                        {
-                            "type": "DrawCards",
-                            "count": {
-                                "type": "VariableReference",
-                                "variableName": "discarded_count"
                             }
-                        }
-                    ]
-                },
-                "optional": true
+                        ]
+                    }
+                }
             }
         ],
         "staticAbilities": [
@@ -8184,7 +8173,9 @@
                         }
                     ]
                 },
-                "activeZone": "Graveyard",
+                "activeZones": [
+                    "Graveyard"
+                ],
                 "descriptionOverride": "When this creature dies, you may exile it. When you do, put target creature card from your graveyard on top of your library."
             }
         ]
@@ -8392,7 +8383,7 @@
                         "excludeSelf": true
                     }
                 },
-                "triggerCondition": "PermanentLeftBattlefieldThisTurn",
+                "interveningIf": "PermanentLeftBattlefieldThisTurn",
                 "descriptionOverride": "Disappear — At the beginning of your end step, if a permanent left the battlefield under your control this turn, put three +1/+1 counters on up to one other target artifact or creature. If it isn't a creature, it becomes a 0/0 Mutant creature in addition to its other types."
             }
         ],
@@ -8618,6 +8609,7 @@
                         ]
                     }
                 },
+                "timing": "ManaAbility",
                 "isManaAbility": true,
                 "descriptionOverride": "{T}: Add {R}. Spend this mana only to cast an artifact spell or to activate an ability."
             }
@@ -8661,7 +8653,7 @@
                     "count": 2,
                     "target": "Self"
                 },
-                "triggerCondition": "PermanentLeftBattlefieldThisTurn",
+                "triggerRestriction": "PermanentLeftBattlefieldThisTurn",
                 "descriptionOverride": "Disappear — This creature enters with two +1/+1 counters on it if a permanent left the battlefield under your control this turn."
             }
         ]
@@ -8695,10 +8687,14 @@
                 },
                 "binding": "ANY",
                 "effect": {
-                    "type": "AttachEquipment",
-                    "target": "TriggeringEntity"
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "AttachEquipment",
+                        "target": "TriggeringEntity"
+                    },
+                    "descriptionOverride": "Whenever a Ninja you control enters, you may attach this Equipment to it."
                 },
-                "optional": true,
                 "descriptionOverride": "Whenever a Ninja you control enters, you may attach this Equipment to it."
             }
         ],
@@ -9302,7 +9298,7 @@
                         }
                     ]
                 },
-                "triggerCondition": "PermanentLeftBattlefieldThisTurn",
+                "interveningIf": "PermanentLeftBattlefieldThisTurn",
                 "descriptionOverride": "Disappear — At the beginning of your end step, if a permanent left the battlefield under your control this turn, create a 1/1 black Rat creature token and put a +1/+1 counter on Rat King."
             }
         ],
@@ -9748,7 +9744,7 @@
                 "type": "CantBeBlockedByMoreThan",
                 "maxBlockers": 1,
                 "filter": {
-                    "baseFilter": "creature Boar ctrl:you"
+                    "baseFilter": "permanent Boar ctrl:you"
                 }
             }
         ]
@@ -10975,7 +10971,7 @@
                 "powerBonus": 1,
                 "toughnessBonus": 1,
                 "filter": {
-                    "baseFilter": "creature Ninja ctrl:you",
+                    "baseFilter": "permanent Ninja ctrl:you",
                     "excludeSelf": true
                 }
             }
@@ -12107,7 +12103,7 @@
                         "player": "TriggeringPlayer"
                     }
                 },
-                "triggerCondition": {
+                "interveningIf": {
                     "type": "Compare",
                     "left": {
                         "type": "EntityProperty",
@@ -12292,7 +12288,8 @@
                     "type": "MoveToZone",
                     "target": "Self",
                     "destination": "Battlefield",
-                    "placement": "Tapped"
+                    "placement": "Tapped",
+                    "fromZone": "Graveyard"
                 },
                 "activateFromZone": "Graveyard"
             }
@@ -12476,6 +12473,7 @@
                         "amount": 1
                     }
                 },
+                "timing": "ManaAbility",
                 "isManaAbility": true
             },
             {
@@ -12491,6 +12489,7 @@
                         ]
                     }
                 },
+                "timing": "ManaAbility",
                 "isManaAbility": true
             },
             {
@@ -12564,7 +12563,7 @@
                 "powerBonus": 2,
                 "toughnessBonus": 2,
                 "filter": {
-                    "baseFilter": "creature Turtle ctrl:you"
+                    "baseFilter": "permanent Turtle ctrl:you"
                 }
             }
         ]
@@ -13099,7 +13098,7 @@
                     "filter": "land ctrl:you",
                     "to": "Battlefield"
                 },
-                "binding": "OTHER",
+                "binding": "ANY",
                 "effect": {
                     "type": "AddCounters",
                     "counterType": "charge",
@@ -13278,7 +13277,7 @@
                         "amount": 1
                     }
                 },
-                "triggerCondition": "PermanentLeftBattlefieldThisTurn",
+                "interveningIf": "PermanentLeftBattlefieldThisTurn",
                 "descriptionOverride": "Disappear — At the beginning of your end step, if a permanent left the battlefield under your control this turn, draw a card."
             }
         ]
