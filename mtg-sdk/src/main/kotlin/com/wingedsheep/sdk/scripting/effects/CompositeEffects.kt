@@ -986,6 +986,16 @@ data class FlipCoinsEffect(
     override val description: String = "Flip $count coins"
 }
 
+/**
+ * Roll the planar die (Planechase). Emits a planar-die-rolled event with one of blank (4/6),
+ * chaos (1/6), or planeswalk (1/6). No planechase deck is required for the roll itself.
+ */
+@SerialName("RollPlanarDie")
+@Serializable
+object RollPlanarDieEffect : Effect {
+    override val description: String = "Roll the planar die"
+}
+
 // =============================================================================
 // Budget Modal (Pawprint / Season Cycle)
 // =============================================================================

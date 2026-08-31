@@ -468,6 +468,21 @@ sealed interface ClientEvent {
     ) : ClientEvent
 
     @Serializable
+    @SerialName("planarDieRolled")
+    data class PlanarDieRolled(
+        val playerId: EntityId,
+        val result: PlanarDieFace,
+        val sourceId: EntityId,
+        val sourceName: String,
+        val isYours: Boolean? = null,
+        override val description: String = when (isYours) {
+            true -> "You rolled the planar die ($sourceName) — ${result.name.lowercase()}"
+            false -> "Opponent rolled the planar die ($sourceName) — ${result.name.lowercase()}"
+            null -> "Rolled the planar die ($sourceName) — ${result.name.lowercase()}"
+        },
+    ) : ClientEvent
+
+    @Serializable
     @SerialName("turnedFaceUp")
     data class TurnedFaceUp(
         val cardId: EntityId,
@@ -1062,6 +1077,14 @@ object ClientEventTransformer {
                 sourceId = event.sourceId,
                 sourceName = event.sourceName,
                 isYours = event.playerId == viewingPlayerId
+            )
+
+            is PlanarDieRolledEvent -> ClientEvent.PlanarDieRolled(
+                playerId = event.playerId,
+                result = event.result,
+                sourceId = event.sourceId,
+                sourceName = event.sourceName,
+                isYours = event.playerId == viewingPlayerId,
             )
 
             is TurnFaceUpEvent -> ClientEvent.TurnedFaceUp(

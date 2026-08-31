@@ -1030,7 +1030,8 @@ class StackResolver(
                         controllerId = controllerId,
                         ownerId = ownerId,
                         multiplier = devourEffect.multiplier,
-                        counterType = devourEffect.counterType.description
+                        counterType = devourEffect.counterType.description,
+                        squareSacrificeCount = devourEffect.squareSacrificeCount,
                     )
 
                     val pausedState = state

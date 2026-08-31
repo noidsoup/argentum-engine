@@ -222,6 +222,8 @@ class CostCalculator(
             is SpellCostTarget.AnyCaster -> matchesCardDefinition(cardDef, target.filter, sourceId, state, state.projectedState)
             is SpellCostTarget.OpponentsCastTargeting ->
                 opponentsCastTargetingMatches(state, casterId, sourceId, target.targetFilter, chosenTargets)
+            is SpellCostTarget.YouCastTargeting ->
+                youCastTargetingMatches(state, casterId, sourceId, target.targetFilter, chosenTargets)
             is SpellCostTarget.OpponentsCastFromZones -> {
                 // Source must be controlled by an opponent of the caster, the spell must be cast
                 // from one of the named zones, and the card must match the filter.
@@ -262,6 +264,29 @@ class CostCalculator(
         if (chosenTargets.isEmpty()) return false
         val sourceController = state.projectedState.getController(sourceId) ?: return false
         if (sourceController == casterId) return false
+        return castTargetingMatches(state, sourceId, sourceController, targetFilter, chosenTargets)
+    }
+
+    private fun youCastTargetingMatches(
+        state: GameState,
+        casterId: EntityId,
+        sourceId: EntityId,
+        targetFilter: GroupFilter,
+        chosenTargets: List<EntityId>,
+    ): Boolean {
+        if (chosenTargets.isEmpty()) return false
+        val sourceController = state.projectedState.getController(sourceId) ?: return false
+        if (sourceController != casterId) return false
+        return castTargetingMatches(state, sourceId, sourceController, targetFilter, chosenTargets)
+    }
+
+    private fun castTargetingMatches(
+        state: GameState,
+        sourceId: EntityId,
+        sourceController: EntityId,
+        targetFilter: GroupFilter,
+        chosenTargets: List<EntityId>,
+    ): Boolean {
         val context = PredicateContext(controllerId = sourceController, sourceId = sourceId)
         val projected = state.projectedState
         return chosenTargets.any { targetId ->
@@ -564,7 +589,43 @@ class CostCalculator(
                 if (match != null) optimisticTargets += match
             }
         }
+        for ((sourceId, ability) in scanBattlefieldModifySpellCost(state)) {
+            val youCastTargeting = ability.target as? SpellCostTarget.YouCastTargeting ?: continue
+            if (!isCostReduction(ability.modification)) continue
+            val match = findAnyYouCastTargetingTarget(
+                state,
+                casterId,
+                sourceId,
+                youCastTargeting.targetFilter,
+            )
+            if (match != null) optimisticTargets += match
+        }
         return calculateEffectiveCost(state, cardDef, casterId, optimisticTargets)
+    }
+
+    private fun isCostReduction(modification: CostModification): Boolean = when (modification) {
+        is CostModification.ReduceGeneric,
+        is CostModification.ReduceGenericBy,
+        is CostModification.ReduceColored,
+        is CostModification.ReduceColoredPerUnit,
+        is CostModification.ReduceColoredIfAnyTargetMatches -> true
+        else -> false
+    }
+
+    private fun findAnyYouCastTargetingTarget(
+        state: GameState,
+        casterId: EntityId,
+        sourceId: EntityId,
+        targetFilter: GroupFilter,
+    ): EntityId? {
+        val sourceController = state.projectedState.getController(sourceId) ?: return null
+        if (sourceController != casterId) return null
+        for (candidate in state.getBattlefield()) {
+            if (castTargetingMatches(state, sourceId, sourceController, targetFilter, listOf(candidate))) {
+                return candidate
+            }
+        }
+        return null
     }
 
     private fun sourceFromModification(modification: CostModification): CostReductionSource? = when (modification) {

@@ -427,7 +427,8 @@ data class DevourEntersContinuation(
     val controllerId: EntityId,
     val ownerId: EntityId,
     val multiplier: Int,
-    val counterType: String
+    val counterType: String,
+    val squareSacrificeCount: Boolean = false,
 ) : ContinuationFrame
 
 /**

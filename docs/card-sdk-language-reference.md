@@ -1188,6 +1188,7 @@ Atomic effect factories. For library/zone manipulation, prefer the pipelines in 
   Goad(target creature)`.
 - `Effects.SkipNextTurn(target = Controller, count = Fixed(1))` (`SkipNextTurnEffect`) — target skips their next `count` turns. `count` is a `DynamicAmount`, so it can read a pipeline value (e.g. a coin-flip tally via `DynamicAmount.VariableReference`). Skips accumulate on a `SkipNextTurnComponent(turns)`, decremented one turn per the player's turn-start; a resolved count of 0 is a no-op. Used by Lethal Vapors (one turn) and **Ral Zarek, Guest Lecturer** (skip N turns where N = heads).
 - `Effects.FlipCoins(count, storeHeadsAs = "heads")` (`FlipCoinsEffect`) — flip `count` coins and store the number of heads under `storeHeadsAs` in the pipeline (`storedNumbers`) so a later sub-effect in the same composite can scale off it via `DynamicAmount.VariableReference`. The general "flip N coins, count heads" primitive (CR 705); unlike `FlipCoinEffect` (branch on win/lose) and `FlipTwoCoinsEffect` (branch on combined outcome) it only tallies. Each flip emits a `CoinFlipEvent`. **Ral Zarek, Guest Lecturer**'s ultimate composes `FlipCoins(5, "heads")` then `SkipNextTurn(target, count = VariableReference("heads"))`.
+- `Effects.RollPlanarDie` (`RollPlanarDieEffect`) — roll the planar die (Planechase): 4/6 blank, 1/6 chaos, 1/6 planeswalk. Emits `PlanarDieRolledEvent`. No planechase deck is required for the roll itself (Fractured Powerstone).
 - `Effects.SkipNextDrawStep(target = Controller)` (`SkipNextDrawStepEffect`) — target skips their next draw step. Adds a one-shot `SkipDrawStepComponent` marker consumed by `DrawPhaseManager.performDrawStep` (Elfhame Sanctuary's "you skip your draw step this turn").
 - `Effects.HijackNextTurn(target)` / `Effects.HijackNextCombatPhase(target)` (`HijackNextTurnEffect(target, scope)`, `scope` = `HijackScope.NextTurn` | `NextCombatPhase`) — Mindslaver-style: you make all decisions for the target player during their next whole turn, or during their next combat phase only. Moves *input authority* only (resource/permanent/spell ownership stays with the affected player); reuses `PlayerTurnHijackedComponent` + `GameState.actorFor`, so hand visibility and legal-action routing follow automatically. A scheduled hijack waits through skipped turns/combat phases and engages on the next one the player actually takes. Turn scope engages at turn start and clears at end-of-turn cleanup (**The Dominion Bracelet**); combat scope engages at beginning of combat and clears when that one combat phase ends — extra combat phases are not controlled (**Secret of Bloodbending**, whose optional waterbend upgrades combat→turn via `ConditionalEffect(Conditions.WaterbendWasPaid, HijackNextTurn, elseEffect = HijackNextCombatPhase)`).
 - `GrantCantBeBlockedByChosenColorEffect(target, duration)` — unblockable except by chosen color.
@@ -4241,7 +4242,8 @@ staticAbility {
 ```
 
 - `target: SpellCostTarget` — `SelfCast`, `YouCast(filter)`, `AnyCaster(filter)`,
-  `OpponentsCastTargeting(GroupFilter)`, `OpponentsCastFromZones(zones, filter?)`, `YouCastFromZones(zones, filter?)`, `FaceDownYouCast`, `MorphActivation`.
+  `OpponentsCastTargeting(GroupFilter)`, `YouCastTargeting(GroupFilter)`, `OpponentsCastFromZones(zones, filter?)`, `YouCastFromZones(zones, filter?)`, `FaceDownYouCast`, `MorphActivation`.
+  - `YouCastTargeting(targetFilter)` — spells the **source's controller** casts that target a permanent matching `targetFilter` relative to the source (Elderwood Scion: `YouCastTargeting(GroupFilter.source())` + `ReduceGeneric(2)`).
   - `OpponentsCastFromZones(zones, filter = Any)` — spells the source-controller's opponents cast **from one of `zones`** (matched against the spell's actual cast zone, threaded as `fromZone`), matching `filter`. Pair with `CostModification.IncreaseGeneric(n)` for the Aven Interrupter shape: `OpponentsCastFromZones(setOf(Zone.GRAVEYARD, Zone.EXILE))` + `IncreaseGeneric(2)` = "Spells your opponents cast from graveyards or from exile cost {2} more to cast."
   - `YouCastFromZones(zones, filter = Any)` — the you-cast analogue: spells the **source's controller** casts **from one of `zones`**, matching `filter`. Pair with `CostModification.ReduceGeneric(n)` for Doc Aurlock, Grizzled Genius: `YouCastFromZones(setOf(Zone.GRAVEYARD, Zone.EXILE))` + `ReduceGeneric(2)` = "Spells you cast from your graveyard or from exile cost {2} less to cast." (Only the normal-cast path threads `fromZone`; alternative-cost casts such as flashback compute their own base cost and are unaffected.)
 - `modification: CostModification` — `ReduceGeneric(amount)`, `ReduceGenericBy(source)`,
@@ -5266,6 +5268,7 @@ composite abilities).
   freshly-made token. No new effect/executor — it reuses the same create-then-attach-on-ETB chain as Auxiliary
   Boosters. Author the per-card equip cost and equipped-creature bonus alongside the `jobSelect()` call (e.g. Monk's
   Fist: `jobSelect()` + `ModifyStats(1, 0)` + `GrantSubtype("Monk", Filters.EquippedCreature)` + `equipAbility("{2}")`).
+- `Living weapon` — "Living weapon (When this Equipment enters, create a 0/0 black Phyrexian Germ creature token, then attach this to it.)" (Scars of Mirrodin). Display-only keyword; wire with `livingWeapon()` — same create-token → `CREATED_TOKENS` → `AttachEquipment` pipeline as `jobSelect()`, but `0/0` black `Phyrexian` `Germ` (Flayer Husk).
 - `Toxic(n)` — adds poison counters on combat damage.
 - `Cycling(cost)` — pay cost, discard, draw a card.
 - `BasicLandcycling(cost)` — cycling that fetches a basic land type.
@@ -7095,10 +7098,11 @@ replacementEffect {
   reanimated body — never kicked — correctly gets nothing). Like `EntersWithCounters`, a
   non-`selfOnly` instance stamped on a battlefield permanent applies to *other* permanents matching
   `appliesTo` as they enter.
-- `EntersWithDevour(multiplier, sacrificeFilter, counterType, variant)` — Devour (CR 702.82) and its
+- `EntersWithDevour(multiplier, sacrificeFilter, counterType, variant, squareSacrificeCount)` — Devour (CR 702.82) and its
   printed variants. As the permanent resolves from the stack, the controller is prompted to pick any
   number of their own permanents matching `sacrificeFilter`. Those permanents are sacrificed and the
-  entering permanent gains `multiplier × count` counters of `counterType` (default `+1/+1`). Pair
+  entering permanent gains `multiplier × count` counters of `counterType` (default `+1/+1`), or when
+  `squareSacrificeCount = true`, `count²` counters (Thromok the Insatiable — "Devour X … X counters for each"). Pair
   with `KeywordAbility.Devour(multiplier, sacrificeFilter, variant)` so the rules text renders. The
   `variant` parameter is a textual tag only — `""` for plain Devour, `"land"` for the EOE
   "Devour land N" wording. **Scope today:** only the stack-spell entry path is wired; reanimation and

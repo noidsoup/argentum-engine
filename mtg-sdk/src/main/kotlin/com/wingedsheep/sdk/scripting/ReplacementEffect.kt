@@ -1591,26 +1591,40 @@ data class EntersWithDevour(
     val counterType: com.wingedsheep.sdk.scripting.events.CounterTypeFilter =
         com.wingedsheep.sdk.scripting.events.CounterTypeFilter.PlusOnePlusOne,
     val variant: String = "",
+    /**
+     * When true, counter count is `sacrificed.size²` instead of `multiplier × sacrificed.size`
+     * (Thromok the Insatiable — "Devour X, where X is the number of creatures devoured this way.
+     * It enters with X +1/+1 counters on it for each of those creatures.").
+     */
+    val squareSacrificeCount: Boolean = false,
     override val appliesTo: EventPattern = EventPattern.ZoneChangeEvent(
         filter = GameObjectFilter.Any,
         to = Zone.BATTLEFIELD
     )
 ) : ReplacementEffect {
     override val description: String = buildString {
-        append("Devour")
-        if (variant.isNotBlank()) {
+        if (squareSacrificeCount) {
+            append("Devour X, where X is the number of creatures devoured this way (As this creature enters, you may sacrifice any number of ")
+            append(sacrificeFilter.description)
+            append("s. It enters with X ")
+            append(counterType.description)
+            append(" counters on it for each of those creatures.)")
+        } else {
+            append("Devour")
+            if (variant.isNotBlank()) {
+                append(" ")
+                append(variant)
+            }
             append(" ")
-            append(variant)
+            append(multiplier)
+            append(" (As this creature enters, you may sacrifice any number of ")
+            append(sacrificeFilter.description)
+            append("s. It enters with ")
+            append(multiplier)
+            append(" times that many ")
+            append(counterType.description)
+            append(" counters on it.)")
         }
-        append(" ")
-        append(multiplier)
-        append(" (As this creature enters, you may sacrifice any number of ")
-        append(sacrificeFilter.description)
-        append("s. It enters with ")
-        append(multiplier)
-        append(" times that many ")
-        append(counterType.description)
-        append(" counters on it.)")
     }
 
     override fun applyTextReplacement(replacer: TextReplacer): ReplacementEffect {

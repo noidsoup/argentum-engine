@@ -1586,6 +1586,31 @@ data class CoinFlipEvent(
 ) : GameEvent
 
 /**
+ * Result of rolling the planar die (Planechase). Distribution: 4 blank, 1 chaos, 1 planeswalk.
+ */
+@Serializable
+enum class PlanarDieFace {
+    @SerialName("Blank")
+    BLANK,
+    @SerialName("Chaos")
+    CHAOS,
+    @SerialName("Planeswalk")
+    PLANESWALK,
+}
+
+/**
+ * Emitted when a player rolls the planar die.
+ */
+@Serializable
+@SerialName("PlanarDieRolledEvent")
+data class PlanarDieRolledEvent(
+    val playerId: EntityId,
+    val result: PlanarDieFace,
+    val sourceId: EntityId,
+    val sourceName: String,
+) : GameEvent
+
+/**
  * Emitted when a player has been scheduled to control another player's next turn
  * (Mindslaver-style hijack). PR 1 ships this as informational only — the full
  * input/visibility routing arrives in a follow-up PR.

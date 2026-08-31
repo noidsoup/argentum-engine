@@ -3515,6 +3515,9 @@ object Effects {
     fun FlipCoins(count: Int, storeHeadsAs: String = "heads"): Effect =
         com.wingedsheep.sdk.scripting.effects.FlipCoinsEffect(count, storeHeadsAs)
 
+    /** Roll the planar die (blank / chaos / planeswalk). */
+    val RollPlanarDie: Effect = com.wingedsheep.sdk.scripting.effects.RollPlanarDieEffect
+
     /**
      * Target player skips their next draw step.
      * Used for cards like Elfhame Sanctuary ("you skip your draw step this turn").

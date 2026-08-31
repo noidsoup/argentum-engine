@@ -444,6 +444,15 @@ enum class Keyword(val displayName: String) {
      */
     JOB_SELECT("Job select"),
 
+    /**
+     * Living weapon (Scars of Mirrodin / Phyrexian Equipment).
+     * "When this Equipment enters, create a 0/0 black Phyrexian Germ creature token,
+     * then attach this to it."
+     *
+     * Display-only; behavior is the ETB trigger wired by `livingWeapon()` on [CardBuilder].
+     */
+    LIVING_WEAPON("Living weapon"),
+
     // ── Ability words (display prefix, no uniform mechanic) ──
     /**
      * Eerie (Duskmourn: House of Horror).

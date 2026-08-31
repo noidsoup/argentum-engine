@@ -1121,7 +1121,12 @@ class ModalAndCloneContinuationResumer(
         }
 
         // Place counters on the still-resolving spell entity.
-        val counterCount = sacrificed.size * continuation.multiplier
+        val counterCount = if (continuation.squareSacrificeCount) {
+            val n = sacrificed.size
+            n * n
+        } else {
+            sacrificed.size * continuation.multiplier
+        }
         if (counterCount > 0) {
             val resolvedCounterType = resolveCounterTypeFromString(continuation.counterType)
                 ?: com.wingedsheep.sdk.core.CounterType.PLUS_ONE_PLUS_ONE

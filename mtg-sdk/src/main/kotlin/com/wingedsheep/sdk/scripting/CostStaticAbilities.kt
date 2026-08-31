@@ -42,6 +42,8 @@ data class ModifySpellCost(
             is SpellCostTarget.AnyCaster -> "${filterAdjective(target.filter)}$noun"
             is SpellCostTarget.OpponentsCastTargeting ->
                 "Spells your opponents cast that target ${target.targetFilter.description}"
+            is SpellCostTarget.YouCastTargeting ->
+                "Spells you cast that target ${target.targetFilter.description}"
             is SpellCostTarget.OpponentsCastFromZones ->
                 "Spells your opponents cast from ${describeZones(target.zones)}"
             is SpellCostTarget.YouCastFromZones ->
@@ -200,6 +202,20 @@ sealed interface SpellCostTarget {
     @SerialName("OpponentsCastTargeting")
     @Serializable
     data class OpponentsCastTargeting(val targetFilter: GroupFilter) : SpellCostTarget {
+        override fun applyTextReplacement(replacer: TextReplacer): SpellCostTarget {
+            val newFilter = targetFilter.applyTextReplacement(replacer)
+            return if (newFilter !== targetFilter) copy(targetFilter = newFilter) else this
+        }
+    }
+
+    /**
+     * Spells the source's controller casts that target one or more permanents matching
+     * [targetFilter] relative to the source (Elderwood Scion: "Spells you cast that target
+     * this creature cost {2} less").
+     */
+    @SerialName("YouCastTargeting")
+    @Serializable
+    data class YouCastTargeting(val targetFilter: GroupFilter) : SpellCostTarget {
         override fun applyTextReplacement(replacer: TextReplacer): SpellCostTarget {
             val newFilter = targetFilter.applyTextReplacement(replacer)
             return if (newFilter !== targetFilter) copy(targetFilter = newFilter) else this
