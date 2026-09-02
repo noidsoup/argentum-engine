@@ -508,8 +508,6 @@
                                 "zone": "Battlefield"
                             }
                         },
-                        "ShuffleLibrary",
-                        "EmitLibrarySearchedEvent",
                         {
                             "type": "Composite",
                             "effects": [
