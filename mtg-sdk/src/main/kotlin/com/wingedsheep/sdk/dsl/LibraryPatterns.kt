@@ -646,7 +646,9 @@ object LibraryPatterns {
         count: Int = 1,
         destination: SearchDestination = SearchDestination.BATTLEFIELD,
         entersTapped: Boolean = false,
-        reveal: Boolean = false
+        reveal: Boolean = false,
+        shuffleAfter: Boolean = true,
+        emitLibrarySearched: Boolean = true,
     ): CompositeEffect {
         val effects = mutableListOf<Effect>()
 
@@ -682,10 +684,10 @@ object LibraryPatterns {
         )
 
         if (zones.contains(Zone.LIBRARY)) {
-            effects.add(ShuffleLibraryEffect())
+            if (shuffleAfter) effects.add(ShuffleLibraryEffect())
             // Only a search that includes the library fires "searches their library" triggers
             // (CR 701.23).
-            effects.add(EmitLibrarySearchedEventEffect)
+            if (emitLibrarySearched) effects.add(EmitLibrarySearchedEventEffect)
         }
 
         return CompositeEffect(effects)

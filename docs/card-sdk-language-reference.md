@@ -2973,7 +2973,7 @@ one-off pipeline belongs inline in the card file via `Effects.Pipeline { }` (§5
 **Library search & reveal**
 
 - `searchLibrary(filter, destination?, tapped?, shuffle?)` — search library, pick matching, move, shuffle.
-- `searchMultipleZones(zones, filter, count?, destination?, tapped?, reveal?)` — search several zones (e.g. library and/or graveyard) in one effect; shuffles automatically if `LIBRARY` is among the zones. Pass `reveal = true` for "reveal it" tutors (Delivery Moogle).
+- `searchMultipleZones(zones, filter, count?, destination?, tapped?, reveal?, shuffleAfter?, emitLibrarySearched?)` — search several zones (e.g. library and/or graveyard) in one effect; shuffles automatically if `LIBRARY` is among the zones unless `shuffleAfter = false`. Pass `reveal = true` for "reveal it" tutors (Delivery Moogle). When chaining two library searches that share one trailing shuffle (Journey for the Elixir, Agency Outfitter), pass `shuffleAfter = false` and `emitLibrarySearched = false` on the intermediate leg.
 
 **Sideboard / wish (`Patterns.Sideboard.*`)**
 

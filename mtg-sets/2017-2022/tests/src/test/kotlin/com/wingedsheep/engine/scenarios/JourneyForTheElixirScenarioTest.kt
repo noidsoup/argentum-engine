@@ -1,9 +1,19 @@
 package com.wingedsheep.engine.scenarios
 
+import com.wingedsheep.engine.core.CastSpell
+import com.wingedsheep.engine.core.LibraryShuffledEvent
+import com.wingedsheep.engine.core.PaymentStrategy
+import com.wingedsheep.engine.core.SelectCardsDecision
+import com.wingedsheep.engine.state.ZoneKey
 import com.wingedsheep.engine.state.components.identity.CardComponent
+import com.wingedsheep.engine.support.GameTestDriver
 import com.wingedsheep.engine.support.ScenarioTestBase
+import com.wingedsheep.engine.support.TestCards
+import com.wingedsheep.sdk.core.Color
 import com.wingedsheep.sdk.core.Phase
 import com.wingedsheep.sdk.core.Step
+import com.wingedsheep.sdk.core.Zone
+import com.wingedsheep.sdk.model.Deck
 import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
 
@@ -85,6 +95,56 @@ class JourneyForTheElixirScenarioTest : ScenarioTestBase() {
                 game.isInHand(1, "Jiang Yanggu") shouldBe true
                 game.isInGraveyard(1, "Forest") shouldBe false
                 game.isInGraveyard(1, "Jiang Yanggu") shouldBe false
+            }
+        }
+
+        test("shuffles the library once after both searches resolve") {
+            val driver = GameTestDriver()
+            driver.registerCards(TestCards.all)
+            driver.initMirrorMatch(
+                deck = Deck.of("Forest" to 40),
+                skipMulligans = true,
+                startingPlayer = 0,
+            )
+            driver.passPriorityUntil(Step.PRECOMBAT_MAIN)
+
+            val you = driver.player1
+            val forestInLibrary = driver.state.getZone(ZoneKey(you, Zone.LIBRARY))
+                .first { id -> driver.state.getEntity(id)?.get<CardComponent>()?.name == "Forest" }
+            val yangguInLibrary = driver.putCardOnTopOfLibrary(you, "Jiang Yanggu")
+            val journey = driver.putCardInHand(you, "Journey for the Elixir")
+
+            driver.giveMana(you, Color.GREEN, 3)
+            val shufflesBefore = driver.events.count { it is LibraryShuffledEvent && it.playerId == you }
+
+            driver.submit(
+                CastSpell(you, journey, paymentStrategy = PaymentStrategy.FromPool),
+            ).error shouldBe null
+
+            var guard = 0
+            while (guard++ < 20) {
+                when {
+                    driver.isPaused -> {
+                        val decision = driver.state.pendingDecision
+                        if (decision is SelectCardsDecision) {
+                            val pick = when {
+                                decision.options.contains(forestInLibrary) -> forestInLibrary
+                                decision.options.contains(yangguInLibrary) -> yangguInLibrary
+                                else -> decision.options.first()
+                            }
+                            driver.submitCardSelection(you, listOf(pick))
+                        } else {
+                            driver.autoResolveDecision()
+                        }
+                    }
+                    driver.state.stack.isNotEmpty() -> driver.bothPass()
+                    else -> break
+                }
+            }
+
+            withClue("oracle ends with a single shuffle after both cards are found") {
+                driver.events.count { it is LibraryShuffledEvent && it.playerId == you } shouldBe
+                    shufflesBefore + 1
             }
         }
     }

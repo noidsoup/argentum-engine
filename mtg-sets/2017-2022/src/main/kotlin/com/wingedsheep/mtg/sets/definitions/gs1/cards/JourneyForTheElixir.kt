@@ -29,6 +29,8 @@ val JourneyForTheElixir = card("Journey for the Elixir") {
             count = 1,
             destination = SearchDestination.HAND,
             reveal = true,
+            shuffleAfter = false,
+            emitLibrarySearched = false,
         ).then(
             Patterns.Library.searchMultipleZones(
                 zones = listOf(Zone.LIBRARY, Zone.GRAVEYARD),

@@ -37,6 +37,8 @@ val AgencyOutfitter = card("Agency Outfitter") {
             filter = GameObjectFilter.Any.named("Magnifying Glass"),
             count = 1,
             destination = SearchDestination.BATTLEFIELD,
+            shuffleAfter = false,
+            emitLibrarySearched = false,
         ) then Patterns.Library.searchMultipleZones(
             zones = listOf(Zone.GRAVEYARD, Zone.HAND, Zone.LIBRARY),
             filter = GameObjectFilter.Any.named("Thinking Cap"),
