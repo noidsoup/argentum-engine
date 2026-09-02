@@ -788,8 +788,6 @@
                     },
                     "revealed": true
                 },
-                "ShuffleLibrary",
-                "EmitLibrarySearchedEvent",
                 {
                     "type": "Composite",
                     "effects": [
