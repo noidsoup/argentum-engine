@@ -52,5 +52,40 @@ class JourneyForTheElixirScenarioTest : ScenarioTestBase() {
                 game.isInHand(1, "Jiang Yanggu") shouldBe true
             }
         }
+
+        test("finds a basic land and Jiang Yanggu from the graveyard") {
+            val game = scenario()
+                .withPlayers("Player1", "Player2")
+                .withCardInHand(1, "Journey for the Elixir")
+                .withCardInGraveyard(1, "Forest#GS1-40")
+                .withCardInGraveyard(1, "Jiang Yanggu")
+                .withLandsOnBattlefield(1, "Forest", 3)
+                .withActivePlayer(1)
+                .inPhase(Phase.PRECOMBAT_MAIN, Step.PRECOMBAT_MAIN)
+                .build()
+
+            val forestInGraveyard = game.state.getGraveyard(game.player1Id).single { id ->
+                game.state.getEntity(id)?.get<CardComponent>()?.name == "Forest"
+            }
+            val yangguInGraveyard = game.state.getGraveyard(game.player1Id).single { id ->
+                game.state.getEntity(id)?.get<CardComponent>()?.name == "Jiang Yanggu"
+            }
+
+            game.castSpell(1, "Journey for the Elixir").error shouldBe null
+            game.resolveStack()
+
+            game.selectCards(listOf(forestInGraveyard))
+            game.resolveStack()
+
+            game.selectCards(listOf(yangguInGraveyard))
+            game.resolveStack()
+
+            withClue("both cards are tutored from the graveyard to hand") {
+                game.isInHand(1, "Forest") shouldBe true
+                game.isInHand(1, "Jiang Yanggu") shouldBe true
+                game.isInGraveyard(1, "Forest") shouldBe false
+                game.isInGraveyard(1, "Jiang Yanggu") shouldBe false
+            }
+        }
     }
 }
