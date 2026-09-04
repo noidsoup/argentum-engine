@@ -475,7 +475,13 @@ reference pointing at it — that is what `HiddenSlotRewrite` (`rules-engine/hid
 lets the AI reason about hypothetical opponent hands. It derives the safe set from what
 `CardEntityFactory` would build for the card currently there, so a slot carrying anything else —
 last-known battlefield information, a reveal someone has been shown — is refused rather than
-transplanted. `HiddenWorldMaterializer` is the all-or-nothing caller (`docs/ai/architecture.md`
+transplanted. Its one in-flight-pin answer is the conservative superset of every typed `EntityId` in
+live stack objects, pending decisions, and continuation frames; an incomplete in-flight graph
+traversal pins all candidates. Those three carriers are the whole scope: `GameState` also holds
+lists that name a hand or library entity outside any in-flight execution — `grantedKeywordAbilities`,
+`mayPlayPermissions`, `lastCardDrawnThisTurnByPlayer` — and rewriting such a slot still leaves that
+entry pointing at a different card. Closing that means extending the analysis, not assuming it
+already covers them. `HiddenWorldMaterializer` is the all-or-nothing caller (`docs/ai/architecture.md`
 covers the sampling one).
 
 ### 2.3 Rule 613: Base State vs. Projected State
@@ -1434,6 +1440,36 @@ pair can be refused for a reason that has nothing to do with readiness: `hasInco
 holds a later-round match back while either seat still owes an earlier-round game, so a pair goes from
 blocked to launchable when a *third* pair's game finishes, with no change to the ready set at all.
 Every result therefore re-runs the sweep; looking only at ready *transitions* stalls the bracket.
+
+The same guard is why the bracket and the lobby roster must not drift apart. The schedule is built
+once, from the seats the lobby had then, and nothing rebuilds it — so a seat that leaves afterwards
+stays scheduled while no longer being something the server can put in a game. Its matches never
+complete, and `hasIncompleteMatchBefore` then blocks every later match of every opponent it was
+paired against, idling the whole bracket a player per round. Every path that drops a player from
+`lobby.players` therefore forfeits what the bracket still has them down for
+(`LobbyHandler.forfeitBracketMatchesIfSeatGone`, through the same `handleAbandon` a disconnect uses),
+and the sweep re-checks the roster on the way in
+(`TournamentManager.unseatedPlayersWithMatchesLeft`) as a backstop that also repairs a bracket which
+already drifted. Only a seat that is *gone* may be forfeited: `removePlayer` deliberately keeps a
+disconnected player's state during a tournament so they can rejoin.
+
+**Simulated AI-vs-AI matches.** A round-robin with one human and N AI seats schedules O(N²) matches,
+and the human is in only N of them; every other game is two AI controllers driving a full engine game
+that no one is in, which on a shared box is where most of the tournament's CPU goes. When
+`game.tournament.simulate-ai-matches` is on (the default), the start sweep decides such a pair with
+`AiMatchSimulator` instead of launching a `GameSession`, and reports it through the same result path a
+played match uses — so it closes rounds, moves standings and unblocks `hasIncompleteMatchBefore` the
+same way. The winner is a fair coin flip: any cheap deck-strength proxy would be unvalidated against
+how the engine AI actually plays, and an unmeasured bias in the standings is worse than an honest
+50/50. A simulated match never gets a `gameSessionId`, so it has no replay and never appears as
+something to spectate — `TournamentMatch.isSimulated` is what lets the standings say so, and turning
+the property off is how you get the games back when somebody wants to watch them.
+
+An **all-AI bracket is never simulated**, whatever the property says. A bracket with no human seat was
+built to be watched — the AI Sandbox (`/api/dev/ai-tournament`, behind `just watch-ai-match`) and the
+model-comparison runs are exactly that — and simulating it would decide the whole tournament in one
+sweep, deleting the feature rather than speeding it up. The saving only exists next to a human: the
+AI-vs-AI games running *alongside* the matches somebody is sitting in.
 
 BYE handling (odd player counts), reconnection across matches, and spectating between rounds are
 all managed at this layer. The tournament system reuses the same `GameSession` and `ActionProcessor`

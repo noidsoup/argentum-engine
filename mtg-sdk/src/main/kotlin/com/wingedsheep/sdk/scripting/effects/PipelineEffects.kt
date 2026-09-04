@@ -722,6 +722,20 @@ enum class Chooser {
      * gets its own pick.
      */
     Opponent,
+
+    /**
+     * The opponent already *chosen* for this source decides — the durable pick a preceding
+     * [ChooseOpponentForSourceEffect] wrote into the source's `OPPONENT` cast-choices slot, the
+     * decision-side twin of [com.wingedsheep.sdk.scripting.references.Player.ChosenOpponent].
+     *
+     * Distinct from [Opponent] in exactly the way clash (CR 701.30b) needs: [Opponent] picks *an*
+     * opponent afresh at each step, so a mechanic that first reads one opponent's library and then
+     * asks that same opponent to decide could split across two different players in a multiplayer
+     * game. This resolves to the one already named, so the reveal and the decision stay paired.
+     * Unresolvable when no choice has been made — a card using it must run
+     * [ChooseOpponentForSourceEffect] first.
+     */
+    ChosenOpponent,
     /** The target player decides (resolved from context.targets[0]) */
     TargetPlayer,
     /** The triggering player decides (resolved from trigger context) */
@@ -1172,6 +1186,23 @@ data class MoveCollectionEffect(
      * (morph/manifest — see [FaceDownMode]) or, for [FaceDownMode.HIDDEN], face down in exile.
      */
     val faceDown: FaceDownMode? = null,
+    /**
+     * "You may look at that card for as long as it remains exiled." (Jacob Hauken, Inspector;
+     * Hauken's Insight; Gonti, Lord of Luxury.)
+     *
+     * A **look** grant and nothing more: it lets the effect's controller see under a card this
+     * move puts face down in exile, and says nothing about whether they may ever play it. That
+     * separation is the whole point — CR 708.5 gives exile no controller baseline ("You can't look
+     * at face-down cards in any other zone"), so before this flag the only ways to see a
+     * face-down exiled card were foretell and an active may-play permission. Jacob Hauken's front
+     * face grants neither: it exiles a card from your hand face down and lets you look at it,
+     * with the permission to play arriving only once the card transforms.
+     *
+     * The grantee is the effect's controller, matching every printed instance of the clause.
+     * Ignored unless the card actually lands in exile face down; the grant ends when the card
+     * leaves exile, which is what "for as long as it remains exiled" says.
+     */
+    val lookableInExile: Boolean = false,
     val noRegenerate: Boolean = false,
     val storeMovedAs: String? = null,
     val underOwnersControl: Boolean = false,
@@ -1201,6 +1232,7 @@ data class MoveCollectionEffect(
         // (Safe Haven, Oblivion Ring's cousins). Dropping it from the generated text loses the
         // one detail that distinguishes it from a plain return to the battlefield.
         if (underOwnersControl) append(" under its owner's control")
+        if (lookableInExile) append(". You may look at those cards for as long as they remain exiled")
     }
 }
 

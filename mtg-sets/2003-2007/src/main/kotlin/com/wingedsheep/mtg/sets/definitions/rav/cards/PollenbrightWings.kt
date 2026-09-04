@@ -2,14 +2,13 @@ package com.wingedsheep.mtg.sets.definitions.rav.cards
 
 import com.wingedsheep.sdk.core.Color
 import com.wingedsheep.sdk.core.Keyword
-import com.wingedsheep.sdk.dsl.Effects
-import com.wingedsheep.sdk.dsl.Filters
 import com.wingedsheep.sdk.dsl.Targets
 import com.wingedsheep.sdk.dsl.Triggers
 import com.wingedsheep.sdk.dsl.card
 import com.wingedsheep.sdk.model.Rarity
 import com.wingedsheep.sdk.scripting.GrantKeyword
 import com.wingedsheep.sdk.scripting.TriggerBinding
+import com.wingedsheep.sdk.scripting.effects.CreateTokenEffect
 import com.wingedsheep.sdk.scripting.events.DamageType
 import com.wingedsheep.sdk.scripting.events.RecipientFilter
 import com.wingedsheep.sdk.scripting.values.ContextPropertyKey
@@ -19,11 +18,17 @@ import com.wingedsheep.sdk.scripting.values.DynamicAmount
  * Pollenbright Wings
  * {4}{G}{W}
  * Enchantment — Aura
- *
  * Enchant creature
  * Enchanted creature has flying.
  * Whenever enchanted creature deals combat damage to a player, create that many 1/1 green
  * Saproling creature tokens.
+ *
+ * "That many" is the damage the *enchanted* creature dealt, so the trigger is the ordinary
+ * combat-damage-to-a-player event read one object out — [TriggerBinding.ATTACHED] — and the
+ * token count is [ContextPropertyKey.TRIGGER_DAMAGE_AMOUNT], the same payload
+ * [com.wingedsheep.mtg.sets.definitions.ons.cards.BroodhatchNantuko] counts its Insects with.
+ * The tokens are created under the Aura's controller, not the enchanted creature's — that is
+ * `CreateTokenEffect`'s default, and it is what makes stealing a creature with this Aura work.
  */
 val PollenbrightWings = card("Pollenbright Wings") {
     manaCost = "{4}{G}{W}"
@@ -37,7 +42,7 @@ val PollenbrightWings = card("Pollenbright Wings") {
     auraTarget = Targets.Creature
 
     staticAbility {
-        ability = GrantKeyword(Keyword.FLYING, Filters.EnchantedCreature)
+        ability = GrantKeyword(Keyword.FLYING)
     }
 
     triggeredAbility {
@@ -46,13 +51,12 @@ val PollenbrightWings = card("Pollenbright Wings") {
             recipient = RecipientFilter.AnyPlayer,
             binding = TriggerBinding.ATTACHED,
         )
-        effect = Effects.CreateToken(
+        effect = CreateTokenEffect(
             count = DynamicAmount.ContextProperty(ContextPropertyKey.TRIGGER_DAMAGE_AMOUNT),
             power = 1,
             toughness = 1,
             colors = setOf(Color.GREEN),
             creatureTypes = setOf("Saproling"),
-            imageUri = "https://cards.scryfall.io/normal/front/2/4/248ade83-ac57-42d6-985c-1e4cc3639f36.jpg?1783903570",
         )
     }
 
@@ -60,6 +64,6 @@ val PollenbrightWings = card("Pollenbright Wings") {
         rarity = Rarity.UNCOMMON
         collectorNumber = "219"
         artist = "Terese Nielsen"
-        imageUri = "https://cards.scryfall.io/normal/front/3/c/3ca4f3b9-c952-4fd3-a586-3e063b62b23d.jpg?1783943616"
+        imageUri = "https://cards.scryfall.io/normal/front/3/c/3ca4f3b9-c952-4fd3-a586-3e063b62b23d.jpg"
     }
 }

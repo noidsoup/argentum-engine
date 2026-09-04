@@ -89,8 +89,11 @@ enum class CounterType {
     WIND,
     NEST,
     PAGE,
+    HOOFPRINT,
+    MANNEQUIN,
     REV,
     BLOODSTAIN,
+    BLOOD,
     SOUL,
     DIVINITY,
     DOOM,
@@ -385,6 +388,22 @@ object Counters {
     const val PAGE = "page"
 
     /**
+     * Hoofprint counter (LRW — Hoofprints of the Stag). Passive storage counter with no inherent
+     * rule; the enchantment's draw trigger accumulates one and its activated ability spends four
+     * to make a 4/4 flying Elemental. No inherent rule.
+     */
+    const val HOOFPRINT = "hoofprint"
+
+    /**
+     * Mannequin counter (LRW — Makeshift Mannequin). A pure marker with no inherent rule: it is
+     * the thing the reanimated creature's granted "when this becomes the target of a spell or
+     * ability, sacrifice it" ability is keyed to, via
+     * [com.wingedsheep.sdk.scripting.Duration.WhileAffectedHasCounter]. Remove the counter and the
+     * drawback goes with it.
+     */
+    const val MANNEQUIN = "mannequin"
+
+    /**
      * Bait counter (FDN — Fishing Pole). Passive storage counter with no inherent rule; the
      * Equipment's granted activated ability accumulates one and its "equipped creature becomes
      * untapped" trigger spends one to reel in a Fish token. No inherent rule.
@@ -405,6 +424,14 @@ object Counters {
      * inherent rule.
      */
     const val BLOODSTAIN = "bloodstain"
+
+    /**
+     * Blood counter (RAV — Bloodletter Quill). Passive storage counter with no inherent rule; the
+     * artifact's draw ability puts one on as part of its activation cost and the same ability reads
+     * the running count to size the life lost, while a second ability spends {U}{B} to take one
+     * back off. No inherent rule.
+     */
+    const val BLOOD = "blood"
 
     /**
      * Soul counter (FDN — Ravenous Amulet). Passive storage counter with no inherent rule; the

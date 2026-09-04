@@ -1273,6 +1273,14 @@ data class GameObjectFilter(
         statePredicates = statePredicates + StatePredicate.HasLeastPowerAmongAllCreatures
     )
 
+    /**
+     * Must have the greatest mana value among *all* creatures on the battlefield (global, both
+     * players). On a tie every maximum-mana-value creature matches (Favor of the Mighty).
+     */
+    fun hasGreatestManaValueAmongAllCreatures() = copy(
+        statePredicates = statePredicates + StatePredicate.HasGreatestManaValueAmongAllCreatures
+    )
+
     /** Must have the least mana value among battlefield permanents matching [candidates]. */
     fun hasLeastManaValueAmong(candidates: GameObjectFilter) = copy(
         statePredicates = statePredicates + StatePredicate.HasLeastManaValueAmong(candidates)
@@ -1384,6 +1392,25 @@ data class GameObjectFilter(
 
     /** Controlled by any player (no controller scope) */
     fun anyController() = copy(controllerPredicate = ControllerPredicate.ControlledByAny)
+
+    /**
+     * Controlled by the player the asking ability's *source* Aura is attached to — "creatures
+     * enchanted player controls" (Radiant Restraints). The attachment-scoped controller sibling of
+     * [StatePredicate.IsAttackingEnchantedPlayer]: every other controller scope here resolves
+     * against the ability's own controller, which for a curse is exactly the wrong player.
+     *
+     * A named recipe over [ControllerPredicate.ControlledByReferencedPlayer], not a new predicate —
+     * `PlayerRef(Player.EnchantedPlayer)` already names the player; this only spares every curse
+     * from spelling out the reference and gives the shape a searchable name.
+     *
+     * Fails closed when the source isn't an Aura attached to a player, so a curse that has fallen
+     * off (or a filter asked with no source in scope) matches nothing rather than everything.
+     */
+    fun controlledByEnchantedPlayer() = copy(
+        controllerPredicate = ControllerPredicate.ControlledByReferencedPlayer(
+            EffectTarget.PlayerRef(com.wingedsheep.sdk.scripting.references.Player.EnchantedPlayer)
+        )
+    )
 
     /** Must be controlled by the active player (the player whose turn it is) */
     fun controlledByActivePlayer() = copy(controllerPredicate = ControllerPredicate.ControlledByActivePlayer)

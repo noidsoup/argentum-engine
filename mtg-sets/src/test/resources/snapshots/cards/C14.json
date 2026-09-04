@@ -25,8 +25,7 @@
                         "type": "Fixed",
                         "amount": 1
                     }
-                },
-                "descriptionOverride": "Sacrifice this artifact: Draw a card."
+                }
             }
         ]
     },
@@ -34,21 +33,7 @@
         "collectorNumber": "54",
         "artist": "Ryan Alexander Lee",
         "flavorText": "It harmonizes with the essence of its master.",
-        "imageUri": "https://cards.scryfall.io/normal/front/6/1/61e0a922-1689-484f-abb3-902ce1c964ca.jpg?1783938863",
-        "rulings": [
-            {
-                "date": "2020-11-10",
-                "text": "If your commander is a card that has no colors in its color identity, Commander's Sphere's mana ability produces no mana. It doesn't produce {C}."
-            },
-            {
-                "date": "2020-11-10",
-                "text": "If you have two commanders, the mana ability adds one mana of any color in their combined color identities."
-            },
-            {
-                "date": "2020-11-10",
-                "text": "If you don't have a commander, Commander's Sphere's mana ability produces no mana."
-            }
-        ]
+        "imageUri": "https://cards.scryfall.io/normal/front/6/1/61e0a922-1689-484f-abb3-902ce1c964ca.jpg?1783938863"
     },
     "colorIdentityOverride": []
 }

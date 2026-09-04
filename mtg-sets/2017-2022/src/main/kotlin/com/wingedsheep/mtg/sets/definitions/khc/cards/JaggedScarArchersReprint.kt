@@ -3,7 +3,11 @@ package com.wingedsheep.mtg.sets.definitions.khc.cards
 import com.wingedsheep.sdk.model.Printing
 import com.wingedsheep.sdk.model.Rarity
 
-/** Jagged-Scar Archers reprint in KHC. Canonical CardDefinition lives in Lorwyn (`lrw`). */
+/**
+ * Jagged-Scar Archers reprint in Kaldheim Commander (KHC). The canonical
+ * [com.wingedsheep.sdk.model.CardDefinition] lives in Lorwyn (its earliest printing); this row
+ * contributes only presentation data.
+ */
 val JaggedScarArchersReprint = Printing(
     oracleId = "f7139c70-dfcc-41ae-9d0d-b6e8c07a063d",
     name = "Jagged-Scar Archers",
