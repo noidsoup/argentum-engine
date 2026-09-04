@@ -627,6 +627,69 @@
     ]
 }
 
+// Numa, Joraga Chieftain
+{
+    "name": "Numa, Joraga Chieftain",
+    "manaCost": "{2}{G}",
+    "typeLine": "Legendary Creature — Elf Warrior",
+    "oracleText": "At the beginning of combat on your turn, you may pay {X}{X}. When you do, distribute X +1/+1 counters among any number of target Elves.\nPartner (You can have two commanders if both have partner.)",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 2
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "StepEvent",
+                    "step": "BEGIN_COMBAT"
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "ReflexiveTrigger",
+                    "action": {
+                        "type": "PayManaCostRepeatedly",
+                        "cost": "{2}"
+                    },
+                    "reflexiveEffect": {
+                        "type": "DistributeCountersAmongTargets",
+                        "totalCounters": {
+                            "type": "VariableReference",
+                            "variableName": "times_paid"
+                        }
+                    },
+                    "reflexiveTargetRequirements": [
+                        {
+                            "type": "TargetObject",
+                            "unlimited": true,
+                            "filter": {
+                                "baseFilter": "creature Elf"
+                            },
+                            "dynamicMaxCount": {
+                                "type": "VariableReference",
+                                "variableName": "times_paid"
+                            }
+                        }
+                    ],
+                    "descriptionOverride": "You may pay {X}{X}. When you do, distribute X +1/+1 counters among any number of target Elves."
+                },
+                "descriptionOverride": "At the beginning of combat on your turn, you may pay {X}{X}. When you do, distribute X +1/+1 counters among any number of target Elves."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "246",
+        "rarity": "UNCOMMON",
+        "artist": "Kieran Yanner",
+        "flavorText": "His blade carves a path for his people. His words guide them along it.",
+        "imageUri": "https://cards.scryfall.io/normal/front/9/4/9465d118-5ad5-42c5-a512-7aca5f7b905d.jpg?1783928786"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
 // Pride of the Perfect
 {
     "name": "Pride of the Perfect",
