@@ -102,3 +102,83 @@
         "GREEN"
     ]
 }
+
+// Tales of the Ancestors
+{
+    "name": "Tales of the Ancestors",
+    "manaCost": "{3}{U}",
+    "typeLine": "Sorcery",
+    "oracleText": "Each player with fewer cards in hand than the player with the most cards in hand draws cards equal to the difference.\nForetell {1}{U} (During your turn, you may pay {2} and exile this card from your hand face down. Cast it on a later turn for its foretell cost.)",
+    "keywords": [
+        "FORETELL"
+    ],
+    "keywordAbilities": [
+        {
+            "type": "Foretell",
+            "cost": "{1}{U}"
+        }
+    ],
+    "script": {
+        "spellEffect": {
+            "type": "ForEach",
+            "space": {
+                "type": "IterationSpace.Players",
+                "players": "Each"
+            },
+            "body": {
+                "type": "Gated",
+                "gate": {
+                    "type": "Gate.WhenCondition",
+                    "condition": {
+                        "type": "Compare",
+                        "left": {
+                            "type": "Count",
+                            "player": "You",
+                            "zone": "Hand"
+                        },
+                        "operator": "LT",
+                        "right": {
+                            "type": "GreatestAmongPlayers",
+                            "inner": {
+                                "type": "Count",
+                                "player": "You",
+                                "zone": "Hand"
+                            }
+                        }
+                    }
+                },
+                "then": {
+                    "type": "DrawCards",
+                    "count": {
+                        "type": "IfPositive",
+                        "amount": {
+                            "type": "Subtract",
+                            "left": {
+                                "type": "GreatestAmongPlayers",
+                                "inner": {
+                                    "type": "Count",
+                                    "player": "You",
+                                    "zone": "Hand"
+                                }
+                            },
+                            "right": {
+                                "type": "Count",
+                                "player": "You",
+                                "zone": "Hand"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "metadata": {
+        "collectorNumber": "8",
+        "rarity": "RARE",
+        "artist": "Colin Boyer",
+        "imageUri": "https://cards.scryfall.io/normal/front/c/2/c286a74c-3714-4190-8322-84b161debe39.jpg?1783928338"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
