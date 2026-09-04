@@ -2723,6 +2723,91 @@
     ]
 }
 
+// Soulherder
+{
+    "name": "Soulherder",
+    "manaCost": "{1}{W}{U}",
+    "typeLine": "Creature — Spirit",
+    "oracleText": "Whenever a creature is exiled from the battlefield, put a +1/+1 counter on this creature.\nAt the beginning of your end step, you may exile another target creature you control, then return that card to the battlefield under its owner's control.",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 1
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "filter": "creature",
+                    "from": "Battlefield",
+                    "to": "Exile"
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "AddCounters",
+                    "counterType": "+1/+1",
+                    "count": 1,
+                    "target": "Self"
+                },
+                "descriptionOverride": "Whenever a creature is exiled from the battlefield, put a +1/+1 counter on this creature."
+            },
+            {
+                "id": "ability_2",
+                "trigger": {
+                    "type": "StepEvent",
+                    "step": "END"
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "Composite",
+                        "effects": [
+                            {
+                                "type": "MoveToZone",
+                                "target": {
+                                    "type": "BoundVariable",
+                                    "name": "another target creature you control"
+                                },
+                                "destination": "Exile"
+                            },
+                            {
+                                "type": "MoveToZone",
+                                "target": {
+                                    "type": "BoundVariable",
+                                    "name": "another target creature you control"
+                                },
+                                "destination": "Battlefield"
+                            }
+                        ]
+                    }
+                },
+                "targetRequirement": {
+                    "type": "TargetObject",
+                    "filter": {
+                        "baseFilter": "creature ctrl:you",
+                        "excludeSelf": true
+                    },
+                    "id": "another target creature you control"
+                },
+                "descriptionOverride": "At the beginning of your end step, you may exile another target creature you control, then return that card to the battlefield under its owner's control."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "214",
+        "rarity": "UNCOMMON",
+        "artist": "Seb McKinnon",
+        "imageUri": "https://cards.scryfall.io/normal/front/e/a/ea23111b-ccc1-4d5c-a9d2-9db14c728820.jpg?1783933079"
+    },
+    "colorIdentityOverride": [
+        "WHITE",
+        "BLUE"
+    ]
+}
+
 // Sunbaked Canyon
 {
     "name": "Sunbaked Canyon",

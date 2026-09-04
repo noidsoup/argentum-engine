@@ -1,3 +1,72 @@
+// Inspired Sphinx
+{
+    "name": "Inspired Sphinx",
+    "manaCost": "{5}{U}{U}",
+    "typeLine": "Creature — Sphinx",
+    "oracleText": "Flying\nWhen this creature enters, draw cards equal to the number of opponents you have.\n{3}{U}: Create a 1/1 colorless Thopter artifact creature token with flying.",
+    "creatureStats": {
+        "power": 5,
+        "toughness": 5
+    },
+    "keywords": [
+        "FLYING"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "DrawCards",
+                    "count": "PlayerCount"
+                }
+            }
+        ],
+        "activatedAbilities": [
+            {
+                "id": "ability_2",
+                "cost": {
+                    "type": "CostComposite",
+                    "costs": [
+                        {
+                            "type": "CostAtomWrapper",
+                            "atom": {
+                                "type": "AtomMana",
+                                "cost": "{3}{U}"
+                            }
+                        }
+                    ]
+                },
+                "effect": {
+                    "type": "CreateToken",
+                    "power": 1,
+                    "toughness": 1,
+                    "colors": [],
+                    "creatureTypes": [
+                        "Thopter"
+                    ],
+                    "keywords": [
+                        "FLYING"
+                    ],
+                    "artifactToken": true
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "70779",
+        "rarity": "MYTHIC",
+        "artist": "Jesper Ejsing",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/3/03056f18-96a4-49d6-bc94-147f11ad6ae7.jpg?1783933916"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
+
 // Path of Ancestry
 {
     "name": "Path of Ancestry",

@@ -2077,6 +2077,77 @@
     }
 }
 
+// Mistmeadow Witch
+{
+    "name": "Mistmeadow Witch",
+    "manaCost": "{1}{W/U}",
+    "typeLine": "Creature — Kithkin Wizard",
+    "oracleText": "{2}{W}{U}: Exile target creature. Return that card to the battlefield under its owner's control at the beginning of the next end step.",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 1
+    },
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": {
+                    "type": "CostAtomWrapper",
+                    "atom": {
+                        "type": "AtomMana",
+                        "cost": "{2}{W}{U}"
+                    }
+                },
+                "effect": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "MoveToZone",
+                            "target": {
+                                "type": "BoundVariable",
+                                "name": "target creature"
+                            },
+                            "destination": "Exile"
+                        },
+                        {
+                            "type": "CreateDelayedTrigger",
+                            "step": "END",
+                            "effect": {
+                                "type": "MoveToZone",
+                                "target": {
+                                    "type": "BoundVariable",
+                                    "name": "target creature"
+                                },
+                                "destination": "Battlefield"
+                            }
+                        }
+                    ]
+                },
+                "targetRequirements": [
+                    {
+                        "type": "TargetObject",
+                        "filter": {
+                            "baseFilter": "creature"
+                        },
+                        "id": "target creature"
+                    }
+                ]
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "144",
+        "rarity": "UNCOMMON",
+        "artist": "Greg Staples",
+        "flavorText": "Olka collected the evening mist for years, studying its secrets. Once she learned its essence, she could vanish with a thought.",
+        "imageUri": "https://cards.scryfall.io/normal/front/7/e/7e776fe0-6574-4fca-91bd-eb6e7383e5be.jpg?1783942737"
+    },
+    "colorIdentityOverride": [
+        "WHITE",
+        "BLUE"
+    ]
+}
+
 // Morselhoarder
 {
     "name": "Morselhoarder",

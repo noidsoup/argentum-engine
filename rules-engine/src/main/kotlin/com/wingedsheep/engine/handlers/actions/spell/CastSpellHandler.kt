@@ -4773,6 +4773,9 @@ class CastSpellHandler(
 
         is com.wingedsheep.sdk.scripting.effects.ManaSpellRider.GrantsKeywordWhenSpent ->
             applyKeywordGrantRider(state, action, rider.keyword, rider.spellFilter) to emptyList()
+
+        is com.wingedsheep.sdk.scripting.effects.ManaSpellRider.EntersWithCountersPerCommandZoneCast ->
+            applyCommandZoneCastCountRider(state, action, rider.counterType) to emptyList()
     }
 
     /**
@@ -4919,6 +4922,42 @@ class CastSpellHandler(
             )
         )
         return state to listOf(pending)
+    }
+
+    /**
+     * Opal Palace's rider: if the cast spell is one of the controller's commanders, freeze an
+     * entry-rider component onto the stack spell. [com.wingedsheep.engine.mechanics.stack.StackResolver]
+     * applies the counters at resolution from [com.wingedsheep.engine.state.components.identity.CommanderComponent.castsFromCommandZone].
+     */
+    private fun applyCommandZoneCastCountRider(
+        state: GameState,
+        action: CastSpell,
+        counterTypeName: String,
+    ): GameState {
+        if (!isSpellPlayersCommander(state, action)) return state
+        val counterType = try {
+            com.wingedsheep.sdk.core.CounterType.valueOf(counterTypeName)
+        } catch (_: IllegalArgumentException) {
+            com.wingedsheep.sdk.core.CounterType.PLUS_ONE_PLUS_ONE
+        }
+        return state.updateEntity(action.cardId) { c ->
+            c.with(
+                com.wingedsheep.engine.state.components.stack.CommandZoneCastCountEntryRiderComponent(
+                    counterType = counterType
+                )
+            )
+        }
+    }
+
+    private fun isSpellPlayersCommander(state: GameState, action: CastSpell): Boolean {
+        val commander = state.getEntity(action.cardId)
+            ?.get<com.wingedsheep.engine.state.components.identity.CommanderComponent>()
+            ?: return false
+        if (commander.ownerId != action.playerId) return false
+        val registry = state.getEntity(action.playerId)
+            ?.get<com.wingedsheep.engine.state.components.identity.CommanderRegistryComponent>()
+            ?: return false
+        return action.cardId in registry.commanderIds
     }
 
     companion object {

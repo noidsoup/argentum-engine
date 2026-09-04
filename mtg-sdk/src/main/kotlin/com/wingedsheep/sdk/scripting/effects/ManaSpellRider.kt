@@ -1,5 +1,6 @@
 package com.wingedsheep.sdk.scripting.effects
 
+import com.wingedsheep.sdk.core.CounterType
 import com.wingedsheep.sdk.core.Keyword
 import com.wingedsheep.sdk.scripting.GameObjectFilter
 import kotlinx.serialization.SerialName
@@ -106,5 +107,33 @@ sealed interface ManaSpellRider {
         override val description: String =
             "If that mana is spent on a ${spellFilter.description} spell, it gains " +
                 "${keyword.lowercase().replace('_', ' ')} until end of turn"
+    }
+
+    /**
+     * "If you spend this mana to cast your commander, it enters with a number of additional
+     * [counterType] counters on it equal to the number of times it's been cast from the command
+     * zone this game." (Opal Palace)
+     *
+     * On consumption the cast pipeline checks that the spell is one of the controller's
+     * commanders. On a match, an entry rider is frozen onto the stack spell and applied at
+     * resolution: the permanent enters with [counterType] counters equal to how many times it
+     * has been cast from the command zone this game (read at ETB, after the cast-commit
+     * increment for a command-zone cast). The first command-zone cast enters with one counter,
+     * the second with two, and so on. Casting a non-commander spell, or casting your commander
+     * without spending rider-carrying mana, is a no-op.
+     *
+     * @property counterType Counter type to add (defaults to +1/+1).
+     */
+    @SerialName("EntersWithCountersPerCommandZoneCast")
+    @Serializable
+    data class EntersWithCountersPerCommandZoneCast(
+        val counterType: String = CounterType.PLUS_ONE_PLUS_ONE.name,
+    ) : ManaSpellRider {
+        constructor(counterType: CounterType) : this(counterType.name)
+
+        override val description: String =
+            "If you spend this mana to cast your commander, it enters with additional " +
+                "${counterType.lowercase().replace('_', ' ')} counters equal to the number of " +
+                "times it's been cast from the command zone this game"
     }
 }

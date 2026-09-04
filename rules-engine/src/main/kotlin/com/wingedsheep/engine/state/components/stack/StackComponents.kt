@@ -579,3 +579,15 @@ data class GraveyardCastRiderComponent(
     val entersWithCounter: com.wingedsheep.sdk.core.CounterType? = null,
     val addedSubtype: String? = null
 ) : Component
+
+/**
+ * Mana-spell rider frozen onto a commander spell at cast time (Opal Palace). Read by
+ * [com.wingedsheep.engine.mechanics.stack.StackResolver] when the spell resolves onto the
+ * battlefield: the permanent enters with [counterType] counters equal to
+ * [com.wingedsheep.engine.state.components.identity.CommanderComponent.castsFromCommandZone]
+ * at resolution. Stripped with the other stack components when the spell becomes a permanent.
+ */
+@Serializable
+data class CommandZoneCastCountEntryRiderComponent(
+    val counterType: com.wingedsheep.sdk.core.CounterType = com.wingedsheep.sdk.core.CounterType.PLUS_ONE_PLUS_ONE,
+) : Component

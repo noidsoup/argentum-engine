@@ -642,6 +642,7 @@ val engineSerializersModule = SerializersModule {
         subclass(SpellGrantedKeywordsComponent::class)
         subclass(SpellCopyTokenRidersComponent::class)
         subclass(GraveyardCastRiderComponent::class)
+        subclass(CommandZoneCastCountEntryRiderComponent::class)
 
         // Continuous effects
         subclass(ContinuousEffectSourceComponent::class)

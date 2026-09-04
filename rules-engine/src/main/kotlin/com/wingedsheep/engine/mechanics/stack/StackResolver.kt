@@ -1393,6 +1393,8 @@ class StackResolver(
         // Captured before the `updateEntity` block below strips it; applied on entry further down.
         val graveyardCastRider =
             state.getEntity(spellId)?.get<com.wingedsheep.engine.state.components.stack.GraveyardCastRiderComponent>()
+        val commandZoneCastCountRider =
+            state.getEntity(spellId)?.get<com.wingedsheep.engine.state.components.stack.CommandZoneCastCountEntryRiderComponent>()
 
         // For Auras: get the target before removing TargetsComponent. The target is usually a
         // permanent, but "enchant player" Auras (Grievous Wound) attach to a player — both are
@@ -1419,6 +1421,7 @@ class StackResolver(
             var updated = c.without<SpellOnStackComponent>()
                 .without<TargetsComponent>()
                 .without<com.wingedsheep.engine.state.components.stack.GraveyardCastRiderComponent>()
+                .without<com.wingedsheep.engine.state.components.stack.CommandZoneCastCountEntryRiderComponent>()
                 .with(ControllerComponent(controllerId))
 
             if (resolvingAsSpellCopy) {
@@ -1777,6 +1780,18 @@ class StackResolver(
                 com.wingedsheep.engine.handlers.effects.EntersWithReplacements.applyCastFromGraveyardRider(
                     newState, spellId, controllerId,
                     graveyardCastRider.entersWithCounter, graveyardCastRider.addedSubtype
+                )
+            newState = riderState
+            counterEvents.addAll(riderEvents)
+        }
+
+        // Opal Palace mana-spell rider: a commander cast with rider-carrying mana enters with
+        // +1/+1 counters equal to castsFromCommandZone at resolution (after the cast-commit
+        // increment for a command-zone cast).
+        if (commandZoneCastCountRider != null && !spellComponent.castFaceDown) {
+            val (riderState, riderEvents) =
+                com.wingedsheep.engine.handlers.effects.EntersWithReplacements.applyCommandZoneCastCountEntryRider(
+                    newState, spellId, controllerId, commandZoneCastCountRider.counterType
                 )
             newState = riderState
             counterEvents.addAll(riderEvents)

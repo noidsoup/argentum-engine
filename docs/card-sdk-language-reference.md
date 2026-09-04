@@ -11178,6 +11178,15 @@ the rider twice (Pyromancer's Goggles: "That many copies will be created").
   apply to. Matching happens at payment time against the spell's cast characteristics, per the
   printed rulings: mana spent on a non-Dragon spell that *becomes* a Dragon later in the turn grants
   nothing, and an instant or sorcery that makes Dragon tokens is not a Dragon creature spell.
+- `ManaSpellRider.EntersWithCountersPerCommandZoneCast(counterType?)` — Opal Palace: "If you spend
+  this mana to cast your commander, it enters with additional [counterType] counters equal to the
+  number of times it's been cast from the command zone this game." The one rider that freezes an
+  entry-rider component onto the stack spell (like a graveyard-cast grant) instead of queuing a
+  trigger or floating a continuous effect. Matching happens at payment time — the spell must be one
+  of the controller's commanders (`CommanderComponent` + `CommanderRegistryComponent`). At resolution
+  the engine reads `castsFromCommandZone` on the entering commander (after the cast-commit increment
+  for a command-zone cast) and applies that many counters (CR 614.1c). First command-zone cast → one
+  counter; second → two; casting a non-commander or spending ordinary mana is a no-op.
 
 ### `ManaExpiry`<a id="manaexpiry"></a>
 

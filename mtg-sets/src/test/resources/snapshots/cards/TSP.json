@@ -2698,6 +2698,102 @@
     ]
 }
 
+// Return to Dust
+{
+    "name": "Return to Dust",
+    "manaCost": "{2}{W}{W}",
+    "typeLine": "Instant",
+    "oracleText": "Exile target artifact or enchantment. If you cast this spell during your main phase, you may exile up to one other target artifact or enchantment.",
+    "script": {
+        "spellEffect": {
+            "type": "Composite",
+            "effects": [
+                {
+                    "type": "MoveToZone",
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "target artifact or enchantment"
+                    },
+                    "destination": "Exile"
+                },
+                {
+                    "type": "Gated",
+                    "gate": {
+                        "type": "Gate.WhenCondition",
+                        "condition": {
+                            "type": "All",
+                            "conditions": [
+                                {
+                                    "type": "CastTimeFlagSet",
+                                    "flag": "mainPhase"
+                                },
+                                {
+                                    "type": "EntityMatches",
+                                    "entity": {
+                                        "type": "ContextTarget",
+                                        "index": 1
+                                    },
+                                    "filter": "artifact|enchantment"
+                                }
+                            ]
+                        }
+                    },
+                    "then": {
+                        "type": "MoveToZone",
+                        "target": {
+                            "type": "BoundVariable",
+                            "name": "up to one other target artifact or enchantment"
+                        },
+                        "destination": "Exile"
+                    }
+                }
+            ]
+        },
+        "targetRequirements": [
+            {
+                "type": "TargetObject",
+                "filter": {
+                    "baseFilter": "artifact|enchantment"
+                },
+                "id": "target artifact or enchantment"
+            },
+            {
+                "type": "TargetOther",
+                "baseRequirement": {
+                    "type": "TargetObject",
+                    "optional": true,
+                    "filter": {
+                        "baseFilter": "artifact|enchantment"
+                    }
+                },
+                "id": "up to one other target artifact or enchantment"
+            }
+        ],
+        "castTimeCaptures": [
+            {
+                "flag": "mainPhase",
+                "condition": {
+                    "type": "IsInPhase",
+                    "phases": [
+                        "PRECOMBAT_MAIN",
+                        "POSTCOMBAT_MAIN"
+                    ]
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "39",
+        "rarity": "UNCOMMON",
+        "artist": "Wayne Reynolds",
+        "flavorText": "Some timelines forever fray, branch, and intermingle. Others end abruptly.",
+        "imageUri": "https://cards.scryfall.io/normal/front/4/8/48185c8f-ac41-46e2-85b1-760abac914ac.jpg?1783943250"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
 // Rift Bolt
 {
     "name": "Rift Bolt",

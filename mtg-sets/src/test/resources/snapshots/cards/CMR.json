@@ -1,3 +1,67 @@
+// Abomination of Llanowar
+{
+    "name": "Abomination of Llanowar",
+    "manaCost": "{1}{B}{G}",
+    "typeLine": "Legendary Creature — Elf Horror",
+    "oracleText": "Vigilance; menace (This creature can't be blocked except by two or more creatures.)\nAbomination of Llanowar's power and toughness are each equal to the number of Elves you control plus the number of Elf cards in your graveyard.",
+    "creatureStats": {
+        "power": {
+            "type": "Dynamic",
+            "source": {
+                "type": "Add",
+                "left": {
+                    "type": "AggregateBattlefield",
+                    "player": "You",
+                    "filter": "permanent Elf"
+                },
+                "right": {
+                    "type": "AggregateZone",
+                    "player": "You",
+                    "zone": "Graveyard",
+                    "filter": "Elf"
+                }
+            }
+        },
+        "toughness": {
+            "type": "Dynamic",
+            "source": {
+                "type": "Add",
+                "left": {
+                    "type": "AggregateBattlefield",
+                    "player": "You",
+                    "filter": "permanent Elf"
+                },
+                "right": {
+                    "type": "AggregateZone",
+                    "player": "You",
+                    "zone": "Graveyard",
+                    "filter": "Elf"
+                }
+            }
+        }
+    },
+    "keywords": [
+        "VIGILANCE",
+        "MENACE"
+    ],
+    "metadata": {
+        "collectorNumber": "265",
+        "rarity": "UNCOMMON",
+        "artist": "Vincent Proce",
+        "imageUri": "https://cards.scryfall.io/normal/front/5/6/567dbc64-4d59-4bab-a551-08fc66c085fa.jpg?1783928779",
+        "rulings": [
+            {
+                "date": "2020-11-20",
+                "text": "Because Abomination of Llanowar is an Elf, it counts itself when determining its power and toughness."
+            }
+        ]
+    },
+    "colorIdentityOverride": [
+        "BLACK",
+        "GREEN"
+    ]
+}
+
 // Annoyed Altisaur
 {
     "name": "Annoyed Altisaur",
@@ -656,6 +720,68 @@
     },
     "colorIdentityOverride": [
         "RED"
+    ]
+}
+
+// Miara, Thorn of the Glade
+{
+    "name": "Miara, Thorn of the Glade",
+    "manaCost": "{1}{B}",
+    "typeLine": "Legendary Creature — Elf Scout",
+    "oracleText": "Whenever Miara or another Elf you control dies, you may pay {1} and 1 life. If you do, draw a card.\nPartner (You can have two commanders if both have partner.)",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 2
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "filter": "creature Elf ctrl:you",
+                    "from": "Battlefield",
+                    "to": "Graveyard"
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "Gated",
+                    "gate": {
+                        "type": "Gate.MayPay",
+                        "cost": {
+                            "type": "Composite",
+                            "effects": [
+                                {
+                                    "type": "PayManaCost",
+                                    "cost": "{1}"
+                                },
+                                {
+                                    "type": "PayLife",
+                                    "amount": 1
+                                }
+                            ]
+                        }
+                    },
+                    "then": {
+                        "type": "DrawCards",
+                        "count": {
+                            "type": "Fixed",
+                            "amount": 1
+                        }
+                    }
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "133",
+        "rarity": "UNCOMMON",
+        "artist": "Johannes Voss",
+        "flavorText": "\"Approach from downwind. Tread with care. Aim for the heart.\"",
+        "imageUri": "https://cards.scryfall.io/normal/front/4/1/41a76adc-42e1-4f65-940c-d0a5555c0633.jpg?1783928835"
+    },
+    "colorIdentityOverride": [
+        "BLACK"
     ]
 }
 

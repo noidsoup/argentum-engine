@@ -571,4 +571,31 @@ object EntersWithReplacements {
         }
         return newState to events
     }
+
+    /**
+     * Apply an Opal Palace-style mana-spell entry rider to a commander that just resolved onto the
+     * battlefield: it enters with [counterType] counters equal to
+     * [com.wingedsheep.engine.state.components.identity.CommanderComponent.castsFromCommandZone]
+     * at resolution (CR 614.1c). Returns the new state and counter events.
+     */
+    fun applyCommandZoneCastCountEntryRider(
+        state: GameState,
+        entityId: EntityId,
+        controllerId: EntityId,
+        counterType: CounterType,
+    ): Pair<GameState, List<GameEvent>> {
+        val count = state.getEntity(entityId)
+            ?.get<com.wingedsheep.engine.state.components.identity.CommanderComponent>()
+            ?.castsFromCommandZone
+            ?: 0
+        if (count <= 0) return state to emptyList()
+
+        val name = state.getEntity(entityId)?.get<CardComponent>()?.name ?: ""
+        var newState = state.updateEntity(entityId) { c ->
+            val current = c.get<CountersComponent>() ?: CountersComponent()
+            c.with(current.withAdded(counterType, count))
+        }
+        val events = listOf(CountersAddedEvent(entityId, counterType.name, count, name))
+        return newState to events
+    }
 }

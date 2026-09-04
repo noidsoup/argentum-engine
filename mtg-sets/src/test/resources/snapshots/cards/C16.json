@@ -40,3 +40,53 @@
     },
     "colorIdentityOverride": []
 }
+
+// Migratory Route
+{
+    "name": "Migratory Route",
+    "manaCost": "{3}{W}{U}",
+    "typeLine": "Sorcery",
+    "oracleText": "Create four 1/1 white Bird creature tokens with flying.\nBasic landcycling {2} ({2}, Discard this card: Search your library for a basic land card, reveal it, put it into your hand, then shuffle.)",
+    "keywordAbilities": [
+        {
+            "type": "Cycling",
+            "cost": "{2}",
+            "searchFilter": {
+                "cardPredicates": [
+                    "IsBasicLand"
+                ]
+            },
+            "displayPrefix": "Basic landcycling"
+        }
+    ],
+    "script": {
+        "spellEffect": {
+            "type": "CreateToken",
+            "count": {
+                "type": "Fixed",
+                "amount": 4
+            },
+            "power": 1,
+            "toughness": 1,
+            "colors": [
+                "WHITE"
+            ],
+            "creatureTypes": [
+                "Bird"
+            ],
+            "keywords": [
+                "FLYING"
+            ]
+        }
+    },
+    "metadata": {
+        "collectorNumber": "38",
+        "rarity": "UNCOMMON",
+        "artist": "Winona Nelson",
+        "imageUri": "https://cards.scryfall.io/normal/front/9/0/9006ff3d-446d-411d-948d-9baee8ea9691.jpg?1783937083"
+    },
+    "colorIdentityOverride": [
+        "WHITE",
+        "BLUE"
+    ]
+}
