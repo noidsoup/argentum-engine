@@ -2782,6 +2782,56 @@
     ]
 }
 
+// Shaman of the Pack
+{
+    "name": "Shaman of the Pack",
+    "manaCost": "{1}{B}{G}",
+    "typeLine": "Creature — Elf Shaman",
+    "oracleText": "When this creature enters, target opponent loses life equal to the number of Elves you control.",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 2
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "LoseLife",
+                    "amount": {
+                        "type": "AggregateBattlefield",
+                        "player": "You",
+                        "filter": "permanent Elf"
+                    },
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "target opponent"
+                    }
+                },
+                "targetRequirement": {
+                    "type": "TargetOpponent",
+                    "id": "target opponent"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "217",
+        "rarity": "UNCOMMON",
+        "artist": "Dan Murayama Scott",
+        "flavorText": "To the elves, her spear is a compass; to the boggarts, a harbinger of doom.",
+        "imageUri": "https://cards.scryfall.io/normal/front/3/0/304687b1-2294-4144-b2bd-7e36f9aaac34.jpg?1783938313"
+    },
+    "colorIdentityOverride": [
+        "BLACK",
+        "GREEN"
+    ]
+}
+
 // Shambling Ghoul
 {
     "name": "Shambling Ghoul",
