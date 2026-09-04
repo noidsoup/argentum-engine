@@ -12,6 +12,7 @@ import com.wingedsheep.engine.state.components.identity.ControllerComponent
 import com.wingedsheep.engine.state.components.identity.FaceDownComponent
 import com.wingedsheep.engine.state.components.identity.ForetoldComponent
 import com.wingedsheep.engine.state.components.identity.OwnerComponent
+import com.wingedsheep.engine.state.components.identity.MayLookAtInExileComponent
 import com.wingedsheep.engine.state.components.identity.RevealedToComponent
 import com.wingedsheep.engine.state.components.stack.SpellOnStackComponent
 import com.wingedsheep.engine.state.permissions.hasMayPlayFor
@@ -22,6 +23,7 @@ import com.wingedsheep.sdk.scripting.LookAtFaceDownCreatures
 import com.wingedsheep.sdk.scripting.LookAtTopOfLibrary
 import com.wingedsheep.sdk.scripting.OpponentsPlayWithHandsRevealed
 import com.wingedsheep.sdk.scripting.PlayFromTopOfLibrary
+import com.wingedsheep.sdk.scripting.PlayersRevealTopOfLibrary
 import com.wingedsheep.sdk.scripting.RevealTopOfLibrary
 import com.wingedsheep.sdk.scripting.StaticAbility
 
@@ -152,16 +154,23 @@ class Visibility(
      * - **May-play grants** — Gonti's "you may look at that card for as long as it remains
      *   exiled", and the filter-defined grants [hasMayPlayFor] derives. Keyed on the same check
      *   that drives castability, so a card the viewer may cast is never one they cannot see.
+     * - **A bare look grant** — [MayLookAtInExileComponent], stamped by an effect whose text
+     *   grants the look and nothing else (Jacob Hauken, Inspector: "exile a card from your hand
+     *   face down. You may look at that card for as long as it remains exiled", with no permission
+     *   to play it until the card transforms). Kept separate from the may-play check above
+     *   precisely because seeing and playing are different grants.
      *
-     * A card exiled face down by a plain rider grants neither, and stays hidden from everyone.
+     * A card exiled face down by a plain rider grants none of the three, and stays hidden from
+     * everyone.
      */
     private fun grantsFaceDownExileAccessTo(
         state: GameState,
         entityId: EntityId,
         viewingPlayerId: EntityId,
     ): Boolean {
-        val foretoldBy = state.getEntity(entityId)?.get<ForetoldComponent>()?.controllerId
-        if (foretoldBy == viewingPlayerId) return true
+        val container = state.getEntity(entityId)
+        if (container?.get<ForetoldComponent>()?.controllerId == viewingPlayerId) return true
+        if (container?.get<MayLookAtInExileComponent>()?.mayLook(viewingPlayerId) == true) return true
         return state.hasMayPlayFor(entityId, viewingPlayerId, conditionEvaluator, cardRegistry)
     }
 
@@ -201,10 +210,20 @@ class Visibility(
     private fun hasLookAtFaceDownCreatures(state: GameState, playerId: EntityId): Boolean =
         hasActiveStaticAbility(state, playerId) { it is LookAtFaceDownCreatures }
 
+    /**
+     * Whether the top card of [playerId]'s library is face up to everyone. Two shapes reach this:
+     * a self-scoped static that [playerId] themselves controls — [PlayFromTopOfLibrary] (Future
+     * Sight) or [RevealTopOfLibrary] (Goblin Spy) — or a symmetric
+     * [PlayersRevealTopOfLibrary] (Wizened Snitches) controlled by *any* player, which opens every
+     * library including the libraries of players who control nothing.
+     */
     private fun revealsTopOfLibraryPublicly(state: GameState, playerId: EntityId): Boolean =
         hasActiveStaticAbility(state, playerId) {
             it is PlayFromTopOfLibrary || it is RevealTopOfLibrary
-        }
+        } ||
+            state.turnOrder.any { controllerId ->
+                hasActiveStaticAbility(state, controllerId) { it is PlayersRevealTopOfLibrary }
+            }
 
     private fun hasLookAtTopOfLibrary(state: GameState, playerId: EntityId): Boolean =
         hasActiveStaticAbility(state, playerId) { it is LookAtTopOfLibrary }

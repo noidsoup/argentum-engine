@@ -4,8 +4,7 @@ import com.wingedsheep.sdk.model.Printing
 import com.wingedsheep.sdk.model.Rarity
 
 /**
- * Pollenbright Wings reprint in Planechase 2012. Canonical [com.wingedsheep.sdk.model.CardDefinition]
- * lives in RAV (Ravnica: City of Guilds, its earliest real printing).
+ * Pollenbright Wings reprint in PC2. Canonical CardDefinition lives in its earliest set.
  */
 val PollenbrightWingsReprint = Printing(
     oracleId = "582c8030-1d41-4c63-8ed6-06aad398a96c",

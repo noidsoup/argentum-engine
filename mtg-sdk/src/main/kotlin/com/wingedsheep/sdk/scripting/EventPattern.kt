@@ -520,6 +520,36 @@ sealed interface EventPattern : TextReplaceable<EventPattern> {
     }
 
     /**
+     * Whenever [player] clashes (CR 701.30) — "Whenever you clash, …" (Entangling Trap, Rebellion
+     * of the Flamekin) and, with [requireWin], "Whenever you clash **and win**, …" (Sylvan Echoes).
+     * Fires once per clashing player, after the clash has fully ended: both cards revealed, both
+     * top-or-bottom decisions made and both moves resolved (the printed reminder text says so
+     * outright — "this ability triggers after the clash ends").
+     *
+     * **Both participants clash, not just the initiator.** A clash names two players — the one
+     * whose spell or ability said "clash with an opponent" and the opponent they chose — and the
+     * ruling on Entangling Trap and Rebellion of the Flamekin is explicit that "if you clash
+     * because of a spell or ability an opponent controls, the ability will still trigger. Likewise,
+     * you can still win the clash even if you weren't the player to initiate it." So the engine
+     * emits one event per participant and [player] is matched against that participant, exactly as
+     * [ForagedEvent] matches the player who *paid* rather than the source's controller.
+     *
+     * @property requireWin When true the trigger fires only for a participant who **won** the
+     *   clash — the "and win" half of Sylvan Echoes' wording, which is a condition on the trigger
+     *   itself rather than a gate on its effect. Cards whose payoff differs between winning and
+     *   losing ("… If you won, …") leave this false and branch inside the effect instead.
+     */
+    @SerialName("ClashedEvent")
+    @Serializable
+    data class ClashedEvent(
+        val player: Player = Player.You,
+        val requireWin: Boolean = false
+    ) : EventPattern {
+        override val description: String =
+            "${player.description} clashes" + if (requireWin) " and wins" else ""
+    }
+
+    /**
      * Whenever [player] discovers (CR 701.57). Fires once per discover, after the whole discover
      * process is complete — including the "cast for free or put into hand" decision (CR 701.57b: a
      * player has "discovered" only after the process finishes, "even if some or all of those
@@ -970,16 +1000,28 @@ sealed interface EventPattern : TextReplaceable<EventPattern> {
      * [attackerFilter] restricts the blocked attacker (e.g. "blocks a creature with flying").
      * When set with SELF binding, fires once per blocked attacker matching the filter and
      * sets TriggerContext.triggeringEntityId to that attacker. Skystinger pattern.
+     *
+     * [minBlockedAttackers] raises the bar to "blocks *N or more* creatures" (Lairwatch Giant),
+     * the blocking-side mirror of [CreaturesAttackYourOpponentEvent.minAttackers]. It fires **once**
+     * for the whole combat rather than once per blocked attacker, because "blocks two or more
+     * creatures" is one event no matter how many are blocked. SELF binding only — the detector's
+     * ANY branch fans out per blocker and has no count to read — and [Triggers.blocks] rejects the
+     * other combinations rather than silently misfiring.
      */
     @SerialName("BlockEvent")
     @Serializable
     data class BlockEvent(
         val filter: GameObjectFilter? = null,
-        val attackerFilter: GameObjectFilter? = null
+        val attackerFilter: GameObjectFilter? = null,
+        val minBlockedAttackers: Int = 1
     ) : EventPattern {
         override val description: String = buildString {
             append(if (filter != null) "a ${filter.description} blocks" else "a creature blocks")
-            if (attackerFilter != null) append(" a ${attackerFilter.description}")
+            if (minBlockedAttackers > 1) {
+                append(" $minBlockedAttackers or more creatures")
+            } else if (attackerFilter != null) {
+                append(" a ${attackerFilter.description}")
+            }
         }
         override fun applyTextReplacement(replacer: TextReplacer): EventPattern {
             val newFilter = filter?.applyTextReplacement(replacer)
@@ -1210,11 +1252,23 @@ sealed interface EventPattern : TextReplaceable<EventPattern> {
     @SerialName("CreatureDealtDamageBySourceDiesEvent")
     @Serializable
     data class CreatureDealtDamageBySourceDiesEvent(
-        val sourceFilter: GameObjectFilter? = null
+        val sourceFilter: GameObjectFilter? = null,
+        /**
+         * Narrows the *dying* creature, orthogonally to [sourceFilter], which narrows the damaging
+         * source. Trophy Hunter: "whenever a creature **with flying** dealt damage by this creature
+         * this turn dies". Evaluated against the dying creature's last-known information (CR
+         * 608.2h) — its ruling is explicit that the check is whether it "currently has flying",
+         * i.e. as it left the battlefield, not what its printed card says.
+         */
+        val dyingFilter: GameObjectFilter? = null
     ) : EventPattern {
-        override val description: String =
-            if (sourceFilter == null) "whenever a creature dealt damage by this creature this turn dies"
-            else "whenever a creature dealt damage this turn by ${sourceFilter.description} dies"
+        override val description: String = buildString {
+            append("whenever a ")
+            append(dyingFilter?.description ?: "creature")
+            append(" dealt damage ")
+            if (sourceFilter == null) append("by this creature this turn dies")
+            else append("this turn by ${sourceFilter.description} dies")
+        }
     }
 
     /**

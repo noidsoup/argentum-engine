@@ -182,8 +182,15 @@ class TriggerMatcher(
                 attackingAnOpponent >= trigger.minAttackers
             }
             is EventPattern.BlockEvent -> {
+                // `blockers` maps each blocker to the attackers it was declared against, so its
+                // size is the "blocks N creatures" count. A blocker that appears as a key blocks
+                // at least one attacker, which is why the default bar of 1 is the old
+                // `keys.contains(sourceId)` check unchanged.
                 event is BlockersDeclaredEvent &&
-                    (binding != TriggerBinding.SELF || event.blockers.keys.contains(sourceId))
+                    (
+                        binding != TriggerBinding.SELF ||
+                            event.blockers[sourceId].orEmpty().size >= trigger.minBlockedAttackers
+                        )
             }
             is EventPattern.BecomesBlockedEvent -> {
                 event is BlockersDeclaredEvent &&
@@ -604,6 +611,15 @@ class TriggerMatcher(
                 event is com.wingedsheep.engine.core.RingTemptedEvent &&
                     matchesPlayer(state, trigger.player, event.playerId, controllerId) &&
                     (!trigger.requireBearerChosen || event.bearerId != null)
+            }
+            is EventPattern.ClashedEvent -> {
+                // Both participants clash, so the event names the player it is *about* rather
+                // than the clash's initiator (Entangling Trap's ruling). `requireWin` is the
+                // "and win" half of Sylvan Echoes' wording, checked here on the trigger rather
+                // than gated inside its effect.
+                event is com.wingedsheep.engine.core.ClashedEvent &&
+                    matchesPlayer(state, trigger.player, event.playerId, controllerId) &&
+                    (!trigger.requireWin || event.won)
             }
             is EventPattern.ScriedEvent -> {
                 event is com.wingedsheep.engine.core.ScriedEvent &&
@@ -2362,6 +2378,7 @@ class TriggerMatcher(
         com.wingedsheep.sdk.scripting.predicates.StatePredicate.IsRingBearer,
         com.wingedsheep.sdk.scripting.predicates.StatePredicate.HasGreatestPower,
         com.wingedsheep.sdk.scripting.predicates.StatePredicate.HasLeastPowerAmongAllCreatures,
+        com.wingedsheep.sdk.scripting.predicates.StatePredicate.HasGreatestManaValueAmongAllCreatures,
         com.wingedsheep.sdk.scripting.predicates.StatePredicate.HasLeastPower,
         com.wingedsheep.sdk.scripting.predicates.StatePredicate.IsEquipped,
         com.wingedsheep.sdk.scripting.predicates.StatePredicate.IsEnchanted,

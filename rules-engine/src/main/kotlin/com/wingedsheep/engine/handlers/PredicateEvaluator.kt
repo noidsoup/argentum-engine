@@ -1264,6 +1264,16 @@ class PredicateEvaluator(
             // creature's — so the turn-order guard lives here.
             Player.TriggeringPlayer ->
                 context.triggeringEntityId?.takeIf { it in state.turnOrder }
+            // "creatures enchanted player controls" (Radiant Restraints) — the controller scope a
+            // Curse needs, and the only one that reads the *source's* attachment rather than the
+            // ability's controller. Same resolution as StatePredicate.IsAttackingEnchantedPlayer:
+            // the `in state.turnOrder` guard is what keeps a permanent host out, so an Aura on a
+            // creature can never make this match anything.
+            Player.EnchantedPlayer -> context.sourceId
+                ?.let { state.getEntity(it) }
+                ?.get<com.wingedsheep.engine.state.components.battlefield.AttachedToComponent>()
+                ?.targetId
+                ?.takeIf { it in state.turnOrder }
             else -> null
         }
         else -> null
@@ -1317,7 +1327,17 @@ class PredicateEvaluator(
                 com.wingedsheep.engine.handlers.effects.linkedexile.LinkedExileLookup
                     .exiledCard(state, context?.sourceId, ref.index)
             is EntityReference.Triggering -> context?.triggeringEntityId
-            is EntityReference.Target -> null // Not available in predicate context
+            // The spell/ability's cast-time targets are threaded into [PredicateContext.targets]
+            // by `fromEffectContext`, so a resolution-time group filter can be relative to a
+            // chosen target — "each other creature that shares a color with it" (Radiance).
+            // Empty during target *enumeration* (nothing chosen yet), where this yields null.
+            is EntityReference.Target -> when (val chosen = context?.targets?.getOrNull(ref.index)) {
+                is ChosenTarget.Permanent -> chosen.entityId
+                is ChosenTarget.Card -> chosen.cardId
+                is ChosenTarget.Spell -> chosen.spellEntityId
+                is ChosenTarget.Player -> chosen.playerId
+                null -> null
+            }
             is EntityReference.Sacrificed -> null
             is EntityReference.TappedAsCost -> null
             is EntityReference.AffectedEntity -> context?.affectedEntityId
@@ -1945,6 +1965,27 @@ class PredicateEvaluator(
                     .minOfOrNull { projected.getPower(it) ?: Int.MAX_VALUE }
                     ?: return false
                 entityPower <= minPower
+            }
+
+            // Global greatest mana value among every creature on the battlefield. Mana value is
+            // a printed characteristic (no projection entry), so it is read off CardComponent; a
+            // face-down creature has no mana cost and counts as 0, mirroring the least-mana-value
+            // reading below. Ties leave every maximum-mana-value creature matching.
+            StatePredicate.HasGreatestManaValueAmongAllCreatures -> {
+                if (!projected.isCreature(entityId)) return false
+                val entityManaValue = if (projected.getProjectedValues(entityId)?.isFaceDown == true) 0
+                else container.get<CardComponent>()?.manaValue ?: return false
+                val maxManaValue = state.getBattlefield()
+                    .asSequence()
+                    .filter { projected.isCreature(it) }
+                    .mapNotNull { candidateId ->
+                        val candidate = state.getEntity(candidateId) ?: return@mapNotNull null
+                        if (projected.getProjectedValues(candidateId)?.isFaceDown == true) 0
+                        else candidate.get<CardComponent>()?.manaValue
+                    }
+                    .maxOrNull()
+                    ?: return false
+                entityManaValue >= maxManaValue
             }
 
             is StatePredicate.HasLeastManaValueAmong -> {

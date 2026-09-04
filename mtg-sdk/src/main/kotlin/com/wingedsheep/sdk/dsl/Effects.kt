@@ -1542,9 +1542,16 @@ object Effects {
     /**
      * Return this card from its current zone to the battlefield attached to the target.
      * Used by the Dragon aura cycle (Dragon Shadow, Dragon Breath, etc.).
+     *
+     * [target] may name a **player** as well as a permanent — "attached to target opponent" for a
+     * Curse — and [transformed] returns the card back face up (Radiant Grace's
+     * "return this card to the battlefield transformed under your control attached to target
+     * opponent").
      */
-    fun ReturnSelfToBattlefieldAttached(target: EffectTarget = EffectTarget.TriggeringEntity): Effect =
-        ReturnSelfToBattlefieldAttachedEffect(target)
+    fun ReturnSelfToBattlefieldAttached(
+        target: EffectTarget = EffectTarget.TriggeringEntity,
+        transformed: Boolean = false,
+    ): Effect = ReturnSelfToBattlefieldAttachedEffect(target, transformed)
 
     /**
      * Take the top card from the source's linked exile pile and put it into your hand.
@@ -3667,6 +3674,18 @@ object Effects {
         CounterEffect(counterDestination = CounterDestination.Exile(grantFreeCast))
 
     /**
+     * Counter target spell. If countered, put it into its owner's hand instead of their
+     * graveyard — Remand.
+     *
+     * Still a counter in every way that matters: an uncounterable spell is untouched (neither
+     * countered nor returned), "whenever a spell is countered" triggers fire, and a flashback
+     * card's own exile replacement still wins. Prefer [ReturnSpellToOwnersHand] only for cards
+     * that literally return a spell without countering it.
+     */
+    fun CounterSpellToHand(): Effect =
+        CounterEffect(counterDestination = CounterDestination.Hand)
+
+    /**
      * Counter the spell that triggered this ability (non-targeted).
      * "Counter that spell."
      */
@@ -3863,15 +3882,18 @@ object Effects {
         ReselectTargetRandomlyEffect
 
     /**
-     * The player named by [chooser] may change the target or targets of the triggering spell or
-     * ability. The non-random, player-chosen counterpart of [ReselectTargetRandomly]; resolve from
-     * a trigger on the spell/ability (e.g. a "whenever a player chooses targets" trigger).
+     * The player named by [chooser] may change the target or targets of [spell]. The non-random,
+     * player-chosen counterpart of [ReselectTargetRandomly]; leave [spell] at its default to
+     * retarget the triggering spell/ability (resolve from a trigger on it, e.g. a "whenever a
+     * player chooses targets" trigger), or pass an [EffectTarget.ContextTarget] for a spell this
+     * effect's own card targeted (Wild Ricochet).
      */
     fun ChangeTriggeringObjectTargets(
         chooser: com.wingedsheep.sdk.scripting.effects.RetargetChooser =
-            com.wingedsheep.sdk.scripting.effects.RetargetChooser.Controller
+            com.wingedsheep.sdk.scripting.effects.RetargetChooser.Controller,
+        spell: EffectTarget = EffectTarget.TriggeringEntity
     ): Effect =
-        com.wingedsheep.sdk.scripting.effects.ChangeTriggeringObjectTargetsEffect(chooser)
+        com.wingedsheep.sdk.scripting.effects.ChangeTriggeringObjectTargetsEffect(chooser, spell)
 
     /**
      * Copy target instant or sorcery spell. You may choose new targets for the copy.
@@ -4238,9 +4260,16 @@ object Effects {
 
     /**
      * Target creature can't block this turn.
+     *
+     * Pass [attacker] for the *pairwise* form — "target creature can't block **this creature**
+     * this turn" (Screeching Griffin: `CantBlock(attacker = EffectTarget.Self)`). The target is
+     * then free to block anything else; only the named attacker is off limits.
      */
-    fun CantBlock(target: EffectTarget = EffectTarget.ContextTarget(0), duration: Duration = Duration.EndOfTurn): Effect =
-        CantBlockEffect(target, duration)
+    fun CantBlock(
+        target: EffectTarget = EffectTarget.ContextTarget(0),
+        duration: Duration = Duration.EndOfTurn,
+        attacker: EffectTarget? = null
+    ): Effect = CantBlockEffect(target, duration, attacker)
 
     /**
      * Target creature can't attack or block this turn.

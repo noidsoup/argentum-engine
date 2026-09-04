@@ -455,17 +455,34 @@ object Triggers {
      * TriggerContext.triggeringEntityId is set to the blocked attacker. Only the
      * SELF binding honors [attackerFilter] (the detector's ANY branch ignores it),
      * so combining ANY + [attackerFilter] is rejected rather than silently misfiring.
+     *
+     * [minBlockedAttackers] is the "blocks two or more creatures" bar (Lairwatch Giant): the whole
+     * combat produces a single trigger once the source blocks that many attackers, so it takes no
+     * [attackerFilter] and is SELF-only. Both restrictions are enforced here rather than left to
+     * read wrong at the detector.
      */
     fun blocks(
         filter: GameObjectFilter? = null,
         binding: TriggerBinding = TriggerBinding.SELF,
         attackerFilter: GameObjectFilter? = null,
+        minBlockedAttackers: Int = 1,
     ): TriggerSpec {
         require(attackerFilter == null || binding == TriggerBinding.SELF) {
             "attackerFilter is only supported with TriggerBinding.SELF"
         }
+        require(minBlockedAttackers >= 1) { "minBlockedAttackers must be at least 1" }
+        require(minBlockedAttackers == 1 || binding == TriggerBinding.SELF) {
+            "minBlockedAttackers is only supported with TriggerBinding.SELF"
+        }
+        require(minBlockedAttackers == 1 || attackerFilter == null) {
+            "minBlockedAttackers counts every blocked attacker, so it can't be combined with attackerFilter"
+        }
         return TriggerSpec(
-            event = BlockEvent(filter = filter, attackerFilter = attackerFilter),
+            event = BlockEvent(
+                filter = filter,
+                attackerFilter = attackerFilter,
+                minBlockedAttackers = minBlockedAttackers,
+            ),
             binding = binding,
         )
     }
@@ -552,6 +569,18 @@ object Triggers {
      */
     val CreatureDealtDamageByThisDies: TriggerSpec = TriggerSpec(
         event = CreatureDealtDamageBySourceDiesEvent(),
+        binding = TriggerBinding.SELF
+    )
+
+    /**
+     * [CreatureDealtDamageByThisDies] narrowed to a dying creature matching [dyingFilter] (Trophy
+     * Hunter: "whenever a creature **with flying** dealt damage by this creature this turn dies").
+     * The damaging source is still this permanent — [dyingFilter] describes the creature that died,
+     * matched against its last-known information as it left the battlefield (CR 608.2h), so a
+     * creature that lost flying before dying doesn't count and one that gained it does.
+     */
+    fun creatureDealtDamageByThisDies(dyingFilter: GameObjectFilter): TriggerSpec = TriggerSpec(
+        event = CreatureDealtDamageBySourceDiesEvent(dyingFilter = dyingFilter),
         binding = TriggerBinding.SELF
     )
 
@@ -2521,6 +2550,36 @@ object Triggers {
      */
     val WheneverYouChooseRingBearer: TriggerSpec = TriggerSpec(
         event = RingTemptedEvent(Player.You, requireBearerChosen = true),
+        binding = TriggerBinding.ANY
+    )
+
+    // =========================================================================
+    // Clash Triggers (CR 701.30)
+    // =========================================================================
+
+    /**
+     * Whenever you clash (CR 701.30) — Entangling Trap, Rebellion of the Flamekin. Fires once the
+     * clash has fully ended: both cards revealed, both top-or-bottom decisions taken and both moves
+     * resolved, exactly as the printed reminder text says.
+     *
+     * **Fires for a clash you did not start.** A clash names two players, and the ruling on these
+     * cards is explicit: "if you clash because of a spell or ability an opponent controls, the
+     * ability will still trigger." Use [WheneverYouClashAndWin] for the "and win" wording; a card
+     * whose payoff merely *differs* on a win (Entangling Trap's "If you won, …") uses this trigger
+     * and branches inside its effect.
+     */
+    val WheneverYouClash: TriggerSpec = TriggerSpec(
+        event = ClashedEvent(Player.You),
+        binding = TriggerBinding.ANY
+    )
+
+    /**
+     * Whenever you clash **and win** (CR 701.30d) — Sylvan Echoes. The win is a condition on the
+     * trigger itself, so a clash you lose never puts the ability on the stack at all. As with
+     * [WheneverYouClash], winning a clash an opponent initiated counts.
+     */
+    val WheneverYouClashAndWin: TriggerSpec = TriggerSpec(
+        event = ClashedEvent(Player.You, requireWin = true),
         binding = TriggerBinding.ANY
     )
 

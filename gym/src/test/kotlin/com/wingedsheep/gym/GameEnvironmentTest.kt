@@ -12,8 +12,10 @@ import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.ints.shouldBeGreaterThan
+import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeSameInstanceAs
 
 class GameEnvironmentTest : FunSpec({
 
@@ -40,6 +42,14 @@ class GameEnvironmentTest : FunSpec({
         val env = GameEnvironment.create(createRegistry())
         env.playerIds shouldBe emptyList()
         env.isTerminal.shouldBeFalse()
+    }
+
+    test("the environment and its forks expose the registry they were created with") {
+        val registry = createRegistry()
+        val env = GameEnvironment.create(registry)
+
+        env.cardRegistry shouldBeSameInstanceAs registry
+        env.fork().cardRegistry shouldBeSameInstanceAs registry
     }
 
     test("reset initializes a game with two players") {
@@ -99,6 +109,35 @@ class GameEnvironmentTest : FunSpec({
 
         env.stepCount shouldBe initialStep + 1
         result.state.shouldNotBeNull()
+    }
+
+    test("restore clears a rejection from an abandoned transition") {
+        val env = GameEnvironment.create(createRegistry())
+        env.reset(
+            GameConfig(
+                players = listOf(
+                    PlayerConfig("Alice", simpleDeck()),
+                    PlayerConfig("Bob", simpleDeck())
+                ),
+                skipMulligans = true,
+                startingPlayerIndex = 0
+            )
+        )
+        val savedState = env.state
+        val savedPlayerIds = env.playerIds
+        val savedStepCount = env.stepCount
+        val priorityPlayer = env.agentToAct.shouldNotBeNull()
+        val nonPriorityPlayer = env.playerIds.first { it != priorityPlayer }
+
+        env.step(PassPriority(nonPriorityPlayer))
+        env.lastRejection.shouldNotBeNull()
+
+        env.restore(savedState, savedPlayerIds, savedStepCount)
+
+        env.lastRejection.shouldBeNull()
+        env.state shouldBe savedState
+        env.playerIds shouldBe savedPlayerIds
+        env.stepCount shouldBe savedStepCount
     }
 
     test("fork creates an independent copy") {

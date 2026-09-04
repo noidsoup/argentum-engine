@@ -558,6 +558,23 @@ data object RevealTopOfLibrary : StaticAbility {
 }
 
 /**
+ * **Every** player plays with the top card of their library revealed (to all players), without
+ * granting anyone permission to play it from there. Used for Wizened Snitches.
+ *
+ * The all-players sibling of [RevealTopOfLibrary]. The distinction is which libraries are opened,
+ * not who may look: both reveal publicly, but [RevealTopOfLibrary] opens only the ability's own
+ * controller's library, so it can't spell a symmetric "players play with …" — that wording is one
+ * effect covering every player's library regardless of who controls the permanent. Like its
+ * sibling it is visibility-only, and grants no play-from-top permission.
+ */
+@SerialName("PlayersRevealTopOfLibrary")
+@Serializable
+data object PlayersRevealTopOfLibrary : StaticAbility {
+    override val description: String =
+        "Players play with the top card of their libraries revealed."
+}
+
+/**
  * You may play lands and cast spells matching a filter from the top of your library.
  * Unlike PlayFromTopOfLibrary, this restricts which spells can be cast (but always allows lands).
  * Used for Glarb, Calamity's Augur (mana value 4 or greater).
@@ -1028,6 +1045,26 @@ data class LegendRuleDoesNotApplyTo(
     val filter: GameObjectFilter
 ) : StaticAbility {
     override val description: String = "The \"legend rule\" doesn't apply to ${filter.description} you control"
+}
+
+/**
+ * The controller skips their draw step — "Skip your draw step." (Colfenor's Plans, Necropotence).
+ *
+ * Like [NoMaximumHandSize] this is a turn-based read rather than a continuous-projection effect:
+ * [com.wingedsheep.engine.core.DrawPhaseManager] scans the battlefield for it as the draw step
+ * begins and, when the drawing player controls a permanent that has it, takes no draw. It is the
+ * standing counterpart of
+ * [com.wingedsheep.sdk.scripting.effects.SkipStepOrPhaseThisTurnEffect] / the one-shot
+ * "skip your next draw step" marker, which are consumed by the step they skip.
+ *
+ * The draw-step read matches the ability by type and does **not** unwrap a
+ * [ConditionalStaticAbility], so an "as long as …" wording needs that unwrapping added to
+ * `DrawPhaseManager.skipsDrawStep` first — every printed use of this line so far is unconditional.
+ */
+@SerialName("SkipDrawStep")
+@Serializable
+data object SkipDrawStep : StaticAbility {
+    override val description: String = "Skip your draw step"
 }
 
 /**

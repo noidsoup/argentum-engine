@@ -1669,6 +1669,8 @@ export interface MatchResultInfo {
   readonly winnerId: string | null
   readonly isDraw: boolean
   readonly isBye: boolean
+  /** True when the server decided this AI-vs-AI match without playing it. No game, so no replay. */
+  readonly isSimulated?: boolean
 }
 
 export interface TournamentStartedMessage {

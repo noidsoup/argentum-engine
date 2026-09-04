@@ -1046,6 +1046,7 @@ class StaticAbilityHandler(
             // Turn-based actions (BeginningPhaseManager / CleanupPhaseManager):
             is DamagePersistsThroughCleanup,
             is NoMaximumHandSize,
+            is com.wingedsheep.sdk.scripting.SkipDrawStep,
             is SetMaximumHandSize,
             is PreventManaPoolEmptying,
             is ConvertEmptyingManaToRed,
@@ -1062,6 +1063,7 @@ class StaticAbilityHandler(
             is OpponentsPlayWithHandsRevealed,
             is RevealFirstDrawEachTurn,
             is RevealTopOfLibrary,
+            is com.wingedsheep.sdk.scripting.PlayersRevealTopOfLibrary,
 
             // Coin-flip replacements, queried by CoinFlipService via CoinFlipModifiers — the
             // result-dictating one (CR 705.3) and the flip-more-coins one (CR 614). Neither is a
@@ -1151,6 +1153,7 @@ class StaticAbilityHandler(
             is PreventDamage,
             is com.wingedsheep.sdk.scripting.PreventDamageByRemovingCounter,
             is DoubleDamage,
+            is com.wingedsheep.sdk.scripting.HalveDamage,
             is ModifyDamageAmount,
             is com.wingedsheep.sdk.scripting.CapDamage,
             is com.wingedsheep.sdk.scripting.SetMinimumDamage,

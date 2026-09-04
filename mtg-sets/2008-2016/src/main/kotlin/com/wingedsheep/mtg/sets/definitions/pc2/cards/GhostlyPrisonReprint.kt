@@ -3,7 +3,9 @@ package com.wingedsheep.mtg.sets.definitions.pc2.cards
 import com.wingedsheep.sdk.model.Printing
 import com.wingedsheep.sdk.model.Rarity
 
-/** Ghostly Prison reprint in Planechase 2012. Canonical [CardDefinition] lives in CHK. */
+/**
+ * Ghostly Prison reprint in PC2. Canonical CardDefinition lives in its earliest set.
+ */
 val GhostlyPrisonReprint = Printing(
     oracleId = "e828b189-0e8f-43b8-b909-4c23e742e028",
     name = "Ghostly Prison",
