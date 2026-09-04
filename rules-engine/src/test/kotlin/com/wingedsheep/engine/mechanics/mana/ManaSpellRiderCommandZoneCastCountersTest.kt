@@ -23,6 +23,8 @@ import com.wingedsheep.sdk.scripting.AbilityId
 import com.wingedsheep.sdk.scripting.ActivatedAbility
 import com.wingedsheep.sdk.scripting.TimingRule
 import com.wingedsheep.sdk.scripting.effects.AddManaEffect
+import com.wingedsheep.sdk.dsl.card
+import com.wingedsheep.sdk.scripting.ModifyCounterPlacement
 import com.wingedsheep.sdk.scripting.effects.ManaSpellRider
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -67,9 +69,17 @@ class ManaSpellRiderCommandZoneCastCountersTest : FunSpec({
         toughness = 1,
     )
 
+    val testHardenedScales = card("Test Hardened Scales") {
+        manaCost = "{G}"
+        typeLine = "Enchantment"
+        oracleText = "If one or more +1/+1 counters would be put on a creature you control, " +
+            "that many plus one +1/+1 counters are put on it instead."
+        replacementEffect(ModifyCounterPlacement(modifier = 1))
+    }
+
     fun createDriver(): GameTestDriver {
         val driver = GameTestDriver()
-        driver.registerCards(TestCards.all + listOf(testRiderLand, nonCommander))
+        driver.registerCards(TestCards.all + listOf(testRiderLand, nonCommander, testHardenedScales))
         driver.initMultiplayer(
             decks = listOf(Deck.of("Mountain" to 99), Deck.of("Mountain" to 99)),
             format = Format.Commander(),
@@ -162,5 +172,21 @@ class ManaSpellRiderCommandZoneCastCountersTest : FunSpec({
 
         plusOneCount(driver, commanderId) shouldBe 0
         driver.state.getEntity(commanderId)?.get<CommanderComponent>()?.castsFromCommandZone shouldBe 1
+    }
+
+    test("command-zone cast rider counters honor Hardened Scales-style modifiers") {
+        val driver = createDriver()
+        val you = driver.activePlayer!!
+        driver.passPriorityUntil(Step.PRECOMBAT_MAIN)
+
+        driver.putPermanentOnBattlefield(you, "Test Hardened Scales")
+        val land = driver.putPermanentOnBattlefield(you, "Test Opal Rider Land")
+        val commanderId = driver.state.getZone(ZoneKey(you, Zone.COMMAND)).single()
+        tapRiderLand(driver, you, land)
+
+        driver.castSpell(you, commanderId).error shouldBe null
+        driver.bothPass()
+
+        plusOneCount(driver, commanderId) shouldBe 2
     }
 })

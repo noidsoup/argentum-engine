@@ -527,6 +527,18 @@ object EntersWithReplacements {
         }
     }
 
+    fun counterTypeToFilter(counterType: CounterType): CounterTypeFilter =
+        when (counterType) {
+            CounterType.PLUS_ONE_PLUS_ONE -> CounterTypeFilter.PlusOnePlusOne
+            CounterType.MINUS_ONE_MINUS_ONE -> CounterTypeFilter.MinusOneMinusOne
+            CounterType.PLUS_ONE_PLUS_ZERO -> CounterTypeFilter.PlusOnePlusZero
+            CounterType.PLUS_ZERO_PLUS_ONE -> CounterTypeFilter.PlusZeroPlusOne
+            CounterType.MINUS_ONE_MINUS_ZERO -> CounterTypeFilter.MinusOneMinusZero
+            CounterType.MINUS_ZERO_MINUS_ONE -> CounterTypeFilter.MinusZeroMinusOne
+            CounterType.LOYALTY -> CounterTypeFilter.Loyalty
+            else -> CounterTypeFilter.Named(counterType.name.lowercase().replace('_', ' '))
+        }
+
     /**
      * Apply a graveyard-cast entry rider (The Tomb of Aclazotz) to a permanent that just resolved
      * onto the battlefield after being cast from the graveyard under a rider-bearing
@@ -591,11 +603,13 @@ object EntersWithReplacements {
         if (count <= 0) return state to emptyList()
 
         val name = state.getEntity(entityId)?.get<CardComponent>()?.name ?: ""
-        var newState = state.updateEntity(entityId) { c ->
-            val current = c.get<CountersComponent>() ?: CountersComponent()
-            c.with(current.withAdded(counterType, count))
-        }
-        val events = listOf(CountersAddedEvent(entityId, counterType.name, count, name))
-        return newState to events
+        return placeEntryCounters(
+            state,
+            entityId,
+            counterTypeToFilter(counterType),
+            count,
+            controllerId,
+            name,
+        )
     }
 }
