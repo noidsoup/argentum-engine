@@ -4531,6 +4531,70 @@
     ]
 }
 
+// Jagged-Scar Archers
+{
+    "name": "Jagged-Scar Archers",
+    "manaCost": "{1}{G}{G}",
+    "typeLine": "Creature — Elf Archer",
+    "oracleText": "Jagged-Scar Archers's power and toughness are each equal to the number of Elves you control.\n{T}: This creature deals damage equal to its power to target creature with flying.",
+    "creatureStats": {
+        "power": {
+            "type": "Dynamic",
+            "source": {
+                "type": "AggregateBattlefield",
+                "player": "You",
+                "filter": "permanent Elf"
+            }
+        },
+        "toughness": {
+            "type": "Dynamic",
+            "source": {
+                "type": "AggregateBattlefield",
+                "player": "You",
+                "filter": "permanent Elf"
+            }
+        }
+    },
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": "CostTap",
+                "effect": {
+                    "type": "DealDamage",
+                    "amount": {
+                        "type": "EntityProperty",
+                        "entity": "Source",
+                        "numericProperty": "Power"
+                    },
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "target creature with flying"
+                    }
+                },
+                "targetRequirements": [
+                    {
+                        "type": "TargetObject",
+                        "filter": {
+                            "baseFilter": "creature kw:flying"
+                        },
+                        "id": "target creature with flying"
+                    }
+                ]
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "222",
+        "rarity": "UNCOMMON",
+        "artist": "Paolo Parente",
+        "imageUri": "https://cards.scryfall.io/normal/front/7/5/75fd5232-2dac-4bd9-a1f6-eb1a40154367.jpg?1783942861"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
 // Judge of Currents
 {
     "name": "Judge of Currents",

@@ -103,6 +103,57 @@
     ]
 }
 
+// Ruthless Winnower
+{
+    "name": "Ruthless Winnower",
+    "manaCost": "{3}{B}{B}",
+    "typeLine": "Creature — Elf Rogue",
+    "oracleText": "At the beginning of each player's upkeep, that player sacrifices a non-Elf creature of their choice.",
+    "creatureStats": {
+        "power": 4,
+        "toughness": 4
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "StepEvent",
+                    "step": "UPKEEP",
+                    "player": "Each"
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "ForceSacrifice",
+                    "filter": {
+                        "cardPredicates": [
+                            "IsCreature",
+                            {
+                                "type": "NotSubtype",
+                                "subtype": "Elf"
+                            }
+                        ]
+                    },
+                    "target": {
+                        "type": "PlayerRef",
+                        "player": "TriggeringPlayer"
+                    }
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "10",
+        "rarity": "RARE",
+        "artist": "Zoltan Boros",
+        "flavorText": "\"I count the usurpers with my dagger, one death blow at a time.\"",
+        "imageUri": "https://cards.scryfall.io/normal/front/8/8/886ef13a-4f9d-425b-a071-6366cdb637c8.jpg?1783928337"
+    },
+    "colorIdentityOverride": [
+        "BLACK"
+    ]
+}
+
 // Tales of the Ancestors
 {
     "name": "Tales of the Ancestors",
