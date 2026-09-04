@@ -56,7 +56,12 @@ enum class ChoiceSlot {
     /** Another creature chosen as the object entered (e.g. Dauntless Bodyguard). */
     CREATURE,
 
-    /** Whether the spell was kicked when cast (e.g. Skizzik). A present value means "kicked". */
+    /**
+     * Whether / how many times the spell was kicked when cast (e.g. Skizzik, Marshal's Anthem).
+     * Stored as [com.wingedsheep.engine.state.components.battlefield.ChoiceValue.NumberChoice]
+     * (`1` for kicker, `N` for multikicker); legacy [ChoiceValue.Flag] entries still read as kicked.
+     * Numeric reads use [com.wingedsheep.sdk.dsl.DynamicAmounts.kickerTimes].
+     */
     KICKED,
 
     /**

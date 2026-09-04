@@ -81,6 +81,15 @@ data class CastSpell(
      */
     val declaredCostSlot: ChoiceSlot? = null,
     /**
+     * How many times the declared [declaredCostSlot] optional additional cost was paid while
+     * casting. Meaningful only when [declaredCostSlot] is non-null: `1` for kicker / offspring /
+     * bargain (the default), and `N ≥ 1` for multikicker (CR 702.33). Read durably via
+     * [com.wingedsheep.sdk.scripting.values.DynamicAmount.CastChoice] on
+     * [com.wingedsheep.sdk.scripting.ChoiceSlot.KICKED] or
+     * [com.wingedsheep.sdk.dsl.DynamicAmounts.kickerTimes].
+     */
+    val optionalCostTimes: Int = 1,
+    /**
      * Whether the spell's *optional* waterbend additional cost was elected (Avatar: The Last
      * Airbender — [com.wingedsheep.sdk.scripting.SpellWaterbendCost] with `optional = true`).
      * Always `false` for spells with no optional waterbend cost, and irrelevant for a *mandatory*

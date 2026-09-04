@@ -118,9 +118,18 @@ fun ComponentContainer.chosenCreatureRef(): EntityId? =
 fun ComponentContainer.chosenOpponent(): EntityId? =
     (get<CastChoicesComponent>()?.chosen?.get(ChoiceSlot.OPPONENT) as? ChoiceValue.EntityChoice)?.entityId
 
-/** Whether this object was cast kicked. */
-fun ComponentContainer.wasKickedChoice(): Boolean =
-    get<CastChoicesComponent>()?.chosen?.containsKey(ChoiceSlot.KICKED) == true
+/** Whether this object was cast kicked (any positive kick count). */
+fun ComponentContainer.wasKickedChoice(): Boolean = kickerTimesChoice() > 0
+
+/** Times the optional kicker/multikicker cost was paid (`0` when not kicked). */
+fun ComponentContainer.kickerTimesChoice(): Int {
+    val cv = get<CastChoicesComponent>()?.chosen?.get(ChoiceSlot.KICKED)
+    return when (cv) {
+        is ChoiceValue.NumberChoice -> cv.amount
+        is ChoiceValue.Flag -> 1
+        else -> 0
+    }
+}
 
 /** The X declared for a `blight X` additional cost when cast, or null. */
 fun ComponentContainer.blightAmountChoice(): Int? =

@@ -200,6 +200,23 @@ data class LegalAction(
     // Repetition
     val maxRepeatableActivations: Int? = null,
 
+    /**
+     * True when the optional additional cost on this cast variant is multikicker (pay any number
+     * of times). The client prompts for [maxOptionalCostTimes] before other cast phases.
+     */
+    val hasMultikicker: Boolean = false,
+    /**
+     * Maximum times multikicker can be paid affordably on this cast variant (inclusive). Only
+     * meaningful when [hasMultikicker] is true.
+     */
+    val maxOptionalCostTimes: Int? = null,
+    /**
+     * Mana cost of one multikicker payment (e.g. `{1}`). [manaCostString] on a kicked variant
+     * already includes one payment; the client adds `(optionalCostTimes - 1)` copies for manual
+     * mana selection when the player kicks more than once.
+     */
+    val optionalCostPerTimeManaCostString: String? = null,
+
     // Forage (graveyard casting with forage cost, applies finality counter)
     val requiresForage: Boolean = false,
 

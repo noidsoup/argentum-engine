@@ -167,6 +167,7 @@ class StackResolver(
         additionalCostBlightAmount: Int = 0,
         additionalCostPayXLifeAmount: Int? = null,
         declaredCostSlot: ChoiceSlot? = null,
+        optionalCostTimes: Int = 0,
         wasBlightPaid: Boolean = false,
         wasWaterbendPaid: Boolean = false,
         giftRecipient: EntityId? = null,
@@ -320,6 +321,7 @@ class StackResolver(
                 casterId = casterId,
                 xValue = boundXValue,
                 declaredCostSlot = declaredCostSlot,
+                optionalCostTimes = if (declaredCostSlot != null) optionalCostTimes.coerceAtLeast(1) else 0,
                 wasBlightPaid = wasBlightPaid,
                 wasWaterbendPaid = wasWaterbendPaid,
                 giftRecipient = giftRecipient,
@@ -1487,9 +1489,10 @@ class StackResolver(
                 // permanent's "if it was bargained" enters trigger reads true while a kicker payoff
                 // reading KICKED still reads false.
                 spellComponent.declaredCostSlot?.let { slot ->
+                    val times = spellComponent.optionalCostTimes.coerceAtLeast(1)
                     bag = bag.withChoice(
                         slot,
-                        com.wingedsheep.engine.state.components.battlefield.ChoiceValue.Flag
+                        com.wingedsheep.engine.state.components.battlefield.ChoiceValue.NumberChoice(times)
                     )
                 }
                 // Sneak (CR 702.190): durably mark the permanent so Conditions.SneakCostWasPaid
@@ -2127,6 +2130,11 @@ class StackResolver(
                     spellComponent.manaSpentGreen + spellComponent.manaSpentColorless,
                 manaSpentOnXByColor = spellComponent.manaSpentOnXByColor,
                 declaredCostSlot = spellComponent.declaredCostSlot,
+                optionalCostTimes = if (spellComponent.declaredCostSlot != null) {
+                    spellComponent.optionalCostTimes.coerceAtLeast(1)
+                } else {
+                    0
+                },
                 wasBlightPaid = spellComponent.wasBlightPaid,
                 wasWaterbendPaid = spellComponent.wasWaterbendPaid,
                 wasSneaked = spellComponent.wasSneaked,

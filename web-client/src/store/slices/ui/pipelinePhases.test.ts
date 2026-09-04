@@ -395,3 +395,32 @@ describe('computePhases — target-priced collect evidence (Urgent Necropsy)', (
     expect(captured).toMatchObject({ minTotalWeight: 0, minTargets: 0 })
   })
 })
+
+describe('computePhases — multikicker', () => {
+  it('prompts for kick count when multikicker is affordable more than once', () => {
+    const info = castAction({
+      actionType: 'CastWithKicker',
+      hasMultikicker: true,
+      maxOptionalCostTimes: 3,
+      optionalCostPerTimeManaCostString: '{1}',
+      manaCostString: '{2}{G}{1}',
+    })
+    expect(computePhases(info)).toEqual([{ type: 'xSelection', forMultikicker: true }])
+  })
+
+  it('runs X selection and multikicker selection when both apply', () => {
+    const info = castAction({
+      actionType: 'CastWithKicker',
+      hasXCost: true,
+      maxAffordableX: 5,
+      hasMultikicker: true,
+      maxOptionalCostTimes: 2,
+      optionalCostPerTimeManaCostString: '{1}',
+      manaCostString: '{X}{1}',
+    })
+    expect(computePhases(info)).toEqual([
+      { type: 'xSelection' },
+      { type: 'xSelection', forMultikicker: true },
+    ])
+  })
+})

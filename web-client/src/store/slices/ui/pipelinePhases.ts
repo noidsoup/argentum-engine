@@ -128,6 +128,13 @@ export function computePhases(actionInfo: LegalActionInfo, options?: ComputePhas
   ) {
     phases.push({ type: 'xSelection' })
   }
+  if (
+    actionInfo.action.type === 'CastSpell' &&
+    actionInfo.hasMultikicker &&
+    (actionInfo.maxOptionalCostTimes ?? 0) > 1
+  ) {
+    phases.push({ type: 'xSelection', forMultikicker: true })
+  }
 
   // 2. Delve
   //    Push when there's any generic mana that delve could pay for — either
@@ -356,6 +363,9 @@ export function mergeResult(
     case 'xSelection': {
       if (result.isRepeatCount && action.type === 'ActivateAbility') {
         return { ...action, repeatCount: result.xValue }
+      }
+      if (result.isMultikickerTimes && action.type === 'CastSpell') {
+        return { ...action, optionalCostTimes: result.xValue }
       }
       if (
         action.type === 'CastSpell' ||
@@ -649,12 +659,23 @@ export function enterPhase(
     }
 
     case 'xSelection': {
+      const isMultikickerTimes =
+        phase.type === 'xSelection' && phase.forMultikicker === true
       const isRepeatCount =
         actionInfo.action.type === 'ActivateAbility' &&
         !!actionInfo.maxRepeatableActivations &&
         actionInfo.maxRepeatableActivations > 1
 
-      if (isRepeatCount) {
+      if (isMultikickerTimes) {
+        store.startXSelection({
+          actionInfo,
+          cardName: actionInfo.description.replace('Cast ', ''),
+          minX: 1,
+          maxX: actionInfo.maxOptionalCostTimes!,
+          selectedX: 1,
+          isMultikickerTimes: true,
+        })
+      } else if (isRepeatCount) {
         store.startXSelection({
           actionInfo,
           cardName: actionInfo.description,

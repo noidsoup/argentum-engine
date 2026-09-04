@@ -12,6 +12,19 @@ export function parseManaCost(manaCost: string): string[] {
   return symbols
 }
 
+/**
+ * Append [repeat] copies of [extraCost] to [baseCost] (e.g. multikicker payments beyond the first).
+ */
+export function appendManaCostRepeats(baseCost: string, extraCost: string, repeat: number): string {
+  if (repeat <= 0) return baseCost
+  const symbols = [...parseManaCost(baseCost)]
+  const extra = parseManaCost(extraCost)
+  for (let i = 0; i < repeat; i++) {
+    symbols.push(...extra)
+  }
+  return symbols.map((s) => `{${s}}`).join('')
+}
+
 const COLOR_PIP = new Set(['W', 'U', 'B', 'R', 'G'])
 
 /**

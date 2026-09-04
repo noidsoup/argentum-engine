@@ -127,6 +127,8 @@ export interface CastSpellAction {
    * stamps it on the cast variant it offers; the client only echoes it back.
    */
   readonly declaredCostSlot?: string
+  /** Times the declared optional additional cost was paid (multikicker count). */
+  readonly optionalCostTimes?: number
   /**
    * Whether the spell's optional waterbend additional cost was elected (Avatar: The Last
    * Airbender). Set by the server on the paid cast variant; preserved through the pipeline so the

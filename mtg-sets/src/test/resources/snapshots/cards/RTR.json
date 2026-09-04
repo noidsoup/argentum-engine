@@ -1,3 +1,103 @@
+// Angel of Serenity
+{
+    "name": "Angel of Serenity",
+    "manaCost": "{4}{W}{W}{W}",
+    "typeLine": "Creature — Angel",
+    "oracleText": "Flying\nWhen this creature enters, you may exile up to three other target creatures from the battlefield and/or creature cards from graveyards.\nWhen this creature leaves the battlefield, return the exiled cards to their owners' hands.",
+    "creatureStats": {
+        "power": 5,
+        "toughness": 6
+    },
+    "keywords": [
+        "FLYING"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "GatherCards",
+                            "source": "ChosenTargets",
+                            "storeAs": "serenity_exiled"
+                        },
+                        {
+                            "type": "MoveCollection",
+                            "from": "serenity_exiled",
+                            "destination": {
+                                "type": "ToZone",
+                                "zone": "Exile"
+                            },
+                            "linkToSource": true
+                        }
+                    ]
+                },
+                "targetRequirement": {
+                    "type": "TargetObject",
+                    "optional": true,
+                    "filter": {
+                        "baseFilter": "creature",
+                        "excludeSelf": true,
+                        "alternatives": [
+                            {
+                                "baseFilter": "creature",
+                                "zone": "Graveyard"
+                            }
+                        ]
+                    },
+                    "id": "up to three other target creatures from the battlefield and/or creature cards from graveyards",
+                    "dynamicMaxCount": {
+                        "type": "Fixed",
+                        "amount": 3
+                    }
+                },
+                "descriptionOverride": "When this creature enters, you may exile up to three other target creatures from the battlefield and/or creature cards from graveyards."
+            },
+            {
+                "id": "ability_2",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "from": "Battlefield"
+                },
+                "effect": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "GatherCards",
+                            "source": "FromLinkedExile",
+                            "storeAs": "linked_return_hand"
+                        },
+                        {
+                            "type": "MoveCollection",
+                            "from": "linked_return_hand",
+                            "destination": {
+                                "type": "ToZone",
+                                "zone": "Hand"
+                            }
+                        }
+                    ]
+                },
+                "descriptionOverride": "When this creature leaves the battlefield, return the exiled cards to their owners' hands."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "1",
+        "rarity": "MYTHIC",
+        "artist": "Aleksi Briclot",
+        "imageUri": "https://cards.scryfall.io/normal/front/f/1/f10d82f7-7759-457e-a9bb-f9a5bd968f82.jpg?1783940378"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
 // Auger Spree
 {
     "name": "Auger Spree",

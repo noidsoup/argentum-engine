@@ -12,6 +12,7 @@ import com.wingedsheep.engine.state.ZoneKey
 import com.wingedsheep.engine.state.components.battlefield.AttachmentsComponent
 import com.wingedsheep.engine.state.components.battlefield.CastChoicesComponent
 import com.wingedsheep.engine.state.components.battlefield.blightAmountChoice
+import com.wingedsheep.engine.state.components.battlefield.kickerTimesChoice
 import com.wingedsheep.engine.state.components.battlefield.numberChoice
 import com.wingedsheep.engine.state.components.battlefield.chosenOpponent
 import com.wingedsheep.engine.state.components.battlefield.CountersComponent
@@ -222,6 +223,25 @@ class DynamicAmountEvaluator(
                 when (amount.slot) {
                     com.wingedsheep.sdk.scripting.ChoiceSlot.BLIGHT_AMOUNT ->
                         source?.blightAmountChoice() ?: context.additionalCostBlightAmount
+                    com.wingedsheep.sdk.scripting.ChoiceSlot.KICKED -> {
+                        val bagChoice = source?.get<CastChoicesComponent>()?.chosen?.get(amount.slot)
+                        when (bagChoice) {
+                            is com.wingedsheep.engine.state.components.battlefield.ChoiceValue.NumberChoice ->
+                                bagChoice.amount
+                            is com.wingedsheep.engine.state.components.battlefield.ChoiceValue.Flag -> 1
+                            else -> when {
+                                context.declaredCostSlot == com.wingedsheep.sdk.scripting.ChoiceSlot.KICKED ->
+                                    context.optionalCostTimes.coerceAtLeast(1)
+                                else -> source?.get<SpellOnStackComponent>()?.let { spell ->
+                                    if (spell.declaredCostSlot == com.wingedsheep.sdk.scripting.ChoiceSlot.KICKED) {
+                                        spell.optionalCostTimes.coerceAtLeast(1)
+                                    } else {
+                                        0
+                                    }
+                                } ?: 0
+                            }
+                        }
+                    }
                     // Any other numeric slot (e.g. CHOSEN_NUMBER for Shapeshifter) is read
                     // generically off the durable cast-choices bag as a NumberChoice.
                     else -> source?.numberChoice(amount.slot) ?: 0

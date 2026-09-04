@@ -316,6 +316,8 @@ export interface XSelectionState {
   selectedX: number
   /** When true, this is a repeat count selector (not X cost) */
   isRepeatCount?: boolean
+  /** When true, this is a multikicker-times selector for a kicked cast */
+  isMultikickerTimes?: boolean
 }
 
 /**
@@ -818,7 +820,7 @@ export interface DamageAnimation {
 export type PipelinePhase =
   | { type: 'modalModes' }
   | { type: 'counterDistribution' }
-  | { type: 'xSelection' }
+  | { type: 'xSelection'; forMultikicker?: boolean }
   | { type: 'delve' }
   | { type: 'convoke' }
   | { type: 'tapForGeneric' }
@@ -849,7 +851,7 @@ export type PhaseResult =
       /** Typed distribution: each entry removes `count` counters of `counterType` from `entityId`. */
       distributedCounterRemovals: ReadonlyArray<{ entityId: EntityId; counterType: string; count: number }>
     }
-  | { type: 'xSelection'; xValue: number; isRepeatCount?: boolean }
+  | { type: 'xSelection'; xValue: number; isRepeatCount?: boolean; isMultikickerTimes?: boolean }
   | { type: 'delve'; delvedCards: EntityId[]; modifiedManaCost: string }
   | { type: 'convoke'; convokedCreatures: Record<string, { color: string | null }> }
   | { type: 'tapForGeneric'; tapForGenericPermanents: EntityId[] }

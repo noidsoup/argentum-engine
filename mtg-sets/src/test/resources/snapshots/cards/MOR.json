@@ -279,6 +279,75 @@
     ]
 }
 
+// Rhys the Exiled
+{
+    "name": "Rhys the Exiled",
+    "manaCost": "{2}{G}",
+    "typeLine": "Legendary Creature — Elf Warrior",
+    "oracleText": "Whenever Rhys attacks, you gain 1 life for each Elf you control.\n{B}, Sacrifice an Elf: Regenerate Rhys.",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 2
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": "AttackEvent",
+                "effect": {
+                    "type": "GainLife",
+                    "amount": {
+                        "type": "AggregateBattlefield",
+                        "player": "You",
+                        "filter": "creature Elf"
+                    }
+                },
+                "descriptionOverride": "Whenever Rhys attacks, you gain 1 life for each Elf you control."
+            }
+        ],
+        "activatedAbilities": [
+            {
+                "id": "ability_2",
+                "cost": {
+                    "type": "CostComposite",
+                    "costs": [
+                        {
+                            "type": "CostAtomWrapper",
+                            "atom": {
+                                "type": "AtomMana",
+                                "cost": "{B}"
+                            }
+                        },
+                        {
+                            "type": "CostAtomWrapper",
+                            "atom": {
+                                "type": "AtomSacrifice",
+                                "filter": "creature Elf"
+                            }
+                        }
+                    ]
+                },
+                "effect": {
+                    "type": "Regenerate",
+                    "target": "Self"
+                },
+                "descriptionOverride": "{B}, Sacrifice an Elf: Regenerate Rhys."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "135",
+        "rarity": "RARE",
+        "artist": "Steve Prescott",
+        "flavorText": "Once a famed hunter and packmaster, now a renegade seeking his own path.",
+        "imageUri": "https://cards.scryfall.io/normal/front/f/2/f26da029-9c95-4e9b-9a1b-62048c16acaf.jpg?1783942776"
+    },
+    "colorIdentityOverride": [
+        "BLACK",
+        "GREEN"
+    ]
+}
+
 // Rivals' Duel
 {
     "name": "Rivals' Duel",

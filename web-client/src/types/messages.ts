@@ -981,6 +981,11 @@ export interface LegalActionInfo {
   readonly mandatoryBlockerAssignments?: Readonly<Record<EntityId, readonly EntityId[]>>
   /** Maximum times this ability can be activated in a batch (for repeat-eligible self-targeting abilities) */
   readonly maxRepeatableActivations?: number
+  /** Multikicker: the cast variant may be paid any number of times up to this cap. */
+  readonly hasMultikicker?: boolean
+  readonly maxOptionalCostTimes?: number
+  /** Mana cost of one multikicker payment; [manaCostString] already includes one. */
+  readonly optionalCostPerTimeManaCostString?: string
   /** Whether this action requires a "tap creatures with total power N" selection (Crew N / Saddle N) */
   readonly tapForPower?: boolean
   /** The total power requirement (N in "Crew N" / "Saddle N") */

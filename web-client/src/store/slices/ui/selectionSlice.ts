@@ -165,6 +165,7 @@ export const createSelectionSlice: SliceCreator<SelectionSlice> = (set, get) => 
       type: 'xSelection',
       xValue: xSelectionState.selectedX,
       ...(xSelectionState.isRepeatCount ? { isRepeatCount: true } : {}),
+      ...(xSelectionState.isMultikickerTimes ? { isMultikickerTimes: true } : {}),
     })
   },
 

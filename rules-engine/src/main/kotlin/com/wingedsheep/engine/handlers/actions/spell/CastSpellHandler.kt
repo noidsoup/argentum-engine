@@ -182,6 +182,24 @@ private fun declaredOptionalCosts(
         ?: emptyList()
 }
 
+/** Times the declared optional additional cost was paid (`0` when none was declared). */
+private fun effectiveOptionalCostTimes(action: CastSpell): Int =
+    if (action.declaredCostSlot != null) action.optionalCostTimes.coerceAtLeast(1) else 0
+
+private fun applyDeclaredOptionalManaCost(
+    effectiveCost: ManaCost,
+    action: CastSpell,
+    cardDef: com.wingedsheep.sdk.model.CardDefinition?,
+): ManaCost {
+    val times = effectiveOptionalCostTimes(action)
+    if (times == 0) return effectiveCost
+    val kickerManaCost = declaredOptionalCosts(action, cardDef)
+        .firstOrNull { it.manaCost != null }
+        ?.manaCost
+        ?: return effectiveCost
+    return effectiveCost + (kickerManaCost * times)
+}
+
 class CastSpellHandler(
     private val cardRegistry: CardRegistry,
     private val turnManager: TurnManager,
@@ -567,6 +585,14 @@ class CastSpellHandler(
             if (declaredAdditionalCost != null) {
                 val costError = validateAdditionalCosts(state, listOf(declaredAdditionalCost), action)
                 if (costError != null) return costError
+            }
+
+            val times = if (action.declaredCostSlot != null) action.optionalCostTimes else 0
+            if (times < 1) {
+                return "Optional additional cost must be paid at least once"
+            }
+            if (!declared.any { it.multi } && times != 1) {
+                return "This spell does not have multikicker"
             }
         }
 
@@ -1129,12 +1155,7 @@ class CastSpellHandler(
 
         // Add kicker/offspring mana cost if kicked (only for mana-based kicker/offspring)
         if (!playForFree && !action.useAlternativeCost) {
-            val kickerManaCost = declaredOptionalCosts(action, cardDef)
-                .firstOrNull { it.manaCost != null }
-                ?.manaCost
-            if (kickerManaCost != null) {
-                effectiveCost = ManaCost(effectiveCost.symbols + kickerManaCost.symbols)
-            }
+            effectiveCost = applyDeclaredOptionalManaCost(effectiveCost, action, cardDef)
         }
 
         // "This spell costs {W}{U} more to cast for each target beyond the first" (Officious
@@ -2488,12 +2509,7 @@ class CastSpellHandler(
 
         // Add kicker/offspring cost if kicked (not applicable with alternative costs)
         if (!playForFreeInExecute && !action.useAlternativeCost) {
-            val kickerManaCost = declaredOptionalCosts(action, cardDef)
-                .firstOrNull { it.manaCost != null }
-                ?.manaCost
-            if (kickerManaCost != null) {
-                effectiveCost = ManaCost(effectiveCost.symbols + kickerManaCost.symbols)
-            }
+            effectiveCost = applyDeclaredOptionalManaCost(effectiveCost, action, cardDef)
         }
 
         // Per-target self tax — mirrors validate()'s branch, same CR 601.2f reasoning: the
@@ -3632,6 +3648,7 @@ class CastSpellHandler(
             additionalCostBlightAmount = action.additionalCostPayment?.blightAmount ?: 0,
             additionalCostPayXLifeAmount = payXLifeAmount,
             declaredCostSlot = action.declaredCostSlot,
+            optionalCostTimes = effectiveOptionalCostTimes(action),
             wasBlightPaid = (action.additionalCostPayment?.blightTargets?.isNotEmpty() == true),
             // True when the spell's waterbend additional cost was paid (Avatar) — mandatory costs
             // always, optional "you may waterbend {N}" only when the player elected it.

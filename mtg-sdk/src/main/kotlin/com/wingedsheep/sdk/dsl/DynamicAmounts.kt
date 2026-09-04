@@ -783,4 +783,12 @@ object DynamicAmounts {
         storeCountAs: String =
             com.wingedsheep.sdk.scripting.effects.PayManaCostRepeatedlyEffect.TIMES_PAID
     ): DynamicAmount = DynamicAmount.VariableReference(storeCountAs)
+
+    /**
+     * The number of times this object was kicked (multikicker count), read from the durable
+     * [com.wingedsheep.sdk.scripting.ChoiceSlot.KICKED] entry on its cast-choices bag — `0` when
+     * not kicked, `1` for a single kicker payment, `N` for multikicker. Marshal's Anthem: "return
+     * up to X … where X is the number of times it was kicked" uses this as the choose cap.
+     */
+    fun kickerTimes(): DynamicAmount = DynamicAmount.CastChoice(com.wingedsheep.sdk.scripting.ChoiceSlot.KICKED)
 }

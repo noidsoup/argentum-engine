@@ -156,6 +156,85 @@
     ]
 }
 
+// Eyeblight Cullers
+{
+    "name": "Eyeblight Cullers",
+    "manaCost": "{4}{B}",
+    "typeLine": "Creature — Elf Warrior",
+    "oracleText": "When this creature dies, create three 1/1 green Elf Warrior creature tokens, then mill three cards. (Put the top three cards of your library into your graveyard.)",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 3
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "from": "Battlefield",
+                    "to": "Graveyard"
+                },
+                "effect": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "CreateToken",
+                            "count": {
+                                "type": "Fixed",
+                                "amount": 3
+                            },
+                            "power": 1,
+                            "toughness": 1,
+                            "colors": [
+                                "GREEN"
+                            ],
+                            "creatureTypes": [
+                                "Elf",
+                                "Warrior"
+                            ],
+                            "imageUri": "https://cards.scryfall.io/normal/front/f/f/ff2aea59-c5f1-4927-8534-2215ef79bec7.jpg?1783928588"
+                        },
+                        {
+                            "type": "Composite",
+                            "effects": [
+                                {
+                                    "type": "GatherCards",
+                                    "source": {
+                                        "type": "TopOfLibrary",
+                                        "count": {
+                                            "type": "Fixed",
+                                            "amount": 3
+                                        },
+                                        "isMill": true
+                                    },
+                                    "storeAs": "milled"
+                                },
+                                {
+                                    "type": "MoveCollection",
+                                    "from": "milled",
+                                    "destination": {
+                                        "type": "ToZone",
+                                        "zone": "Graveyard"
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "124",
+        "artist": "Randy Vargas",
+        "imageUri": "https://cards.scryfall.io/normal/front/d/a/da777e75-6f1f-4e07-a5ec-e25454a0636c.jpg?1783928840"
+    },
+    "colorIdentityOverride": [
+        "BLACK"
+    ]
+}
+
 // Ghen, Arcanum Weaver
 {
     "name": "Ghen, Arcanum Weaver",

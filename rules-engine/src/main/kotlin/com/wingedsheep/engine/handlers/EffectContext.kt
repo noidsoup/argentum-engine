@@ -141,6 +141,12 @@ data class EffectContext(
      * reduction is priced against the branch being enumerated.
      */
     val declaredCostSlot: ChoiceSlot? = null,
+    /**
+     * Times [declaredCostSlot] was paid (multikicker count). `0` when [declaredCostSlot] is null;
+     * otherwise at least `1`. Read by [com.wingedsheep.sdk.scripting.values.DynamicAmount.CastChoice]
+     * on [com.wingedsheep.sdk.scripting.ChoiceSlot.KICKED] while the spell is still on the stack.
+     */
+    val optionalCostTimes: Int = 0,
     /** True if the spell's optional Blight additional cost was paid (BlightOrPay path chosen). */
     val wasBlightPaid: Boolean = false,
     /**

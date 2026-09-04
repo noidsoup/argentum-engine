@@ -683,8 +683,10 @@ sealed interface DynamicAmount : TextReplaceable<DynamicAmount> {
      * was cast, read off the *current object* regardless of zone — the sibling of [CastX] for the
      * other cast-choice slots that carry a number.
      *
-     * Currently the only numeric slot is [com.wingedsheep.sdk.scripting.ChoiceSlot.BLIGHT_AMOUNT]
-     * (the X declared for a `blight X` additional cost, e.g. Soul Immolation). It reads the durable
+     * Currently the numeric slots are [com.wingedsheep.sdk.scripting.ChoiceSlot.BLIGHT_AMOUNT]
+     * (the X declared for a `blight X` additional cost, e.g. Soul Immolation) and
+     * [com.wingedsheep.sdk.scripting.ChoiceSlot.KICKED] (multikicker count — `0` when not
+     * kicked, `N` when kicked N times; use [com.wingedsheep.sdk.dsl.DynamicAmounts.kickerTimes]).
      * [com.wingedsheep.sdk.scripting.ChoiceSlot] value off the cast-choices bag, falling back to the
      * resolution context so a spell that never becomes a permanent (an instant/sorcery) still
      * resolves it from the value paid at cast.

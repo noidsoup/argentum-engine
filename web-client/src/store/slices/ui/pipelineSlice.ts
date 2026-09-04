@@ -15,6 +15,7 @@ import {
   getRemainingCostSymbols,
   getRemainingCostAfterConvoke,
   trimAutoTapPreview,
+  appendManaCostRepeats,
 } from '@/utils/manaCost'
 
 export interface PipelineSliceState {
@@ -192,6 +193,28 @@ export const createPipelineSlice: SliceCreator<PipelineSlice> = (set, get) => ({
         ...(trimmedPreview !== undefined ? { autoTapPreview: trimmedPreview } : {}),
         ...(remainingSources !== undefined ? { availableManaSources: remainingSources } : {}),
         action: mergedAction,
+      }
+    }
+
+    // Multikicker: manaCostString includes one kick payment; add (times - 1) more for manual tap.
+    if (result.type === 'xSelection' && result.isMultikickerTimes) {
+      const times = result.xValue
+      const perTime = actionInfo.optionalCostPerTimeManaCostString
+      if (times > 1 && perTime) {
+        const modifiedManaCost = appendManaCostRepeats(actionInfo.manaCostString ?? '', perTime, times - 1)
+        const allSymbols = parseManaCostUtil(modifiedManaCost)
+        const trimmedPreview: readonly EntityId[] | undefined =
+          actionInfo.autoTapPreview && actionInfo.availableManaSources
+            ? trimAutoTapPreview(actionInfo.autoTapPreview, actionInfo.availableManaSources, allSymbols)
+            : actionInfo.autoTapPreview
+        actionInfo = {
+          ...actionInfo,
+          manaCostString: modifiedManaCost,
+          ...(trimmedPreview !== undefined ? { autoTapPreview: trimmedPreview } : {}),
+          action: mergedAction,
+        }
+      } else {
+        actionInfo = { ...actionInfo, action: mergedAction }
       }
     }
 

@@ -2359,6 +2359,15 @@ class CastSpellEnumerator : ActionEnumerator {
                 val kickerTotalDamage = kickerDividedDamage?.totalDamage
                 val kickerMinDamagePerTarget = if (kickerDividedDamage != null) 1 else null
 
+                val hasMultikicker = manaKicker?.multi == true
+                val maxOptionalCostTimes: Int? = if (hasMultikicker && kickedManaCost != null) {
+                    maxAffordableOptionalCostTimes(
+                        context, state, playerId, baseCost, kickedManaCost, kickedSpellContext
+                    ).takeIf { it >= 1 }
+                } else null
+                val optionalCostPerTimeManaCostString =
+                    if (hasMultikicker && kickedManaCost != null) kickedManaCost.toString() else null
+
                 // A *modal* spell cast with an optional additional cost declared — the "Choose one.
                 // If this spell was cast using teamwork, choose both instead" shape (CR 702.194b).
                 // The card-level target requirements are empty on a modal spell (each mode carries
@@ -2430,7 +2439,10 @@ class CastSpellEnumerator : ActionEnumerator {
                             unavailableIndices = kickerModeEnumerations
                                 .filterNot { it.available }
                                 .map { it.modeIndex }
-                        )
+                        ),
+                        hasMultikicker = hasMultikicker,
+                        maxOptionalCostTimes = maxOptionalCostTimes,
+                        optionalCostPerTimeManaCostString = optionalCostPerTimeManaCostString
                     ))
                     continue
                 }
@@ -2459,7 +2471,10 @@ class CastSpellEnumerator : ActionEnumerator {
                                 maxAffordableX = kickedMaxAffordableX,
                                 requiresDamageDistribution = kickerRequiresDamageDistribution,
                                 totalDamageToDistribute = kickerTotalDamage,
-                                minDamagePerTarget = kickerMinDamagePerTarget
+                                minDamagePerTarget = kickerMinDamagePerTarget,
+                                hasMultikicker = hasMultikicker,
+                                maxOptionalCostTimes = maxOptionalCostTimes,
+                        optionalCostPerTimeManaCostString = optionalCostPerTimeManaCostString
                             ))
                         } else {
                             result.add(LegalAction(
@@ -2480,7 +2495,10 @@ class CastSpellEnumerator : ActionEnumerator {
                                 maxAffordableX = kickedMaxAffordableX,
                                 requiresDamageDistribution = kickerRequiresDamageDistribution,
                                 totalDamageToDistribute = kickerTotalDamage,
-                                minDamagePerTarget = kickerMinDamagePerTarget
+                                minDamagePerTarget = kickerMinDamagePerTarget,
+                                hasMultikicker = hasMultikicker,
+                                maxOptionalCostTimes = maxOptionalCostTimes,
+                        optionalCostPerTimeManaCostString = optionalCostPerTimeManaCostString
                             ))
                         }
                     }
@@ -2494,7 +2512,10 @@ class CastSpellEnumerator : ActionEnumerator {
                         autoTapPreview = kickedAutoTapPreview,
                         additionalCostInfo = kickerCostInfo,
                         hasXCost = kickedHasXCost,
-                        maxAffordableX = kickedMaxAffordableX
+                        maxAffordableX = kickedMaxAffordableX,
+                        hasMultikicker = hasMultikicker,
+                        maxOptionalCostTimes = maxOptionalCostTimes,
+                        optionalCostPerTimeManaCostString = optionalCostPerTimeManaCostString
                     ))
                 }
             }
@@ -3404,5 +3425,35 @@ class CastSpellEnumerator : ActionEnumerator {
             )
         )
         return true
+    }
+
+    /**
+     * Greatest N such that [baseCost] + N × [perTimeCost] is affordable (multikicker cap).
+     */
+    private fun maxAffordableOptionalCostTimes(
+        context: EnumerationContext,
+        state: GameState,
+        playerId: EntityId,
+        baseCost: ManaCost,
+        perTimeCost: ManaCost,
+        spellContext: com.wingedsheep.engine.mechanics.mana.SpellPaymentContext?,
+    ): Int {
+        var times = 0
+        while (times < 100) {
+            val next = times + 1
+            val total = baseCost + (perTimeCost * next)
+            if (!context.manaSolver.canPay(
+                    state,
+                    playerId,
+                    total,
+                    spellContext = spellContext,
+                    precomputedSources = context.availableManaSources,
+                )
+            ) {
+                break
+            }
+            times = next
+        }
+        return times
     }
 }

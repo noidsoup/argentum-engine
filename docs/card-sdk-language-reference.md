@@ -1731,6 +1731,12 @@ Atomic effect factories. For library/zone manipulation, prefer the pipelines in 
     the CR 603.12 round-trip, riding the carried trigger context; it just isn't settable from here.) Feeding the
     stored count to a modal's `dynamicChooseCount` is the "choose up to **that many** —" payoff (Hawkeye), and it
     is equally at home in "put **that many** +1/+1 counters" (`DynamicAmounts.timesPaid()` into `AddCounters`).
+- `kickerTimes()` → `DynamicAmount.CastChoice(ChoiceSlot.KICKED)` — the number of times this object was
+  kicked (multikicker count). `0` when the optional cost was not paid; `1` for a single kicker payment;
+  `N` when multikicker was paid N times. Marshal's Anthem: pair with a graveyard-return whose
+  `dynamicMaxCount` / choose cap is `DynamicAmounts.kickerTimes()`. Cast-time: `CastSpell.optionalCostTimes`
+  (default `1` when `declaredCostSlot = KICKED`); the client prompts via `hasMultikicker` /
+  `maxOptionalCostTimes` on `CastWithKicker` legal actions.
   - Distinct from `Gate.MayPayX`, which is a single *variable-size* generic payment binding X: no cap, no repeat
     unit, no colored pips. **Mind the opposite floor conventions** when picking between them: `MayPayX` prompts
     `0..max` and reads 0 as "decline", while `PayRepeatedly` prompts `1..cap` because the wrapper already asked
@@ -10355,11 +10361,13 @@ Numbers computed at resolution time.
   `CastX` for both its cast trigger ("draw half X") and its enters-with-X-counters replacement.
 - `CastChoice(slot)` — the *numeric* value locked into a `ChoiceSlot` as this object was cast, read off
   the same durable `CastChoicesComponent` as `CastX` (falling back to the resolution context, so an
-  instant/sorcery that never becomes a permanent still resolves it). The only numeric slot today is
+  instant/sorcery that never becomes a permanent still resolves it). Numeric slots today:
   `ChoiceSlot.BLIGHT_AMOUNT` — the X declared for a `blight X` additional cost (Soul Immolation "deals X
-  damage…"). Non-numeric slots (color, creature type, mode) are read by the `CastChoiceMade` /
-  `CastChoiceIs` conditions or consumed directly by effects, not by `DynamicAmount`. (Replaces the old
-  `ContextProperty(ADDITIONAL_COST_BLIGHT_AMOUNT)`.)
+  damage…"); `ChoiceSlot.KICKED` — the number of times multikicker was paid (`0` when not kicked, `N`
+  when kicked N times). Facade: `DynamicAmounts.kickerTimes()` for the kick count (Marshal's Anthem:
+  "return up to X … where X is the number of times it was kicked"). Non-numeric slots (color, creature
+  type, mode) are read by the `CastChoiceMade` / `CastChoiceIs` conditions or consumed directly by
+  effects, not by `DynamicAmount`. (Replaces the old `ContextProperty(ADDITIONAL_COST_BLIGHT_AMOUNT)`.)
 - `TotalManaSpent` — total mana paid from the pool to cast the current spell (sum of every per-color
   bucket; for X spells the X portion is included). E.g. Memory Deluge "where X is the mana spent."
 - `ManaSpentOnX(color)` — the amount of `{color}` mana spent on the `{X}` portion specifically, broken

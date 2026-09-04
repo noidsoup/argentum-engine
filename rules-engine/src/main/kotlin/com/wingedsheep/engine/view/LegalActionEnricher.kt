@@ -144,6 +144,9 @@ class LegalActionEnricher(
             tapForPowerRequired = action.tapForPowerRequired,
             tapForPowerCreatures = action.tapForPowerCreatures?.map { it.toDto() },
             maxRepeatableActivations = action.maxRepeatableActivations,
+            hasMultikicker = action.hasMultikicker,
+            maxOptionalCostTimes = action.maxOptionalCostTimes,
+            optionalCostPerTimeManaCostString = action.optionalCostPerTimeManaCostString,
             modalEnumeration = action.modalEnumeration?.toDto(),
             holdPriority = action.holdPriority
         )

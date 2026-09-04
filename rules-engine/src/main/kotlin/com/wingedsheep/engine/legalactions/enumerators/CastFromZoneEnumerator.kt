@@ -2644,6 +2644,15 @@ class CastFromZoneEnumerator : ActionEnumerator {
                 val kickerTotalDamage = kickerDividedDamage?.totalDamage
                 val kickerMinDamagePerTarget = if (kickerDividedDamage != null) 1 else null
 
+                val hasMultikicker = manaKicker?.multi == true
+                val maxOptionalCostTimes: Int? = if (hasMultikicker && kickedManaCost != null) {
+                    maxAffordableOptionalCostTimes(
+                        context, state, playerId, baseCost, kickedManaCost, kickedSpellContext
+                    ).takeIf { it >= 1 }
+                } else null
+                val optionalCostPerTimeManaCostString =
+                    if (hasMultikicker && kickedManaCost != null) kickedManaCost.toString() else null
+
                 if (targetReqs.isNotEmpty()) {
                     val targetReqInfos = context.targetUtils.buildTargetInfos(state, playerId, targetReqs)
                     val allRequirementsSatisfied = context.targetUtils.allRequirementsSatisfied(targetReqInfos)
@@ -2668,7 +2677,10 @@ class CastFromZoneEnumerator : ActionEnumerator {
                                 totalDamageToDistribute = kickerTotalDamage,
                                 minDamagePerTarget = kickerMinDamagePerTarget,
                                 sourceZone = sourceZone,
-                                additionalLifeCost = originalAction.additionalLifeCost
+                                additionalLifeCost = originalAction.additionalLifeCost,
+                                hasMultikicker = hasMultikicker,
+                                maxOptionalCostTimes = maxOptionalCostTimes,
+                                optionalCostPerTimeManaCostString = optionalCostPerTimeManaCostString
                             ))
                         } else {
                             kickerActions.add(LegalAction(
@@ -2689,7 +2701,10 @@ class CastFromZoneEnumerator : ActionEnumerator {
                                 totalDamageToDistribute = kickerTotalDamage,
                                 minDamagePerTarget = kickerMinDamagePerTarget,
                                 sourceZone = sourceZone,
-                                additionalLifeCost = originalAction.additionalLifeCost
+                                additionalLifeCost = originalAction.additionalLifeCost,
+                                hasMultikicker = hasMultikicker,
+                                maxOptionalCostTimes = maxOptionalCostTimes,
+                                optionalCostPerTimeManaCostString = optionalCostPerTimeManaCostString
                             ))
                         }
                     }
@@ -2703,7 +2718,10 @@ class CastFromZoneEnumerator : ActionEnumerator {
                         autoTapPreview = kickedAutoTapPreview,
                         additionalCostInfo = kickerCostInfo,
                         sourceZone = sourceZone,
-                        additionalLifeCost = originalAction.additionalLifeCost
+                        additionalLifeCost = originalAction.additionalLifeCost,
+                        hasMultikicker = hasMultikicker,
+                        maxOptionalCostTimes = maxOptionalCostTimes,
+                        optionalCostPerTimeManaCostString = optionalCostPerTimeManaCostString
                     ))
                 }
             }
@@ -2761,5 +2779,32 @@ class CastFromZoneEnumerator : ActionEnumerator {
             }
         }
         return true
+    }
+
+    private fun maxAffordableOptionalCostTimes(
+        context: EnumerationContext,
+        state: GameState,
+        playerId: EntityId,
+        baseCost: ManaCost,
+        perTimeCost: ManaCost,
+        spellContext: com.wingedsheep.engine.mechanics.mana.SpellPaymentContext?,
+    ): Int {
+        var times = 0
+        while (times < 100) {
+            val next = times + 1
+            val total = baseCost + (perTimeCost * next)
+            if (!context.manaSolver.canPay(
+                    state,
+                    playerId,
+                    total,
+                    spellContext = spellContext,
+                    precomputedSources = context.availableManaSources,
+                )
+            ) {
+                break
+            }
+            times = next
+        }
+        return times
     }
 }
