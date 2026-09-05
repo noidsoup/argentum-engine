@@ -69,18 +69,16 @@ data class EffectContext(
      * Definition-scoped identity of the triggered/activated ability currently resolving, copied
      * from its stack component (see [com.wingedsheep.sdk.scripting.AbilityIdentity]). Lets a
      * resolution-time may-question consult the controller's persistent auto-answer yields without
-     * re-deriving the key. Null for spell resolution and synthesized sources with no card
-     * definition (backlog §C).
+     * re-deriving the key. Null for spell resolution, sources with no card definition, and
+     * activated abilities whose lookup did not prove definition ownership (backlog §C).
      */
     val abilityIdentity: com.wingedsheep.sdk.scripting.AbilityIdentity? = null,
     /**
-     * The id of the *activated* ability currently resolving, as recorded in the source's
-     * `AbilityActivatedThisTurnComponent`. Lets an effect read back how many times its own ability
-     * has been activated this turn (`ThisAbilityActivatedThisTurnAtLeast` — Farrelite Priest).
-     * Null for spells, triggered abilities and any activation whose ability opted out of
-     * bookkeeping.
+     * The concrete ability captured at activation. Resolution must not rediscover it from a
+     * source or grant that can change before resolving (including "retain this ability" copies).
+     * Null for spells, triggers, and synthesized activations without an ActivatedAbility.
      */
-    val activatedAbilityId: com.wingedsheep.sdk.scripting.AbilityId? = null,
+    val activatedAbility: com.wingedsheep.sdk.scripting.ActivatedAbility? = null,
     /**
      * The player currently under consideration as a target, bound while evaluating a
      * `TargetPlayer.restriction` / `TargetOpponent.restriction` (CR 115). Resolves
@@ -96,6 +94,14 @@ data class EffectContext(
      * synthesized abilities that carry no such restriction.
      */
     val sourceFaceChanges: Int? = null,
+    /** Battlefield visit of the resolving ability's source. */
+    val sourceBattlefieldTimestamp: Long? = null,
+    /**
+     * The source had already returned as a different permanent when this ability began resolving.
+     * Retain sourceId for linked data and last-known information, but do not act on that new permanent.
+     * Frozen at resolution start so instructions can still track a source they themselves return.
+     */
+    val sourceReferenceLost: Boolean = false,
     val targets: List<ChosenTarget> = emptyList(),
     /**
      * Positionally-aligned view of [targets]: the same length as the originally-chosen target
@@ -436,6 +442,9 @@ data class EffectContext(
      */
     val resolutionDepth: Int = 0
 ) {
+    val activatedAbilityId: com.wingedsheep.sdk.scripting.AbilityId?
+        get() = activatedAbility?.id
+
     /**
      * Resolve a symbolic effect target to a concrete entity id using just the context.
      *
@@ -466,6 +475,20 @@ data class EffectContext(
         } else {
             targets.getOrNull(index)
         }
+
+    /** Capture source-reference validity once, before executing an ability's effect. */
+    fun forAbilityResolution(state: GameState): EffectContext {
+        val currentVisit = sourceId?.let { state.getEntity(it) }
+            ?.get<com.wingedsheep.engine.state.components.battlefield.BattlefieldEntryTimestampComponent>()?.timestamp
+        return copy(sourceReferenceLost = sourceBattlefieldTimestamp != null && currentVisit != null &&
+            currentVisit != sourceBattlefieldTimestamp)
+    }
+
+    /** Battlefield-only instructions cannot affect a source that has left or already returned. */
+    fun isUnavailableBattlefieldSource(target: EffectTarget, state: GameState): Boolean =
+        target == EffectTarget.Self && pipeline.iterationTarget == null &&
+            (sourceReferenceLost || (sourceBattlefieldTimestamp != null && sourceId != null &&
+                sourceId !in state.getBattlefield()))
 
     fun resolveTarget(target: EffectTarget): EntityId? =
         TargetResolutionUtils.resolveTarget(target, this)
@@ -575,6 +598,7 @@ data class EffectContext(
             granterId = ability.granterId,
             abilityIdentity = ability.abilityIdentity,
             sourceFaceChanges = ability.sourceFaceChanges,
+            sourceBattlefieldTimestamp = ability.sourceBattlefieldTimestamp,
             targets = targets,
             triggerDamageAmount = ability.triggerDamageAmount,
             triggerCounterCount = ability.triggerCounterCount,
