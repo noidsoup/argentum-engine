@@ -819,6 +819,60 @@
     ]
 }
 
+// Sage of the Beyond
+{
+    "name": "Sage of the Beyond",
+    "manaCost": "{5}{U}{U}",
+    "typeLine": "Creature — Spirit Giant",
+    "oracleText": "Flying\nSpells you cast from anywhere other than your hand cost {2} less to cast.\nForetell {4}{U} (During your turn, you may pay {2} and exile this card from your hand face down. Cast it on a later turn for its foretell cost.)",
+    "creatureStats": {
+        "power": 5,
+        "toughness": 5
+    },
+    "keywords": [
+        "FLYING",
+        "FORETELL"
+    ],
+    "keywordAbilities": [
+        {
+            "type": "Foretell",
+            "cost": "{4}{U}"
+        }
+    ],
+    "script": {
+        "staticAbilities": [
+            {
+                "type": "ModifySpellCost",
+                "target": {
+                    "type": "YouCastFromZones",
+                    "zones": [
+                        "Library",
+                        "Battlefield",
+                        "Graveyard",
+                        "Stack",
+                        "Exile",
+                        "Command",
+                        "Sideboard"
+                    ]
+                },
+                "modification": {
+                    "type": "ReduceGeneric",
+                    "amount": 2
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "6",
+        "rarity": "RARE",
+        "artist": "Cristi Balanescu",
+        "imageUri": "https://cards.scryfall.io/normal/front/1/f/1f5497d0-0765-4619-a218-b6a8709810cb.jpg?1783928339"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
+
 // Serpent's Soul-Jar
 {
     "name": "Serpent's Soul-Jar",
