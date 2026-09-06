@@ -984,6 +984,74 @@
     ]
 }
 
+// Cultivator of Blades
+{
+    "name": "Cultivator of Blades",
+    "manaCost": "{3}{G}{G}",
+    "typeLine": "Creature — Elf Artificer",
+    "oracleText": "Fabricate 2 (When this creature enters, put two +1/+1 counters on it or create two 1/1 colorless Servo artifact creature tokens.)\nWhenever this creature attacks, you may have other attacking creatures get +X/+X until end of turn, where X is this creature's power.",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 1
+    },
+    "keywords": [
+        "FABRICATE"
+    ],
+    "keywordAbilities": [
+        {
+            "type": "Numeric",
+            "keyword": "FABRICATE",
+            "n": 2
+        }
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": "AttackEvent",
+                "effect": {
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "ForEach",
+                        "space": {
+                            "type": "IterationSpace.Group",
+                            "filter": {
+                                "baseFilter": "creature attacking",
+                                "excludeSelf": true
+                            }
+                        },
+                        "body": {
+                            "type": "ModifyStats",
+                            "powerModifier": {
+                                "type": "EntityProperty",
+                                "entity": "Source",
+                                "numericProperty": "Power"
+                            },
+                            "toughnessModifier": {
+                                "type": "EntityProperty",
+                                "entity": "Source",
+                                "numericProperty": "Power"
+                            },
+                            "target": "Self"
+                        }
+                    }
+                },
+                "descriptionOverride": "Whenever this creature attacks, you may have other attacking creatures get +X/+X until end of turn, where X is this creature's power."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "151",
+        "rarity": "RARE",
+        "artist": "Bastien L. Deharme",
+        "imageUri": "https://cards.scryfall.io/normal/front/5/d/5d21d35b-1b4e-43aa-8fb7-0dd7a2fa91a1.jpg?1783937180"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
+
 // Cultivator's Caravan
 {
     "name": "Cultivator's Caravan",
