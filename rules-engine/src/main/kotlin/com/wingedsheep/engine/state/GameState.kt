@@ -282,6 +282,14 @@ data class GameState(
     val playersWhoCommittedCrimeThisTurn: Set<EntityId> = emptySet(),
 
     /**
+     * Per-player count of Foretell special actions taken this turn (CR 702.143a / 116.2h). Used
+     * by [com.wingedsheep.sdk.scripting.ModifyForetellSetupCost] gating such as Ranar the
+     * Ever-Watchful's "first card you foretell each turn". Cleared at every turn boundary.
+     * Effect-driven foretell (CR 702.143d) does not increment this counter.
+     */
+    val foretellCountThisTurnByPlayer: Map<EntityId, Int> = emptyMap(),
+
+    /**
      * Colors of the spell most recently cast this turn (by any player), or null if no spell has
      * been cast yet this turn. Used by Mana Maze's "can't cast a spell that shares a color with
      * the spell most recently cast this turn" restriction. Cleared at the start of each turn.

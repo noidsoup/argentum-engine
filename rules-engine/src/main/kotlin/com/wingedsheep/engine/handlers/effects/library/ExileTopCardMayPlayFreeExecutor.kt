@@ -12,6 +12,9 @@ import com.wingedsheep.engine.state.components.identity.AfterResolveDestinationC
 import com.wingedsheep.engine.state.components.identity.PlayWithCostIncreaseComponent
 import com.wingedsheep.engine.state.components.identity.PlayWithFixedAlternativeManaCostComponent
 import com.wingedsheep.engine.state.components.identity.PlayWithoutPayingCostComponent
+import com.wingedsheep.engine.state.components.identity.FaceDownComponent
+import com.wingedsheep.engine.state.components.identity.ForetellCastOptionsComponent
+import com.wingedsheep.engine.state.components.identity.ForetoldComponent
 import com.wingedsheep.engine.state.components.identity.PlottedComponent
 import com.wingedsheep.engine.state.permissions.MayPlayPermission
 import com.wingedsheep.engine.state.permissions.addMayPlayPermission
@@ -21,12 +24,14 @@ import com.wingedsheep.sdk.scripting.EventPattern
 import com.wingedsheep.sdk.scripting.TriggerSpec
 import com.wingedsheep.sdk.scripting.effects.DelayedTriggerExpiry
 import com.wingedsheep.sdk.model.EntityId
+import com.wingedsheep.sdk.scripting.conditions.SourceForetoldOnPriorTurn
 import com.wingedsheep.sdk.scripting.conditions.SourcePlottedOnPriorTurn
 import com.wingedsheep.engine.state.components.identity.RevealedToComponent
 import com.wingedsheep.sdk.scripting.effects.GrantMayPlayFromExileEffect
 import com.wingedsheep.sdk.scripting.effects.GrantPlayWithCostIncreaseEffect
 import com.wingedsheep.sdk.scripting.effects.GrantPlayWithoutPayingCostEffect
 import com.wingedsheep.sdk.scripting.effects.MakePlottedEffect
+import com.wingedsheep.sdk.scripting.effects.MakeForetoldEffect
 import com.wingedsheep.sdk.scripting.effects.MayPlayExpiry
 import com.wingedsheep.sdk.scripting.targets.EffectTarget
 import kotlin.reflect.KClass
@@ -386,6 +391,103 @@ class MakePlottedExecutor : EffectExecutor<MakePlottedEffect> {
                 )
             )
             events.add(CardPlottedEvent(plottedController, cardId, cardName))
+        }
+
+        return EffectResult.success(newState, events)
+    }
+}
+
+/**
+ * Executor for [MakeForetoldEffect] (CR 702.143d).
+ *
+ * Foretells every card in the named collection. The cards are already in exile face down (a
+ * preceding pipeline step moved them there). For each card this stamps [ForetoldComponent] +
+ * [FaceDownComponent] + a foretell cast cost and registers a permanent [MayPlayPermission]
+ * gated by [SourceForetoldOnPriorTurn] — the same cast-later state the [ForetellCardHandler]
+ * special action produces, minus the {2} setup cost payment.
+ *
+ * If the card already carries a foretell cost from [KeywordAbility.Foretell], the new cost is
+ * added as an additional cast option via [ForetellCastOptionsComponent].
+ */
+class MakeForetoldExecutor(
+    private val cardRegistry: com.wingedsheep.engine.registry.CardRegistry,
+) : EffectExecutor<MakeForetoldEffect> {
+
+    override val effectType: KClass<MakeForetoldEffect> = MakeForetoldEffect::class
+
+    override fun execute(
+        state: GameState,
+        effect: MakeForetoldEffect,
+        context: EffectContext
+    ): EffectResult {
+        val controllerId = context.controllerId
+        val collection = context.pipeline.storedCollections[effect.from] ?: emptyList()
+        if (collection.isEmpty()) return EffectResult.success(state)
+
+        var newState = state
+        val events = mutableListOf<GameEvent>()
+        for (cardId in collection) {
+            val cardComponent = newState.getEntity(cardId)?.get<CardComponent>() ?: continue
+            val foretoldController =
+                if (effect.ownerControls) (cardComponent.ownerId ?: controllerId) else controllerId
+            val computedCost = com.wingedsheep.engine.mechanics.foretell.ForetellCastCosts
+                .computeForetellCost(cardRegistry, cardComponent, effect.foretellCost)
+            val keywordCost = com.wingedsheep.engine.mechanics.foretell.ForetellCastCosts
+                .keywordForetellCost(cardRegistry, cardComponent)
+
+            val existingFixed = newState.getEntity(cardId)
+                ?.get<PlayWithFixedAlternativeManaCostComponent>()
+                ?.takeIf { it.controllerId == foretoldController }
+            val existingOptions = newState.getEntity(cardId)
+                ?.get<ForetellCastOptionsComponent>()
+                ?.takeIf { it.controllerId == foretoldController }
+
+            newState = newState.updateEntity(cardId) { container ->
+                var updated = container
+                    .with(ForetoldComponent(controllerId = foretoldController, turnForetold = newState.turnNumber))
+                    .with(FaceDownComponent)
+
+                val mergedExtraCosts = buildList {
+                    existingOptions?.costs?.forEach(::add)
+                    if (existingFixed != null) add(existingFixed.fixedCost)
+                    keywordCost?.let(::add)
+                    add(computedCost)
+                }.distinctBy { it.toString() }
+
+                when {
+                    existingFixed == null && mergedExtraCosts.size == 1 ->
+                        updated.with(
+                            PlayWithFixedAlternativeManaCostComponent(
+                                controllerId = foretoldController,
+                                fixedCost = mergedExtraCosts.single(),
+                            )
+                        )
+                    else -> {
+                        val withoutPrimary = if (existingFixed != null) {
+                            updated.without<PlayWithFixedAlternativeManaCostComponent>()
+                        } else updated
+                        withoutPrimary.with(
+                            ForetellCastOptionsComponent(
+                                controllerId = foretoldController,
+                                costs = mergedExtraCosts,
+                            )
+                        )
+                    }
+                }
+            }
+
+            val (permId, stateWithPerm) = newState.newEntity()
+            newState = stateWithPerm.addMayPlayPermission(
+                MayPlayPermission(
+                    id = permId,
+                    cardIds = setOf(cardId),
+                    controllerId = foretoldController,
+                    sourceId = cardId,
+                    condition = SourceForetoldOnPriorTurn,
+                    permanent = true,
+                    timestamp = newState.timestamp,
+                )
+            )
         }
 
         return EffectResult.success(newState, events)

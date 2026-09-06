@@ -147,6 +147,7 @@ class TurnManager(
             nonlandPermanentLeftBattlefieldThisTurn = false,
             permanentsSacrificedThisTurn = 0,
             playersWhoCommittedCrimeThisTurn = emptySet(),
+            foretellCountThisTurnByPlayer = emptyMap(),
             lastCastSpellColors = null,
             lastCardDrawnThisTurnByPlayer = emptyMap(),
             drawStepStartDrawCountByPlayer = emptyMap(),

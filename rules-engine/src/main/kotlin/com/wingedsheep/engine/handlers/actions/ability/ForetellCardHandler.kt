@@ -11,6 +11,7 @@ import com.wingedsheep.engine.core.EngineServices
 import com.wingedsheep.engine.handlers.actions.ActionHandler
 import com.wingedsheep.engine.mechanics.mana.ManaPool
 import com.wingedsheep.engine.mechanics.mana.ManaSolver
+import com.wingedsheep.engine.mechanics.mana.ForetellSetupCostReducer
 import com.wingedsheep.engine.registry.CardRegistry
 import com.wingedsheep.engine.state.GameState
 import com.wingedsheep.engine.state.ZoneKey
@@ -56,11 +57,12 @@ class ForetellCardHandler(
     private val cardRegistry: CardRegistry,
     private val manaSolver: ManaSolver,
     private val manaAbilitySideEffectExecutor: com.wingedsheep.engine.mechanics.mana.ManaAbilitySideEffectExecutor,
+    private val foretellSetupCostReducer: ForetellSetupCostReducer,
 ) : ActionHandler<ForetellCard> {
     override val actionType: KClass<ForetellCard> = ForetellCard::class
 
-    /** The fixed setup cost to foretell a card, per CR 702.143a. */
-    private val setupCost: ManaCost = ManaCost.parse("{2}")
+    private fun setupCost(state: GameState, playerId: com.wingedsheep.sdk.model.EntityId): ManaCost =
+        foretellSetupCostReducer.effectiveSetupCost(state, playerId)
 
     private fun foretellCostOf(state: GameState, cardId: com.wingedsheep.sdk.model.EntityId): ManaCost? {
         val cardComponent = state.getEntity(cardId)?.get<CardComponent>() ?: return null
@@ -91,7 +93,7 @@ class ForetellCardHandler(
                     return "Mana source is already tapped: $sourceId"
                 }
             }
-        } else if (!manaSolver.canPay(state, action.playerId, setupCost)) {
+        } else if (!manaSolver.canPay(state, action.playerId, setupCost(state, action.playerId))) {
             return "Not enough mana to foretell this card"
         }
         return null
@@ -104,6 +106,7 @@ class ForetellCardHandler(
             ?: return ExecutionResult.error(state, "Not a card")
         val foretellCost = foretellCostOf(state, action.cardId)
             ?: return ExecutionResult.error(state, "This card does not have foretell")
+        val setupCost = setupCost(state, action.playerId)
 
         var currentState = state
         val events = mutableListOf<GameEvent>()
@@ -228,6 +231,12 @@ class ForetellCardHandler(
             )
         )
 
+        val priorForetells = currentState.foretellCountThisTurnByPlayer[action.playerId] ?: 0
+        currentState = currentState.copy(
+            foretellCountThisTurnByPlayer = currentState.foretellCountThisTurnByPlayer +
+                (action.playerId to priorForetells + 1)
+        )
+
         currentState = currentState.tick()
 
         // Foretell is a special action — it does not change priority and does not use the stack.
@@ -240,6 +249,7 @@ class ForetellCardHandler(
                 services.cardRegistry,
                 services.manaSolver,
                 services.manaAbilitySideEffectExecutor,
+                ForetellSetupCostReducer(services.cardRegistry),
             )
         }
     }

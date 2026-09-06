@@ -408,6 +408,11 @@ object Hand {
             Patterns.Hand.eachPlayerDiscardsDraws(),
         ),
         tableWide(
+            "each player discards their hand, then draws cards equal to the greatest number of cards a player discarded this way",
+            "windfall",
+            Patterns.Hand.eachPlayerDiscardsHandDrawsGreatest(),
+        ),
+        tableWide(
             "each player shuffles the cards from their hand into their library, then draws that many cards",
             "the wheel",
             Patterns.Hand.wheelEffect(Player.Each),

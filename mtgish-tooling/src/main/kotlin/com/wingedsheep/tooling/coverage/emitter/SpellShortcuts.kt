@@ -30,7 +30,7 @@ internal fun EmitCtx.eachplayerMaydraw(card: JsonObject): Dsl? {
     return Call("Patterns.Hand.eachPlayerMayDraw", parts)
 }
 
-/** Each player discards any number, then draws that many; you draw 1 (Flux). */
+/** Each player discards any number of cards, then draws that many; you draw 1 (Flux). */
 internal fun EmitCtx.fluxEffect(card: JsonObject): Dsl? {
     val blob = compact(card["Rules"])
     if ("TheNumberOfCardsDiscardedByPlayerThisWay" in blob && "DiscardAnyNumberOfCards" in blob) {
@@ -38,6 +38,14 @@ internal fun EmitCtx.fluxEffect(card: JsonObject): Dsl? {
         return call("Patterns.Hand.eachPlayerDiscardsDraws", arg("controllerBonusDraw", "$bonus"))
     }
     return null
+}
+
+/** Each player discards their hand, then draws the greatest per-player discard count (Windfall). */
+internal fun EmitCtx.windfallEffect(card: JsonObject): Dsl? {
+    val blob = compact(card).lowercase()
+    if (!blob.contains("each player discards their hand")) return null
+    if (!blob.contains("greatest number of cards")) return null
+    return call("Patterns.Hand.eachPlayerDiscardsHandDrawsGreatest")
 }
 
 /** Each player shuffles their hand into their library, then draws that many (Winds of Change). */

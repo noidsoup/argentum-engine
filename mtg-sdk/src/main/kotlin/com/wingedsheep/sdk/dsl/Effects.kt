@@ -1383,6 +1383,22 @@ object Effects {
     fun MakePlotted(from: String): Effect = MakePlottedEffect(from)
 
     /**
+     * Make every card in a named collection *foretold* (CR 702.143d). Cards must already be in
+     * exile face down. Stamps a foretell cost per [foretellCost] and a later-turn cast permission.
+     * Used by Ethereal Valkyrie ("Its foretell cost is its mana cost reduced by {2}").
+     */
+    fun MakeForetold(
+        from: String,
+        foretellCost: com.wingedsheep.sdk.scripting.effects.ForetellCostSpec =
+            com.wingedsheep.sdk.scripting.effects.ForetellCostSpec.ManaCostReducedByGeneric(2),
+        ownerControls: Boolean = false,
+    ): Effect = com.wingedsheep.sdk.scripting.effects.MakeForetoldEffect(
+        from = from,
+        foretellCost = foretellCost,
+        ownerControls = ownerControls,
+    )
+
+    /**
      * Grant "play without paying mana cost" permission to all cards in a named collection.
      * Card must still be in a playable zone (hand, or exile with GrantMayPlayFromExile).
      */
@@ -1769,6 +1785,35 @@ object Effects {
         target: EffectTarget = EffectTarget.Self,
         duration: Duration = Duration.EndOfTurn
     ): Effect = GrantReplacementEffectEffect(replacement, target, duration)
+
+    /**
+     * Grant a turn-duration replacement: if a permanent matching [filter] would be put into a
+     * graveyard from the battlefield, exile it instead and return it to the battlefield under its
+     * owner's control at the beginning of the next end step. Cosmic Intervention's clause — a
+     * floating [GrantReplacementEffect] anchored to [target] (usually the resolving spell) whose
+     * [RedirectZoneChangeWithEffect] rider schedules the delayed return when the redirect applies.
+     */
+    fun GrantExileInsteadOfDeathFromBattlefieldWithReturn(
+        filter: GameObjectFilter = GameObjectFilter.Permanent.youControl(),
+        target: EffectTarget = EffectTarget.Self,
+        duration: Duration = Duration.EndOfTurn
+    ): Effect = GrantReplacementEffect(
+        replacement = RedirectZoneChangeWithEffect(
+            newDestination = Zone.EXILE,
+            additionalEffect = com.wingedsheep.sdk.scripting.effects.CreateDelayedTriggerEffect(
+                step = com.wingedsheep.sdk.core.Step.END,
+                effect = MoveToZoneEffect(EffectTarget.ContextTarget(0), Zone.BATTLEFIELD),
+                timing = com.wingedsheep.sdk.scripting.effects.DelayedTriggerTiming.CURRENT_TURN_OR_LATER
+            ),
+            appliesTo = EventPattern.ZoneChangeEvent(
+                filter = filter,
+                from = Zone.BATTLEFIELD,
+                to = Zone.GRAVEYARD
+            )
+        ),
+        target = target,
+        duration = duration
+    )
 
     /**
      * Mark a permanent so that if it would leave the battlefield, it is exiled instead.

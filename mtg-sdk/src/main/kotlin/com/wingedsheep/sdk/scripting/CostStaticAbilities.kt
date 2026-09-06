@@ -1014,6 +1014,95 @@ sealed interface PlotCostTarget {
 }
 
 /**
+ * Static ability that modifies the cost of the **Foretell** special-action setup cost (CR 702.143a).
+ *
+ * Foretell is not a spell, so [ModifySpellCost] does not touch it; this is its dedicated cost
+ * modifier. The engine's `ForetellSetupCostReducer` scans the battlefield for these and reduces
+ * the {2} setup cost paid by [ForetellEnumerator]/`ForetellCardHandler`.
+ *
+ * Used for Ranar the Ever-Watchful ("The first card you foretell each turn costs {0} to foretell")
+ * via `ModifyForetellSetupCost(modification = CostModification.ReduceGeneric(2),
+ * gating = ForetellSetupCostGating.NthForetellPerTurn(1))`. Only generic [CostModification]
+ * reductions/increases are meaningful — the printed setup cost is a flat {2}.
+ *
+ * @property target Which foretell actions the modifier applies to.
+ * @property modification How the setup cost is changed.
+ * @property gating Optional per-turn gate (e.g. first foretell only).
+ */
+@SerialName("ModifyForetellSetupCost")
+@Serializable
+data class ModifyForetellSetupCost(
+    val target: ForetellSetupCostTarget = ForetellSetupCostTarget.YouForetellFromHand,
+    val modification: CostModification,
+    val gating: ForetellSetupCostGating = ForetellSetupCostGating.None,
+) : StaticAbility {
+    override val description: String = buildString {
+        append(
+            when (target) {
+                ForetellSetupCostTarget.YouForetellFromHand -> "Foretelling cards from your hand"
+            }
+        )
+        append(
+            when (val m = modification) {
+                is CostModification.ReduceGeneric -> " costs {${m.amount}} less to foretell"
+                is CostModification.IncreaseGeneric -> " costs {${m.amount}} more to foretell"
+                else -> " has a modified foretell cost"
+            }
+        )
+        when (val g = gating) {
+            is ForetellSetupCostGating.NthForetellPerTurn ->
+                append(" (the ${ordinal(g.n)} foretell each turn)")
+            ForetellSetupCostGating.None -> {}
+        }
+    }
+
+    override fun applyTextReplacement(replacer: TextReplacer): StaticAbility {
+        val newModification = modification.applyTextReplacement(replacer)
+        return if (newModification !== modification) copy(modification = newModification) else this
+    }
+
+    private fun ordinal(n: Int): String = when (n) {
+        1 -> "first"
+        2 -> "second"
+        3 -> "third"
+        else -> "${n}th"
+    }
+}
+
+/**
+ * What a [ModifyForetellSetupCost] applies to. Modeled as a sealed interface so future "foretell
+ * from the top of your library" reductions slot in as a new variant without changing the
+ * static-ability shape.
+ */
+@Serializable
+sealed interface ForetellSetupCostTarget {
+    /** Cards the source's controller foretells from their hand (the printed Foretell keyword setup). */
+    @SerialName("YouForetellFromHand")
+    @Serializable
+    data object YouForetellFromHand : ForetellSetupCostTarget
+}
+
+/**
+ * Optional gating on [ModifyForetellSetupCost]. Foretell setup is a special action, not a spell
+ * cast, so this is separate from [CostGating.NthOfTypePerTurn].
+ */
+@Serializable
+sealed interface ForetellSetupCostGating {
+    @SerialName("None")
+    @Serializable
+    data object None : ForetellSetupCostGating
+
+    /**
+     * Modifier applies only when the foretell being paid for is the Nth foretell special action
+     * the player has taken this turn (1-indexed; counts itself). Use `n = 1` for "the first card
+     * you foretell each turn" (Ranar the Ever-Watchful).
+     */
+    @SerialName("NthForetellPerTurn")
+    @Serializable
+    data class NthForetellPerTurn(val n: Int) : ForetellSetupCostGating
+}
+
+/**
  * Static ability that modifies the cost of the **door-unlock** special action (CR 709.5e).
  *
  * Unlocking a door is not a spell or the Plot action, so neither [ModifySpellCost] nor

@@ -3,6 +3,7 @@ package com.wingedsheep.engine.handlers.effects.composite
 import com.wingedsheep.engine.core.EffectContinuation
 import com.wingedsheep.engine.core.EffectResult
 import com.wingedsheep.engine.handlers.EffectContext
+import com.wingedsheep.engine.handlers.PipelineState
 import com.wingedsheep.engine.handlers.effects.EffectExecutor
 import com.wingedsheep.engine.state.GameState
 import com.wingedsheep.sdk.scripting.effects.CompositeEffect
@@ -107,6 +108,7 @@ class CompositeEffectExecutor(
             if (result.updatedCollections.isNotEmpty() ||
                 result.updatedSubtypeGroups.isNotEmpty() ||
                 result.updatedStoredNumbers.isNotEmpty() ||
+                result.updatedStoredPerPlayerNumbers.isNotEmpty() ||
                 result.updatedChosenValues.isNotEmpty()
             ) {
                 currentContext = currentContext.copy(
@@ -114,6 +116,10 @@ class CompositeEffectExecutor(
                         storedCollections = currentContext.pipeline.storedCollections + result.updatedCollections,
                         storedSubtypeGroups = currentContext.pipeline.storedSubtypeGroups + result.updatedSubtypeGroups,
                         storedNumbers = currentContext.pipeline.storedNumbers + result.updatedStoredNumbers,
+                        storedPerPlayerNumbers = PipelineState.mergePerPlayerNumbers(
+                            currentContext.pipeline.storedPerPlayerNumbers,
+                            result.updatedStoredPerPlayerNumbers,
+                        ),
                         chosenValues = currentContext.pipeline.chosenValues + result.updatedChosenValues
                     )
                 )
@@ -133,6 +139,13 @@ class CompositeEffectExecutor(
         val accumulatedCollections = currentContext.pipeline.storedCollections - context.pipeline.storedCollections.keys
         val accumulatedSubtypeGroups = currentContext.pipeline.storedSubtypeGroups - context.pipeline.storedSubtypeGroups.keys
         val accumulatedStoredNumbers = currentContext.pipeline.storedNumbers - context.pipeline.storedNumbers.keys
+        val accumulatedStoredPerPlayerNumbers = currentContext.pipeline.storedPerPlayerNumbers
+            .mapNotNull { (storeAs, playerCounts) ->
+                val before = context.pipeline.storedPerPlayerNumbers[storeAs] ?: emptyMap()
+                val delta = playerCounts.filter { (playerId, count) -> before[playerId] != count }
+                if (delta.isEmpty()) null else storeAs to delta
+            }
+            .toMap()
         val accumulatedChosenValues = currentContext.pipeline.chosenValues - context.pipeline.chosenValues.keys
         val accumulatedSacrificed = currentContext.sacrificedPermanents.drop(context.sacrificedPermanents.size)
         return EffectResult(
@@ -141,6 +154,7 @@ class CompositeEffectExecutor(
             updatedCollections = accumulatedCollections,
             updatedSubtypeGroups = accumulatedSubtypeGroups,
             updatedStoredNumbers = accumulatedStoredNumbers,
+            updatedStoredPerPlayerNumbers = accumulatedStoredPerPlayerNumbers,
             updatedChosenValues = accumulatedChosenValues,
             updatedSacrificedPermanents = accumulatedSacrificed
         )

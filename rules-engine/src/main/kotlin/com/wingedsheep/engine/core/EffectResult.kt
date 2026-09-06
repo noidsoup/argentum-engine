@@ -23,6 +23,8 @@ data class EffectResult(
     val updatedSubtypeGroups: Map<String, List<Set<String>>> = emptyMap(),
     /** Named numeric values produced by pipeline effects (StoreNumber, etc.). */
     val updatedStoredNumbers: Map<String, Int> = emptyMap(),
+    /** Per-player tallies produced by [RecordPerPlayerNumberEffect]. */
+    val updatedStoredPerPlayerNumbers: Map<String, Map<EntityId, Int>> = emptyMap(),
     /** Named string values produced by pipeline effects (StoreCardName, etc.). */
     val updatedChosenValues: Map<String, String> = emptyMap(),
     /**

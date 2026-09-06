@@ -71,6 +71,59 @@
     ]
 }
 
+// Azorius Signet
+{
+    "name": "Azorius Signet",
+    "manaCost": "{2}",
+    "typeLine": "Artifact",
+    "oracleText": "{1}, {T}: Add {W}{U}.",
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": {
+                    "type": "CostComposite",
+                    "costs": [
+                        {
+                            "type": "CostAtomWrapper",
+                            "atom": {
+                                "type": "AtomMana",
+                                "cost": "{1}"
+                            }
+                        },
+                        "CostTap"
+                    ]
+                },
+                "effect": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "AddMana",
+                            "color": "WHITE"
+                        },
+                        {
+                            "type": "AddMana",
+                            "color": "BLUE"
+                        }
+                    ]
+                },
+                "timing": "ManaAbility",
+                "isManaAbility": true
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "159",
+        "artist": "Greg Hildebrandt",
+        "flavorText": "The Azorius signet is stamped on every permit issued by the Senate, making them a formality when one is already in hand.",
+        "imageUri": "https://cards.scryfall.io/normal/front/d/9/d91a527d-51f1-4fb1-9016-fc923fd43a6a.jpg?1783943383"
+    },
+    "colorIdentityOverride": [
+        "WHITE",
+        "BLUE"
+    ]
+}
+
 // Blood Crypt
 {
     "name": "Blood Crypt",

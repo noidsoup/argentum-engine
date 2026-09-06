@@ -1093,6 +1093,48 @@
     ]
 }
 
+// Storm Herd
+{
+    "name": "Storm Herd",
+    "manaCost": "{8}{W}{W}",
+    "typeLine": "Sorcery",
+    "oracleText": "Create X 1/1 white Pegasus creature tokens with flying, where X is your life total.",
+    "script": {
+        "spellEffect": {
+            "type": "CreateToken",
+            "count": "YourLifeTotal",
+            "power": 1,
+            "toughness": 1,
+            "colors": [
+                "WHITE"
+            ],
+            "creatureTypes": [
+                "Pegasus"
+            ],
+            "keywords": [
+                "FLYING"
+            ],
+            "imageUri": "https://cards.scryfall.io/normal/front/0/1/01a2a64d-088a-4340-a129-6338cdf90203.jpg?1783928086"
+        }
+    },
+    "metadata": {
+        "collectorNumber": "19",
+        "rarity": "RARE",
+        "artist": "Jim Nelson",
+        "flavorText": "\"When you hear thunder on a cloudless day, take cover and brace for the coming of the storm herd.\"\n—Skotov, Tin Street basket vendor",
+        "imageUri": "https://cards.scryfall.io/normal/front/c/8/c8c86398-2cbc-4ad7-a231-6802e3b4d1c0.jpg?1783943524",
+        "rulings": [
+            {
+                "date": "2006-02-01",
+                "text": "The number of Pegasus tokens you create is equal to your life total when Storm Herd resolves."
+            }
+        ]
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
 // Streetbreaker Wurm
 {
     "name": "Streetbreaker Wurm",

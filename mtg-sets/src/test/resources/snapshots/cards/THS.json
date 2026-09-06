@@ -583,6 +583,65 @@
     ]
 }
 
+// Curse of the Swine
+{
+    "name": "Curse of the Swine",
+    "manaCost": "{X}{U}{U}",
+    "typeLine": "Sorcery",
+    "oracleText": "Exile X target creatures. For each creature exiled this way, its controller creates a 2/2 green Boar creature token.",
+    "script": {
+        "spellEffect": {
+            "type": "ForEach",
+            "space": "IterationSpace.Targets",
+            "body": {
+                "type": "Composite",
+                "effects": [
+                    {
+                        "type": "MoveToZone",
+                        "target": {
+                            "type": "ContextTarget",
+                            "index": 0
+                        },
+                        "destination": "Exile"
+                    },
+                    {
+                        "type": "CreateToken",
+                        "power": 2,
+                        "toughness": 2,
+                        "colors": [
+                            "GREEN"
+                        ],
+                        "creatureTypes": [
+                            "Boar"
+                        ],
+                        "controller": "TargetController"
+                    }
+                ]
+            }
+        },
+        "targetRequirements": [
+            {
+                "type": "TargetObject",
+                "optional": true,
+                "filter": {
+                    "baseFilter": "creature"
+                },
+                "dynamicMaxCount": "XValue"
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "46",
+        "rarity": "RARE",
+        "artist": "James Ryman",
+        "flavorText": "Another imminent battle subsided in busy snuffling and carefree rooting.",
+        "imageUri": "https://cards.scryfall.io/normal/front/7/8/78831fc6-ea90-4546-b46a-9c192dbefc65.jpg?1783939800"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
+
 // Cutthroat Maneuver
 {
     "name": "Cutthroat Maneuver",
@@ -859,6 +918,55 @@
         "artist": "Zack Stella",
         "flavorText": "\"When you threaten the sanctity of the polis, you insult Ephara herself. If she doesn't smite you, I will.\"",
         "imageUri": "https://cards.scryfall.io/normal/front/7/1/71f7f788-2795-46a7-82ae-270f1e9415ca.jpg"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
+// Evangel of Heliod
+{
+    "name": "Evangel of Heliod",
+    "manaCost": "{4}{W}{W}",
+    "typeLine": "Creature — Human Cleric",
+    "oracleText": "When this creature enters, create a number of 1/1 white Soldier creature tokens equal to your devotion to white. (Each {W} in the mana costs of permanents you control counts toward your devotion to white.)",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 3
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "CreateToken",
+                    "count": {
+                        "type": "DevotionTo",
+                        "colors": [
+                            "WHITE"
+                        ]
+                    },
+                    "power": 1,
+                    "toughness": 1,
+                    "colors": [
+                        "WHITE"
+                    ],
+                    "creatureTypes": [
+                        "Soldier"
+                    ]
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "11",
+        "rarity": "UNCOMMON",
+        "artist": "Nils Hamm",
+        "imageUri": "https://cards.scryfall.io/normal/front/b/b/bb914a85-3755-4663-8309-6f6d0319262e.jpg?1783939817"
     },
     "colorIdentityOverride": [
         "WHITE"

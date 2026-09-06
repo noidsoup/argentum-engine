@@ -433,6 +433,7 @@ val engineSerializersModule = SerializersModule {
         subclass(PlayWithAdditionalCostComponent::class)
         subclass(PlayWithCostIncreaseComponent::class)
         subclass(PlayWithFixedAlternativeManaCostComponent::class)
+        subclass(com.wingedsheep.engine.state.components.identity.ForetellCastOptionsComponent::class)
         subclass(PlayWithoutPayingCostComponent::class)
         subclass(WarpExiledComponent::class)
         subclass(PlottedComponent::class)

@@ -1018,6 +1018,10 @@ class StaticAbilityHandler(
             // Plot special-action cost (PlotCostReducer / PlotEnumerator / PlotCardHandler):
             is ModifyPlotCost,
 
+            // Foretell special-action setup cost (ForetellSetupCostReducer / ForetellEnumerator /
+            // ForetellCardHandler):
+            is com.wingedsheep.sdk.scripting.ModifyForetellSetupCost,
+
             // Door-unlock special-action cost (UnlockCostReducer / UnlockRoomDoorEnumerator /
             // UnlockRoomDoorHandler):
             is ModifyUnlockCost,

@@ -5,6 +5,7 @@ import com.wingedsheep.engine.core.ForEachContinuation
 import com.wingedsheep.engine.core.ForEachItem
 import com.wingedsheep.engine.core.GameEvent
 import com.wingedsheep.engine.handlers.EffectContext
+import com.wingedsheep.engine.handlers.PipelineState
 import com.wingedsheep.engine.handlers.effects.BattlefieldFilterUtils
 import com.wingedsheep.engine.handlers.effects.EffectExecutor
 import com.wingedsheep.engine.handlers.effects.TargetResolutionUtils
@@ -145,12 +146,34 @@ class ForEachExecutor(
                     result.updatedCollections
                 )
             }
+            if (result.updatedStoredPerPlayerNumbers.isNotEmpty()) {
+                currentOuterContext = currentOuterContext.copy(
+                    pipeline = currentOuterContext.pipeline.copy(
+                        storedPerPlayerNumbers = PipelineState.mergePerPlayerNumbers(
+                            currentOuterContext.pipeline.storedPerPlayerNumbers,
+                            result.updatedStoredPerPlayerNumbers,
+                        ),
+                    ),
+                )
+            }
         }
 
         val collected = effect.collectCollections.values.associateWith { aggregate ->
             currentOuterContext.pipeline.storedCollections[aggregate].orEmpty()
         }
-        return EffectResult(currentState, allEvents, updatedCollections = collected)
+        val accumulatedPerPlayerNumbers = currentOuterContext.pipeline.storedPerPlayerNumbers
+            .mapNotNull { (storeAs, playerCounts) ->
+                val before = outerContext.pipeline.storedPerPlayerNumbers[storeAs] ?: emptyMap()
+                val delta = playerCounts.filter { (playerId, count) -> before[playerId] != count }
+                if (delta.isEmpty()) null else storeAs to delta
+            }
+            .toMap()
+        return EffectResult(
+            currentState,
+            allEvents,
+            updatedCollections = collected,
+            updatedStoredPerPlayerNumbers = accumulatedPerPlayerNumbers,
+        )
     }
 
     private fun appendCollectedCollections(

@@ -1632,6 +1632,7 @@ internal fun EmitCtx.spellBlock(card: JsonObject): List<Stmt>? {
     // One-line `effect =` shortcuts, then whole-block shortcuts, then the generic envelope path.
     eachplayerMaydraw(card)?.let { return spellOf(it) }
     fluxEffect(card)?.let { return spellOf(it) }
+    windfallEffect(card)?.let { return spellOf(it) }
     windsEffect(card)?.let { return spellOf(it) }
     extraTurnEffect(card)?.let { return spellOf(it) }
     distributedSpell(card)?.let { return it }

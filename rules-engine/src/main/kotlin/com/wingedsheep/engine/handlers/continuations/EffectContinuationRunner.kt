@@ -3,6 +3,7 @@ package com.wingedsheep.engine.handlers.continuations
 import com.wingedsheep.engine.core.EffectContinuation
 import com.wingedsheep.engine.core.EffectResult
 import com.wingedsheep.engine.handlers.EffectContext
+import com.wingedsheep.engine.handlers.PipelineState
 import com.wingedsheep.engine.handlers.effects.EffectExecutorRegistry
 import com.wingedsheep.engine.state.GameState
 import com.wingedsheep.sdk.scripting.effects.Effect
@@ -72,6 +73,7 @@ class EffectContinuationRunner(
             if (result.updatedCollections.isNotEmpty() ||
                 result.updatedSubtypeGroups.isNotEmpty() ||
                 result.updatedStoredNumbers.isNotEmpty() ||
+                result.updatedStoredPerPlayerNumbers.isNotEmpty() ||
                 result.updatedChosenValues.isNotEmpty()
             ) {
                 currentContext = currentContext.copy(
@@ -79,6 +81,10 @@ class EffectContinuationRunner(
                         storedCollections = currentContext.pipeline.storedCollections + result.updatedCollections,
                         storedSubtypeGroups = currentContext.pipeline.storedSubtypeGroups + result.updatedSubtypeGroups,
                         storedNumbers = currentContext.pipeline.storedNumbers + result.updatedStoredNumbers,
+                        storedPerPlayerNumbers = PipelineState.mergePerPlayerNumbers(
+                            currentContext.pipeline.storedPerPlayerNumbers,
+                            result.updatedStoredPerPlayerNumbers,
+                        ),
                         chosenValues = currentContext.pipeline.chosenValues + result.updatedChosenValues
                     )
                 )
@@ -99,6 +105,13 @@ class EffectContinuationRunner(
         val accumulatedCollections = currentContext.pipeline.storedCollections - initialContext.pipeline.storedCollections.keys
         val accumulatedSubtypeGroups = currentContext.pipeline.storedSubtypeGroups - initialContext.pipeline.storedSubtypeGroups.keys
         val accumulatedStoredNumbers = currentContext.pipeline.storedNumbers - initialContext.pipeline.storedNumbers.keys
+        val accumulatedStoredPerPlayerNumbers = currentContext.pipeline.storedPerPlayerNumbers
+            .mapNotNull { (storeAs, playerCounts) ->
+                val before = initialContext.pipeline.storedPerPlayerNumbers[storeAs] ?: emptyMap()
+                val delta = playerCounts.filter { (playerId, count) -> before[playerId] != count }
+                if (delta.isEmpty()) null else storeAs to delta
+            }
+            .toMap()
         val accumulatedChosenValues = currentContext.pipeline.chosenValues - initialContext.pipeline.chosenValues.keys
         val accumulatedSacrificed = currentContext.sacrificedPermanents.drop(initialContext.sacrificedPermanents.size)
         return EffectResult(
@@ -107,6 +120,7 @@ class EffectContinuationRunner(
             updatedCollections = accumulatedCollections,
             updatedSubtypeGroups = accumulatedSubtypeGroups,
             updatedStoredNumbers = accumulatedStoredNumbers,
+            updatedStoredPerPlayerNumbers = accumulatedStoredPerPlayerNumbers,
             updatedChosenValues = accumulatedChosenValues,
             updatedSacrificedPermanents = accumulatedSacrificed
         )

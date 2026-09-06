@@ -20,6 +20,11 @@ data class PipelineState(
     val chosenValues: Map<String, String> = emptyMap(),
     /** Named numeric values stored by pipeline effects (e.g., cards not drawn). */
     val storedNumbers: Map<String, Int> = emptyMap(),
+    /**
+     * Per-player tallies keyed by store name, then player id. Used when a [ForEachPlayerEffect]
+     * records a per-iteration count that a later step maximizes across players (Windfall).
+     */
+    val storedPerPlayerNumbers: Map<String, Map<EntityId, Int>> = emptyMap(),
     /** Named string lists stored by pipeline effects (e.g., chosen creature types). */
     val storedStringLists: Map<String, List<String>> = emptyMap(),
     /**
@@ -33,6 +38,18 @@ data class PipelineState(
 ) {
     companion object {
         val EMPTY = PipelineState()
+
+        fun mergePerPlayerNumbers(
+            existing: Map<String, Map<EntityId, Int>>,
+            update: Map<String, Map<EntityId, Int>>,
+        ): Map<String, Map<EntityId, Int>> {
+            if (update.isEmpty()) return existing
+            val merged = existing.toMutableMap()
+            for ((storeAs, playerCounts) in update) {
+                merged[storeAs] = (existing[storeAs] ?: emptyMap()) + playerCounts
+            }
+            return merged
+        }
 
         /**
          * Pipeline collection name under which a batch trigger seeds the entities it captured

@@ -434,6 +434,9 @@ class DynamicAmountEvaluator(
                     evaluate(state, amount.inner, context.copy(controllerId = playerId), projectedState)
                 } ?: 0
 
+            is DynamicAmount.GreatestPerPlayerNumber ->
+                context.pipeline.storedPerPlayerNumbers[amount.storeAs]?.values?.maxOrNull() ?: 0
+
             // Devotion (CR 700.5): the number of mana symbols of the named colors among the mana
             // costs of permanents the player controls. Hybrid ({W/U}), monocolored hybrid ({2/B}),
             // and Phyrexian ({B/P}) symbols each count toward their color(s); a symbol matching more

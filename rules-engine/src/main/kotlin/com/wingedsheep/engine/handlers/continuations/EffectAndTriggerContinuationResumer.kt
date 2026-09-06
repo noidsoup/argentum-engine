@@ -1,6 +1,7 @@
 package com.wingedsheep.engine.handlers.continuations
 
 import com.wingedsheep.engine.core.*
+import com.wingedsheep.engine.handlers.PipelineState
 import com.wingedsheep.engine.state.GameState
 import com.wingedsheep.engine.state.components.identity.CardComponent
 import com.wingedsheep.engine.state.components.stack.ChosenTarget
@@ -60,6 +61,10 @@ class EffectAndTriggerContinuationResumer(
             effectResult.state,
             continuation.effectContext.pipeline.storedCollections + effectResult.updatedCollections,
             continuation.effectContext.pipeline.storedNumbers + effectResult.updatedStoredNumbers,
+            PipelineState.mergePerPlayerNumbers(
+                continuation.effectContext.pipeline.storedPerPlayerNumbers,
+                effectResult.updatedStoredPerPlayerNumbers,
+            ),
             continuation.effectContext.pipeline.chosenValues + effectResult.updatedChosenValues,
         )
         return checkForMore(stateWithCollections, effectResult.events.toList())
@@ -544,6 +549,10 @@ class EffectAndTriggerContinuationResumer(
             result.state,
             continuation.effectContext.pipeline.storedCollections + branchResult.updatedCollections,
             continuation.effectContext.pipeline.storedNumbers + branchResult.updatedStoredNumbers,
+            PipelineState.mergePerPlayerNumbers(
+                continuation.effectContext.pipeline.storedPerPlayerNumbers,
+                branchResult.updatedStoredPerPlayerNumbers,
+            ),
             continuation.effectContext.pipeline.chosenValues + branchResult.updatedChosenValues,
         )
 

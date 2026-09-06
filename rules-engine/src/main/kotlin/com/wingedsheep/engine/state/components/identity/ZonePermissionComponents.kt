@@ -201,6 +201,18 @@ data class PlayWithFixedAlternativeManaCostComponent(
 ) : Component
 
 /**
+ * Additional foretell cast costs beyond the single [PlayWithFixedAlternativeManaCostComponent]
+ * stamped by the Foretell keyword. When a card has multiple foretell costs (printed keyword +
+ * an effect-granted cost such as Ethereal Valkyrie), each cost is stored here and the
+ * cast-from-exile enumerator offers one cast action per cost.
+ */
+@Serializable
+data class ForetellCastOptionsComponent(
+    val controllerId: EntityId,
+    val costs: List<com.wingedsheep.sdk.core.ManaCost>,
+) : Component
+
+/**
  * Marks a spell so that if it would be put into a graveyard after resolving, being countered or
  * fizzling, it goes to [destination] instead. Used by effects like Daring Waverider that grant
  * one-shot free casts from exile with "exile it instead" clauses, and by Kylox's Voltstrider,

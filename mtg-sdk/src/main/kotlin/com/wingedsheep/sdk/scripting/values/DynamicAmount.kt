@@ -1303,6 +1303,22 @@ sealed interface DynamicAmount : TextReplaceable<DynamicAmount> {
     }
 
     /**
+     * The greatest value recorded under [storeAs] in pipeline `storedPerPlayerNumbers`.
+     * Used after a [RecordPerPlayerNumberEffect] loop to read "the greatest number of cards
+     * a player discarded this way" (Windfall, Whispering Madness, Jace's Archivist).
+     */
+    @SerialName("GreatestPerPlayerNumber")
+    @Serializable
+    data class GreatestPerPlayerNumber(
+        val storeAs: String,
+    ) : DynamicAmount {
+        override val description: String =
+            "the greatest number recorded under $storeAs"
+
+        override fun applyTextReplacement(replacer: TextReplacer): DynamicAmount = this
+    }
+
+    /**
      * Generic zone aggregation primitive.
      * Queries cards in a player's zone, filters them, optionally maps to a numeric
      * property, and applies an aggregation function.

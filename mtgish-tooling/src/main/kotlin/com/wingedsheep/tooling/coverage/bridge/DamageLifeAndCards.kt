@@ -21,6 +21,14 @@ internal fun BridgeBuilder.damageLifeAndCards() {
     // emitter renders ONLY the exact shape (a "permanent would die" replaceable event on a bound target,
     // a lone ExileItInstead replacement, until end of turn); other shapes scaffold.
     effect("CreateReplaceWouldPutIntoGraveyardUntil", "MarkExileOnDeath")
+    // "If a permanent you control would be put into a graveyard from the battlefield this turn,
+    // exile it instead. Return it … at the beginning of the next end step" (Cosmic Intervention) —
+    // a granted RedirectZoneChangeWithEffect + delayed return. Capability-only; the emitter
+    // declines until the full exile-and-return shape is mapped.
+    effect(
+        "CreateReplaceWouldPutIntoGraveyardUntilReturnAtEndStep",
+        "GrantExileInsteadOfDeathFromBattlefieldWithReturn",
+    )
 
     // "where X is …" — mtgish binds the value with a CreateValueX action, then a later action spends
     // `ValueX`. Argentum has no separate "set X" step for a one-shot spell: the computed DynamicAmount

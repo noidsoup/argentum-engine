@@ -601,6 +601,7 @@ object CardLinter {
         put("ChooseEntity" to "storeAs", write(Space.COLLECTION))
         put("ChooseOnePerCategory" to "storeAs", write(Space.COLLECTION))
         put("StoreNumber" to "name", write(Space.NUMBER))
+        put("RecordPerPlayerNumber" to "storeAs", write(Space.NUMBER))
         put("FlipCoins" to "storeHeadsAs", write(Space.NUMBER))
         put("FlipCoinsUntilLoss" to "storeWinsAs", write(Space.NUMBER))
         put("PlayerGuessesConditionEffect" to "storeGuessedRightAs", write(Space.NUMBER))
@@ -621,6 +622,7 @@ object CardLinter {
             "CaptureControllers", "GatherSubtypes", "RevealCollection", "SelectFromCollection",
             "ChoosePile", "MoveCollection", "GrantMayPlayFromExile", "GrantPlayWithoutPayingCost",
             "MakePlotted",
+            "MakeForetold",
             "GrantPlayWithAdditionalCost", "GrantPlayWithCostIncrease", "FilterCollection",
             "ChooseOnePerCategory",
             "StoreCardName", "CastFromCollectionWithoutPayingCost", "PlayFromCollectionWithoutPayingCost",

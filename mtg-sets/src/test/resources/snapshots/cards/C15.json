@@ -143,6 +143,83 @@
     ]
 }
 
+// Synthetic Destiny
+{
+    "name": "Synthetic Destiny",
+    "manaCost": "{4}{U}{U}",
+    "typeLine": "Instant",
+    "oracleText": "Exile all creatures you control. At the beginning of the next end step, reveal cards from the top of your library until you reveal that many creature cards, put all creature cards revealed this way onto the battlefield, then shuffle the rest of the revealed cards into your library.",
+    "script": {
+        "spellEffect": {
+            "type": "Composite",
+            "effects": [
+                {
+                    "type": "GatherCards",
+                    "source": {
+                        "type": "BattlefieldMatching",
+                        "filter": "creature ctrl:you"
+                    },
+                    "storeAs": "creaturesOnBf"
+                },
+                {
+                    "type": "MoveCollection",
+                    "from": "creaturesOnBf",
+                    "destination": {
+                        "type": "ToZone",
+                        "zone": "Exile"
+                    },
+                    "storeMovedAs": "exiledCreatures"
+                },
+                {
+                    "type": "CreateDelayedTrigger",
+                    "step": "END",
+                    "effect": {
+                        "type": "Composite",
+                        "effects": [
+                            {
+                                "type": "GatherUntilMatch",
+                                "filter": "creature",
+                                "storeMatch": "matchedCreatures",
+                                "storeRevealed": "allRevealed",
+                                "count": {
+                                    "type": "DistinctEntitiesInCollections",
+                                    "collections": [
+                                        "exiledCreatures"
+                                    ]
+                                }
+                            },
+                            {
+                                "type": "RevealCollection",
+                                "from": "allRevealed",
+                                "fromZone": "Library",
+                                "toZone": "Battlefield"
+                            },
+                            {
+                                "type": "MoveCollection",
+                                "from": "matchedCreatures",
+                                "destination": {
+                                    "type": "ToZone",
+                                    "zone": "Battlefield"
+                                }
+                            },
+                            "ShuffleLibrary"
+                        ]
+                    }
+                }
+            ]
+        }
+    },
+    "metadata": {
+        "collectorNumber": "15",
+        "rarity": "RARE",
+        "artist": "Dave Kendall",
+        "imageUri": "https://cards.scryfall.io/normal/front/6/a/6ab025e6-9ee7-45f0-b829-199637eb0038.jpg?1783938115"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
+
 // Thought Vessel
 {
     "name": "Thought Vessel",

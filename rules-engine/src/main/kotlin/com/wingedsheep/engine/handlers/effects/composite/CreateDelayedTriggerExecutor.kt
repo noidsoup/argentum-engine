@@ -24,6 +24,7 @@ import com.wingedsheep.sdk.scripting.effects.DestroyAllEquipmentOnTargetEffect
 import com.wingedsheep.sdk.scripting.effects.FlipCoinEffect
 import com.wingedsheep.sdk.scripting.effects.Gate
 import com.wingedsheep.sdk.scripting.effects.GatedEffect
+import com.wingedsheep.sdk.scripting.effects.GatherUntilMatchEffect
 import com.wingedsheep.sdk.scripting.effects.SacrificeTargetEffect
 import com.wingedsheep.sdk.scripting.effects.WarpExileEffect
 import com.wingedsheep.sdk.scripting.targets.EffectTarget
@@ -383,6 +384,16 @@ class CreateDelayedTriggerExecutor : EffectExecutor<CreateDelayedTriggerEffect> 
             // stays lazy so "at the beginning of your end step, create a token for each …" keeps
             // counting when the card says to count.
             is CreateTokenEffect -> {
+                val count = snapshotPipelineAmount(effect.count, context, state)
+                if (count !== effect.count) effect.copy(count = count) else effect
+            }
+            // "At the beginning of the next end step, reveal cards from the top of your library
+            // until you reveal that many creature cards" (Synthetic Destiny). The count reads the
+            // pipeline collection of creatures exiled this way, and that pipeline is gone by the
+            // time the trigger fires — same freeze as CreateTokenEffect above. Board-state counts
+            // (e.g. "until you reveal X permanent cards, where X is the number of colors…") stay
+            // lazy so they evaluate when the trigger fires.
+            is GatherUntilMatchEffect -> {
                 val count = snapshotPipelineAmount(effect.count, context, state)
                 if (count !== effect.count) effect.copy(count = count) else effect
             }

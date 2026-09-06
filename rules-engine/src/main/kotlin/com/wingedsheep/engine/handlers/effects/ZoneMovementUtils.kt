@@ -127,6 +127,15 @@ object ZoneMovementUtils {
         com.wingedsheep.engine.handlers.effects.token.CreateTokenExecutor()
 
     /**
+     * Delayed-trigger executor used by [applyReplacementAdditionalEffect] for a replacement's
+     * "…exile it instead. Return it at the beginning of the next end step" rider (Cosmic
+     * Intervention's granted replacement).
+     */
+    var createDelayedTriggerExecutor:
+        com.wingedsheep.engine.handlers.effects.composite.CreateDelayedTriggerExecutor =
+        com.wingedsheep.engine.handlers.effects.composite.CreateDelayedTriggerExecutor()
+
+    /**
      * Destinations that the commander zone-change replacement can intercept (CR 903.9).
      * Battlefield, stack, and command itself are intentionally excluded — commanders enter
      * the battlefield like any other permanent, can sit on the stack while resolving, and
@@ -868,22 +877,40 @@ object ZoneMovementUtils {
         }
 
         // Granted (durational) replacement effects — e.g. Forgotten Cellar's "if a card would be
-        // put into your graveyard from anywhere this turn, exile it instead". Recorded in
+        // put into your graveyard from anywhere this turn, exile it instead", or Cosmic
+        // Intervention's exile-and-return-at-end-step grant. Recorded in
         // GameState.grantedReplacementEffects with the granting controller, and read here
         // alongside permanents' printed replacement effects.
         for (grant in state.grantedReplacementEffects) {
-            val effect = grant.replacement
-            if (effect !is RedirectZoneChange) continue
+            when (val effect = grant.replacement) {
+                is RedirectZoneChange -> {
+                    val event = effect.appliesTo
+                    if (event !is com.wingedsheep.sdk.scripting.EventPattern.ZoneChangeEvent) continue
 
-            val event = effect.appliesTo
-            if (event !is com.wingedsheep.sdk.scripting.EventPattern.ZoneChangeEvent) continue
+                    if (event.to != null && event.to != toZone) continue
+                    if (event.from != null && event.from != fromZone) continue
+                    if (!matchesZoneChangeFilter(state, entityId, container, event.filter, grant.controllerId)) continue
+                    if (!causeSatisfied(state, entityId, container, effect.requiredCause)) continue
 
-            if (event.to != null && event.to != toZone) continue
-            if (event.from != null && event.from != fromZone) continue
-            if (!matchesZoneChangeFilter(state, entityId, container, event.filter, grant.controllerId)) continue
-            if (!causeSatisfied(state, entityId, container, effect.requiredCause)) continue
+                    return ZoneChangeRedirectResult(effect.newDestination)
+                }
+                is RedirectZoneChangeWithEffect -> {
+                    val event = effect.appliesTo
+                    if (event !is com.wingedsheep.sdk.scripting.EventPattern.ZoneChangeEvent) continue
 
-            return ZoneChangeRedirectResult(effect.newDestination)
+                    if (event.to != null && event.to != toZone) continue
+                    if (event.from != null && event.from != fromZone) continue
+                    if (!matchesZoneChangeFilter(state, entityId, container, event.filter, grant.controllerId)) continue
+
+                    return ZoneChangeRedirectResult(
+                        effect.newDestination,
+                        effect.additionalEffect,
+                        grant.controllerId,
+                        effectSourceId = grant.entityId
+                    )
+                }
+                else -> continue
+            }
         }
 
         return ZoneChangeRedirectResult(toZone)
@@ -1034,7 +1061,42 @@ object ZoneMovementUtils {
             if (result.error != null) return state to emptyList()
             return result.state to result.events
         }
+        if (effect is com.wingedsheep.sdk.scripting.effects.CreateDelayedTriggerEffect && entityId != null) {
+            // Cosmic Intervention and other exile-instead riders that schedule a return at the next
+            // end step. The redirected card's id is baked into the delayed trigger now — the
+            // replacement-time context is gone by then.
+            val cid = controllerId ?: return state to emptyList()
+            val bakedEffect = effect.copy(effect = bakeRedirectedEntityTarget(effect.effect, entityId))
+            val result = createDelayedTriggerExecutor.execute(
+                state,
+                bakedEffect,
+                com.wingedsheep.engine.handlers.EffectContext(
+                    sourceId = sourceId,
+                    controllerId = cid
+                )
+            )
+            if (result.error != null) return state to emptyList()
+            return result.state to result.events
+        }
         return state to emptyList()
+    }
+
+    /**
+     * Freeze context-dependent targets in a replacement rider onto [entityId] — the card whose zone
+     * change was redirected. Used when scheduling a delayed return at end step from a granted
+     * [RedirectZoneChangeWithEffect].
+     */
+    private fun bakeRedirectedEntityTarget(
+        effect: com.wingedsheep.sdk.scripting.effects.Effect,
+        entityId: EntityId
+    ): com.wingedsheep.sdk.scripting.effects.Effect {
+        return when (effect) {
+            is com.wingedsheep.sdk.scripting.effects.MoveToZoneEffect ->
+                effect.copy(target = com.wingedsheep.sdk.scripting.targets.EffectTarget.SpecificEntity(entityId))
+            is com.wingedsheep.sdk.scripting.effects.CompositeEffect ->
+                effect.copy(effects = effect.effects.map { bakeRedirectedEntityTarget(it, entityId) })
+            else -> effect
+        }
     }
 
     /**

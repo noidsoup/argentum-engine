@@ -19,6 +19,7 @@ internal fun BridgeBuilder.zoneMovement() {
     composed("ExileACardFromHand", "Gather(hand)/Select/MoveCollection -> exile (Effects.EachOpponentExilesFromHand)", composes = listOf("MoveCollection"))
     composed("DiscardNumberCards", "MoveToZone hand->graveyard, N", composes = listOf("MoveCollection"))
     composed("DiscardAnyNumberOfCards", "MoveToZone hand->graveyard, any", composes = listOf("MoveCollection"))
+    composed("DiscardHand", "Patterns.Hand.discardHand -> Gather/MoveCollection", composes = listOf("MoveCollection"))
     composed("DiscardACardAtRandom", "Patterns.Hand.discardRandom -> MoveCollection", composes = listOf("MoveCollection"))
 
     composed("PutGraveyardCardIntoHand", "MoveCollection graveyard->hand", composes = listOf("MoveToZone"))

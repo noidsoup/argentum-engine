@@ -61,6 +61,11 @@ class EnumerationContext(
     // Plot (CR 718) cost reduction — Doc Aurlock-style "plotting cards costs {N} less".
     val plotCostReducer by lazy { com.wingedsheep.engine.mechanics.mana.PlotCostReducer(cardRegistry) }
 
+    // Foretell (CR 702.143a) setup cost reduction — Ranar-style "first foretell costs {0}".
+    val foretellSetupCostReducer by lazy {
+        com.wingedsheep.engine.mechanics.mana.ForetellSetupCostReducer(cardRegistry)
+    }
+
     // Door-unlock (CR 709.5e) cost reduction — Inquisitive-Glimmer-style "Unlock costs you pay
     // cost {N} less". Kept in lockstep with UnlockRoomDoorHandler's own reducer.
     val unlockCostReducer by lazy { com.wingedsheep.engine.mechanics.mana.UnlockCostReducer(cardRegistry) }

@@ -922,6 +922,58 @@
     ]
 }
 
+// Moldervine Reclamation
+{
+    "name": "Moldervine Reclamation",
+    "manaCost": "{3}{B}{G}",
+    "typeLine": "Enchantment",
+    "oracleText": "Whenever a creature you control dies, you gain 1 life and draw a card.",
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "filter": "creature ctrl:you",
+                    "from": "Battlefield",
+                    "to": "Graveyard"
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "GainLife",
+                            "amount": {
+                                "type": "Fixed",
+                                "amount": 1
+                            }
+                        },
+                        {
+                            "type": "DrawCards",
+                            "count": {
+                                "type": "Fixed",
+                                "amount": 1
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "214",
+        "rarity": "UNCOMMON",
+        "artist": "Antonio José Manzanedo",
+        "flavorText": "\"The heroes of the past nourish our spirits by their example—and nourish our crops by their decay.\"\n—Jeddeg, philosopher of graves",
+        "imageUri": "https://cards.scryfall.io/normal/front/6/1/618d21fe-8e3d-4887-b2e4-b92194ba1902.jpg?1783932949"
+    },
+    "colorIdentityOverride": [
+        "BLACK",
+        "GREEN"
+    ]
+}
+
 // Octoprophet
 {
     "name": "Octoprophet",

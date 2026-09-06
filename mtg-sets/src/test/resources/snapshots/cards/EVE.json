@@ -75,6 +75,81 @@
     ]
 }
 
+// Flickerwisp
+{
+    "name": "Flickerwisp",
+    "manaCost": "{1}{W}{W}",
+    "typeLine": "Creature — Elemental",
+    "oracleText": "Flying\nWhen this creature enters, exile another target permanent. Return that card to the battlefield under its owner's control at the beginning of the next end step.",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 1
+    },
+    "keywords": [
+        "FLYING"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "MoveToZone",
+                            "target": {
+                                "type": "BoundVariable",
+                                "name": "another target permanent"
+                            },
+                            "destination": "Exile"
+                        },
+                        {
+                            "type": "CreateDelayedTrigger",
+                            "step": "END",
+                            "effect": {
+                                "type": "MoveToZone",
+                                "target": {
+                                    "type": "BoundVariable",
+                                    "name": "another target permanent"
+                                },
+                                "destination": "Battlefield"
+                            }
+                        }
+                    ]
+                },
+                "targetRequirement": {
+                    "type": "TargetObject",
+                    "filter": {
+                        "baseFilter": "permanent",
+                        "excludeSelf": true
+                    },
+                    "id": "another target permanent"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "6",
+        "rarity": "UNCOMMON",
+        "artist": "Jeremy Enecio",
+        "flavorText": "Its wings disturb more than air.",
+        "imageUri": "https://cards.scryfall.io/normal/front/5/b/5bb3cb5c-8d66-4f5e-a9a9-917e6045f024.jpg?1783942694",
+        "rulings": [
+            {
+                "date": "2009-10-01",
+                "text": "If a token is exiled this way, it will cease to exist and won't return to the battlefield."
+            }
+        ]
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
 // Noggle Ransacker
 {
     "name": "Noggle Ransacker",

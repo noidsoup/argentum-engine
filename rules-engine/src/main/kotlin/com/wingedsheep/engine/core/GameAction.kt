@@ -194,7 +194,13 @@ data class CastSpell(
      * synthesized free casts) leave it null. Mirrors how [useWithoutPayingManaCost] was split
      * out as its own flag for the same reason (CR 118.9a — only one alternative cost per cast).
      */
-    val alternativeCostType: AlternativeCostType? = null
+    val alternativeCostType: AlternativeCostType? = null,
+    /**
+     * When casting a foretold card with multiple foretell costs (printed keyword + effect-granted
+     * cost), selects which cost from [ForetellCastOptionsComponent] / keyword cost list to pay.
+     * `null` defaults to index 0. Only meaningful when more than one foretell cost is available.
+     */
+    val foretellCostIndex: Int? = null,
 ) : GameAction
 
 /**

@@ -449,6 +449,13 @@ internal fun BridgeBuilder.triggersCostsAndContinuous() {
     // static over the Plot special action (CR 718). Renders to `ModifyPlotCost(target =
     // PlotCostTarget.YouPlotFromHand, modification = ReduceGeneric(N))`.
     effect("DecreasePlotFromHandCost", "ModifyPlotCost")
+    // "The first card you foretell each turn costs {0} to foretell" (Ranar) — controller-scoped
+    // static over the Foretell special-action setup cost (CR 702.143a). Renders to
+    // `ModifyForetellSetupCost(..., gating = NthForetellPerTurn(1))`.
+    effect("DecreaseFirstForetellSetupCost", "ModifyForetellSetupCost")
+
+    // "It becomes foretold. Its foretell cost is its mana cost reduced by {2}" (Ethereal Valkyrie).
+    supported("MakeForetold", "pipeline: exile face-down card becomes foretold with computed cost (MakeForetoldEffect)")
 
     // Fblthp, Lost on the Range (CR 718) — top-of-library plot + look. Nested _PlayerEffect /
     // _Rule capabilities of the controller-scoped statics.

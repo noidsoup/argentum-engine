@@ -23,12 +23,14 @@ import com.wingedsheep.sdk.scripting.effects.GainLifeEffect
 import com.wingedsheep.sdk.scripting.effects.GatherCardsEffect
 import com.wingedsheep.sdk.scripting.effects.MoveCollectionEffect
 import com.wingedsheep.sdk.scripting.effects.MoveType
+import com.wingedsheep.sdk.scripting.effects.RecordPerPlayerNumberEffect
 import com.wingedsheep.sdk.scripting.effects.RepeatDynamicTimesEffect
 import com.wingedsheep.sdk.scripting.effects.RevealHandEffect
 import com.wingedsheep.sdk.scripting.effects.SelectFromCollectionEffect
 import com.wingedsheep.sdk.scripting.effects.SelectTargetEffect
 import com.wingedsheep.sdk.scripting.effects.SelectionMode
 import com.wingedsheep.sdk.scripting.effects.SelectionRestriction
+import com.wingedsheep.sdk.scripting.effects.StoreNumberEffect
 import com.wingedsheep.sdk.scripting.effects.ZonePlacement
 import com.wingedsheep.sdk.scripting.references.Player
 import com.wingedsheep.sdk.scripting.targets.EffectTarget
@@ -475,6 +477,45 @@ object HandPatterns {
         }
         return CompositeEffect(effects)
     }
+
+    /**
+     * "Each player discards their hand, then draws cards equal to the greatest number of cards a
+     * player discarded this way." — Windfall, Whispering Madness, Jace's Archivist.
+     *
+     * Phase one: each player discards their entire hand via [discardHand] and records the count in
+     * pipeline `storedPerPlayerNumbers` through [RecordPerPlayerNumberEffect]. Phase two: freeze the
+     * table maximum with [StoreNumberEffect] over [DynamicAmount.GreatestPerPlayerNumber]. Phase
+     * three: each player draws that many cards.
+     *
+     * Not [eachPlayerDiscardsDraws], which is Flux's "discard any number, then draw that many" per
+     * player with no cross-player maximum.
+     */
+    fun eachPlayerDiscardsHandDrawsGreatest(): CompositeEffect = CompositeEffect(
+        effects = listOf(
+            ForEachPlayerEffect(
+                players = Player.Each,
+                effects = listOf(
+                    discardHand(),
+                    RecordPerPlayerNumberEffect(
+                        storeAs = "discardCounts",
+                        amount = DynamicAmount.VariableReference("discardedHand_count"),
+                    ),
+                ),
+            ),
+            StoreNumberEffect(
+                name = "drawCount",
+                amount = DynamicAmount.GreatestPerPlayerNumber("discardCounts"),
+            ),
+            ForEachPlayerEffect(
+                players = Player.Each,
+                effects = listOf(
+                    DrawCardsEffect(DynamicAmount.VariableReference("drawCount")),
+                ),
+            ),
+        ),
+        descriptionOverride = "Each player discards their hand, then draws cards equal to the " +
+            "greatest number of cards a player discarded this way.",
+    )
 
     fun discardHand(target: EffectTarget = EffectTarget.Controller): CompositeEffect {
         val player = effectTargetToPlayer(target)

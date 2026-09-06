@@ -1193,11 +1193,16 @@ class CastSpellHandler(
         // {1} more") is not part of the cost it replaces, so it still applies on top: an airbended
         // card cast under a {1}-tax costs {3}, not {2}.
         if (!playForFree) {
-            val fixedAltCost = state.getEntity(action.cardId)
-                ?.get<PlayWithFixedAlternativeManaCostComponent>()
-                ?.takeIf { it.controllerId == action.playerId }
-            if (fixedAltCost != null) {
-                effectiveCost = fixedAltCost.fixedCost
+            val container = state.getEntity(action.cardId)
+            val foretellCost = container?.let {
+                com.wingedsheep.engine.mechanics.foretell.ForetellCastCosts.resolveCost(
+                    it,
+                    action.playerId,
+                    action.foretellCostIndex,
+                )
+            }
+            if (foretellCost != null) {
+                effectiveCost = foretellCost
             }
             // Apply runtime mana tax from exile permissions (e.g., Soul Partition) on top of
             // whichever base applies (printed cost, or the fixed alternative above).
@@ -2560,11 +2565,16 @@ class CastSpellHandler(
         // Partition / Thalia-style tax) still applies on top of it. Mirrors the validation-phase
         // branch above.
         if (!playForFreeInExecute) {
-            val fixedAltCost = currentState.getEntity(action.cardId)
-                ?.get<PlayWithFixedAlternativeManaCostComponent>()
-                ?.takeIf { it.controllerId == action.playerId }
-            if (fixedAltCost != null) {
-                effectiveCost = fixedAltCost.fixedCost
+            val container = currentState.getEntity(action.cardId)
+            val foretellCost = container?.let {
+                com.wingedsheep.engine.mechanics.foretell.ForetellCastCosts.resolveCost(
+                    it,
+                    action.playerId,
+                    action.foretellCostIndex,
+                )
+            }
+            if (foretellCost != null) {
+                effectiveCost = foretellCost
             }
             // Apply runtime mana tax from exile permissions (e.g., Soul Partition) on top.
             val runtimeCostIncrease = currentState.getEntity(action.cardId)

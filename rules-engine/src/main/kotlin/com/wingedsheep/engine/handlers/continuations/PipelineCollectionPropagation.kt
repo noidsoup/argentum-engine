@@ -6,6 +6,7 @@ import com.wingedsheep.engine.core.ForEachContinuation
 import com.wingedsheep.engine.core.ReflexiveTriggerTargetContinuation
 import com.wingedsheep.engine.core.RepeatWhileContinuation
 import com.wingedsheep.engine.handlers.EffectContext
+import com.wingedsheep.engine.handlers.PipelineState
 import com.wingedsheep.engine.state.GameState
 import com.wingedsheep.sdk.model.EntityId
 
@@ -58,15 +59,22 @@ fun exposeCollectionsToNextFrame(
     state: GameState,
     collections: Map<String, List<EntityId>>,
     numbers: Map<String, Int> = emptyMap(),
+    perPlayerNumbers: Map<String, Map<EntityId, Int>> = emptyMap(),
     chosenValues: Map<String, String> = emptyMap(),
 ): GameState {
-    if (collections.isEmpty() && numbers.isEmpty() && chosenValues.isEmpty()) return state
+    if (collections.isEmpty() && numbers.isEmpty() && perPlayerNumbers.isEmpty() && chosenValues.isEmpty()) {
+        return state
+    }
 
     fun EffectContext.withMergedCollections(): EffectContext =
         copy(
             pipeline = pipeline.copy(
                 storedCollections = pipeline.storedCollections + collections,
                 storedNumbers = pipeline.storedNumbers + numbers,
+                storedPerPlayerNumbers = PipelineState.mergePerPlayerNumbers(
+                    pipeline.storedPerPlayerNumbers,
+                    perPlayerNumbers,
+                ),
                 chosenValues = pipeline.chosenValues + chosenValues,
             )
         )

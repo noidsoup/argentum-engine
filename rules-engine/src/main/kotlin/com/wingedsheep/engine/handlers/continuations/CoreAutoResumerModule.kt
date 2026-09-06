@@ -3,6 +3,7 @@ import com.wingedsheep.sdk.dsl.Patterns
 
 import com.wingedsheep.engine.core.*
 import com.wingedsheep.engine.handlers.EffectContext
+import com.wingedsheep.engine.handlers.PipelineState
 
 /**
  * Core auto-resumers that process continuations without player input:
@@ -138,6 +139,10 @@ class CoreAutoResumerModule(
                 runResult.state,
                 continuation.effectContext.pipeline.storedCollections + runResult.updatedCollections,
                 continuation.effectContext.pipeline.storedNumbers + runResult.updatedStoredNumbers,
+                PipelineState.mergePerPlayerNumbers(
+                    continuation.effectContext.pipeline.storedPerPlayerNumbers,
+                    runResult.updatedStoredPerPlayerNumbers,
+                ),
                 continuation.effectContext.pipeline.chosenValues + runResult.updatedChosenValues,
             )
             checkForMore(stateWithCollections, events + runResult.events)

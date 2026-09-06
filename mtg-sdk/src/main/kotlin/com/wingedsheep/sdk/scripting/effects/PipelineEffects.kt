@@ -1633,6 +1633,54 @@ data class MakePlottedEffect(
 }
 
 /**
+ * How to compute the foretell cost stamped by [MakeForetoldEffect] (CR 702.143d).
+ *
+ * Used when an effect exiles a card from hand face down and makes it foretold without going
+ * through the Foretell keyword's pay-{2}-and-exile special action — e.g. Ethereal Valkyrie's
+ * "Its foretell cost is its mana cost reduced by {2}" (generic reduction only).
+ */
+@Serializable
+sealed interface ForetellCostSpec {
+    /** The card's mana cost with [amount] generic mana removed (floored at zero generic). */
+    @SerialName("ManaCostReducedByGeneric")
+    @Serializable
+    data class ManaCostReducedByGeneric(val amount: Int) : ForetellCostSpec
+
+    /** A fixed foretell cost regardless of the card's mana cost. */
+    @SerialName("Fixed")
+    @Serializable
+    data class Fixed(val cost: ManaCost) : ForetellCostSpec
+}
+
+/**
+ * Make every card in a named collection *foretold* (CR 702.143d). The cards must already be in
+ * exile face down (chain after a `MoveCollection` to `Zone.EXILE` with `faceDown =
+ * FaceDownMode.HIDDEN`). Each card gets [ForetoldComponent] + a cast-from-exile permission gated
+ * by [com.wingedsheep.sdk.scripting.conditions.SourceForetoldOnPriorTurn] and a foretell cost
+ * computed per [foretellCost].
+ *
+ * Unlike the Foretell keyword special action, no setup cost is paid — the effect itself exiles
+ * the card. If the card already carries a foretell cost from [KeywordAbility.Foretell], the
+ * stamped [foretellCost] is added as an additional cast option (CR 702.143d ruling: two foretell
+ * costs, cast for either).
+ *
+ * @property from Named pipeline collection of cards to foretell.
+ * @property foretellCost How to compute the foretell cost stamped on each card.
+ * @property ownerControls When true, the card's owner (not the effect controller) receives the
+ *   cast permission — for "exile target spell, it becomes foretold" shapes. Defaults to the
+ *   effect controller (Ethereal Valkyrie: you exile from your hand).
+ */
+@SerialName("MakeForetold")
+@Serializable
+data class MakeForetoldEffect(
+    val from: String,
+    val foretellCost: ForetellCostSpec = ForetellCostSpec.ManaCostReducedByGeneric(2),
+    val ownerControls: Boolean = false,
+) : Effect {
+    override val description: String = "Those cards become foretold"
+}
+
+/**
  * Conditionally execute an effect based on the size of a named collection.
  *
  * Used for "if you do" effects where a subsequent action depends on whether
@@ -2007,6 +2055,27 @@ data class StoreNumberEffect(
     val amount: DynamicAmount
 ) : Effect {
     override val description: String = "Note ${amount.description}"
+    override fun applyTextReplacement(replacer: TextReplacer): Effect {
+        val newAmount = amount.applyTextReplacement(replacer)
+        return if (newAmount !== amount) copy(amount = newAmount) else this
+    }
+}
+
+/**
+ * Record a [DynamicAmount] for the current iterated player under [storeAs] in pipeline
+ * `storedPerPlayerNumbers`. Later effects read the table maximum via
+ * [com.wingedsheep.sdk.scripting.values.DynamicAmount.GreatestPerPlayerNumber].
+ *
+ * Pair with [ForEachPlayerEffect]: each iteration writes one player's tally without
+ * overwriting earlier players' entries.
+ */
+@SerialName("RecordPerPlayerNumber")
+@Serializable
+data class RecordPerPlayerNumberEffect(
+    val storeAs: String,
+    val amount: DynamicAmount,
+) : Effect {
+    override val description: String = "Note ${amount.description} for this player"
     override fun applyTextReplacement(replacer: TextReplacer): Effect {
         val newAmount = amount.applyTextReplacement(replacer)
         return if (newAmount !== amount) copy(amount = newAmount) else this
