@@ -67,7 +67,11 @@ class ExileAndReturnTransformedExecutor(
 
         // 1. Exile from the battlefield. The permanent ceases to exist as its current object;
         //    leaves-the-battlefield triggers fire and attachments come off via standard cleanup.
-        val exileTransition = ZoneTransitionService.moveToZone(state, targetId, Zone.EXILE)
+        val exileTransition = ZoneTransitionService.moveToZone(
+            ZoneTransitionService.markExileCause(state, listOf(targetId), context.controllerId),
+            targetId,
+            Zone.EXILE,
+        )
         var newState = exileTransition.state
         val events = exileTransition.events.toMutableList()
 

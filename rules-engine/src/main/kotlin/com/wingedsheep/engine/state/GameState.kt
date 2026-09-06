@@ -274,6 +274,21 @@ data class GameState(
     val pendingDiscardCauseControllers: Map<EntityId, EntityId> = emptyMap(),
 
     /**
+     * Cards currently being exiled *by a spell or ability*, mapped to that spell/ability's
+     * controller. Recorded by the exile sites (`ZoneTransitionService.markExileCause` and the
+     * `MoveCollection` / `MoveToZoneEffect` pipeline steps) just before the cards move, and
+     * consumed by `ZoneTransitionService.moveToZone` so the emitted [com.wingedsheep.engine.core.
+     * ZoneChangeEvent] can stamp [com.wingedsheep.engine.core.ZoneChangeEvent.exilingControllerId]
+     * for triggers such as Hero of Bretagard's "a spell or ability you control exiles one or more
+     * permanents from the battlefield". `moveToZone` removes each id as it processes it.
+     *
+     * An exile with no entry here has no spell/ability cause: state-based actions, replacement
+     * redirects with no tracked controller, and exiles paid as a cost. Same transient lifetime and
+     * motivation as [pendingDiscardCauseControllers].
+     */
+    val pendingExileCauseControllers: Map<EntityId, EntityId> = emptyMap(),
+
+    /**
      * Players (by entity id) who have committed a crime this turn (CR 700-level Outlaws of Thunder
      * Junction rule). Populated wherever a [com.wingedsheep.engine.core.CommitCrimeEvent] is emitted
      * (spell cast, activated ability, triggered ability), and cleared at every turn boundary. Read by

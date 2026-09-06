@@ -2654,7 +2654,20 @@ sealed interface EventPattern : TextReplaceable<EventPattern> {
     data class CardsPutIntoExileEvent(
         val fromZones: Set<Zone> = setOf(Zone.GRAVEYARD, Zone.BATTLEFIELD),
         val filter: GameObjectFilter = GameObjectFilter.Any,
-        val includeTokens: Boolean = false
+        val includeTokens: Boolean = false,
+        /**
+         * When set, a battlefield exile matches only if [com.wingedsheep.engine.core.ZoneChangeEvent.exilingControllerId]
+         * satisfies this predicate relative to the trigger's controller. Hand exiles ignore this
+         * axis and instead require the card's owner to satisfy [filter]'s controller predicate
+         * (typically [com.wingedsheep.sdk.scripting.predicates.ControllerPredicate.OwnedByYou] for
+         * "from your hand"). Graveyard and other zones keep the existing ownership/control rules and
+         * do not consult the exiling controller.
+         *
+         * Hero of Bretagard / Ranar the Ever-Watchful pair `fromZones = {HAND, BATTLEFIELD}` with
+         * `exilingControllerPredicate = ControlledByYou` so the hand arm ("from your hand") and the
+         * battlefield arm ("a spell or ability you control exiles … permanents") share one batch.
+         */
+        val exilingControllerPredicate: com.wingedsheep.sdk.scripting.predicates.ControllerPredicate? = null
     ) : EventPattern {
         override val description: String = buildString {
             append("one or more ")
@@ -2668,7 +2681,14 @@ sealed interface EventPattern : TextReplaceable<EventPattern> {
                 append(" ")
                 append(controllerClause)
             }
-            append(" are put into exile from ")
+            if (exilingControllerPredicate != null && Zone.BATTLEFIELD in fromZones) {
+                if (controllerClause.isEmpty()) append(" ")
+                append("a spell or ability ")
+                append(exilingControllerPredicate.description)
+                append(" exiles from the battlefield, or cards are put into exile from ")
+            } else {
+                append(" are put into exile from ")
+            }
             append(
                 fromZones.sortedBy { it.ordinal }.joinToString(" and/or ") { zone ->
                     when (zone) {

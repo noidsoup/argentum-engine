@@ -40,7 +40,8 @@ class WarpExileExecutor : EffectExecutor<WarpExileEffect> {
             state,
             targetId,
             Zone.EXILE,
-            effect.enteredBattlefieldTimestamp
+            effect.enteredBattlefieldTimestamp,
+            exileCauseControllerId = context.controllerId,
         ) ?: return EffectResult.success(state)
 
         // Grant cast-from-exile permission (regular mana cost — warp's alt cost is

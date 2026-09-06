@@ -148,8 +148,12 @@ class SacrificeAndPayContinuationResumer(
             return ExecutionResult.error(state, "Expected card selection response for multi-zone exile")
         }
 
+        val causedByControllerId = continuation.sourceId?.let { sourceId ->
+            state.projectedState.getController(sourceId)
+        }
+
         val result = ForceExileMultiZoneExecutor.exileEntities(
-            state, continuation.playerId, response.selectedCards
+            state, continuation.playerId, response.selectedCards, causedByControllerId
         )
 
         return checkForMore(result.state, result.events.toList())

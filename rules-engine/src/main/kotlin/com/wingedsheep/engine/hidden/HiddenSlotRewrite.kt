@@ -43,7 +43,7 @@ object HiddenSlotRewrite {
      * That gap predates this projection; closing it means extending this analysis, not assuming it
      * already covers them. Transient bookkeeping like `pendingSacrificeIds` and
      * `pendingDiscardCauseControllers` is correctly out of scope: both live and die inside a single
-     * zone move, so no pause can observe them.
+     * zone move, so no pause can observe them. The same applies to `pendingExileCauseControllers`.
      */
     sealed interface IdentitySensitiveInFlightPins {
         data class Complete(val entityIds: Set<EntityId>) : IdentitySensitiveInFlightPins

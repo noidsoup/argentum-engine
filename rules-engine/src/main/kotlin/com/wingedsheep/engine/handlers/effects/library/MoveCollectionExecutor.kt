@@ -848,6 +848,7 @@ class MoveCollectionExecutor(
                 morphData = morphData,
                 faceDownMode = if (isBattlefieldFaceDown) faceDown else null,
                 faceDownExile = faceDown != null && destZone == Zone.EXILE,
+                exileCauseControllerId = if (destZone == Zone.EXILE) context.controllerId else null,
                 // Who may keep seeing this card once it is in the library. The policy lives in
                 // LibraryRevealUtils.placementAudience — this only names the mover and whether the
                 // move was public.

@@ -5563,7 +5563,7 @@ in the repo today):
   **during your turn**" wording, add `triggerRestriction = Conditions.IsYourTurn`; for "this
   ability triggers only once each turn", add `oncePerTurn = true`. (Attuned Hunter, Kishla
   Skimmer, Kheru Goldkeeper.)
-- `CardsPutIntoExile(fromZones?, filter?, includeTokens?)` — batching trigger; fires once per event
+- `CardsPutIntoExile(fromZones?, filter?, includeTokens?, exilingControllerPredicate?)` — batching trigger; fires once per event
   batch when one or more matching **cards** are put into exile from any of `fromZones` (default:
   graveyard and battlefield). Left unfiltered it is **not** scoped to one player's zones —
   "graveyards and/or the battlefield" means any graveyard and anyone's permanents, so every
@@ -5575,6 +5575,16 @@ in the repo today):
     card in a graveyard/hand/library has no controller. One filter therefore spells both arms of
     "creatures **you control** and/or creature cards in **your** graveyard" —
     `GameObjectFilter.Creature.youControl()` (Kaya, Spirits' Justice).
+  - **`exilingControllerPredicate`.** When set, a **battlefield** exile matches only if the emitted
+    `ZoneChangeEvent.exilingControllerId` satisfies this predicate relative to the trigger's
+    controller — the "a spell or ability you control exiles one or more permanents from the
+    battlefield" arm (Hero of Bretagard, Ranar the Ever-Watchful). Hand exiles ignore this axis and
+    instead require the card's owner to be the trigger controller ("from your hand"). Engine-side,
+    effect exile sites record the causing controller in transient `GameState.pendingExileCauseControllers`
+    (mirroring `pendingDiscardCauseControllers`), which `moveToZone` stamps onto the event and then
+    consumes. Exiles with no tracked cause (state-based actions, cost payments) leave the field null.
+    Convenience facade: `Triggers.CardsPutIntoExileFromHandOrByYou()` pairs `fromZones = {HAND,
+    BATTLEFIELD}` with `exilingControllerPredicate = ControlledByYou`.
   - **`includeTokens = true`** makes a token satisfy it. The axis is the printed noun, not a
     convenience: "one or more **cards** are put into exile" excludes tokens outright (CR 111.6),
     while "one or more **creatures you control** … are put into exile" counts a token creature like

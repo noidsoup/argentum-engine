@@ -945,14 +945,30 @@ object Triggers {
     fun CardsPutIntoExile(
         fromZones: Set<Zone> = setOf(Zone.GRAVEYARD, Zone.BATTLEFIELD),
         filter: GameObjectFilter = GameObjectFilter.Any,
-        includeTokens: Boolean = false
+        includeTokens: Boolean = false,
+        exilingControllerPredicate: com.wingedsheep.sdk.scripting.predicates.ControllerPredicate? = null,
     ): TriggerSpec = TriggerSpec(
         event = CardsPutIntoExileEvent(
             fromZones = fromZones,
             filter = filter,
-            includeTokens = includeTokens
+            includeTokens = includeTokens,
+            exilingControllerPredicate = exilingControllerPredicate,
         ),
         binding = TriggerBinding.ANY
+    )
+
+    /**
+     * Hero of Bretagard / Ranar the Ever-Watchful shape: "Whenever one or more cards are put into
+     * exile from your hand or a spell or ability you control exiles one or more permanents from the
+     * battlefield, …". One batch trigger with a hand arm (ownership) and a battlefield arm
+     * (exiling controller).
+     */
+    fun CardsPutIntoExileFromHandOrByYou(
+        includeTokens: Boolean = true,
+    ): TriggerSpec = CardsPutIntoExile(
+        fromZones = setOf(Zone.HAND, Zone.BATTLEFIELD),
+        exilingControllerPredicate = com.wingedsheep.sdk.scripting.predicates.ControllerPredicate.ControlledByYou,
+        includeTokens = includeTokens,
     )
 
     // =========================================================================

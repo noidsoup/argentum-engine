@@ -64,7 +64,7 @@ class ForceExileMultiZoneExecutor(
 
         if (allOptions.size <= exileCount) {
             // Auto-exile everything — no choice needed
-            return exileEntities(state, playerId, allOptions)
+            return exileEntities(state, playerId, allOptions, context.controllerId)
         }
 
         // Player must choose which to exile
@@ -130,9 +130,14 @@ class ForceExileMultiZoneExecutor(
         fun exileEntities(
             state: GameState,
             playerId: EntityId,
-            entityIds: List<EntityId>
+            entityIds: List<EntityId>,
+            causedByControllerId: EntityId? = null,
         ): EffectResult {
-            var currentState = state
+            var currentState = if (causedByControllerId != null) {
+                ZoneTransitionService.markExileCause(state, entityIds, causedByControllerId)
+            } else {
+                state
+            }
             val allEvents = mutableListOf<GameEvent>()
 
             for (entityId in entityIds) {

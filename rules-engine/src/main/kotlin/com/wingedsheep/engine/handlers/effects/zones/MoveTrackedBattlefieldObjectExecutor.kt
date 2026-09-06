@@ -3,6 +3,7 @@ package com.wingedsheep.engine.handlers.effects.zones
 import com.wingedsheep.engine.core.EffectResult
 import com.wingedsheep.engine.handlers.EffectContext
 import com.wingedsheep.engine.handlers.effects.EffectExecutor
+import com.wingedsheep.engine.handlers.effects.ZoneEntryOptions
 import com.wingedsheep.engine.handlers.effects.ZoneTransitionService
 import com.wingedsheep.engine.handlers.effects.ZoneTransitionResult
 import com.wingedsheep.engine.state.GameState
@@ -47,7 +48,8 @@ internal fun moveTrackedBattlefieldObject(
     state: GameState,
     targetId: EntityId,
     destination: Zone,
-    enteredBattlefieldTimestamp: Long?
+    enteredBattlefieldTimestamp: Long?,
+    exileCauseControllerId: EntityId? = null,
 ): ZoneTransitionResult? {
     val container = state.getEntity(targetId) ?: return null
     if (targetId !in state.getBattlefield()) return null
@@ -55,9 +57,15 @@ internal fun moveTrackedBattlefieldObject(
         val currentEntry = container.get<BattlefieldEntryTimestampComponent>()?.timestamp
         if (currentEntry != enteredBattlefieldTimestamp) return null
     }
+    val options = if (destination == Zone.EXILE && exileCauseControllerId != null) {
+        ZoneEntryOptions(exileCauseControllerId = exileCauseControllerId)
+    } else {
+        ZoneEntryOptions()
+    }
     return ZoneTransitionService.moveToZone(
         state = state,
         entityId = targetId,
-        destinationZone = destination
+        destinationZone = destination,
+        options = options,
     )
 }

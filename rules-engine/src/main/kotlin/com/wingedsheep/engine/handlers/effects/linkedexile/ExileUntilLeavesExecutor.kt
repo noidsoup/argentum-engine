@@ -67,7 +67,10 @@ class ExileUntilLeavesExecutor : EffectExecutor<ExileUntilLeavesEffect> {
         // Delegate zone movement to ZoneTransitionService
         val transitionResult = ZoneTransitionService.moveToZone(
             state, targetId, Zone.EXILE,
-            ZoneEntryOptions(skipZoneChangeRedirect = true)
+            ZoneEntryOptions(
+                skipZoneChangeRedirect = true,
+                exileCauseControllerId = context.controllerId,
+            )
         )
 
         var newState = transitionResult.state

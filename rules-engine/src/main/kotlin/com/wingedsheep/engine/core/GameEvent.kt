@@ -76,7 +76,16 @@ data class ZoneChangeEvent(
      * from any other way a permanent is exiled. Always `false` for non-exile exits and for exiles
      * that are not craft materials (removal, the crafted card's own self-exile, etc.).
      */
-    val craftMaterial: Boolean = false
+    val craftMaterial: Boolean = false,
+    /**
+     * Controller of the spell or ability that caused this move into exile, when the exile was
+     * driven by an effect (`ZoneTransitionService.markExileCause`). Lets batch exile triggers
+     * distinguish "a spell or ability you control exiles one or more permanents from the
+     * battlefield" (Hero of Bretagard, Ranar the Ever-Watchful) from exiles with no tracked
+     * spell/ability cause (state-based actions, cost payments, untracked paths). Always `null` for
+     * non-exile destinations and for exiles that were not stamped by an effect site.
+     */
+    val exilingControllerId: EntityId? = null
 ) : GameEvent
 
 // =============================================================================

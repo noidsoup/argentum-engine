@@ -2277,14 +2277,12 @@ class TriggerDetector(
                 // referent (Kaya, Spirits' Justice); an unfiltered Ketramose-style trigger simply
                 // ignores it.
                 val matchingIds = exiled.filter { event ->
-                    event.fromZone in trigger.fromZones &&
-                        exileBatchOwnershipMatches(event, trigger.filter, entry.controllerId) &&
-                        cardMatchesGraveyardBatchFilter(
-                            state = state,
-                            entityId = event.entityId,
-                            filter = trigger.filter,
-                            includeTokens = trigger.includeTokens
-                        )
+                    exileBatchEventMatches(
+                        state = state,
+                        event = event,
+                        trigger = trigger,
+                        observerId = entry.controllerId,
+                    )
                 }.map { it.entityId }
                 if (matchingIds.isEmpty()) continue
 
@@ -2298,6 +2296,65 @@ class TriggerDetector(
                     )
                 )
             }
+        }
+    }
+
+    /**
+     * Whether a single exile [event] satisfies [trigger] for a trigger controlled by [observerId].
+     *
+     * Hand exiles use ownership ("from your hand") and ignore [EventPattern.CardsPutIntoExileEvent.exilingControllerPredicate].
+     * Battlefield exiles with an [exilingControllerPredicate] require a stamped
+     * [com.wingedsheep.engine.core.ZoneChangeEvent.exilingControllerId] instead of scoping to the
+     * exiled permanent's last-known controller — the Hero of Bretagard / Ranar disjunct.
+     */
+    private fun exileBatchEventMatches(
+        state: GameState,
+        event: ZoneChangeEvent,
+        trigger: EventPattern.CardsPutIntoExileEvent,
+        observerId: EntityId,
+    ): Boolean {
+        val fromZone = event.fromZone ?: return false
+        if (fromZone !in trigger.fromZones) return false
+
+        if (!cardMatchesGraveyardBatchFilter(
+                state = state,
+                entityId = event.entityId,
+                filter = trigger.filter,
+                includeTokens = trigger.includeTokens,
+            )
+        ) {
+            return false
+        }
+
+        return when (fromZone) {
+            Zone.HAND -> event.ownerId == observerId
+            Zone.BATTLEFIELD -> {
+                val exilingPredicate = trigger.exilingControllerPredicate
+                if (exilingPredicate != null) {
+                    exilingControllerMatches(event.exilingControllerId, exilingPredicate, observerId) &&
+                        (trigger.filter.controllerPredicate == null ||
+                            exileBatchOwnershipMatches(event, trigger.filter, observerId))
+                } else {
+                    exileBatchOwnershipMatches(event, trigger.filter, observerId)
+                }
+            }
+            else -> exileBatchOwnershipMatches(event, trigger.filter, observerId)
+        }
+    }
+
+    private fun exilingControllerMatches(
+        exilingControllerId: EntityId?,
+        predicate: com.wingedsheep.sdk.scripting.predicates.ControllerPredicate,
+        observerId: EntityId,
+    ): Boolean {
+        val controllerId = exilingControllerId ?: return false
+        return when (predicate) {
+            com.wingedsheep.sdk.scripting.predicates.ControllerPredicate.ControlledByYou ->
+                controllerId == observerId
+            com.wingedsheep.sdk.scripting.predicates.ControllerPredicate.ControlledByOpponent ->
+                controllerId != observerId
+            com.wingedsheep.sdk.scripting.predicates.ControllerPredicate.ControlledByAny -> true
+            else -> true
         }
     }
 

@@ -34,7 +34,11 @@ class ExileAndGrantOwnerPlayPermissionExecutor : EffectExecutor<ExileAndGrantOwn
         val ownerId = state.getEntity(targetId)?.get<CardComponent>()?.ownerId
             ?: return EffectResult.error(state, "Could not resolve owner of exiled target")
 
-        val transition = ZoneTransitionService.moveToZone(state, targetId, Zone.EXILE)
+        val transition = ZoneTransitionService.moveToZone(
+            ZoneTransitionService.markExileCause(state, listOf(targetId), context.controllerId),
+            targetId,
+            Zone.EXILE,
+        )
 
         val (permId, stateWithId) = transition.state.newEntity()
         var newState = stateWithId.addMayPlayPermission(

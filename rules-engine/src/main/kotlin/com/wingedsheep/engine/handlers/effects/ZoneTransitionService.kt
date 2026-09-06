@@ -99,7 +99,14 @@ data class ZoneEntryOptions(
      * placement public knowledge rather than the mover's alone. Independent of the source zone —
      * a move out of a public zone is already table-wide without this.
      */
-    val libraryMovePublic: Boolean = false
+    val libraryMovePublic: Boolean = false,
+    /**
+     * Controller of the spell or ability causing this move into exile. Stamped onto the emitted
+     * [com.wingedsheep.engine.core.ZoneChangeEvent.exilingControllerId] for exile-batch triggers
+     * (Hero of Bretagard, Ranar the Ever-Watchful). Prefer this over [markExileCause] when the
+     * caller already builds [ZoneEntryOptions]. Null for exiles with no spell/ability cause.
+     */
+    val exileCauseControllerId: EntityId? = null,
 )
 
 /**
@@ -736,6 +743,13 @@ object ZoneTransitionService {
                 pendingDiscardCauseControllers = newState.pendingDiscardCauseControllers - entityId
             )
         }
+        val exilingControllerId = newState.pendingExileCauseControllers[entityId]
+            ?: options.exileCauseControllerId
+        if (entityId in newState.pendingExileCauseControllers) {
+            newState = newState.copy(
+                pendingExileCauseControllers = newState.pendingExileCauseControllers - entityId
+            )
+        }
         events.add(
             ZoneChangeEvent(
                 entityId = entityId,
@@ -752,7 +766,8 @@ object ZoneTransitionService {
                 wasSacrificed = wasSacrificed,
                 // Only a battlefield exit can be a craft-material exile; the flag is carried on the
                 // ZoneEntryOptions by the Craft cost payment for each chosen material.
-                craftMaterial = leavingBattlefield && options.craftMaterial
+                craftMaterial = leavingBattlefield && options.craftMaterial,
+                exilingControllerId = if (actualDestZone == Zone.EXILE) exilingControllerId else null,
             )
         )
 
@@ -1042,6 +1057,29 @@ object ZoneTransitionService {
         if (causedByControllerId == null || cardIds.isEmpty()) return state
         return state.copy(
             pendingDiscardCauseControllers = state.pendingDiscardCauseControllers +
+                cardIds.associateWith { causedByControllerId }
+        )
+    }
+
+    /**
+     * Central "these cards are being exiled because of a spell or ability" hook, mirroring
+     * [markDiscardCause]. Records the causing object's controller in
+     * [GameState.pendingExileCauseControllers] so the imminent `moveToZone` can stamp
+     * [com.wingedsheep.engine.core.ZoneChangeEvent.exilingControllerId] for exile-batch triggers
+     * (Hero of Bretagard, Ranar the Ever-Watchful) without every exile site threading an explicit
+     * parameter through the move.
+     *
+     * Pass null — or skip the call — for exiles with no spell/ability cause: state-based actions,
+     * replacement redirects with no tracked controller, and exiles made to pay a cost.
+     */
+    fun markExileCause(
+        state: GameState,
+        cardIds: List<EntityId>,
+        causedByControllerId: EntityId?
+    ): GameState {
+        if (causedByControllerId == null || cardIds.isEmpty()) return state
+        return state.copy(
+            pendingExileCauseControllers = state.pendingExileCauseControllers +
                 cardIds.associateWith { causedByControllerId }
         )
     }

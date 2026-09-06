@@ -362,7 +362,8 @@ class MoveToZoneEffectExecutor(
             // this card and saw where it went, so they keep knowing it. The audience policy —
             // including "out of a public zone means the whole table knows" — is
             // LibraryRevealUtils.placementAudience's, not this executor's.
-            libraryMoverId = moverId
+            libraryMoverId = moverId,
+            exileCauseControllerId = if (effect.destination == Zone.EXILE) moverId else null,
         )
     }
 
