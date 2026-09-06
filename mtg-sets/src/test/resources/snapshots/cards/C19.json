@@ -1,0 +1,55 @@
+// Voice of Many
+{
+    "name": "Voice of Many",
+    "manaCost": "{2}{G}{G}",
+    "typeLine": "Creature — Elf Druid",
+    "oracleText": "When this creature enters, draw a card for each opponent who controls fewer creatures than you.",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 3
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "DrawCards",
+                    "count": {
+                        "type": "CountPlayersWith",
+                        "scope": "EachOpponent",
+                        "condition": {
+                            "type": "Compare",
+                            "left": {
+                                "type": "Count",
+                                "player": "You",
+                                "zone": "Battlefield",
+                                "filter": "creature"
+                            },
+                            "operator": "LT",
+                            "right": {
+                                "type": "Count",
+                                "player": "ControllerOfSource",
+                                "zone": "Battlefield",
+                                "filter": "creature"
+                            }
+                        }
+                    }
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "36",
+        "rarity": "UNCOMMON",
+        "artist": "Greg Staples",
+        "flavorText": "His words echo every roar, screech, and howl of the wilds.",
+        "imageUri": "https://cards.scryfall.io/normal/front/f/8/f82328e9-fb4b-4dc9-afd6-fa210e4330bf.jpg?1783932801"
+    },
+    "colorIdentityOverride": [
+        "GREEN"
+    ]
+}
