@@ -1,0 +1,81 @@
+// Brago, King Eternal
+{
+    "name": "Brago, King Eternal",
+    "manaCost": "{2}{W}{U}",
+    "typeLine": "Legendary Creature — Spirit Noble",
+    "oracleText": "Flying\nWhenever Brago deals combat damage to a player, exile any number of target nonland permanents you control, then return those cards to the battlefield under their owner's control.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 4
+    },
+    "keywords": [
+        "FLYING"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "DealsDamageEvent",
+                    "damageType": "DamageCombat",
+                    "recipient": "AnyPlayer"
+                },
+                "effect": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "GatherCards",
+                            "source": "ChosenTargets",
+                            "storeAs": "gathered0"
+                        },
+                        {
+                            "type": "MoveCollection",
+                            "from": "gathered0",
+                            "destination": {
+                                "type": "ToZone",
+                                "zone": "Exile"
+                            },
+                            "linkToSource": true
+                        },
+                        {
+                            "type": "GatherCards",
+                            "source": "FromLinkedExile",
+                            "storeAs": "gathered2"
+                        },
+                        {
+                            "type": "MoveCollection",
+                            "from": "gathered2",
+                            "destination": {
+                                "type": "ToZone",
+                                "zone": "Battlefield"
+                            },
+                            "underOwnersControl": true
+                        }
+                    ],
+                    "descriptionOverride": "Exile any number of target nonland permanents you control, then return those cards to the battlefield under their owner's control"
+                },
+                "targetRequirement": {
+                    "type": "TargetObject",
+                    "optional": true,
+                    "unlimited": true,
+                    "filter": {
+                        "baseFilter": "nonland permanent ctrl:you"
+                    },
+                    "id": "any number of target nonland permanents you control"
+                },
+                "descriptionOverride": "Whenever Brago deals combat damage to a player, exile any number of target nonland permanents you control, then return those cards to the battlefield under their owner's control."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "41",
+        "rarity": "RARE",
+        "artist": "Karla Ortiz",
+        "flavorText": "\"My rule persists beyond death itself.\"",
+        "imageUri": "https://cards.scryfall.io/normal/front/1/6/1691145e-e9c2-45e7-be35-83245a6e5eaf.jpg?1783939373"
+    },
+    "colorIdentityOverride": [
+        "WHITE",
+        "BLUE"
+    ]
+}
