@@ -2784,6 +2784,7 @@ class CastSpellHandler(
                                 val exileZone = ZoneKey(action.playerId, Zone.EXILE)
 
                                 currentState = currentState.removeFromZone(sourceZone, cardId)
+                                val oldObjectRef = currentState.objectRef(cardId)
                                 currentState = currentState.addToZone(exileZone, cardId)
                                 // Same origin stamp ZoneTransitionService writes (see below).
                                 currentState = currentState.updateEntity(cardId) { c ->
@@ -2798,7 +2799,9 @@ class CastSpellHandler(
                                     entityName = card.name,
                                     fromZone = atom.zone,
                                     toZone = Zone.EXILE,
-                                    ownerId = action.playerId
+                                    ownerId = action.playerId,
+                                    oldObject = oldObjectRef,
+                                    newObject = currentState.objectRef(cardId)
                                 ))
                             }
                             exiledCardCount = exiledCards.size
@@ -2916,6 +2919,7 @@ class CastSpellHandler(
                             val exileZone = ZoneKey(action.playerId, Zone.EXILE)
 
                             currentState = currentState.removeFromZone(sourceZone, cardId)
+                            val oldObjectRef = currentState.objectRef(cardId)
                             currentState = currentState.addToZone(exileZone, cardId)
                             // Same origin stamp ZoneTransitionService writes (see below).
                             currentState = currentState.updateEntity(cardId) { c ->
@@ -2930,7 +2934,9 @@ class CastSpellHandler(
                                 entityName = card.name,
                                 fromZone = zone,
                                 toZone = Zone.EXILE,
-                                ownerId = action.playerId
+                                ownerId = action.playerId,
+                                oldObject = oldObjectRef,
+                                newObject = currentState.objectRef(cardId)
                             ))
                         }
                         exiledCardCount = exiledCards.size
@@ -2998,6 +3004,7 @@ class CastSpellHandler(
                             val exileZone = ZoneKey(ownerId, Zone.EXILE)
 
                             currentState = currentState.removeFromZone(sourceZone, cardId)
+                            val oldObjectRef = currentState.objectRef(cardId)
                             currentState = currentState.addToZone(exileZone, cardId)
                             // Record the origin zone the way ZoneTransitionService does. This path
                             // can exile from the battlefield *or* from hand and (just below) links
@@ -3017,7 +3024,9 @@ class CastSpellHandler(
                                 entityName = card.name,
                                 fromZone = sourceZone.zoneType,
                                 toZone = Zone.EXILE,
-                                ownerId = ownerId
+                                ownerId = ownerId,
+                                oldObject = oldObjectRef,
+                                newObject = currentState.objectRef(cardId)
                             ))
                         }
                         // Link exiled cards to spell entity for LTB triggers
@@ -3883,6 +3892,8 @@ class CastSpellHandler(
                         PendingTrigger(
                             ability = ability,
                             sourceId = action.cardId,
+                            objectReferences = com.wingedsheep.engine.handlers.ObjectReferenceEnvironment(captured = true,
+                                origin = currentCastState.objectRef(action.cardId), source = currentCastState.objectRef(action.cardId), triggering = currentCastState.objectRef(action.cardId)),
                             sourceName = cardComponent.name,
                             controllerId = action.playerId,
                             triggerContext = TriggerContext(
@@ -3920,6 +3931,8 @@ class CastSpellHandler(
                         PendingTrigger(
                             ability = ability,
                             sourceId = action.cardId,
+                            objectReferences = com.wingedsheep.engine.handlers.ObjectReferenceEnvironment(captured = true,
+                                origin = currentCastState.objectRef(action.cardId), source = currentCastState.objectRef(action.cardId), triggering = currentCastState.objectRef(action.cardId)),
                             sourceName = cardComponent.name,
                             controllerId = action.playerId,
                             triggerContext = TriggerContext(
@@ -3957,6 +3970,8 @@ class CastSpellHandler(
                         PendingTrigger(
                             ability = ability,
                             sourceId = action.cardId,
+                            objectReferences = com.wingedsheep.engine.handlers.ObjectReferenceEnvironment(captured = true,
+                                origin = currentCastState.objectRef(action.cardId), source = currentCastState.objectRef(action.cardId), triggering = currentCastState.objectRef(action.cardId)),
                             sourceName = cardComponent.name,
                             controllerId = action.playerId,
                             triggerContext = TriggerContext(
@@ -4017,6 +4032,7 @@ class CastSpellHandler(
                     // graveyard by the time the trigger resolves.
                     val copyAbility = TriggeredAbilityOnStackComponent(
                         sourceId = action.cardId,
+            objectReferences = com.wingedsheep.engine.handlers.ObjectReferenceEnvironment(captured = true, origin = currentCastState.objectRef(action.cardId), source = currentCastState.objectRef(action.cardId)),
                         sourceName = cardComponent.name,
                         controllerId = action.playerId,
                         effect = copyEffect,
@@ -4927,6 +4943,8 @@ class CastSpellHandler(
         val pending = PendingTrigger(
             ability = copyAbility,
             sourceId = action.cardId,
+            objectReferences = com.wingedsheep.engine.handlers.ObjectReferenceEnvironment(captured = true,
+                origin = state.objectRef(action.cardId), source = state.objectRef(action.cardId), triggering = state.objectRef(action.cardId)),
             sourceName = cardComponent.name,
             controllerId = action.playerId,
             triggerContext = TriggerContext(
@@ -4980,6 +4998,8 @@ class CastSpellHandler(
         val pending = PendingTrigger(
             ability = scryAbility,
             sourceId = action.cardId,
+                            objectReferences = com.wingedsheep.engine.handlers.ObjectReferenceEnvironment(captured = true,
+                                origin = state.objectRef(action.cardId), source = state.objectRef(action.cardId), triggering = state.objectRef(action.cardId)),
             sourceName = cardComponent.name,
             controllerId = action.playerId,
             triggerContext = TriggerContext(

@@ -69,6 +69,7 @@ class EffectContinuationRunner(
                 result.state
             }
             allEvents.addAll(result.events)
+            currentContext = currentContext.authorizeObjectMoves(result.events)
 
             if (result.updatedCollections.isNotEmpty() ||
                 result.updatedSubtypeGroups.isNotEmpty() ||

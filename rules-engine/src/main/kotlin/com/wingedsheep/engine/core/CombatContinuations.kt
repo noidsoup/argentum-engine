@@ -1,7 +1,5 @@
 package com.wingedsheep.engine.core
 
-import com.wingedsheep.sdk.core.Color
-import com.wingedsheep.sdk.core.TypeLine
 import com.wingedsheep.sdk.model.EntityId
 import com.wingedsheep.sdk.scripting.effects.Effect
 import kotlinx.serialization.Serializable
@@ -67,11 +65,6 @@ data class AssignAsUnblockedContinuation(
  * @property sourceId The spell/ability that is dealing the damage
  * @property controllerId The player who controls the effect
  * @property targets The targets that damage can be distributed among
- * @property lifeGainCauseId Resolving spell that caused this damage (stamped at pause time,
- *   while the spell is still on the stack). Used so lifelink life gain after resume still
- *   attributes to that spell even though the stack object may already have left.
- * @property lifeGainCauseTypeLine / [lifeGainCauseColors] LKI for that cause when the entity
- *   may have been removed (copy spells).
  */
 @Serializable
 data class DistributeDamageContinuation(
@@ -79,9 +72,7 @@ data class DistributeDamageContinuation(
     val sourceId: EntityId?,
     val controllerId: EntityId,
     val targets: List<EntityId>,
-    val lifeGainCauseId: EntityId? = null,
-    val lifeGainCauseTypeLine: TypeLine? = null,
-    val lifeGainCauseColors: Set<Color> = emptySet(),
+    val objectReferences: com.wingedsheep.engine.handlers.ObjectReferenceEnvironment = com.wingedsheep.engine.handlers.ObjectReferenceEnvironment(),
 ) : ContinuationFrame
 
 /**
@@ -125,7 +116,8 @@ data class DeflectDamageSourceChoiceContinuation(
     /** Arbitrary follow-up effect run when the chosen source's damage is prevented (null = pure prevention). */
     val onPrevented: Effect? = null,
     /** When false, the chosen source's damage is not prevented — it still hits, the reaction still fires (Eye for an Eye). */
-    val preventDamage: Boolean = true
+    val preventDamage: Boolean = true,
+    val objectReferences: com.wingedsheep.engine.handlers.ObjectReferenceEnvironment = com.wingedsheep.engine.handlers.ObjectReferenceEnvironment(),
 ) : ContinuationFrame
 
 /**
@@ -170,7 +162,8 @@ data class PreventDamageFromChosenSourceContinuation(
      * When true (with [nextInstanceOnly]), the single-instance shield prevents only *half* the
      * damage, rounded down — Dark Sphere. Ignored otherwise.
      */
-    val halvePreventedDamage: Boolean = false
+    val halvePreventedDamage: Boolean = false,
+    val objectReferences: com.wingedsheep.engine.handlers.ObjectReferenceEnvironment = com.wingedsheep.engine.handlers.ObjectReferenceEnvironment(),
 ) : ContinuationFrame
 
 /**
