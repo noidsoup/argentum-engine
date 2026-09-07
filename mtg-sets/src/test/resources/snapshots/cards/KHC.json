@@ -768,6 +768,78 @@
     ]
 }
 
+// Ranar the Ever-Watchful
+{
+    "name": "Ranar the Ever-Watchful",
+    "manaCost": "{2}{W}{U}",
+    "typeLine": "Legendary Creature — Spirit Warrior",
+    "oracleText": "Flying, vigilance\nThe first card you foretell each turn costs {0} to foretell.\nWhenever one or more cards are put into exile from your hand or a spell or ability you control exiles one or more permanents from the battlefield, create a 1/1 white Spirit creature token with flying.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 3
+    },
+    "keywords": [
+        "FLYING",
+        "VIGILANCE"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "CardsPutIntoExileEvent",
+                    "fromZones": [
+                        "Hand",
+                        "Battlefield"
+                    ],
+                    "includeTokens": true,
+                    "exilingControllerPredicate": "ControlledByYou"
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "CreateToken",
+                    "power": 1,
+                    "toughness": 1,
+                    "colors": [
+                        "WHITE"
+                    ],
+                    "creatureTypes": [
+                        "Spirit"
+                    ],
+                    "keywords": [
+                        "FLYING"
+                    ],
+                    "imageUri": "https://cards.scryfall.io/normal/front/9/5/95694c03-2b3b-455c-8361-0799c078bf04.jpg?1783928083"
+                },
+                "descriptionOverride": "Whenever one or more cards are put into exile from your hand or a spell or ability you control exiles one or more permanents from the battlefield, create a 1/1 white Spirit creature token with flying."
+            }
+        ],
+        "staticAbilities": [
+            {
+                "type": "ModifyForetellSetupCost",
+                "modification": {
+                    "type": "ReduceGeneric",
+                    "amount": 2
+                },
+                "gating": {
+                    "type": "NthForetellPerTurn",
+                    "n": 1
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "2",
+        "rarity": "MYTHIC",
+        "artist": "Kieran Yanner",
+        "imageUri": "https://cards.scryfall.io/normal/front/1/c/1c8c41dd-8551-4ce8-a9be-9b9f65718852.jpg?1783928341"
+    },
+    "colorIdentityOverride": [
+        "WHITE",
+        "BLUE"
+    ]
+}
+
 // Ruthless Winnower
 {
     "name": "Ruthless Winnower",
@@ -965,6 +1037,68 @@
     },
     "colorIdentityOverride": [
         "BLACK"
+    ]
+}
+
+// Spectral Deluge
+{
+    "name": "Spectral Deluge",
+    "manaCost": "{3}{U}{U}",
+    "typeLine": "Sorcery",
+    "oracleText": "Return each creature your opponents control with toughness X or less to its owner's hand, where X is the number of Islands you control.\nForetell {1}{U}{U} (During your turn, you may pay {2} and exile this card from your hand face down. Cast it on a later turn for its foretell cost.)",
+    "keywords": [
+        "FORETELL"
+    ],
+    "keywordAbilities": [
+        {
+            "type": "Foretell",
+            "cost": "{1}{U}{U}"
+        }
+    ],
+    "script": {
+        "spellEffect": {
+            "type": "Composite",
+            "effects": [
+                {
+                    "type": "GatherCards",
+                    "source": {
+                        "type": "BattlefieldMatching",
+                        "filter": {
+                            "cardPredicates": [
+                                "IsCreature",
+                                {
+                                    "type": "ToughnessAtMostDynamic",
+                                    "amount": {
+                                        "type": "AggregateBattlefield",
+                                        "player": "You",
+                                        "filter": "land Island"
+                                    }
+                                }
+                            ],
+                            "controllerPredicate": "ControlledByOpponent"
+                        }
+                    },
+                    "storeAs": "returnAllToHand_gathered"
+                },
+                {
+                    "type": "MoveCollection",
+                    "from": "returnAllToHand_gathered",
+                    "destination": {
+                        "type": "ToZone",
+                        "zone": "Hand"
+                    }
+                }
+            ]
+        }
+    },
+    "metadata": {
+        "collectorNumber": "7",
+        "rarity": "RARE",
+        "artist": "Jesper Ejsing",
+        "imageUri": "https://cards.scryfall.io/normal/front/7/2/7238c46e-6338-4aca-96f2-934c44c8cc36.jpg?1783928340"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
     ]
 }
 
