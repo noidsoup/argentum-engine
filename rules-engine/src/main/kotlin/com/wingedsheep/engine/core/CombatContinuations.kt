@@ -2,6 +2,8 @@ package com.wingedsheep.engine.core
 
 import com.wingedsheep.sdk.model.EntityId
 import com.wingedsheep.sdk.scripting.effects.Effect
+import com.wingedsheep.sdk.core.Color
+import com.wingedsheep.sdk.core.TypeLine
 import kotlinx.serialization.Serializable
 
 /**
@@ -67,6 +69,9 @@ data class DistributeDamageContinuation(
     val controllerId: EntityId,
     val targets: List<EntityId>,
     val objectReferences: com.wingedsheep.engine.handlers.ObjectReferenceEnvironment = com.wingedsheep.engine.handlers.ObjectReferenceEnvironment(),
+    val lifeGainCauseId: EntityId? = null,
+    val lifeGainCauseTypeLine: TypeLine? = null,
+    val lifeGainCauseColors: Set<Color> = emptySet(),
 ) : AnswerContinuation
 
 /**

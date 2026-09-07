@@ -510,7 +510,7 @@ class EffectAndTriggerContinuationResumer(
             result.state,
             continuation.effectContext.pipeline.storedCollections + branchResult.updatedCollections,
             continuation.effectContext.pipeline.storedNumbers + branchResult.updatedStoredNumbers,
-            continuation.effectContext.pipeline.chosenValues + branchResult.updatedChosenValues,
+            chosenValues = continuation.effectContext.pipeline.chosenValues + branchResult.updatedChosenValues,
         )
 
         // Preserve `triggersAlreadyProcessed` across the continuation drain: if the gated effect ran

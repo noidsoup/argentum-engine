@@ -512,7 +512,8 @@ data class DevourEntersContinuation(
     val controllerId: EntityId,
     val ownerId: EntityId,
     val multiplier: Int,
-    val counterType: String
+    val counterType: String,
+    val squareSacrificeCount: Boolean = false,
 ) : AnswerContinuation
 
 /**
@@ -537,7 +538,8 @@ data class DevourMintedTokenContinuation(
     val cardDefinitionId: String,
     val controllerId: EntityId,
     val multiplier: Int,
-    val counterType: String
+    val counterType: String,
+    val squareSacrificeCount: Boolean = false,
 ) : AnswerContinuation
 
 /**

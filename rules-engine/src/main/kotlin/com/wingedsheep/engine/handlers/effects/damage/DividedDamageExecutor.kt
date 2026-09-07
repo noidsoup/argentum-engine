@@ -9,6 +9,7 @@ import com.wingedsheep.engine.core.EffectResult
 import com.wingedsheep.engine.handlers.DecisionHandler
 import com.wingedsheep.engine.handlers.EffectContext
 import com.wingedsheep.engine.handlers.effects.EffectExecutor
+import com.wingedsheep.engine.handlers.effects.DamageUtils
 import com.wingedsheep.engine.handlers.effects.DamageUtils.dealDamageToTarget
 import com.wingedsheep.engine.handlers.effects.TargetResolutionUtils.toEntityId
 import com.wingedsheep.engine.state.GameState
@@ -133,11 +134,17 @@ class DividedDamageExecutor(
             minPerTarget = 1 // Per MTG rules, must assign at least 1 damage to each target
         ) }
 
+        val (lifeGainCauseId, lifeGainCauseTypeLine, lifeGainCauseColors) =
+            DamageUtils.resolvingSpellCauseLki(state, context)
+
         val continuation = DistributeDamageContinuation(
             sourceId = context.sourceId,
             objectReferences = context.objectReferences,
             controllerId = context.controllerId,
-            targets = targets
+            targets = targets,
+            lifeGainCauseId = lifeGainCauseId,
+            lifeGainCauseTypeLine = lifeGainCauseTypeLine,
+            lifeGainCauseColors = lifeGainCauseColors,
         )
 
         return EffectResult.from(state.suspendForDecision(decision, continuation, eventType = "DISTRIBUTE"))

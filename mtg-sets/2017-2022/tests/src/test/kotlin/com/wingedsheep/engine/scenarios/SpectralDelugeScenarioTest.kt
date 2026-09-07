@@ -20,7 +20,7 @@ class SpectralDelugeScenarioTest : ScenarioTestBase() {
                 val game = scenario()
                     .withPlayers("Player", "Opponent")
                     .withCardInHand(1, "Spectral Deluge")
-                    .withLandsOnBattlefield(1, "Island", 5)
+                    .withLandsOnBattlefield(1, "Island", 6)
                     .withCardOnBattlefield(2, "Grizzly Bears")
                     .withCardOnBattlefield(2, "Wall of Frost") // 0/7 — toughness 7, stays
                     .withCardOnBattlefield(2, "Hill Giant")
@@ -46,12 +46,13 @@ class SpectralDelugeScenarioTest : ScenarioTestBase() {
                     game.state.getEntity(id)?.get<CardComponent>()?.name == name
                 }
 
-                withClue("X=5: 2/2 and 3/3 bounce; 6/6 and 0/7 stay") {
+                withClue("X=6: 2/2, 3/3, and 6/6 bounce; 0/7 stays") {
                     onBattlefield(2, "Grizzly Bears") shouldBe false
                     onBattlefield(2, "Hill Giant") shouldBe false
+                    onBattlefield(2, "Colossal Dreadmaw") shouldBe false
                     inHand(2, "Grizzly Bears") shouldBe true
                     inHand(2, "Hill Giant") shouldBe true
-                    onBattlefield(2, "Colossal Dreadmaw") shouldBe true
+                    inHand(2, "Colossal Dreadmaw") shouldBe true
                     onBattlefield(2, "Wall of Frost") shouldBe true
                 }
             }

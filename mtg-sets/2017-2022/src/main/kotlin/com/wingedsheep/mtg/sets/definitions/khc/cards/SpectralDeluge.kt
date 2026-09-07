@@ -12,7 +12,7 @@ import com.wingedsheep.sdk.scripting.references.Player
 
 /**
  * Spectral Deluge — Kaldheim Commander (KHC) #7
- * {3}{U}{U} · Sorcery
+ * {4}{U}{U} · Sorcery
  *
  * Return each creature your opponents control with toughness X or less to its owner's hand,
  * where X is the number of Islands you control.
@@ -22,7 +22,7 @@ import com.wingedsheep.sdk.scripting.references.Player
  * [GameObjectFilter.toughnessAtMostDynamic] over a battlefield Island count — not spell {X}.
  */
 val SpectralDeluge = card("Spectral Deluge") {
-    manaCost = "{3}{U}{U}"
+    manaCost = "{4}{U}{U}"
     colorIdentity = "U"
     typeLine = "Sorcery"
     oracleText = "Return each creature your opponents control with toughness X or less to its " +
