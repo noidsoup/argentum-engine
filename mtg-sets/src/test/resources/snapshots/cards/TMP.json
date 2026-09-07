@@ -1729,6 +1729,52 @@
     ]
 }
 
+// Field of Souls
+{
+    "name": "Field of Souls",
+    "manaCost": "{2}{W}{W}",
+    "typeLine": "Enchantment",
+    "oracleText": "Whenever a nontoken creature is put into your graveyard from the battlefield, create a 1/1 white Spirit creature token with flying.",
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "filter": "creature nontoken own:you",
+                    "from": "Battlefield",
+                    "to": "Graveyard"
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "CreateToken",
+                    "power": 1,
+                    "toughness": 1,
+                    "colors": [
+                        "WHITE"
+                    ],
+                    "creatureTypes": [
+                        "Spirit"
+                    ],
+                    "keywords": [
+                        "FLYING"
+                    ],
+                    "imageUri": "https://cards.scryfall.io/normal/front/8/3/83497714-97ae-4846-8096-f7f1524f0e09.jpg?1783924702"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "18",
+        "rarity": "UNCOMMON",
+        "artist": "Richard Kane Ferguson",
+        "imageUri": "https://cards.scryfall.io/normal/front/9/8/9816a3ef-e2a8-4d97-afbf-d190a62265bf.jpg?1783946666"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
 // Fighting Drake
 {
     "name": "Fighting Drake",
