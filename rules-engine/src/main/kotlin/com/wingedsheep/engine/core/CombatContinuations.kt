@@ -13,11 +13,10 @@ import kotlinx.serialization.Serializable
  */
 @Serializable
 data class DamageAssignmentContinuation(
-    override val decisionId: String,
     val attackerId: EntityId,
     val defendingPlayerId: EntityId,
     val firstStrike: Boolean = false
-) : ContinuationFrame
+) : AnswerContinuation
 
 /**
  * Resume a [CombatResolutionDecision] (the bipartite combat-damage board).
@@ -27,17 +26,14 @@ data class DamageAssignmentContinuation(
  *   editors first, then blocker-side). The head is the current chooser; the resumer filters
  *   the response to edges they own and re-pauses for the next chooser until the queue empties.
  *   For the two-actor banding case this carries both players (CR 702.22j + 702.22k).
- * @property decisionShape The cached decision (attackers/blockers/defenders/edges). The resumer
- *   reads [DamageEdge.editableBy] and [DamageEdge.sourceId]/[DamageEdge.targetId] from here
- *   rather than re-deriving them, so edge ids never need to be parsed.
+ * The paired [CombatResolutionDecision] supplies represented edges and their ownership to the
+ * resumer; this answer payload retains only the work needed after those choices are submitted.
  */
 @Serializable
 data class CombatResolutionContinuation(
-    override val decisionId: String,
     val firstStrike: Boolean,
     val pendingChoosers: List<EntityId>,
-    val decisionShape: CombatResolutionDecision,
-) : ContinuationFrame
+) : AnswerContinuation
 
 /**
  * Resume combat damage after player decides whether to assign damage as though unblocked.
@@ -49,11 +45,10 @@ data class CombatResolutionContinuation(
  */
 @Serializable
 data class AssignAsUnblockedContinuation(
-    override val decisionId: String,
     val attackerId: EntityId,
     val defendingPlayerId: EntityId,
     val firstStrike: Boolean = false
-) : ContinuationFrame
+) : AnswerContinuation
 
 /**
  * Resume after player has distributed damage among targets.
@@ -65,23 +60,14 @@ data class AssignAsUnblockedContinuation(
  * @property sourceId The spell/ability that is dealing the damage
  * @property controllerId The player who controls the effect
  * @property targets The targets that damage can be distributed among
- * @property lifeGainCauseId Resolving spell that caused this damage (stamped at pause time,
- *   while the spell is still on the stack). Used so lifelink life gain after resume still
- *   attributes to that spell even though the stack object may already have left.
- * @property lifeGainCauseTypeLine / [lifeGainCauseColors] LKI for that cause when the entity
- *   may have been removed (copy spells).
  */
 @Serializable
 data class DistributeDamageContinuation(
-    override val decisionId: String,
     val sourceId: EntityId?,
     val controllerId: EntityId,
     val targets: List<EntityId>,
     val objectReferences: com.wingedsheep.engine.handlers.ObjectReferenceEnvironment = com.wingedsheep.engine.handlers.ObjectReferenceEnvironment(),
-    val lifeGainCauseId: EntityId? = null,
-    val lifeGainCauseTypeLine: com.wingedsheep.sdk.core.TypeLine? = null,
-    val lifeGainCauseColors: Set<com.wingedsheep.sdk.core.Color> = emptySet(),
-) : ContinuationFrame
+) : AnswerContinuation
 
 /**
  * Resume after defending player distributes damage prevention among multiple combat damage sources.
@@ -97,13 +83,12 @@ data class DistributeDamageContinuation(
  */
 @Serializable
 data class DamagePreventionContinuation(
-    override val decisionId: String,
     val recipientId: EntityId,
     val shieldEffectId: EntityId,
     val shieldAmount: Int,
     val damageBySource: Map<EntityId, Int>,
     val firstStrike: Boolean
-) : ContinuationFrame
+) : AnswerContinuation
 
 /**
  * Resume after a player chooses a source of damage for Deflecting Palm-style effects.
@@ -117,7 +102,6 @@ data class DamagePreventionContinuation(
  */
 @Serializable
 data class DeflectDamageSourceChoiceContinuation(
-    override val decisionId: String,
     val controllerId: EntityId,
     val sourceId: EntityId?,
     val sourceName: String?,
@@ -126,7 +110,7 @@ data class DeflectDamageSourceChoiceContinuation(
     /** When false, the chosen source's damage is not prevented — it still hits, the reaction still fires (Eye for an Eye). */
     val preventDamage: Boolean = true,
     val objectReferences: com.wingedsheep.engine.handlers.ObjectReferenceEnvironment = com.wingedsheep.engine.handlers.ObjectReferenceEnvironment(),
-) : ContinuationFrame
+) : AnswerContinuation
 
 /**
  * Continuation for PreventNextDamageFromChosenSourceEffect.
@@ -145,7 +129,6 @@ data class DeflectDamageSourceChoiceContinuation(
  */
 @Serializable
 data class PreventDamageFromChosenSourceContinuation(
-    override val decisionId: String,
     val controllerId: EntityId,
     val targetId: EntityId,
     val amount: Int?,
@@ -172,7 +155,7 @@ data class PreventDamageFromChosenSourceContinuation(
      */
     val halvePreventedDamage: Boolean = false,
     val objectReferences: com.wingedsheep.engine.handlers.ObjectReferenceEnvironment = com.wingedsheep.engine.handlers.ObjectReferenceEnvironment(),
-) : ContinuationFrame
+) : AnswerContinuation
 
 /**
  * Resume the combat damage step after the controller of an optional damage-redirection shield has
@@ -189,10 +172,9 @@ data class PreventDamageFromChosenSourceContinuation(
  */
 @Serializable
 data class CombatOptionalRedirectContinuation(
-    override val decisionId: String,
     val choiceKey: String,
     val firstStrike: Boolean = false
-) : ContinuationFrame
+) : AnswerContinuation
 
 /**
  * The non-combat counterpart of [CombatOptionalRedirectContinuation]: record the answer, then re-run
@@ -204,8 +186,7 @@ data class CombatOptionalRedirectContinuation(
  */
 @Serializable
 data class OptionalRedirectEffectContinuation(
-    override val decisionId: String,
     val choiceKey: String,
     val effect: Effect,
     val effectContext: com.wingedsheep.engine.handlers.EffectContext
-) : ContinuationFrame
+) : AnswerContinuation

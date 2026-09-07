@@ -1,21 +1,19 @@
 package com.wingedsheep.engine.handlers.effects.damage
 
+import com.wingedsheep.engine.core.suspendForDecision
 import com.wingedsheep.engine.core.DecisionContext
 import com.wingedsheep.engine.core.DecisionPhase
-import com.wingedsheep.engine.core.DecisionRequestedEvent
 import com.wingedsheep.engine.core.DistributeDecision
 import com.wingedsheep.engine.core.DistributeDamageContinuation
 import com.wingedsheep.engine.core.EffectResult
 import com.wingedsheep.engine.handlers.DecisionHandler
 import com.wingedsheep.engine.handlers.EffectContext
 import com.wingedsheep.engine.handlers.effects.EffectExecutor
-import com.wingedsheep.engine.handlers.effects.DamageUtils
 import com.wingedsheep.engine.handlers.effects.DamageUtils.dealDamageToTarget
 import com.wingedsheep.engine.handlers.effects.TargetResolutionUtils.toEntityId
 import com.wingedsheep.engine.state.GameState
 import com.wingedsheep.engine.state.components.identity.CardComponent
 import com.wingedsheep.sdk.scripting.effects.DividedDamageEffect
-import java.util.UUID
 import kotlin.reflect.KClass
 
 /**
@@ -57,8 +55,6 @@ class DividedDamageExecutor(
         }
 
         val distribution = context.damageDistribution
-        val (lifeGainCauseId, lifeGainCauseTypeLine, lifeGainCauseColors) =
-            DamageUtils.resolvingSpellCauseLki(state, context)
         if (distribution != null) {
             // The division was locked in when the spell/ability was announced (CR 601.2d), so it is
             // honored verbatim — never re-divided at resolution. `context.targets` has already had
@@ -81,12 +77,7 @@ class DividedDamageExecutor(
 
             for ((targetId, amount) in distribution) {
                 if (amount <= 0 || targetId !in stillLegal) continue
-                val result = dealDamageToTarget(
-                    currentState, targetId, amount, context.sourceId,
-                    lifeGainCauseId = lifeGainCauseId,
-                    lifeGainCauseTypeLine = lifeGainCauseTypeLine,
-                    lifeGainCauseColors = lifeGainCauseColors,
-                )
+                val result = dealDamageToTarget(currentState, targetId, amount, context.sourceId)
                 if (!result.isSuccess) {
                     return result
                 }
@@ -108,12 +99,7 @@ class DividedDamageExecutor(
                 context
             )
             if (pause != null) return pause
-            return dealDamageToTarget(
-                readyState, targets.first(), total, context.sourceId,
-                lifeGainCauseId = lifeGainCauseId,
-                lifeGainCauseTypeLine = lifeGainCauseTypeLine,
-                lifeGainCauseColors = lifeGainCauseColors,
-            )
+            return dealDamageToTarget(readyState, targets.first(), total, context.sourceId)
         }
         return createDistributionDecision(state, effect, context, targets, total)
     }
@@ -133,8 +119,7 @@ class DividedDamageExecutor(
             state.getEntity(sourceId)?.get<CardComponent>()?.name
         } ?: "Effect"
 
-        val decisionId = UUID.randomUUID().toString()
-        val decision = DistributeDecision(
+        val decision = { decisionId: String -> DistributeDecision(
             id = decisionId,
             playerId = context.controllerId,
             prompt = "Divide $total damage among ${targets.size} targets",
@@ -146,35 +131,15 @@ class DividedDamageExecutor(
             totalAmount = total,
             targets = targets,
             minPerTarget = 1 // Per MTG rules, must assign at least 1 damage to each target
-        )
+        ) }
 
-        // Push continuation so we know how to resume
-        val (lifeGainCauseId, lifeGainCauseTypeLine, lifeGainCauseColors) =
-            DamageUtils.resolvingSpellCauseLki(state, context)
         val continuation = DistributeDamageContinuation(
-            decisionId = decisionId,
             sourceId = context.sourceId,
             objectReferences = context.objectReferences,
             controllerId = context.controllerId,
-            targets = targets,
-            lifeGainCauseId = lifeGainCauseId,
-            lifeGainCauseTypeLine = lifeGainCauseTypeLine,
-            lifeGainCauseColors = lifeGainCauseColors,
+            targets = targets
         )
 
-        val newState = state
-            .withPendingDecision(decision)
-            .pushContinuation(continuation)
-
-        val events = listOf(
-            DecisionRequestedEvent(
-                decisionId = decisionId,
-                playerId = context.controllerId,
-                decisionType = "DISTRIBUTE",
-                prompt = decision.prompt
-            )
-        )
-
-        return EffectResult.paused(newState, decision, events)
+        return EffectResult.from(state.suspendForDecision(decision, continuation, eventType = "DISTRIBUTE"))
     }
 }

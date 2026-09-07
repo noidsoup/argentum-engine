@@ -540,9 +540,8 @@ class TurnManager(
                 val untapResult = beginningPhaseManager.performUntapStep(newState)
                 if (!untapResult.isSuccess) return untapResult
                 if (untapResult.isPaused) {
-                    return ExecutionResult.paused(
+                    return ExecutionResult.propagatePause(
                         untapResult.newState,
-                        untapResult.pendingDecision!!,
                         events + untapResult.events
                     )
                 }
@@ -568,9 +567,8 @@ class TurnManager(
             Step.DRAW -> {
                 val drawResult = drawPhaseManager.performDrawStep(newState)
                 if (drawResult.isPaused) {
-                    return ExecutionResult.paused(
+                    return ExecutionResult.propagatePause(
                         drawResult.state,
-                        drawResult.pendingDecision!!,
                         events + drawResult.events
                     )
                 }
@@ -580,9 +578,8 @@ class TurnManager(
                 // Check state-based actions after draw (Rule 704.3)
                 val sbaResult = sbaChecker.checkAndApply(newState)
                 if (sbaResult.isPaused) {
-                    return ExecutionResult.paused(
+                    return ExecutionResult.propagatePause(
                         sbaResult.state,
-                        sbaResult.pendingDecision!!,
                         events + sbaResult.events
                     )
                 }
@@ -772,9 +769,8 @@ class TurnManager(
                         events.add(PlayerLostEvent(member, GameEndReason.CARD_EFFECT, loseComponent.message))
                         val sbaResult = sbaChecker.checkAndApply(newState)
                         if (sbaResult.isPaused) {
-                            return ExecutionResult.paused(
+                            return ExecutionResult.propagatePause(
                                 sbaResult.state,
-                                sbaResult.pendingDecision!!,
                                 events + sbaResult.events
                             )
                         }
@@ -862,9 +858,8 @@ class TurnManager(
         if (!untapResult.isSuccess) return untapResult
 
         if (untapResult.isPaused) {
-            return ExecutionResult.paused(
+            return ExecutionResult.propagatePause(
                 untapResult.newState,
-                untapResult.pendingDecision!!,
                 turnResult.events + untapResult.events
             )
         }
@@ -972,7 +967,7 @@ class TurnManager(
         // wipe are already handled by that effect; this catches any other pending SBA.)
         val sbaResult = sbaChecker.checkAndApply(newState)
         if (sbaResult.isPaused) {
-            return ExecutionResult.paused(sbaResult.newState, sbaResult.pendingDecision!!, events + sbaResult.events)
+            return ExecutionResult.propagatePause(sbaResult.newState, events + sbaResult.events)
         }
         newState = sbaResult.newState
         events.addAll(sbaResult.events)
@@ -1032,9 +1027,8 @@ class TurnManager(
         if (cleanupResult.isPaused) {
             // Over max hand size: pause for the discard. The HandSizeDiscardContinuation finishes the
             // cleanup turn-based actions, then the game advances CLEANUP → next turn (advanceStep).
-            return ExecutionResult.paused(
+            return ExecutionResult.propagatePause(
                 cleanupResult.newState,
-                cleanupResult.pendingDecision!!,
                 events + cleanupResult.events
             )
         }
@@ -1046,9 +1040,8 @@ class TurnManager(
 
         val endTurnResult = endTurn(newState)
         if (endTurnResult.isPaused) {
-            return ExecutionResult.paused(
+            return ExecutionResult.propagatePause(
                 endTurnResult.newState,
-                endTurnResult.pendingDecision!!,
                 events + endTurnResult.events
             )
         }

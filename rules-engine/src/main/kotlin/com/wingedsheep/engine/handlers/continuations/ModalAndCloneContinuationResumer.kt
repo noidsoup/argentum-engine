@@ -94,14 +94,13 @@ class ModalAndCloneContinuationResumer(
         // More modes still need to be picked — present the next ChooseOptionDecision.
         if (newSelectedIndices.size < continuation.chooseCount && newAvailableIndices.isNotEmpty()) {
             val sourceName = continuation.sourceName ?: "modal spell"
-            val decisionId = java.util.UUID.randomUUID().toString()
             val prompt = "Choose a mode for $sourceName (${newSelectedIndices.size + 1} of ${continuation.chooseCount})"
             val nextCanDecline = newSelectedIndices.size >= continuation.minChooseCount
             val baseOptions = newAvailableIndices.map { continuation.modes[it].description }
             val decisionOptions = if (nextCanDecline) {
                 baseOptions + com.wingedsheep.engine.handlers.effects.composite.ModalEffectExecutor.DECLINE_MODE_LABEL
             } else baseOptions
-            val decision = ChooseOptionDecision(
+            val question = { decisionId: String -> ChooseOptionDecision(
                 id = decisionId,
                 playerId = continuation.controllerId,
                 prompt = prompt,
@@ -111,25 +110,15 @@ class ModalAndCloneContinuationResumer(
                     phase = DecisionPhase.RESOLUTION
                 ),
                 options = decisionOptions
-            )
+            ) }
             val nextContinuation = continuation.copy(
-                decisionId = decisionId,
                 selectedModeIndices = newSelectedIndices,
                 availableIndices = newAvailableIndices
             )
-            val stateWithDecision = stateAfterRecord.withPendingDecision(decision)
-            val stateWithContinuation = stateWithDecision.pushContinuation(nextContinuation)
-            return ExecutionResult.paused(
-                stateWithContinuation,
-                decision,
-                listOf(
-                    DecisionRequestedEvent(
-                        decisionId = decisionId,
-                        playerId = continuation.controllerId,
-                        decisionType = "CHOOSE_OPTION",
-                        prompt = decision.prompt
-                    )
-                )
+            return stateAfterRecord.suspendForDecision(
+                question = question,
+                answer = nextContinuation,
+                events = emptyList(),
             )
         }
 
@@ -522,9 +511,8 @@ class ModalAndCloneContinuationResumer(
         if (triggers.isNotEmpty()) {
             val triggerResult = services.triggerProcessor.processTriggers(newState, triggers)
             if (triggerResult.isPaused) {
-                return ExecutionResult.paused(
+                return ExecutionResult.propagatePause(
                     triggerResult.state,
-                    triggerResult.pendingDecision!!,
                     outEvents + zoneChangeEvent + triggerResult.events
                 )
             }
@@ -653,8 +641,8 @@ class ModalAndCloneContinuationResumer(
                         syntheticRiotRemaining = continuation.syntheticRiotRemaining - 1
                     )
                     if (repause != null && repause.isPaused) {
-                        return ExecutionResult.paused(
-                            repause.state, repause.pendingDecision!!, syntheticRiotEvents + repause.events
+                        return ExecutionResult.propagatePause(
+                            repause.state, syntheticRiotEvents + repause.events
                         )
                     }
                 }
@@ -857,9 +845,8 @@ class ModalAndCloneContinuationResumer(
         if (triggers.isNotEmpty()) {
             val triggerResult = services.triggerProcessor.processTriggers(newState, triggers)
             if (triggerResult.isPaused) {
-                return ExecutionResult.paused(
+                return ExecutionResult.propagatePause(
                     triggerResult.state,
-                    triggerResult.pendingDecision!!,
                     syntheticRiotEvents + triggerResult.events
                 )
             }
@@ -919,9 +906,8 @@ class ModalAndCloneContinuationResumer(
             val triggerResult = services.triggerProcessor.processTriggers(newState, triggers)
 
             if (triggerResult.isPaused) {
-                return ExecutionResult.paused(
+                return ExecutionResult.propagatePause(
                     triggerResult.state,
-                    triggerResult.pendingDecision!!,
                     events + triggerResult.events
                 )
             }
@@ -1033,9 +1019,8 @@ class ModalAndCloneContinuationResumer(
             val triggerResult = services.triggerProcessor.processTriggers(castResult.newState, triggers)
 
             if (triggerResult.isPaused) {
-                return ExecutionResult.paused(
+                return ExecutionResult.propagatePause(
                     triggerResult.state.withPriority(continuation.casterId),
-                    triggerResult.pendingDecision!!,
                     allEvents + triggerResult.events
                 )
             }
@@ -1367,9 +1352,8 @@ class ModalAndCloneContinuationResumer(
         // The mint can pause again (a devour creature that also has an as-enters choice); carry the
         // sacrifice events across that pause so they are not lost.
         if (minted.isPaused) {
-            return ExecutionResult.paused(
+            return ExecutionResult.propagatePause(
                 minted.state,
-                minted.pendingDecision!!,
                 sacrificeEvents + minted.events
             )
         }
@@ -1510,6 +1494,18 @@ class ModalAndCloneContinuationResumer(
             return checkForMore(created.state, created.events.toList())
         }
 
+        // The token copy can open a question of its own — a printed "choose ... as this enters"
+        // (CR 614.12) or granted riot. Only one suspension may be installed at a time, so the next
+        // host prompt cannot be stacked on top of it; asking anyway trips the guard in
+        // `suspendForDecision`. Report it rather than throwing out of the action processor.
+        // Chaining the remaining prompts underneath that choice needs a continuation of its own.
+        if (created.isPaused) {
+            return ExecutionResult.error(
+                created.state,
+                "Cannot ask for the next Aura token host while the previous copy owes an as-enters choice"
+            )
+        }
+
         // More Aura copies owed — each gets its own host choice.
         val next = com.wingedsheep.engine.handlers.effects.token.AuraTokenHostChooser.pause(
             state = created.state,
@@ -1521,9 +1517,9 @@ class ModalAndCloneContinuationResumer(
             remaining = remaining,
             cardRegistry = services.cardRegistry,
         )
-        val nextDecision = next.pendingDecision
-            ?: return checkForMore(next.state, created.events.toList() + next.events.toList())
-        return ExecutionResult.paused(next.state, nextDecision, created.events.toList())
+        val events = created.events.toList() + next.events.toList()
+        if (next.pendingDecision == null) return checkForMore(next.state, events)
+        return ExecutionResult.propagatePause(next.state, events)
     }
 
     /**
@@ -1537,9 +1533,8 @@ class ModalAndCloneContinuationResumer(
         val sourceName = continuation.sourceName ?: "modal spell"
 
         val modeDescriptions = modes.map { it.description }
-        val decisionId = java.util.UUID.randomUUID().toString()
 
-        val decision = ChooseOptionDecision(
+        val question = { decisionId: String -> ChooseOptionDecision(
             id = decisionId,
             playerId = continuation.controllerId,
             prompt = "Choose a mode for $sourceName",
@@ -1549,10 +1544,9 @@ class ModalAndCloneContinuationResumer(
                 phase = DecisionPhase.RESOLUTION
             ),
             options = modeDescriptions
-        )
+        ) }
 
         val modalContinuation = ModalContinuation(
-            decisionId = decisionId,
             controllerId = continuation.controllerId,
             sourceId = continuation.sourceId,
             objectReferences = continuation.objectReferences,
@@ -1565,20 +1559,10 @@ class ModalAndCloneContinuationResumer(
             pipeline = continuation.pipeline
         )
 
-        val stateWithDecision = state.withPendingDecision(decision)
-        val stateWithContinuation = stateWithDecision.pushContinuation(modalContinuation)
-
-        return ExecutionResult.paused(
-            stateWithContinuation,
-            decision,
-            listOf(
-                DecisionRequestedEvent(
-                    decisionId = decisionId,
-                    playerId = continuation.controllerId,
-                    decisionType = "CHOOSE_OPTION",
-                    prompt = decision.prompt
-                )
-            )
+        return state.suspendForDecision(
+            question = question,
+            answer = modalContinuation,
+            events = emptyList(),
         )
     }
 
@@ -1742,9 +1726,8 @@ internal fun processChosenModeQueue(
     // knows which mode of a Choose-N modal ability they are targeting for. The tail
     // rides on the ModalTargetContinuation; resumeModalTarget re-enters via
     // executeChosenModeWithTail so a nested pause inside this mode still survives.
-    val decisionId = java.util.UUID.randomUUID().toString()
     val prompt = "Choose targets for $displayName — ${head.description}"
-    val decision = ChooseTargetsDecision(
+    val question = { decisionId: String -> ChooseTargetsDecision(
         id = decisionId,
         playerId = controllerId,
         prompt = prompt,
@@ -1756,10 +1739,9 @@ internal fun processChosenModeQueue(
         targetRequirements = requirementInfos,
         legalTargets = legalTargetsMap,
         canCancel = allowCancelBackToModesList != null && tail.isEmpty()
-    )
+    ) }
 
     val modalTargetContinuation = ModalTargetContinuation(
-        decisionId = decisionId,
         controllerId = controllerId,
         sourceId = sourceId,
         sourceName = sourceName,
@@ -1775,18 +1757,7 @@ internal fun processChosenModeQueue(
         objectReferences = objectReferences
     )
 
-    val stateWithContinuation = state.withPendingDecision(decision).pushContinuation(modalTargetContinuation)
-
-    return ExecutionResult.paused(
-        stateWithContinuation,
-        decision,
-        accumulatedEvents + DecisionRequestedEvent(
-            decisionId = decisionId,
-            playerId = controllerId,
-            decisionType = "CHOOSE_TARGETS",
-            prompt = decision.prompt
-        )
-    )
+    return state.suspendForDecision(question, modalTargetContinuation, accumulatedEvents)
 }
 
 /**
@@ -1820,7 +1791,6 @@ private fun executeChosenModeWithTail(
     val stateForExecution = if (tail.isNotEmpty()) {
         state.pushContinuation(
             ModalChosenModeTailContinuation(
-                decisionId = "modal-chosen-tail-${java.util.UUID.randomUUID()}",
                 controllerId = controllerId,
                 sourceId = sourceId,
                 sourceName = sourceName,
@@ -1839,7 +1809,7 @@ private fun executeChosenModeWithTail(
     val events = accumulatedEvents + result.events
 
     if (result.isPaused) {
-        return ExecutionResult.paused(result.state, result.pendingDecision!!, events)
+        return ExecutionResult.propagatePause(result.state, events)
     }
     if (result.error != null) {
         return result.copy(events = events)
