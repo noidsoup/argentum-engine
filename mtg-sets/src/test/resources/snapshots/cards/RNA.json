@@ -1014,6 +1014,152 @@
     "colorIdentityOverride": []
 }
 
+// Dovin, Grand Arbiter
+{
+    "name": "Dovin, Grand Arbiter",
+    "manaCost": "{1}{W}{U}",
+    "typeLine": "Legendary Planeswalker — Dovin",
+    "oracleText": "+1: Until end of turn, whenever a creature you control deals combat damage to a player, put a loyalty counter on Dovin.\n−1: Create a 1/1 colorless Thopter artifact creature token with flying. You gain 1 life.\n−7: Look at the top ten cards of your library. Put three of them into your hand and the rest on the bottom of your library in a random order.",
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": {
+                    "type": "CostLoyalty",
+                    "change": 1
+                },
+                "effect": {
+                    "type": "CreateGlobalTriggeredAbility",
+                    "ability": {
+                        "id": "ability_2",
+                        "trigger": {
+                            "type": "DealsDamageEvent",
+                            "damageType": "DamageCombat",
+                            "recipient": "AnyPlayer",
+                            "sourceFilter": "creature ctrl:you"
+                        },
+                        "binding": "ANY",
+                        "effect": {
+                            "type": "AddCounters",
+                            "counterType": "loyalty",
+                            "count": 1,
+                            "target": "Self"
+                        },
+                        "descriptionOverride": "Whenever a creature you control deals combat damage to a player, put a loyalty counter on Dovin."
+                    },
+                    "duration": "EndOfTurn",
+                    "descriptionOverride": "Until end of turn, whenever a creature you control deals combat damage to a player, put a loyalty counter on Dovin."
+                },
+                "timing": "SorcerySpeed",
+                "isPlaneswalkerAbility": true
+            },
+            {
+                "id": "ability_3",
+                "cost": {
+                    "type": "CostLoyalty",
+                    "change": -1
+                },
+                "effect": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "CreateToken",
+                            "power": 1,
+                            "toughness": 1,
+                            "colors": [],
+                            "creatureTypes": [
+                                "Thopter"
+                            ],
+                            "keywords": [
+                                "FLYING"
+                            ],
+                            "artifactToken": true
+                        },
+                        {
+                            "type": "GainLife",
+                            "amount": {
+                                "type": "Fixed",
+                                "amount": 1
+                            }
+                        }
+                    ]
+                },
+                "timing": "SorcerySpeed",
+                "isPlaneswalkerAbility": true
+            },
+            {
+                "id": "ability_4",
+                "cost": {
+                    "type": "CostLoyalty",
+                    "change": -7
+                },
+                "effect": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "GatherCards",
+                            "source": {
+                                "type": "TopOfLibrary",
+                                "count": {
+                                    "type": "Fixed",
+                                    "amount": 10
+                                }
+                            },
+                            "storeAs": "looked"
+                        },
+                        {
+                            "type": "SelectFromCollection",
+                            "from": "looked",
+                            "selection": {
+                                "type": "ChooseExactly",
+                                "count": {
+                                    "type": "Fixed",
+                                    "amount": 3
+                                }
+                            },
+                            "storeSelected": "kept",
+                            "storeRemainder": "rest",
+                            "selectedLabel": "Put in hand",
+                            "remainderLabel": "Put on bottom"
+                        },
+                        {
+                            "type": "MoveCollection",
+                            "from": "kept",
+                            "destination": {
+                                "type": "ToZone",
+                                "zone": "Hand"
+                            }
+                        },
+                        {
+                            "type": "MoveCollection",
+                            "from": "rest",
+                            "destination": {
+                                "type": "ToZone",
+                                "zone": "Library",
+                                "placement": "Bottom"
+                            },
+                            "order": "Random"
+                        }
+                    ]
+                },
+                "timing": "SorcerySpeed",
+                "isPlaneswalkerAbility": true
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "167",
+        "rarity": "MYTHIC",
+        "artist": "Kieran Yanner",
+        "imageUri": "https://cards.scryfall.io/normal/front/e/6/e6784910-0204-4a39-bb38-50daa03e94c2.jpg?1783933653"
+    },
+    "startingLoyalty": 3,
+    "colorIdentityOverride": [
+        "WHITE",
+        "BLUE"
+    ]
+}
+
 // Elite Arrester
 {
     "name": "Elite Arrester",

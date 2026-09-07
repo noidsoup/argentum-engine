@@ -74,3 +74,73 @@
         "BLACK"
     ]
 }
+
+// Disorder in the Court
+{
+    "name": "Disorder in the Court",
+    "manaCost": "{X}{W}{U}",
+    "typeLine": "Instant",
+    "oracleText": "Exile X target creatures, then investigate X times. Return the exiled cards to the battlefield tapped under their owners' control at the beginning of the next end step. (To investigate, create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")",
+    "script": {
+        "spellEffect": {
+            "type": "Composite",
+            "effects": [
+                {
+                    "type": "ForEach",
+                    "space": "IterationSpace.Targets",
+                    "body": {
+                        "type": "Composite",
+                        "effects": [
+                            {
+                                "type": "MoveToZone",
+                                "target": {
+                                    "type": "ContextTarget",
+                                    "index": 0
+                                },
+                                "destination": "Exile"
+                            },
+                            {
+                                "type": "CreateDelayedTrigger",
+                                "step": "END",
+                                "effect": {
+                                    "type": "MoveToZone",
+                                    "target": {
+                                        "type": "ContextTarget",
+                                        "index": 0
+                                    },
+                                    "destination": "Battlefield",
+                                    "placement": "Tapped"
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "type": "CreatePredefinedToken",
+                    "tokenType": "Clue",
+                    "dynamicCount": "XValue"
+                }
+            ]
+        },
+        "targetRequirements": [
+            {
+                "type": "TargetObject",
+                "optional": true,
+                "filter": {
+                    "baseFilter": "creature"
+                },
+                "dynamicMaxCount": "XValue"
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "29",
+        "rarity": "RARE",
+        "artist": "Zoltan Boros",
+        "imageUri": "https://cards.scryfall.io/normal/front/5/7/576bee63-54d8-4d5c-ab30-6c9b2a72a501.jpg?1783924997"
+    },
+    "colorIdentityOverride": [
+        "WHITE",
+        "BLUE"
+    ]
+}
