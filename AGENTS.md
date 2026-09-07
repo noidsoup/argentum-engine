@@ -170,3 +170,22 @@ It is **predictive and non-authoritative — never a card loader.** Two rules fo
 | [`gym-self-play-testing.md`](docs/gym-self-play-testing.md) | Driving the gym server over HTTP to surface broken cards |
 | [`agent-loops/`](docs/agent-loops/) | Long-running set-implementation prompts for Claude Code `/loop` and Codex `/goal` |
 | [`oracle-assay.md`](docs/oracle-assay.md) | Argentum Assay design — first-party Scryfall→SDK Oracle parser; also audits `mtg-sdk` vocabulary. **Phase 1 + the differential gate shipped** ([`:oracle-assay`](oracle-assay/README.md)); the MVP and remaining phases are in [`docs/plans/oracle-assay.md`](docs/plans/oracle-assay.md) |
+---
+
+## Session spine (cursor-chat-intel)
+
+**Read at session start:** `docs/session-spine.md` — recent sessions, decisions, open questions, and unresolved blockers from Cursor history. Auto-refreshed by cursor-chat-intel; edit only the manual block inside that file.
+
+## Chat-derived conventions (cursor-chat-intel, 2026-09-07)
+
+- Test: `unittest`, `npm test`, `vitest`
+- Build/run: `make`
+- Ship: `git push`
+- Hot areas: `(root)`, `mtg-sets`, `rules-engine`, `mtg-sdk`, `.claude`
+
+### Known gotchas
+- Shell: response = self.parent.error( (28×)
+- Shell: > Task :rules-engine:compileTestKotlin FAILED (17×)
+- Shell: # tests completed, # failed (16×)
+- Shell: > Task :rules-engine:test FAILED (12×)
+- Shell: FAILURE: Build failed with an exception. (12×)
