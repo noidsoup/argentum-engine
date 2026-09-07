@@ -592,6 +592,11 @@ data class GameObjectFilter(
         cardPredicates = cardPredicates + CardPredicate.ToughnessAtMostX
     )
 
+    /** Toughness at most a resolved [DynamicAmount] (e.g. "X or less, where X is the number of Islands you control"). */
+    fun toughnessAtMostDynamic(amount: DynamicAmount) = copy(
+        cardPredicates = cardPredicates + CardPredicate.ToughnessAtMostDynamic(amount)
+    )
+
     /** Toughness at least */
     fun toughnessAtLeast(min: Int) = copy(
         cardPredicates = cardPredicates + CardPredicate.ToughnessAtLeast(min)

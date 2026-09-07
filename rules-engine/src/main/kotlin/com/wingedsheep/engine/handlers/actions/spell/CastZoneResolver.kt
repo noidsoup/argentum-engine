@@ -1036,6 +1036,7 @@ class CastZoneResolver(
                 is CardPredicate.ManaValueEqualsDynamic,
                 is CardPredicate.PowerEqualsDynamic,
                 is CardPredicate.ToughnessEqualsDynamic,
+                is CardPredicate.ToughnessAtMostDynamic,
                 is CardPredicate.PowerEqualsX,
                 is CardPredicate.PowerAtLeastX,
                 is CardPredicate.ToughnessAtMostX,

@@ -1415,6 +1415,7 @@ class CostCalculator(
         is CardPredicate.ManaValueEqualsDynamic -> false
         is CardPredicate.PowerEqualsDynamic -> false
         is CardPredicate.ToughnessEqualsDynamic -> false
+            is CardPredicate.ToughnessAtMostDynamic -> false
             is CardPredicate.PowerGreaterThanEntity -> false
             is CardPredicate.PowerAtMostEntity -> false
             is CardPredicate.PowerLessThanEntity -> false

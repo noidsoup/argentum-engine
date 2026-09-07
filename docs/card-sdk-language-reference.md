@@ -4511,6 +4511,14 @@ This is the player-arm prerequisite for the planned composable mixed `TargetUnio
   against `PredicateContext.xValue` at evaluation time, so it works at the spell's resolution
   filter pass (e.g. Zero Point Ballad's mass destruction). Layer projection / trigger matching
   / cost calculation report `false` (no X context).
+- `.toughnessAtMostDynamic(amount)` — toughness ≤ a resolved `DynamicAmount`. The open-ended
+  "toughness X or less, where X is <some game value>" cap — **Spectral Deluge**'s "where X is the
+  number of Islands you control" is
+  `.toughnessAtMostDynamic(DynamicAmounts.battlefield(Player.You, GameObjectFilter.Land.withSubtype(Subtype.ISLAND)).count())`,
+  not `.toughnessAtMostX()` (that reads the spell's chosen {X}). Evaluates projected toughness at
+  predicate-check time; fails closed with no controller context; `false` in layer-projection /
+  trigger matching / cost calculation / cast-record paths, matching `.manaValueAtMostDynamic`.
+  Underlying predicate: `CardPredicate.ToughnessAtMostDynamic`.
 - `.powerAtLeastX()` — projected power ≥ the X chosen for the source spell/ability; the
   greater-than-or-equal mirror of `.toughnessAtMostX()`, resolving against the same
   `PredicateContext.xValue`. Used by Expel the Interlopers ("Choose a number between 0 and 10.

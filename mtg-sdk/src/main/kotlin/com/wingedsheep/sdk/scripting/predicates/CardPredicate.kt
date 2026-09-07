@@ -757,6 +757,24 @@ sealed interface CardPredicate : TextReplaceable<CardPredicate> {
         override fun applyTextReplacement(replacer: TextReplacer): CardPredicate = this
     }
 
+    /**
+     * Toughness at most a resolved [DynamicAmount]. The open-ended "toughness X or less, where X is
+     * <some game value>" cap — e.g. Spectral Deluge's "where X is the number of Islands you control".
+     * Unlike [ToughnessAtMostX], the cap is **not** the spell's chosen {X}; feed any [DynamicAmount]
+     * (a battlefield count, turn-tracking total, life total, …) and the engine evaluates it when
+     * the predicate is checked, comparing against projected toughness.
+     */
+    @SerialName("ToughnessAtMostDynamic")
+    @Serializable
+    data class ToughnessAtMostDynamic(val amount: DynamicAmount) : CardPredicate {
+        override val description: String = "with toughness ${amount.description} or less"
+
+        override fun applyTextReplacement(replacer: TextReplacer): CardPredicate {
+            val newAmount = amount.applyTextReplacement(replacer)
+            return if (newAmount === amount) this else copy(amount = newAmount)
+        }
+    }
+
     @SerialName("ToughnessAtLeast")
     @Serializable
     data class ToughnessAtLeast(val min: Int) : CardPredicate {

@@ -1337,6 +1337,7 @@ class TriggerMatcher(
             }
             // Resolution-time only — TriggerMatcher has no X context, so the predicate never matches here.
             com.wingedsheep.sdk.scripting.predicates.CardPredicate.ToughnessAtMostX -> false
+            is com.wingedsheep.sdk.scripting.predicates.CardPredicate.ToughnessAtMostDynamic -> false
             // Resolution-time chosen-number predicates; TriggerMatcher has no chosen-number context.
             com.wingedsheep.sdk.scripting.predicates.CardPredicate.PowerEqualsX -> false
             com.wingedsheep.sdk.scripting.predicates.CardPredicate.PowerAtLeastX -> false

@@ -776,6 +776,11 @@ class PredicateEvaluator(
                     toughness <= xValue
                 }
             }
+            is CardPredicate.ToughnessAtMostDynamic -> {
+                val cap = evaluateDynamicCap(state, predicate.amount, context) ?: return false
+                val toughness = projectedValues?.toughness ?: card.baseStats?.baseToughness ?: 0
+                toughness <= cap
+            }
             is CardPredicate.ToughnessAtLeast -> {
                 val toughness = projectedValues?.toughness ?: card.baseStats?.baseToughness ?: 0
                 toughness >= predicate.min
@@ -1283,7 +1288,8 @@ class PredicateEvaluator(
      * Resolve an EntityReference to an EntityId using the predicate context.
      */
     /**
-     * Resolve a [DynamicAmount] cap for [CardPredicate.ManaValueAtMostDynamic]. The amount is
+     * Resolve a [DynamicAmount] cap for [CardPredicate.ManaValueAtMostDynamic] and
+     * [CardPredicate.ToughnessAtMostDynamic]. The amount is
      * evaluated through [DynamicAmountEvaluator] against a minimal [EffectContext] reconstructed
      * from the predicate context's controller/source/X. Returns null when there is no controller
      * to resolve player-scoped amounts against (e.g. legal-action enumeration with no context), so
@@ -2139,6 +2145,7 @@ class PredicateEvaluator(
             is CardPredicate.ManaValueEqualsDynamic -> false
             is CardPredicate.PowerEqualsDynamic -> false
             is CardPredicate.ToughnessEqualsDynamic -> false
+            is CardPredicate.ToughnessAtMostDynamic -> false
             CardPredicate.ManaValueIsEven -> record.manaValue % 2 == 0
             CardPredicate.ManaValueIsOdd -> record.manaValue % 2 != 0
             // A cast-spell record stores the resolved mana value, not the printed cost, so we

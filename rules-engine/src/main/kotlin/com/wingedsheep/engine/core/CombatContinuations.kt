@@ -65,6 +65,11 @@ data class AssignAsUnblockedContinuation(
  * @property sourceId The spell/ability that is dealing the damage
  * @property controllerId The player who controls the effect
  * @property targets The targets that damage can be distributed among
+ * @property lifeGainCauseId Resolving spell that caused this damage (stamped at pause time,
+ *   while the spell is still on the stack). Used so lifelink life gain after resume still
+ *   attributes to that spell even though the stack object may already have left.
+ * @property lifeGainCauseTypeLine / [lifeGainCauseColors] LKI for that cause when the entity
+ *   may have been removed (copy spells).
  */
 @Serializable
 data class DistributeDamageContinuation(
@@ -73,6 +78,9 @@ data class DistributeDamageContinuation(
     val controllerId: EntityId,
     val targets: List<EntityId>,
     val objectReferences: com.wingedsheep.engine.handlers.ObjectReferenceEnvironment = com.wingedsheep.engine.handlers.ObjectReferenceEnvironment(),
+    val lifeGainCauseId: EntityId? = null,
+    val lifeGainCauseTypeLine: com.wingedsheep.sdk.core.TypeLine? = null,
+    val lifeGainCauseColors: Set<com.wingedsheep.sdk.core.Color> = emptySet(),
 ) : ContinuationFrame
 
 /**
