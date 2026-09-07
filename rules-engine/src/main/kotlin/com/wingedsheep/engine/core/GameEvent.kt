@@ -1,7 +1,6 @@
 package com.wingedsheep.engine.core
 
 import com.wingedsheep.sdk.core.BendType
-import com.wingedsheep.sdk.core.Color
 import com.wingedsheep.sdk.core.Phase
 import com.wingedsheep.sdk.core.Step
 import com.wingedsheep.sdk.core.TypeLine
@@ -77,16 +76,16 @@ data class ZoneChangeEvent(
      * that are not craft materials (removal, the crafted card's own self-exile, etc.).
      */
     val craftMaterial: Boolean = false,
-    /**
-     * Controller of the spell or ability that caused this move into exile, when the exile was
-     * driven by an effect (`ZoneTransitionService.markExileCause`). Lets batch exile triggers
-     * distinguish "a spell or ability you control exiles one or more permanents from the
-     * battlefield" (Hero of Bretagard, Ranar the Ever-Watchful) from exiles with no tracked
-     * spell/ability cause (state-based actions, cost payments, untracked paths). Always `null` for
-     * non-exile destinations and for exiles that were not stamped by an effect site.
-     */
-    val exilingControllerId: EntityId? = null
+    /** Captured at the actual move, never reconstructed from the final event-batch state. */
+    val oldObject: com.wingedsheep.engine.state.ObjectRef? = null,
+    val newObject: com.wingedsheep.engine.state.ObjectRef? = null,
+    val transitionCause: ZoneTransitionCause = ZoneTransitionCause.PRIMARY,
+    /** The move's requested destination, before any redirect chose [toZone]. */
+    val requestedDestination: Zone = toZone
 ) : GameEvent
+
+@Serializable
+enum class ZoneTransitionCause { PRIMARY, REPLACEMENT_ADDITIONAL }
 
 // =============================================================================
 // Life Events
@@ -99,15 +98,6 @@ data class ZoneChangeEvent(
  * is the first life-gaining event for [playerId] this turn (computed by `DamageUtils.gainLife`
  * before the per-turn life-gained marker is set). It backs "whenever you gain life for the first
  * time each turn" triggers (Leech Collector). It is always `false` for non-gain reasons.
- *
- * [causingSourceId] is only meaningful for [LifeChangeReason.LIFE_GAIN]: the game object whose
- * cost or effect caused the gain (typically a resolving spell). Backs "whenever a … spell causes
- * you to gain life" (Firesong and Sunspeaker). Null when the gain was not caused by a tracked
- * spell (combat lifelink, permanent abilities, untracked paths). Always null for non-gain reasons.
- *
- * [causingSourceTypeLine] / [causingSourceColors] are last-known characteristics of that cause,
- * stamped when the gain is applied. Required so filters still match after a copy spell ceases to
- * exist (CR 707.10a) before triggers are checked.
  */
 @Serializable
 @SerialName("LifeChangedEvent")
@@ -116,10 +106,7 @@ data class LifeChangedEvent(
     val oldLife: Int,
     val newLife: Int,
     val reason: LifeChangeReason,
-    val firstThisTurn: Boolean = false,
-    val causingSourceId: EntityId? = null,
-    val causingSourceTypeLine: TypeLine? = null,
-    val causingSourceColors: Set<Color> = emptySet(),
+    val firstThisTurn: Boolean = false
 ) : GameEvent
 
 @Serializable
@@ -208,7 +195,9 @@ data class DamagePreventedEvent(
     val recipientId: EntityId,
     val amount: Int,
     val linkId: String,
-    val sourceName: String? = null
+    val sourceName: String? = null,
+    /** Controller when damage met the shield, retained after the source leaves its zone. */
+    val sourceControllerId: EntityId? = null
 ) : GameEvent
 
 /**
@@ -941,6 +930,8 @@ data class ReflexiveAbilityTriggeredEvent(
     val reflexiveTargetRequirements: List<com.wingedsheep.sdk.scripting.targets.TargetRequirement> = emptyList(),
     val descriptionOverride: String? = null,
     val carriedPipeline: com.wingedsheep.engine.handlers.PipelineState = com.wingedsheep.engine.handlers.PipelineState.EMPTY,
+    val carriedObjectReferences: com.wingedsheep.engine.handlers.ObjectReferenceEnvironment =
+        com.wingedsheep.engine.handlers.ObjectReferenceEnvironment(),
     /**
      * The ORIGINAL ability's own trigger context (X value, triggering entity/player, damage/counter
      * amounts, etc.) — a reflexive effect (or its target filter) may reference any of these (e.g.
@@ -2111,31 +2102,6 @@ data class CoinFlipEvent(
     val sourceId: EntityId,
     val sourceName: String,
     val ignored: Boolean = false
-) : GameEvent
-
-/**
- * Result of rolling the planar die (Planechase). Distribution: 4 blank, 1 chaos, 1 planeswalk.
- */
-@Serializable
-enum class PlanarDieFace {
-    @SerialName("Blank")
-    BLANK,
-    @SerialName("Chaos")
-    CHAOS,
-    @SerialName("Planeswalk")
-    PLANESWALK,
-}
-
-/**
- * Emitted when a player rolls the planar die.
- */
-@Serializable
-@SerialName("PlanarDieRolledEvent")
-data class PlanarDieRolledEvent(
-    val playerId: EntityId,
-    val result: PlanarDieFace,
-    val sourceId: EntityId,
-    val sourceName: String,
 ) : GameEvent
 
 /**
