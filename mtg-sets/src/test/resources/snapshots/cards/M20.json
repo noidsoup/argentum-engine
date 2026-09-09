@@ -548,6 +548,95 @@
     ]
 }
 
+// Flood of Tears
+{
+    "name": "Flood of Tears",
+    "manaCost": "{4}{U}{U}",
+    "typeLine": "Sorcery",
+    "oracleText": "Return all nonland permanents to their owners' hands. If you return four or more nontoken permanents you control this way, you may put a permanent card from your hand onto the battlefield.",
+    "script": {
+        "spellEffect": {
+            "type": "Composite",
+            "effects": [
+                {
+                    "type": "GatherCards",
+                    "source": {
+                        "type": "BattlefieldMatching",
+                        "filter": "nonland permanent"
+                    },
+                    "storeAs": "floodNonlands"
+                },
+                {
+                    "type": "FilterCollection",
+                    "from": "floodNonlands",
+                    "filter": {
+                        "type": "MatchesFilter",
+                        "filter": "nonland permanent nontoken ctrl:you"
+                    },
+                    "storeMatching": "floodYoursNontoken"
+                },
+                {
+                    "type": "MoveCollection",
+                    "from": "floodNonlands",
+                    "destination": {
+                        "type": "ToZone",
+                        "zone": "Hand"
+                    }
+                },
+                {
+                    "type": "ConditionalOnCollection",
+                    "collection": "floodYoursNontoken",
+                    "ifNotEmpty": {
+                        "type": "Composite",
+                        "effects": [
+                            {
+                                "type": "GatherCards",
+                                "source": {
+                                    "type": "FromZone",
+                                    "zone": "Hand",
+                                    "filter": "permanent"
+                                },
+                                "storeAs": "put_candidates"
+                            },
+                            {
+                                "type": "SelectFromCollection",
+                                "from": "put_candidates",
+                                "selection": {
+                                    "type": "ChooseUpTo",
+                                    "count": {
+                                        "type": "Fixed",
+                                        "amount": 1
+                                    }
+                                },
+                                "storeSelected": "putting"
+                            },
+                            {
+                                "type": "MoveCollection",
+                                "from": "putting",
+                                "destination": {
+                                    "type": "ToZone",
+                                    "zone": "Battlefield"
+                                }
+                            }
+                        ]
+                    },
+                    "minSize": 4
+                }
+            ]
+        }
+    },
+    "metadata": {
+        "collectorNumber": "59",
+        "rarity": "RARE",
+        "artist": "Adam Paquette",
+        "flavorText": "\"I have wept such a torrent as to scour the land clean.\"\n—Mu Yanling",
+        "imageUri": "https://cards.scryfall.io/normal/front/c/3/c3621820-4ab5-42bf-8a02-d5c066db4653.jpg?1783933010"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
+
 // Gnarlback Rhino
 {
     "name": "Gnarlback Rhino",

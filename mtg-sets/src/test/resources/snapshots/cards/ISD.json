@@ -4976,6 +4976,48 @@
     ]
 }
 
+// Rakish Heir
+{
+    "name": "Rakish Heir",
+    "manaCost": "{2}{R}",
+    "typeLine": "Creature — Vampire",
+    "oracleText": "Whenever a Vampire you control deals combat damage to a player, put a +1/+1 counter on it.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 2
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "DealsDamageEvent",
+                    "damageType": "DamageCombat",
+                    "recipient": "AnyPlayer",
+                    "sourceFilter": "creature Vampire ctrl:you"
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "AddCounters",
+                    "counterType": "+1/+1",
+                    "count": 1,
+                    "target": "TriggeringEntity"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "158",
+        "rarity": "UNCOMMON",
+        "artist": "Winona Nelson",
+        "flavorText": "\"If you're not having fun, what's the point of living forever?\"",
+        "imageUri": "https://cards.scryfall.io/normal/front/4/a/4afab3a6-95e3-4786-94f2-d9aa7365a4de.jpg?1783940930"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
 // Rally the Peasants
 {
     "name": "Rally the Peasants",
