@@ -757,6 +757,179 @@
     ]
 }
 
+// Imperious Mindbreaker
+{
+    "name": "Imperious Mindbreaker",
+    "manaCost": "{1}{U}{U}",
+    "typeLine": "Creature — Human Wizard",
+    "oracleText": "Soulbond (You may pair this creature with another unpaired creature when either enters. They remain paired for as long as you control both of them.)\nAs long as Imperious Mindbreaker is paired with another creature, each of those creatures has \"Whenever this creature attacks, each opponent mills cards equal to its toughness.\"",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 4
+    },
+    "keywords": [
+        "SOULBOND"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "GatherCards",
+                            "source": {
+                                "type": "BattlefieldMatching",
+                                "filter": {
+                                    "cardPredicates": [
+                                        "IsCreature"
+                                    ],
+                                    "statePredicates": [
+                                        {
+                                            "type": "StateNot",
+                                            "predicate": "IsPaired"
+                                        }
+                                    ]
+                                },
+                                "player": "You",
+                                "excludeSelf": true
+                            },
+                            "storeAs": "gathered0"
+                        },
+                        {
+                            "type": "SelectFromCollection",
+                            "from": "gathered0",
+                            "selection": {
+                                "type": "ChooseUpTo",
+                                "count": {
+                                    "type": "Fixed",
+                                    "amount": 1
+                                }
+                            },
+                            "storeSelected": "selected1",
+                            "prompt": "You may pair this creature with an unpaired creature you control",
+                            "useTargetingUI": true
+                        },
+                        {
+                            "type": "PairWithSource",
+                            "from": "selected1"
+                        }
+                    ]
+                },
+                "interveningIf": {
+                    "type": "EntityMatches",
+                    "entity": "Self",
+                    "filter": {
+                        "statePredicates": [
+                            {
+                                "type": "StateNot",
+                                "predicate": "IsPaired"
+                            }
+                        ]
+                    }
+                },
+                "descriptionOverride": "Soulbond (You may pair this creature with another unpaired creature when either enters. They remain paired for as long as you control both of them.)"
+            },
+            {
+                "id": "ability_2",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "filter": "creature ctrl:you",
+                    "to": "Battlefield"
+                },
+                "binding": "OTHER",
+                "effect": {
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "Composite",
+                        "effects": [
+                            {
+                                "type": "GatherCards",
+                                "source": "TriggeringEntity",
+                                "storeAs": "gathered0"
+                            },
+                            {
+                                "type": "PairWithSource",
+                                "from": "gathered0"
+                            }
+                        ]
+                    }
+                },
+                "interveningIf": {
+                    "type": "EntityMatches",
+                    "entity": "Self",
+                    "filter": {
+                        "statePredicates": [
+                            {
+                                "type": "StateNot",
+                                "predicate": "IsPaired"
+                            }
+                        ]
+                    }
+                },
+                "descriptionOverride": "You may pair that creature with this creature"
+            }
+        ],
+        "staticAbilities": [
+            {
+                "type": "GrantTriggeredAbility",
+                "ability": {
+                    "id": "ability_3",
+                    "trigger": "AttackEvent",
+                    "effect": {
+                        "type": "Composite",
+                        "effects": [
+                            {
+                                "type": "GatherCards",
+                                "source": {
+                                    "type": "TopOfLibrary",
+                                    "count": {
+                                        "type": "EntityProperty",
+                                        "entity": "Source",
+                                        "numericProperty": "Toughness"
+                                    },
+                                    "player": "EachOpponent",
+                                    "isMill": true
+                                },
+                                "storeAs": "milled"
+                            },
+                            {
+                                "type": "MoveCollection",
+                                "from": "milled",
+                                "destination": {
+                                    "type": "ToZone",
+                                    "zone": "Graveyard",
+                                    "player": "EachOpponent"
+                                }
+                            }
+                        ]
+                    },
+                    "descriptionOverride": "Whenever this creature attacks, each opponent mills cards equal to its toughness."
+                },
+                "filter": {
+                    "baseFilter": "permanent",
+                    "scope": "SoulbondPair"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "33",
+        "rarity": "RARE",
+        "artist": "Olivier Bernard",
+        "imageUri": "https://cards.scryfall.io/normal/front/9/5/95a9e722-d7a3-4a19-afd6-6c617aaf8eda.jpg?1783924996"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
+
 // Imposing Grandeur
 {
     "name": "Imposing Grandeur",

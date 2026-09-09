@@ -314,6 +314,90 @@
     ]
 }
 
+// Ghostly Pilferer
+{
+    "name": "Ghostly Pilferer",
+    "manaCost": "{1}{U}",
+    "typeLine": "Creature — Spirit Rogue",
+    "oracleText": "Whenever this creature becomes untapped, you may pay {2}. If you do, draw a card.\nWhenever an opponent casts a spell from anywhere other than their hand, draw a card.\nDiscard a card: This creature can't be blocked this turn.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 1
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": "UntapEvent",
+                "effect": {
+                    "type": "Gated",
+                    "gate": {
+                        "type": "Gate.MayPay",
+                        "cost": {
+                            "type": "PayManaCost",
+                            "cost": "{2}"
+                        }
+                    },
+                    "then": {
+                        "type": "DrawCards",
+                        "count": {
+                            "type": "Fixed",
+                            "amount": 1
+                        }
+                    }
+                },
+                "descriptionOverride": "Whenever this creature becomes untapped, you may pay {2}. If you do, draw a card."
+            },
+            {
+                "id": "ability_2",
+                "trigger": {
+                    "type": "SpellCastEvent",
+                    "player": "EachOpponent",
+                    "requires": [
+                        {
+                            "type": "SpellCastFromZoneOtherThan",
+                            "zone": "Hand"
+                        }
+                    ]
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "DrawCards",
+                    "count": {
+                        "type": "Fixed",
+                        "amount": 1
+                    }
+                },
+                "descriptionOverride": "Whenever an opponent casts a spell from anywhere other than their hand, draw a card."
+            }
+        ],
+        "activatedAbilities": [
+            {
+                "id": "ability_3",
+                "cost": {
+                    "type": "CostAtomWrapper",
+                    "atom": "AtomDiscard"
+                },
+                "effect": {
+                    "type": "GrantKeyword",
+                    "keyword": "CANT_BE_BLOCKED",
+                    "target": "Self"
+                },
+                "descriptionOverride": "Discard a card: This creature can't be blocked this turn."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "52",
+        "rarity": "RARE",
+        "artist": "Craig J Spearing",
+        "imageUri": "https://cards.scryfall.io/normal/front/2/8/2810631f-c55c-4947-a26f-4d3ce76024b3.jpg?1783930726"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
+
 // Heartfire Immolator
 {
     "name": "Heartfire Immolator",
