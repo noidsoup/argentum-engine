@@ -267,6 +267,35 @@ object Effects {
         DealDamageEffect(amount, target, damageSource = damageSource)
 
     /**
+     * "[Deal damage] unless [unless]." — runs [DealDamage] only when [unless] is false at
+     * resolution. The unless clause is checked synchronously (no player choice). Pair with
+     * [com.wingedsheep.sdk.dsl.Triggers.EachEndStep] for "at the beginning of each player's end
+     * step, ~ deals N damage to that player unless …" (Crimson Honor Guard).
+     */
+    fun DealDamageUnless(
+        unless: com.wingedsheep.sdk.scripting.conditions.Condition,
+        amount: Int,
+        target: EffectTarget,
+        damageSource: EffectTarget? = null,
+    ): Effect = ConditionalEffect(
+        condition = com.wingedsheep.sdk.scripting.conditions.NotCondition(unless),
+        effect = DealDamage(amount, target, damageSource),
+    )
+
+    /**
+     * Dynamic-amount sibling of [DealDamageUnless].
+     */
+    fun DealDamageUnless(
+        unless: com.wingedsheep.sdk.scripting.conditions.Condition,
+        amount: DynamicAmount,
+        target: EffectTarget,
+        damageSource: EffectTarget? = null,
+    ): Effect = ConditionalEffect(
+        condition = com.wingedsheep.sdk.scripting.conditions.NotCondition(unless),
+        effect = DealDamage(amount, target, damageSource),
+    )
+
+    /**
      * Deal damage to a creature, dealing any excess (CR 120.4a — damage beyond lethal) to that
      * creature's controller instead. Used by Gandalf's Sanction.
      */

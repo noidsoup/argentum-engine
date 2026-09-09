@@ -620,6 +620,15 @@ object Conditions {
         com.wingedsheep.sdk.scripting.conditions.PlayerControlsMostPermanents(player, filter)
 
     /**
+     * [player] controls a commander — in their command zone or on the battlefield under their
+     * control, including another player's commander they gained control of. Commanders in other
+     * zones do not count. Checked at resolution (Crimson Honor Guard: "unless they control a
+     * commander").
+     */
+    fun PlayerControlsCommander(player: Player = Player.You): ConditionInterface =
+        com.wingedsheep.sdk.scripting.conditions.PlayerControlsCommander(player)
+
+    /**
      * If the context target at [targetIndex] is a tapped battlefield permanent. Branch on a
      * target's tapped state at resolution — e.g. Shackle Slinger's "If it's tapped, put a stun
      * counter on it. Otherwise, tap it."

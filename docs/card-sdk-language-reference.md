@@ -996,6 +996,11 @@ Atomic effect factories. For library/zone manipulation, prefer the pipelines in 
 ### Damage
 
 - `DealDamage(amount, target)` — deal fixed/dynamic damage.
+- `DealDamageUnless(unless, amount, target, damageSource?)` — deal damage only when [unless] is false
+  at resolution (lowers to `ConditionalEffect(Not(unless), DealDamage(...))`). Pair with
+  `Triggers.EachEndStep` and `EffectTarget.PlayerRef(Player.TriggeringPlayer)` for "at the beginning of
+  each player's end step, ~ deals N damage to that player unless …" (Crimson Honor Guard). The unless
+  clause is a synchronous state test, not a player choice.
 - `DealDamageExcessToController(amount, target)` — deal damage to a creature; any amount beyond
   lethal (CR 120.4a) is dealt to that creature's controller instead (the creature is marked only with
   the lethal portion). Backed by `DealDamageEffect.excessToController`. Used by Gandalf's Sanction.
@@ -9966,6 +9971,11 @@ answer it and would silently return `false`.
   `ForEachPlayerEffect(Player.Each, ConditionalEffect(PlayerControlsMostPermanents(Player.You,
   GameObjectFilter.Creature), …))`, where `Player.You` inside the loop is the iterated player
   (No Witnesses: "Each player who controls the most creatures investigates").
+- `PlayerControlsCommander(player = Player.You)` — [player] controls a commander: a card with
+  `CommanderComponent` in their command zone or on the battlefield under their control (including another
+  player's commander they gained control of). Commanders in graveyard, exile, hand, or library do not
+  count. Checked at resolution only. Pair with `Effects.DealDamageUnless` on `Triggers.EachEndStep` for
+  Crimson Honor Guard's "unless they control a commander" gate.
 - `AmountIsPrime(amount)` / `AmountIsEven(amount)` / `AmountIsOdd(amount)` /
   `AmountIsMultipleOf(amount, divisor)` — the **unary** numeric-predicate family, the counterpart to
   `CompareAmounts` for properties a two-sided threshold can't express (primality, parity,
