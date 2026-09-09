@@ -137,6 +137,7 @@ export const counterManaClass: Record<string, string> = {
   QUEST: 'counter-lore',
   GROWTH: 'counter-charge',
   TIME: 'counter-time',
+  HOUR: 'counter-time',
   FEATHER: 'counter-charge',
   DECAYED: 'ability-decayed',
   HOPE: 'counter-charge',

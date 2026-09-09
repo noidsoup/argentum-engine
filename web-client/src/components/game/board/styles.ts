@@ -2315,6 +2315,7 @@ const passiveCounterPalette: Record<string, CounterBadgePalette> = {
   FILM: { bg: 'rgba(28, 28, 32, 0.95)', border: 'rgba(180, 185, 195, 0.7)', color: '#d0d4dc', glow: 'rgba(180, 185, 195, 0.5)' },
   ICE: { bg: 'rgba(18, 42, 58, 0.95)', border: 'rgba(140, 210, 240, 0.7)', color: '#b8e4f5', glow: 'rgba(140, 210, 240, 0.55)' },
   OMEN: { bg: 'rgba(26, 30, 50, 0.95)', border: 'rgba(190, 200, 245, 0.75)', color: '#dfe4ff', glow: 'rgba(190, 200, 245, 0.65)' },
+  HOUR: { bg: 'rgba(18, 34, 58, 0.95)', border: 'rgba(120, 170, 230, 0.75)', color: '#a8c8f0', glow: 'rgba(120, 170, 230, 0.6)' },
   HARNESS: { bg: 'rgba(48, 26, 12, 0.95)', border: 'rgba(240, 180, 80, 0.8)', color: '#ffc860', glow: 'rgba(240, 180, 80, 0.7)' },
   PLAN: { bg: 'rgba(24, 40, 62, 0.95)', border: 'rgba(120, 175, 230, 0.7)', color: '#a8cdee', glow: 'rgba(120, 175, 230, 0.55)' },
   INVASION: { bg: 'rgba(52, 22, 20, 0.95)', border: 'rgba(230, 110, 90, 0.7)', color: '#f0a090', glow: 'rgba(230, 110, 90, 0.55)' },

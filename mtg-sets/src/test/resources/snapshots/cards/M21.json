@@ -895,6 +895,77 @@
     ]
 }
 
+// Shacklegeist
+{
+    "name": "Shacklegeist",
+    "manaCost": "{1}{U}",
+    "typeLine": "Creature — Spirit",
+    "oracleText": "Flying\nThis creature can block only creatures with flying.\nTap two untapped Spirits you control: Tap target creature you don't control.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 2
+    },
+    "keywords": [
+        "FLYING"
+    ],
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": {
+                    "type": "CostAtomWrapper",
+                    "atom": {
+                        "type": "AtomTapPermanents",
+                        "count": 2,
+                        "filter": "permanent Spirit"
+                    }
+                },
+                "effect": {
+                    "type": "TapUntap",
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "target creature you don't control"
+                    }
+                },
+                "targetRequirements": [
+                    {
+                        "type": "TargetObject",
+                        "filter": {
+                            "baseFilter": "creature ctrl:opponent"
+                        },
+                        "id": "target creature you don't control"
+                    }
+                ],
+                "descriptionOverride": "Tap target creature you don't control."
+            }
+        ],
+        "staticAbilities": [
+            {
+                "type": "CanOnlyBlockCreaturesWith",
+                "blockerFilter": {
+                    "cardPredicates": [
+                        "IsCreature",
+                        {
+                            "type": "HasKeyword",
+                            "keyword": "FLYING"
+                        }
+                    ]
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "70",
+        "rarity": "RARE",
+        "artist": "Igor Kieryluk",
+        "flavorText": "The Blessed Sleep doesn't come easily to a mind chained by regrets.",
+        "imageUri": "https://cards.scryfall.io/normal/front/7/a/7a5a88e3-e73c-4b34-a645-06fe27e68cee.jpg?1783930719"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
+
 // Shipwreck Dowser
 {
     "name": "Shipwreck Dowser",

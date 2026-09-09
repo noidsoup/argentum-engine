@@ -80,6 +80,7 @@ enum class CounterType {
     TIME,
     FEATHER,
     HOURGLASS,
+    HOUR,
     DECAYED,
     HOPE,
     VERSE,
@@ -324,6 +325,17 @@ object Counters {
     const val TIME = "time"
     const val FEATHER = "feather"
     const val HOURGLASS = "hourglass"
+
+    /**
+     * Hour counter (ELD — Midnight Clock). Passive accumulate-then-threshold counter with no
+     * inherent rule of its own: the artifact's upkeep trigger and activated ability each add one,
+     * and a second ability gated on `Conditions.SourceCounterCountAtLeast(Counters.HOUR, 12)`
+     * fires when the twelfth one lands, shuffles hand and graveyard into library, draws seven,
+     * then exiles the artifact. Same shape as [PLAN] / [UNLOCK].
+     * NOT a keyword counter, so it is intentionally absent from `StateProjector.KEYWORD_COUNTER_MAP`.
+     */
+    const val HOUR = "hour"
+
     const val SPORE = "spore"
 
     /**
