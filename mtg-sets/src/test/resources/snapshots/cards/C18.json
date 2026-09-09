@@ -1,0 +1,144 @@
+// Boreas Charger
+{
+    "name": "Boreas Charger",
+    "manaCost": "{2}{W}",
+    "typeLine": "Creature — Pegasus",
+    "oracleText": "Flying\nWhen this creature leaves the battlefield, choose an opponent who controls more lands than you. Search your library for a number of Plains cards equal to the difference, reveal those cards, put one of them onto the battlefield tapped and the rest into your hand, then shuffle.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 1
+    },
+    "keywords": [
+        "FLYING"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "from": "Battlefield"
+                },
+                "effect": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "ChooseOpponentForSource",
+                            "prompt": "Choose an opponent who controls more lands than you"
+                        },
+                        {
+                            "type": "Gated",
+                            "gate": {
+                                "type": "Gate.WhenCondition",
+                                "condition": {
+                                    "type": "Compare",
+                                    "left": {
+                                        "type": "Count",
+                                        "player": "ChosenOpponent",
+                                        "zone": "Battlefield",
+                                        "filter": "land"
+                                    },
+                                    "operator": "GT",
+                                    "right": {
+                                        "type": "Count",
+                                        "player": "You",
+                                        "zone": "Battlefield",
+                                        "filter": "land"
+                                    }
+                                }
+                            },
+                            "then": {
+                                "type": "Composite",
+                                "effects": [
+                                    {
+                                        "type": "GatherCards",
+                                        "source": {
+                                            "type": "FromZone",
+                                            "zone": "Library",
+                                            "filter": "land Plains"
+                                        },
+                                        "storeAs": "searchable"
+                                    },
+                                    {
+                                        "type": "SelectFromCollection",
+                                        "from": "searchable",
+                                        "selection": {
+                                            "type": "ChooseUpTo",
+                                            "count": {
+                                                "type": "IfPositive",
+                                                "amount": {
+                                                    "type": "Subtract",
+                                                    "left": {
+                                                        "type": "Count",
+                                                        "player": "ChosenOpponent",
+                                                        "zone": "Battlefield",
+                                                        "filter": "land"
+                                                    },
+                                                    "right": {
+                                                        "type": "Count",
+                                                        "player": "You",
+                                                        "zone": "Battlefield",
+                                                        "filter": "land"
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        "storeSelected": "found",
+                                        "prompt": "Search your library for Plains cards equal to the land difference"
+                                    },
+                                    {
+                                        "type": "SelectFromCollection",
+                                        "from": "found",
+                                        "selection": {
+                                            "type": "ChooseExactly",
+                                            "count": {
+                                                "type": "Fixed",
+                                                "amount": 1
+                                            }
+                                        },
+                                        "storeSelected": "toBattlefield",
+                                        "storeRemainder": "toHand",
+                                        "prompt": "Choose which Plains enters the battlefield tapped; the rest go to your hand.",
+                                        "selectedLabel": "Onto the battlefield tapped",
+                                        "remainderLabel": "Into your hand"
+                                    },
+                                    {
+                                        "type": "MoveCollection",
+                                        "from": "toBattlefield",
+                                        "destination": {
+                                            "type": "ToZone",
+                                            "zone": "Battlefield",
+                                            "placement": "Tapped"
+                                        },
+                                        "revealed": true
+                                    },
+                                    {
+                                        "type": "MoveCollection",
+                                        "from": "toHand",
+                                        "destination": {
+                                            "type": "ToZone",
+                                            "zone": "Hand"
+                                        },
+                                        "revealed": true
+                                    },
+                                    "ShuffleLibrary",
+                                    "EmitLibrarySearchedEvent"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                "descriptionOverride": "When this creature leaves the battlefield, choose an opponent who controls more lands than you. Search your library for a number of Plains cards equal to the difference, reveal those cards, put one of them onto the battlefield tapped and the rest into your hand, then shuffle."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "1",
+        "rarity": "RARE",
+        "artist": "Christine Choi",
+        "imageUri": "https://cards.scryfall.io/normal/front/5/c/5cd3b85b-7d8d-402e-829a-6080fd4eb7a1.jpg?1783934345"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
