@@ -277,6 +277,7 @@ class CreateDelayedTriggerExecutor : EffectExecutor<CreateDelayedTriggerEffect> 
         is DynamicAmount.DistinctEntitiesInCollections,
         is DynamicAmount.DistinctCardTypesInCollections,
         is DynamicAmount.ManaValueSumOfCollection,
+        is DynamicAmount.OpponentsControllingFromCollection,
         is DynamicAmount.StoredCardManaValue,
         is DynamicAmount.VariableReference -> true
 

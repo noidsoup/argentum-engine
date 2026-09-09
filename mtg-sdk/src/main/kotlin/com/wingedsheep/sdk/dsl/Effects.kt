@@ -563,6 +563,15 @@ object Effects {
         DrawCardsEffect(count, target)
 
     /**
+     * Draw a card for each opponent who controls one or more permanents from pipeline collection
+     * [from]. Counts distinct opponents, not permanents — an opponent controlling two of those cards
+     * still draws one card. Reads live projected control on the battlefield; pair after a return step
+     * that leaves the returned entity ids in [from] (Sudden Salvation).
+     */
+    fun DrawCardsForEachOpponentControllingFromCollection(from: String): Effect =
+        DrawCardsEffect(DynamicAmount.OpponentsControllingFromCollection(from))
+
+    /**
      * Draw up to N cards. The player chooses how many (0 to maxCards).
      */
     fun DrawUpTo(maxCards: Int, target: EffectTarget = EffectTarget.Controller): Effect =

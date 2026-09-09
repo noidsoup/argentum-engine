@@ -330,6 +330,14 @@ object DynamicAmounts {
     fun manaValueSumOf(collectionName: String): DynamicAmount =
         DynamicAmount.ManaValueSumOfCollection(collectionName)
 
+    /**
+     * Distinct opponents of the effect's controller who currently control at least one permanent
+     * on the battlefield from the named pipeline collection. For "draw a card for each opponent who
+     * controls one or more of those permanents" after a return step — Sudden Salvation.
+     */
+    fun opponentsControllingFrom(collectionName: String): DynamicAmount =
+        DynamicAmount.OpponentsControllingFromCollection(collectionName)
+
     // =========================================================================
     // Graveyard counting
     // =========================================================================

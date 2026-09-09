@@ -371,6 +371,25 @@ class DynamicAmountEvaluator(
                 }
             }
 
+            is DynamicAmount.OpponentsControllingFromCollection -> {
+                val collection = context.pipeline.storedCollections[amount.collectionName] ?: return 0
+                if (collection.isEmpty()) return 0
+                val opponents = resolveUnifiedPlayerIds(state, Player.EachOpponent, context).toSet()
+                if (opponents.isEmpty()) return 0
+                val projection = projectedState ?: state.projectedState
+                val controllingOpponents = mutableSetOf<EntityId>()
+                for (entityId in collection) {
+                    if (entityId !in state.getBattlefield()) continue
+                    val controllerId = projection.getController(entityId)
+                        ?: state.getEntity(entityId)?.get<ControllerComponent>()?.playerId
+                        ?: continue
+                    if (controllerId in opponents) {
+                        controllingOpponents.add(controllerId)
+                    }
+                }
+                controllingOpponents.size
+            }
+
             // Math operations — propagate [projectedState] so a mid-projection caller's
             // intermediate snapshot survives nested aggregates. Arithmetic is saturating
             // (GameLimits.*Clamped): a "twice the number of X" / doubling chain must clamp at

@@ -39,6 +39,7 @@ private val CONTEXT_SCOPED_SERIAL_NAMES: Set<String> = setOf(
     // DynamicAmount
     "XValue", "CastX", "CastChoice", "ContextProperty", "VariableReference", "StoredCardManaValue",
     "DistinctEntitiesInCollections", "DistinctCardTypesInCollections", "ManaValueSumOfCollection",
+    "OpponentsControllingFromCollection",
     "TotalManaSpent", "ManaSpentOnX",     "PermanentsSacrificedThisWay",
     "TotalPowerSacrificedThisWay", "GreatestPowerSacrificedThisWay", "StationCharge",
     "LastKnownSourceCounters", "LastKnownDamageDealtToSource",

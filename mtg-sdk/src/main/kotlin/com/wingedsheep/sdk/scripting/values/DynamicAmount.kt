@@ -875,6 +875,23 @@ sealed interface DynamicAmount : TextReplaceable<DynamicAmount> {
         override val description: String = "the total mana value of the $collectionName cards"
     }
 
+    /**
+     * Number of distinct **opponents** of the effect's controller who currently control at least one
+     * permanent on the battlefield whose entity id appears in the named pipeline collection.
+     *
+     * Reads **live projected control** — only entities still on the battlefield count, and an opponent
+     * controlling two of those permanents still contributes 1. Used after a return step that leaves
+     * the returned entity ids in the collection: "You draw a card for each opponent who controls one
+     * or more of those permanents" (Sudden Salvation). Pair with [com.wingedsheep.sdk.scripting.effects.DrawCardsEffect]
+     * or facade [com.wingedsheep.sdk.dsl.Effects.DrawCardsForEachOpponentControllingFromCollection].
+     */
+    @SerialName("OpponentsControllingFromCollection")
+    @Serializable
+    data class OpponentsControllingFromCollection(val collectionName: String) : DynamicAmount {
+        override val description: String =
+            "the number of opponents who control one or more of those permanents"
+    }
+
     // =========================================================================
     // Math Operations - Composable arithmetic on DynamicAmounts
     // =========================================================================

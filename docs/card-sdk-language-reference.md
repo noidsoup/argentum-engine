@@ -1157,6 +1157,10 @@ Atomic effect factories. For library/zone manipulation, prefer the pipelines in 
 ### Cards (draw / discard)
 
 - `DrawCards(count, target?)` — draw N (default: controller).
+- `DrawCardsForEachOpponentControllingFromCollection(from)` — draw one card per distinct opponent who
+  currently controls at least one permanent on the battlefield from pipeline collection `from` (Sudden
+  Salvation payoff after a return step). Equivalent to
+  `DrawCards(DynamicAmounts.opponentsControllingFrom(from))`.
 - `DrawUpTo(max, target)` — draw up to N (player picks 0–N).
 - "Draw a card and reveal it; if it isn't a [type], discard it" (Sindbad) is a pipeline composition, not
   an effect type: `GatherCards(TopOfLibrary(1), "toDraw")` → `DrawCards(1)` →
@@ -11177,6 +11181,7 @@ something other than the source.
   `CreateTokenEffect` or `GatherUntilMatchEffect` scheduled into a delayed trigger
   has its `count` frozen at scheduling time *only if* the amount reads the pipeline that produced it —
   `DistinctEntitiesInCollections`, `DistinctCardTypesInCollections`, `ManaValueSumOfCollection`,
+  `OpponentsControllingFromCollection`,
   `StoredCardManaValue`, `VariableReference`, or any arithmetic tree containing one. Those live in
   the resolving `EffectContext` and would silently read 0 an end step later. A *board-state* count
   (`AggregateBattlefield`, …) is left lazy, because "at the beginning of your end step, create a token
@@ -11542,6 +11547,14 @@ Army just amassed by a sibling/action effect, or any cost-chosen entity. The plu
   graveyard). For "you mill X cards … that player loses life equal to the total mana value of those
   cards" — Palantír of Orthanc mills into the default `"milled"` collection
   (`Patterns.Library.mill(X)`), then `Effects.LoseLife(DynamicAmounts.manaValueSumOf("milled"), opponent)`.
+- `OpponentsControllingFromCollection(collectionName)` — number of distinct **opponents** of the
+  effect's controller who currently control at least one permanent on the battlefield whose entity id
+  is in the named pipeline collection. Facade: `DynamicAmounts.opponentsControllingFrom(collectionName)`.
+  Reads live projected control — only battlefield permanents count, and an opponent controlling two
+  of those cards still contributes 1. For "You draw a card for each opponent who controls one or more
+  of those permanents" after a return step (Sudden Salvation): keep the returned ids in a collection,
+  then `Effects.DrawCardsForEachOpponentControllingFromCollection("returned")` or
+  `Effects.DrawCards(DynamicAmounts.opponentsControllingFrom("returned"))`.
 
 ### `ManaColorSet`<a id="manacolorset"></a>
 
