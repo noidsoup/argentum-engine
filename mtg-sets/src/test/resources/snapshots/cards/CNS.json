@@ -152,3 +152,78 @@
         "WHITE"
     ]
 }
+
+// Custodi Squire
+{
+    "name": "Custodi Squire",
+    "manaCost": "{4}{W}",
+    "typeLine": "Creature — Spirit Cleric",
+    "oracleText": "Flying\nWill of the council — When this creature enters, starting with you, each player votes for an artifact, creature, or enchantment card in your graveyard. Return each card with the most votes or tied for most votes to your hand.",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 3
+    },
+    "keywords": [
+        "FLYING"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "Composite",
+                            "effects": [
+                                {
+                                    "type": "GatherCards",
+                                    "source": {
+                                        "type": "FromZone",
+                                        "zone": "Graveyard"
+                                    },
+                                    "storeAs": "councilOptions"
+                                },
+                                {
+                                    "type": "FilterCollection",
+                                    "from": "councilOptions",
+                                    "filter": {
+                                        "type": "MatchesFilter",
+                                        "filter": "artifact|creature|enchantment"
+                                    },
+                                    "storeMatching": "councilOptions"
+                                },
+                                {
+                                    "type": "Vote",
+                                    "from": "councilOptions"
+                                }
+                            ],
+                            "descriptionOverride": "Starting with you, each player votes for artifact or creature or enchantment in you's graveyard"
+                        },
+                        {
+                            "type": "MoveCollection",
+                            "from": "councilWinners",
+                            "destination": {
+                                "type": "ToZone",
+                                "zone": "Hand"
+                            }
+                        }
+                    ],
+                    "descriptionOverride": "Will of the council — starting with you, each player votes for artifact or creature or enchantment in you's graveyard. Put those cards into a hand"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "18",
+        "artist": "Alex Horley-Orlandelli",
+        "imageUri": "https://cards.scryfall.io/normal/front/a/9/a9151422-8df1-409c-a686-0cd89247eb43.jpg?1783939377"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
