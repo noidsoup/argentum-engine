@@ -1,3 +1,53 @@
+// Anowon, the Ruin Sage
+{
+    "name": "Anowon, the Ruin Sage",
+    "manaCost": "{3}{B}{B}",
+    "typeLine": "Legendary Creature — Vampire Shaman",
+    "oracleText": "At the beginning of your upkeep, each player sacrifices a non-Vampire creature of their choice.",
+    "creatureStats": {
+        "power": 4,
+        "toughness": 3
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "StepEvent",
+                    "step": "UPKEEP"
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "ForceSacrifice",
+                    "filter": {
+                        "cardPredicates": [
+                            "IsCreature",
+                            {
+                                "type": "NotSubtype",
+                                "subtype": "Vampire"
+                            }
+                        ]
+                    },
+                    "target": {
+                        "type": "PlayerRef",
+                        "player": "ActivePlayerFirst"
+                    }
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "49",
+        "rarity": "RARE",
+        "artist": "Dan Murayama Scott",
+        "flavorText": "\"So many have died in search of that map. And now it appears in the hands of the arrogant child Chandra Nalaar.\"",
+        "imageUri": "https://cards.scryfall.io/normal/front/7/b/7b247681-1cf6-42a0-ad44-76261c690596.jpg?1783942058"
+    },
+    "colorIdentityOverride": [
+        "BLACK"
+    ]
+}
+
 // Basilisk Collar
 {
     "name": "Basilisk Collar",
