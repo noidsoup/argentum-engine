@@ -35,7 +35,9 @@ internal fun BridgeBuilder.triggersCostsAndContinuous() {
     // Clash (CR 701.30) — "Whenever you clash" / "Whenever you clash and win"
     // (Triggers.WheneverYouClash / WheneverYouClashAndWin over EventPattern.ClashedEvent). The engine
     // emits one ClashedEvent per *participant*, so both tags resolve for a clash an opponent started,
-    // which is what the Entangling Trap / Sylvan Echoes rulings require.
+    // which is what the Entangling Trap / Sylvan Echoes rulings require. The third spelling — the
+    // "…, If you won, …" rider *inside* a WhenAPlayerClashes effect — is the `Trigger_WonTheClash`
+    // condition, registered next to the Clash effect rows in ZoneMovement.kt.
     supported("WhenAPlayerClashes", "trigger: a player clashes (Triggers.WheneverYouClash)")
     supported("WhenAPlayerClashesAndWins", "trigger: a player clashes and wins (Triggers.WheneverYouClashAndWin)")
     supported("WhenACreatureAttacks", "trigger: attacks")
@@ -147,6 +149,16 @@ internal fun BridgeBuilder.triggersCostsAndContinuous() {
     // policy declines — so it leaves the card at SCAFFOLD (like the exploit payoff). The hand-authored
     // Savior of Ollenbock card + its scenario test are ground truth. See the Triggers.trains() /
     // TrainedEvent entries in card-sdk-language-reference.md.
+    // Champion payoff (CR 702.72c) — "when a [quality] is championed with this creature, …" (Mistbind
+    // Clique). Like the exploit and training payoffs above, NOT an engine gap: the shipped
+    // `champion(...)` helper composes the whole mechanic and its success branch emits the
+    // parameterless `EventPattern.ChampionedEvent`, which this trigger keys on via
+    // `Triggers.championedWith()` (SELF binding). Capability-only: the emitter would have to fuse the
+    // paired Champion-keyword rule + this trigger and recover the targeted group-tap payoff, so it
+    // leaves the card at SCAFFOLD. The hand-authored Mistbind Clique + its scenario test are ground
+    // truth. See the Triggers.championedWith() / ChampionedEvent entries in
+    // card-sdk-language-reference.md.
+    supported("WhenAPermanentIsChampionedWithAPermanent", "trigger: a permanent is championed with this permanent (champion payoff — Triggers.championedWith(), ChampionedEvent) — capability only, emitter scaffolds")
     supported("WhenAPermanentTrains", "trigger: this creature trains (training payoff — Triggers.trains(), TrainedEvent) — capability only, emitter scaffolds")
     // "When this permanent leaves the battlefield, …" — the self leaves-the-battlefield trigger
     // (Triggers.LeavesBattlefield). Savior of Ollenbock uses it to return every linked
@@ -274,7 +286,7 @@ internal fun BridgeBuilder.triggersCostsAndContinuous() {
     // Planeswalker loyalty cost (CR 606) — the +N / -N ability activation cost. The engine models it
     // via `loyaltyAbility(loyaltyChange) { }` with `startingLoyalty`. Oko, the Ringleader. The emitter
     // declines the whole loyalty-ability envelope (Activated) -> SCAFFOLD, so this is capability-only.
-    supported("Loyalty", "cost: planeswalker loyalty +N/-N (loyaltyAbility(change) { })")
+    supported("Loyalty", "cost: planeswalker loyalty +N/-N/-X (loyaltyAbility(change) / loyaltyAbilityX)")
     supported("SacrificeAPermanent", "cost: sacrifice")
     supported("SacrificeNumberPermanents", "cost: sacrifice N")
     // Variable-count permanent costs — "exile/sacrifice **one or more** [filter] you control" as an
@@ -315,6 +327,14 @@ internal fun BridgeBuilder.triggersCostsAndContinuous() {
     // keeps additional-cost shapes at SCAFFOLD (the cast-time extra-cost area it declines to render).
     supported("AdditionalCastingCost", "cost: additional cost to cast (Costs.additional.*)")
     supported("ExileNumberGraveyardCards", "cost: exile N cards from your graveyard (Costs.additional.ExileFromGraveyardOrPay() / exile-from-graveyard)")
+    // "As an additional cost to cast this spell, reveal an Elf card from your hand or pay {3}" —
+    // Lorwyn's tribal cycle (Wren's Run Vanquisher, Silvergill Adept, Goldmeadow Stalwart, Squeaking
+    // Pie Sneak, Flamekin Bladewhirl), whose IR is
+    // `AdditionalCastingCost(Or(RevealACardOfTypeFromHand, PayMana))`. The engine models it via
+    // Costs.additional.RevealFromHandOrPay(); the bare reveal is Costs.additional.RevealFromHand().
+    // Capability-only, like every other additional-cost leg: the emitter keeps cast-time extra costs
+    // at SCAFFOLD rather than rendering them.
+    supported("RevealACardOfTypeFromHand", "cost: reveal a filtered card from your hand (Costs.additional.RevealFromHand() / RevealFromHandOrPay())")
     // Waterbend {N} (Avatar: The Last Airbender, CR) — a generic-mana cost where each generic may be
     // paid by tapping an untapped artifact/creature you control. On activated abilities this maps to
     // `activatedAbility { cost = Costs.Mana("{N}"); hasWaterbend = true }`. The emitter renders the

@@ -130,6 +130,9 @@ class CostPaymentService(private val services: EngineServices) {
                     yesNoPrompt(state, payerId, resolved, sourceId, sourceName, ctx, "Pay ${atom.cost}?", "Pay ${atom.cost}")
                 is CostAtom.PayLife ->
                     yesNoPrompt(state, payerId, resolved, sourceId, sourceName, ctx, "Pay ${atom.amount} life?", "Pay ${atom.amount} life")
+                // Nothing to select — every card goes — so this is a yes/no like a random discard.
+                is CostAtom.DiscardHand ->
+                    yesNoPrompt(state, payerId, resolved, sourceId, sourceName, ctx, "Discard your hand?", "Discard hand")
                 is CostAtom.Discard ->
                     if (atom.random) {
                         val word = if (atom.count == 1) "a card" else "${atom.count} cards"
@@ -204,6 +207,9 @@ class CostPaymentService(private val services: EngineServices) {
                 // Reading a secret note off the source permanent is activated-ability-only; as a
                 // PayCost there is no such source, so it fails closed like the two below.
                 is CostAtom.RevealNotedCreatureType -> PaymentResult.Unaffordable(state)
+                // Unattaching reads the source's own attachment; a PayCost has no such source, so
+                // it fails closed like its neighbours.
+                is CostAtom.Unattach -> PaymentResult.Unaffordable(state)
                 // VariablePermanents is an activated-ability-only cost, never a PayCost.
                 is CostAtom.VariablePermanents -> PaymentResult.Unaffordable(state)
                 // Likewise ExileFromGraveyardForTotal: canAfford reports it unaffordable as a
@@ -350,6 +356,7 @@ class CostPaymentService(private val services: EngineServices) {
             is CostAtom.Discard ->
                 if (atom.random) discardRandom(state, payerId, atom.filter, atom.count)
                 else discardSelected(state, payerId, selected.keys.toList())
+            is CostAtom.DiscardHand -> discardHand(state, payerId)
             is CostAtom.ExileFrom -> exileSelected(state, payerId, selected.keys.toList(), atom.zone)
             is CostAtom.CollectEvidence ->
                 when (
@@ -381,6 +388,8 @@ class CostPaymentService(private val services: EngineServices) {
             is CostAtom.RemoveCounters -> performRemoveCounters(state, payerId, atom, sourceId, selected)
             // Likewise activated-ability-only — see the prompt branch above.
             is CostAtom.RevealNotedCreatureType -> CostPaymentExecution(state, emptyList(), success = false)
+            // Likewise activated-ability-only — see the prompt branch above.
+            is CostAtom.Unattach -> CostPaymentExecution(state, emptyList(), success = false)
             // VariablePermanents is an activated-ability-only cost, never a PayCost.
             is CostAtom.VariablePermanents -> CostPaymentExecution(state, emptyList(), success = false)
             // Likewise ExileFromGraveyardForTotal — see the prompt branch above.
@@ -556,6 +565,17 @@ class CostPaymentService(private val services: EngineServices) {
         // Through the shared discard path, so a card-intrinsic discard replacement (madness,
         // CR 702.35a) applies to a card discarded to pay a cost just as it does anywhere else.
         val result = ZoneTransitionService.discardCards(state, payerId, selected)
+        return CostPaymentExecution(result.state, result.events, success = true)
+    }
+
+    /**
+     * Discard every card in [payerId]'s hand as a cost payment. An empty hand is a successful
+     * payment of nothing (CR 118.3), not a failure.
+     */
+    private fun discardHand(state: GameState, payerId: EntityId): CostPaymentExecution {
+        val hand = state.getZone(ZoneKey(payerId, Zone.HAND)).toList()
+        if (hand.isEmpty()) return CostPaymentExecution(state, emptyList(), success = true)
+        val result = ZoneTransitionService.discardCards(state, payerId, hand)
         return CostPaymentExecution(result.state, result.events, success = true)
     }
 
@@ -741,6 +761,8 @@ class CostPaymentService(private val services: EngineServices) {
                     // life that would reduce them to 0 or less is legal (they then lose as a state-based action).
                     is CostAtom.PayLife -> life(state, payerId) >= atom.amount
                     is CostAtom.Discard -> domain(state, payerId, c, sourceId).size >= atom.count
+                    // CR 118.3 — an empty hand discards nothing, and a cost of nothing is payable.
+                    is CostAtom.DiscardHand -> true
                     is CostAtom.ExileFrom -> domain(state, payerId, c, sourceId).size >= atom.count
                     // CR 701.59b — unpayable unless the graveyard's *total mana value* reaches N.
                     // Card count says nothing here: five lands total 0 and pay nothing.
@@ -775,6 +797,8 @@ class CostPaymentService(private val services: EngineServices) {
                     is CostAtom.PutCountersOnPermanent -> domain(state, payerId, c, sourceId).isNotEmpty()
                     // Activated-ability cost only (it reads a note on the source permanent).
                     is CostAtom.RevealNotedCreatureType -> false
+                    // Activated-ability cost only (it reads the source's own attachment).
+                    is CostAtom.Unattach -> false
                     is CostAtom.RemoveCounters -> {
                         val needed = when (val c = atom.count) {
                             is com.wingedsheep.sdk.scripting.values.DynamicAmount.Fixed -> c.amount
@@ -829,6 +853,8 @@ class CostPaymentService(private val services: EngineServices) {
             is PayCost.OwnManaCost, is PayCost.Choice, is PayCost.DynamicLife -> null
             is PayCost.Atom -> when (val atom = c.atom) {
                 is CostAtom.Discard -> cardsInHand(state, payerId, atom.filter)
+                // The whole hand goes, so there is nothing for the payer to pick.
+                is CostAtom.DiscardHand -> null
                 is CostAtom.RevealFromHand -> cardsInHand(state, payerId, atom.filter)
                 is CostAtom.ExileFrom -> cardsInZone(state, payerId, atom.filter, atom.zone)
                 // Collect evidence N (CR 701.59a) — the whole graveyard is selectable; the gate is
@@ -859,7 +885,7 @@ class CostPaymentService(private val services: EngineServices) {
                 is CostAtom.Mana, is CostAtom.PayLife, is CostAtom.Mill,
                 is CostAtom.ExileTopOfLibrary,
                 is CostAtom.PutCountersOnSelf, is CostAtom.VariablePermanents,
-                is CostAtom.RevealNotedCreatureType,
+                is CostAtom.RevealNotedCreatureType, is CostAtom.Unattach,
                 is CostAtom.ExileFromGraveyardForTotal -> null
             }
         }

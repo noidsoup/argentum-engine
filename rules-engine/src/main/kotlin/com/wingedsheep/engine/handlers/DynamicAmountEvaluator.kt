@@ -1233,7 +1233,8 @@ class DynamicAmountEvaluator(
             // controller controls" work (Skulking Killer's "if that opponent controls no other
             // creatures" = AggregateBattlefield(ControllerOf("target"), Creature) == 1).
             is Player.ControllerOf, is Player.OwnerOf, is Player.OwnerOfSource,
-            is Player.ControllerOfSource, is Player.ControllerOfTargetingSource -> listOfNotNull(
+            is Player.ControllerOfSource, is Player.ControllerOfTargetingSource,
+            is Player.ControllerOfTriggeringEntity -> listOfNotNull(
                 TargetResolutionUtils.resolvePlayerRef(player, context, state)
             )
             is Player.TriggeringPlayer -> {
@@ -1406,6 +1407,11 @@ class DynamicAmountEvaluator(
                 if (entity.has<FaceDownComponent>()) return 0
                 entity.get<CardComponent>()?.manaCost?.coloredSymbolCount(property.colors.toSet()) ?: 0
             }
+
+            is EntityNumericProperty.DamageDealtThisTurn -> state.getEntity(entityId)
+                ?.get<com.wingedsheep.engine.state.components.battlefield.DamageDealtThisTurnComponent>()
+                ?.takeIf { it.turnNumber == state.turnNumber && it.sourceObject == state.objectRef(entityId) }
+                ?.amount ?: 0
 
             // Excess damage (CR 120.4a) marked on the creature: max(0, marked − toughness).
             // Amount-valued twin of the TargetMarkedDamageExceedsToughness condition — read it after

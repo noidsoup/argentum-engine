@@ -154,6 +154,7 @@
         []
     ],
     "departedLinkedExile": {},
+    "zoneReturns": [],
     "turnNumber": 1,
     "activePlayerId": "player-1",
     "phase": "PRECOMBAT_MAIN",
@@ -300,6 +301,7 @@
                     "triggerManaValueOfTriggeringSpell": null,
                     "triggerXValueOfTriggeringSpell": null,
                     "triggerScryCount": null,
+                    "triggerClashWon": null,
                     "triggerDiscardCount": null,
                     "triggerDiscoverValue": null,
                     "triggerExcessDamageAmount": null,

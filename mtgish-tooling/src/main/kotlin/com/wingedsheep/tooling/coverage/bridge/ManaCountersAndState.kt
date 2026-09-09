@@ -3,6 +3,8 @@ package com.wingedsheep.tooling.coverage.bridge
 /** Mana, counters, control, and combat/untap-state effects. Mostly the "universal" verbs that Portal
  *  never exercised but every later set does — each line lifts recall on every set at once. */
 internal fun BridgeBuilder.manaCountersAndState() {
+    supported("SharesANameWithASpellCastThisTurn", "GameObjectFilter.sharesNameWithSpellCastThisTurn; cast-time names from all players")
+
     // AddMana's exact Effect depends on the produced symbol — colorless ({C}) serialises as
     // AddColorlessMana, "any color" as AddManaOfChoice, a fixed colour as AddMana — and the capability
     // scorer can't see the symbol arg, so name the whole mana family the action can lower to.
@@ -156,6 +158,12 @@ internal fun BridgeBuilder.manaCountersAndState() {
 
     effect("EachPermanentDoesntUntapDuringControllersNextUntap", "SkipUntap",
         "Exhaustion: target player's creatures+lands don't untap next untap step")
+    // The *single-permanent* sibling is a different primitive, not a narrower SkipUntap: SkipUntap is
+    // player-scoped ("that player's creatures and lands"), so one creature not untapping is a granted
+    // AbilityFlag.DOESNT_UNTAP bounded to Duration.UntilAfterAffectedControllersNextUntap
+    // (Crippling Chill, and Entangling Trap's win rider).
+    effect("PermanentDoesntUntapDuringControllersNextUntap", "GrantKeyword",
+        "Crippling Chill: one permanent doesn't untap next untap step -> GrantKeyword(DOESNT_UNTAP, UntilAfterAffectedControllersNextUntap)")
     effect("SkipAllCombatPhasesTheirNextTurn", "SkipCombatPhases",
         "False Peace: target skips all combat phases of their next turn")
 

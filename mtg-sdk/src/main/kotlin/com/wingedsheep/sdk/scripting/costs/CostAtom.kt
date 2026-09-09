@@ -240,6 +240,27 @@ sealed interface CostAtom : TextReplaceable<CostAtom> {
         }
     }
 
+    /**
+     * Discard your entire hand — "unless its controller discards their hand" (Perplex).
+     *
+     * Distinct from [Discard] rather than a count on it: the number is whatever the payer holds
+     * when the cost is paid, so there is no count to write down, and there is nothing to *select* —
+     * every card goes. An empty hand pays it for free (CR 118.3, a cost of nothing is a cost you
+     * can pay), which is why affordability is unconditionally true rather than "has a card".
+     *
+     * The shared-vocabulary twin of [com.wingedsheep.sdk.scripting.AbilityCost.DiscardHand], which
+     * is the same payable thing in the activated-ability context.
+     */
+    @SerialName("AtomDiscardHand")
+    @Serializable
+    data object DiscardHand : CostAtom {
+        // The whole hand goes, so the payer picks nothing.
+        override val selectionCount: Int get() = 0
+        override val description: String get() = "discard your hand"
+
+        override fun applyTextReplacement(replacer: TextReplacer): CostAtom = this
+    }
+
     /** Exile [count] cards matching [filter] from [zone]. */
     @SerialName("AtomExileFrom")
     @Serializable
@@ -625,6 +646,27 @@ sealed interface CostAtom : TextReplaceable<CostAtom> {
     @Serializable
     data object RevealNotedCreatureType : CostAtom {
         override val description: String get() = "reveal the creature type you chose"
+    }
+
+    /**
+     * Unattach the ability's source from the permanent it is attached to (CR 701.3d) — "Unattach
+     * this Equipment" (Sunforger). The cost twin of
+     * [com.wingedsheep.sdk.scripting.effects.UnattachEquipmentEffect]: the *effect* has existed for
+     * a while (Stolen Uniform's rider), the *cost* had not.
+     *
+     * Payable only while the source is actually attached to something, per Sunforger's own ruling
+     * ("You can't pay the cost of unattaching Sunforger unless Sunforger is attached to a
+     * creature") — which is what makes this a real cost rather than a free rider. It moves nothing
+     * between zones, so unlike sacrifice there is no last-known-information question, and unlike a
+     * tap cost there is nothing to restore.
+     *
+     * Ability-scoped: a spell on the stack is not attached to anything, so this is never a spell
+     * additional cost or a "unless you …" [com.wingedsheep.sdk.scripting.PayCost].
+     */
+    @SerialName("AtomUnattach")
+    @Serializable
+    data object Unattach : CostAtom {
+        override val description: String get() = "unattach this Equipment"
     }
 
     /** Reveal [count] cards matching [filter] from your hand (the cards stay in hand). */

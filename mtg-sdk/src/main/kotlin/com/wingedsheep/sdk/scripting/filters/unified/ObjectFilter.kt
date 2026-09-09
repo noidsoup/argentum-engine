@@ -726,6 +726,15 @@ data class GameObjectFilter(
         cardPredicates = cardPredicates + CardPredicate.SharesCardTypeWithLinkedExile
     )
 
+    /**
+     * Must share a **name** with any card exiled with the filtering ability's source — "spells with
+     * the same name as a card exiled with Circu" (Circu, Dimir Lobotomist). The name axis of
+     * [sharingCardTypeWithLinkedExile]; see [CardPredicate.SharesNameWithLinkedExile].
+     */
+    fun sharingNameWithLinkedExile() = copy(
+        cardPredicates = cardPredicates + CardPredicate.SharesNameWithLinkedExile
+    )
+
     fun sharingCardTypeWith(entity: EntityReference) = copy(
         cardPredicates = cardPredicates + CardPredicate.SharesCardTypeWith(entity)
     )
@@ -958,6 +967,11 @@ data class GameObjectFilter(
      */
     fun wasDealtDamageThisTurn() = copy(
         statePredicates = statePredicates + StatePredicate.WasDealtDamageThisTurn
+    )
+
+    /** Matches names recorded when a spell was cast this turn, regardless of its caster or current zone. */
+    fun sharesNameWithSpellCastThisTurn() = copy(
+        statePredicates = statePredicates + StatePredicate.SharesNameWithSpellCastThisTurn
     )
 
     /**

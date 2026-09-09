@@ -719,6 +719,11 @@ class ConditionEvaluator(
                 ifResolution { ctx ->
                     ctx.triggerLastKnownCardTypes.orEmpty().any { it.equals(condition.cardType, ignoreCase = true) }
                 }
+            // CR 701.30d — "if you won" on a "Whenever you clash" trigger. The clash is over by the
+            // time the ability resolves, so the outcome travels as trigger context; a null (this
+            // trigger was not fired by a clash) reads as "did not win".
+            is com.wingedsheep.sdk.scripting.conditions.YouWonTheClash ->
+                ifResolution { it.triggerClashWon == true }
             is TriggeringEntityWasNotPutByThisSource ->
                 ifResolution { evaluateTriggeringEntityWasNotPutByThisSource(state, it) }
             is TriggeringSpellHasSingleTarget -> ifResolution { evaluateTriggeringSpellHasSingleTarget(state, it) }
@@ -883,6 +888,21 @@ class ConditionEvaluator(
             (ctx as? Resolution)?.let {
                 evaluateDiscardedCardFilterMatch(state, condition.filter, entity.index, it.effectContext)
             } ?: false
+        is EffectTarget.LibraryTop -> {
+            val controllerId = ctx.controllerId
+            val context = when (ctx) {
+                is Resolution -> ctx.effectContext
+                is Projection -> controllerId?.let { EffectContext(controllerId = it, sourceId = ctx.sourceId) }
+            }
+            context?.let {
+                val projected = ctx.projectedStateFor(state)
+                val cardId = com.wingedsheep.engine.handlers.effects.TargetResolutionUtils
+                    .resolveLibraryTop(entity.player, it, state, projected)
+                cardId != null && PredicateEvaluator().matches(
+                    state, projected, cardId, condition.filter, PredicateContext.fromEffectContext(it)
+                )
+            } ?: false
+        }
         is EffectTarget.LinkedExiledCard ->
             evaluateLinkedExiledCardFilterMatch(state, condition.filter, entity.index, ctx)
         else -> false

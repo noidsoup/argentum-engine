@@ -62,7 +62,9 @@ class CostPaymentContinuationResumer(
             // there is nothing to select), and random discard.
             is CostAtom.Mana, is CostAtom.PayLife, is CostAtom.Mill,
             // Exiling the top N takes no selection either, for the same reason Mill doesn't.
-            is CostAtom.ExileTopOfLibrary ->
+            is CostAtom.ExileTopOfLibrary,
+            // Discarding the whole hand takes no selection — every card goes.
+            is CostAtom.DiscardHand ->
                 resumeYesNo(state, continuation, cost, response, checkForMore)
             is CostAtom.Discard ->
                 if (atom.random) resumeYesNo(state, continuation, cost, response, checkForMore)
@@ -93,6 +95,10 @@ class CostPaymentContinuationResumer(
             // Ability-scoped only (it reads a note on the source permanent), and it takes no
             // selection — never reaches a PayCost prompt.
             is CostAtom.RevealNotedCreatureType ->
+                resumeYesNo(state, continuation, cost, response, checkForMore)
+            // Ability-scoped only (it reads the source's own attachment), and it takes no
+            // selection — never reaches a PayCost prompt.
+            is CostAtom.Unattach ->
                 resumeYesNo(state, continuation, cost, response, checkForMore)
             // VariablePermanents is an activated-ability-only cost, never a PayCost — unreachable here.
             is CostAtom.VariablePermanents ->

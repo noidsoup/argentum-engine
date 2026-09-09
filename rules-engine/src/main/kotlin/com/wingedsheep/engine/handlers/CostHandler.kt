@@ -211,6 +211,7 @@ class CostHandler {
             is AbilityCost.Composite -> {
                 cost.costs.all { canPayAbilityCost(state, it, sourceId, controllerId, manaPool, abilityContext, granterId) }
             }
+            AbilityCost.LoyaltyX -> true // X = 0 is always payable; the chosen X is checked at payment.
             is AbilityCost.Loyalty -> {
                 // Check if we have enough loyalty to pay the cost
                 // Positive changes (like +1) can always be paid
@@ -551,6 +552,16 @@ class CostHandler {
                 }
                 CostPaymentResult.success(currentState, currentPool, allEvents)
             }
+            AbilityCost.LoyaltyX -> {
+                val loyalty = state.getEntity(sourceId)?.get<CountersComponent>()
+                    ?.getCount(CounterType.LOYALTY) ?: 0
+                if (choices.xValue < 0 || choices.xValue > loyalty) {
+                    CostPaymentResult.failure("Not enough loyalty to pay X")
+                } else {
+                    payAbilityCost(state, AbilityCost.Loyalty(-choices.xValue), sourceId,
+                        controllerId, manaPool, choices, abilityContext)
+                }
+            }
             is AbilityCost.Loyalty -> {
                 // Adjust loyalty counters based on the cost change
                 val newState = state.updateEntity(sourceId) { container ->
@@ -582,6 +593,9 @@ class CostHandler {
         abilityContext: SpellPaymentContext?,
     ): Boolean = when (atom) {
         is CostAtom.Mana -> canPayManaCost(manaPool, atom.cost, abilityContext)
+        // Always payable — an empty hand discards nothing, and a cost of nothing is a cost you can
+        // pay (CR 118.3). Same answer the AbilityCost.DiscardHand branch gives above.
+        is CostAtom.DiscardHand -> true
         is CostAtom.PayLife -> {
             // CR 810.9a — affordability uses the team's shared total in Two-Headed Giant.
             val life = state.lifeTotal(controllerId)
@@ -666,6 +680,13 @@ class CostHandler {
             state.getEntity(sourceId)
                 ?.get<com.wingedsheep.engine.state.components.battlefield.NotedCreatureTypesComponent>()
                 ?.let { it.secretTo == controllerId && it.types.isNotEmpty() } == true
+        // "You can't pay the cost of unattaching Sunforger unless Sunforger is attached to a
+        // creature" — its own 2020-08-07 ruling, and the reason this is a real affordability gate
+        // rather than a free rider.
+        is CostAtom.Unattach ->
+            state.getEntity(sourceId)
+                ?.get<com.wingedsheep.engine.state.components.battlefield.AttachedToComponent>()
+                ?.targetId != null
         // Adding counters takes nothing away, so there is never a reason it can't be paid — this
         // is what keeps Mazemind Tome activatable on the very activation that exiles it.
         is CostAtom.PutCountersOnSelf -> true
@@ -711,6 +732,17 @@ class CostHandler {
             val newPool = payManaCost(manaPool, atom.cost, abilityContext)
                 ?: return CostPaymentResult.failure("Cannot pay mana cost")
             CostPaymentResult.success(state, newPool)
+        }
+        // Every card at once, through the shared discard path so a card-intrinsic discard
+        // replacement (madness, CR 702.35a) still applies. An empty hand pays it for free.
+        is CostAtom.DiscardHand -> {
+            val cardsInHand = state.getZone(ZoneKey(controllerId, Zone.HAND))
+            if (cardsInHand.isEmpty()) {
+                CostPaymentResult.success(state, manaPool)
+            } else {
+                val result = ZoneTransitionService.discardCards(state, controllerId, cardsInHand)
+                CostPaymentResult.success(result.state, manaPool, result.events)
+            }
         }
         is CostAtom.PayLife -> {
             val (newState, events) = LifePaymentService.pay(state, controllerId, atom.amount)
@@ -815,6 +847,16 @@ class CostHandler {
             // is a no-op success kept for atom exhaustiveness (the PayCost reveal path emits the
             // CardsRevealedEvent through CostPaymentService).
             CostPaymentResult.success(state, manaPool)
+        is CostAtom.Unattach -> {
+            // The shared chokepoint clears both ends of the link and reports the
+            // PermanentUnattachedEvent, so a "becomes unattached" trigger sees this payment exactly
+            // as it sees the UnattachEquipmentEffect. It no-ops when nothing is attached; the gate
+            // above already established that something is, so that only happens if the host left
+            // between the two checks — in which case the cost is paid by there being nothing owed.
+            val (unattached, events) = com.wingedsheep.engine.handlers.effects.ZoneMovementUtils
+                .unattachEmittingEvent(state, sourceId)
+            CostPaymentResult.success(unattached, manaPool, events)
+        }
         is CostAtom.RevealNotedCreatureType -> {
             // Publishing the note is the whole payment: the types stay where they are and simply
             // stop being secret (CR 702.106c's "doing so will reveal the chosen name"). The
@@ -1265,6 +1307,8 @@ class CostHandler {
     ): Boolean {
         return when (cost) {
             is AdditionalCost.Atom -> when (val atom = cost.atom) {
+                // An empty hand discards nothing, so this is always payable (CR 118.3).
+                is CostAtom.DiscardHand -> true
                 is CostAtom.Sacrifice ->
                     findMatchingPermanentsUnified(state, controllerId, atom.filter).size >= atom.count
                 is CostAtom.Discard ->
@@ -1336,14 +1380,23 @@ class CostHandler {
                 // since the atom's default is `excludeSelf = true`.
                 is CostAtom.VariablePermanents ->
                     com.wingedsheep.engine.mechanics.cost.VariablePermanentsCost.canPay(state, controllerId, atom)
-                // Mana / return-to-hand / reveal / put-counters-on-self / mill are not produced as
+                // "As an additional cost to cast this spell, reveal an Elf card from your hand"
+                // (Wren's Run Vanquisher). Payable while the hand holds enough matching cards; the
+                // cards stay there (CR 701.20b), so paying it takes nothing away.
+                is CostAtom.RevealFromHand ->
+                    findMatchingCardsUnified(
+                        state, state.getZone(ZoneKey(controllerId, Zone.HAND)), atom.filter, controllerId
+                    ).size >= atom.count
+                // Mana / return-to-hand / put-counters-on-self / mill are not produced as
                 // spell additional costs today (put-counters-on-self and reveal-the-noted-type are
                 // inherently ability-scoped — a spell on the stack has no permanent to put the
                 // counters on, nor one carrying a secret note).
-                is CostAtom.Mana, is CostAtom.ReturnToHand, is CostAtom.RevealFromHand,
+                is CostAtom.Mana, is CostAtom.ReturnToHand,
                 is CostAtom.PutCountersOnPermanent,
                 is CostAtom.PutCountersOnSelf, is CostAtom.Mill,
                 is CostAtom.RevealNotedCreatureType,
+                // A spell on the stack is attached to nothing, so unattaching is ability-only too.
+                is CostAtom.Unattach,
                 is CostAtom.ExileTopOfLibrary -> false
             }
             is AdditionalCost.PayLifePerTarget -> {

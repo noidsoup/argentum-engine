@@ -1253,7 +1253,7 @@ data class CraftedFromExiledComponent(
 ) : Component
 
 /**
- * Marks a permanent as having been dealt damage this turn.
+ * Marks a permanent or player as having been dealt damage this turn.
  * Cleared at end of turn by CleanupPhaseManager.
  * Used for StatePredicate.WasDealtDamageThisTurn.
  */
@@ -1295,6 +1295,14 @@ data object DamageUnpreventableThisTurnComponent : Component
  */
 @Serializable
 data class HasDealtDamageComponent(val lastDealtDamageTurn: Int) : Component
+
+/** Actual damage total, scoped to a turn and object incarnation, including resolving spells. */
+@Serializable
+data class DamageDealtThisTurnComponent(
+    val turnNumber: Int,
+    val amount: Int,
+    val sourceObject: com.wingedsheep.engine.state.ObjectRef
+) : Component
 
 /**
  * The players and planeswalkers this permanent has dealt damage to **this game** — the memory

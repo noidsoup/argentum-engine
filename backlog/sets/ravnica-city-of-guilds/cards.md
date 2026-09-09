@@ -2,16 +2,16 @@
 
 **Set Size:** 291 cards
 **Release Date:** October 7, 2005
-**Implemented:** 263 / 291
+**Implemented:** 275 / 291
 | Section    | Total | Done |
 |------------|-------|------|
 | White      | 37    | 33   |
-| Blue       | 39    | 34   |
+| Blue       | 39    | 36   |
 | Black      | 37    | 35   |
-| Red        | 39    | 37   |
+| Red        | 39    | 38   |
 | Green      | 37    | 37   |
-| Multicolor | 64    | 54   |
-| Artifact   | 21    | 16   |
+| Multicolor | 64    | 57   |
+| Artifact   | 21    | 18   |
 | Land       | 17    | 17   |
 
 > Verify status anytime with `scripts/card-status --set RAV` (and `--list`). That command's count is authoritative — keep this file's `Implemented:` line in sync (`just fix-backlog`) as boxes are checked. The set's mechanics are catalogued in [`mechanics.md`](mechanics.md).
@@ -58,7 +58,7 @@
 - [x] Wojek Siren
 
 ### Blue
-- [ ] Belltower Sphinx
+- [x] Belltower Sphinx
 - [x] Cerulean Sphinx
 - [x] Compulsive Research
 - [x] Convolute
@@ -85,7 +85,7 @@
 - [ ] Quickchange
 - [x] Remand
 - [x] Snapping Drake
-- [ ] Spawnbroker
+- [x] Spawnbroker
 - [x] Stasis Cell
 - [x] Surveilling Sprite
 - [x] Tattered Drake
@@ -116,7 +116,7 @@
 - [x] Infectious Host
 - [x] Keening Banshee
 - [x] Last Gasp
-- [ ] Mausoleum Turnkey
+- [x] Mausoleum Turnkey
 - [x] Moonlight Bargain
 - [x] Mortipede
 - [x] Necromantic Thirst
@@ -160,7 +160,7 @@
 - [x] Indentured Oaf
 - [x] Instill Furor
 - [x] Mindmoil
-- [ ] Molten Sentry
+- [x] Molten Sentry
 - [x] Ordruun Commando
 - [x] Rain of Embers
 - [x] Reroute
@@ -224,11 +224,11 @@
 - [x] Boros Guildmage
 - [x] Boros Recruit
 - [x] Boros Swiftblade
-- [ ] Brightflame
+- [x] Brightflame
 - [x] Centaur Safeguard
 - [ ] Chorus of the Conclave
-- [ ] Circu, Dimir Lobotomist
-- [ ] Clutch of the Undercity
+- [x] Circu, Dimir Lobotomist
+- [x] Clutch of the Undercity
 - [x] Congregation at Dawn
 - [x] Consult the Necrosages
 - [x] Dark Heart of the Wood
@@ -252,9 +252,9 @@
 - [x] Loxodon Hierarch
 - [x] Lurking Informant
 - [ ] Master Warcraft
-- [ ] Mindleech Mass
+- [x] Mindleech Mass
 - [x] Moroii
-- [ ] Perplex
+- [x] Perplex
 - [x] Phytohydra
 - [x] Pollenbright Wings
 - [x] Privileged Position
@@ -288,12 +288,12 @@
 - [x] Boros Signet
 - [x] Bottled Cloister
 - [x] Cloudstone Curio
-- [ ] Crown of Convergence
+- [x] Crown of Convergence
 - [x] Cyclopean Snare
 - [x] Dimir Signet
 - [x] Glass Golem
 - [x] Golgari Signet
-- [ ] Grifter's Blade
+- [x] Grifter's Blade
 - [x] Junktroller
 - [ ] Leashling
 - [x] Nullstone Gargoyle
@@ -302,7 +302,7 @@
 - [x] Plague Boiler
 - [x] Selesnya Signet
 - [ ] Spectral Searchlight
-- [ ] Sunforger
+- [x] Sunforger
 - [x] Terrarion
 - [x] Voyager Staff
 

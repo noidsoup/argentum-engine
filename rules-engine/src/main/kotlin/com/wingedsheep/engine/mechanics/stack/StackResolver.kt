@@ -2698,7 +2698,7 @@ class StackResolver(
         // targets it carries are the stored ones — legality is 608.2b's business, not the context's.
         val resolvedTargets2 = targetsComponent?.targets ?: emptyList()
         val targetReqs = targetsComponent?.targetRequirements ?: emptyList()
-        val context = EffectContext.forTriggeredAbility(
+        var context = EffectContext.forTriggeredAbility(
             abilityComponent,
             targets = resolvedTargets2,
             targetRequirements = targetReqs
@@ -2763,6 +2763,15 @@ class StackResolver(
                     )
                 )
             }
+            val aligned = buildAlignedValidated(targetsComponent.targets, validTargets)
+            context = context.copy(
+                targets = validTargets,
+                alignedTargets = aligned,
+                pipeline = context.pipeline.copy(
+                    namedTargets = EffectContext.buildNamedTargets(targetReqs, aligned) +
+                        (abilityComponent.carriedPipeline?.namedTargets ?: emptyMap()),
+                ),
+            )
         }
 
         // Execute the effect
@@ -3431,9 +3440,25 @@ class StackResolver(
             triggeringEntityId = triggeringEntityId,
             triggeringPlayerId = triggeringPlayerId,
             storedCollections = storedCollections,
+            targets = targets,
         )
 
         return targets.filterIndexed { index, target ->
+            var baseRequirement = getRequirementForTargetIndex(index, targetRequirements)
+            while (baseRequirement is TargetOther) baseRequirement = baseRequirement.baseRequirement
+            if (baseRequirement is AnyTarget) {
+                val recipient = when (target) {
+                    is ChosenTarget.Player -> target.playerId
+                    is ChosenTarget.Permanent -> target.entityId
+                    else -> return@filterIndexed false
+                }
+                if (target is ChosenTarget.Permanent && !projected.isCreature(recipient) &&
+                    !projected.isPlaneswalker(recipient) && !projected.isBattle(recipient)
+                ) return@filterIndexed false
+                if (!predicateEvaluator.matches(state, projected, recipient, baseRequirement.filter, predicateContext)) {
+                    return@filterIndexed false
+                }
+            }
             when (target) {
                 is ChosenTarget.Player -> {
                     // Player is valid if they exist and haven't lost...
@@ -3970,7 +3995,15 @@ class StackResolver(
                         SelectCardsDecision(
                             id = decisionId,
                             playerId = controllerId,
-                            prompt = "Choose another creature you control",
+                            // "Another" only reads right when the entering permanent is itself a
+                            // creature (Dauntless Bodyguard). The pool already excludes the
+                            // entering object either way, so an Equipment or enchantment making
+                            // this choice (Grifter's Blade) just says "a creature you control".
+                            prompt = if (cardComponent.isCreature) {
+                                "Choose another creature you control"
+                            } else {
+                                "Choose a creature you control"
+                            },
                             context = DecisionContext(
                                 sourceId = spellId,
                                 sourceName = cardComponent.name,

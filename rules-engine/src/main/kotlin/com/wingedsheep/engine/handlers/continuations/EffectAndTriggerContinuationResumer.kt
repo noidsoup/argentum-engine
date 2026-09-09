@@ -37,6 +37,7 @@ class EffectAndTriggerContinuationResumer(
         resumer(MayRevealCardFromHandContinuation::class, ::resumeMayRevealCardFromHand),
         resumer(BeholdContinuation::class, ::resumeBehold),
         resumer(MayTriggerContinuation::class, ::resumeMayTrigger),
+        resumer(TriggerOpponentChooserContinuation::class, ::resumeTriggerOpponentChooser),
         resumer(BatchMayTriggerContinuation::class, ::resumeBatchMayTrigger)
     )
 
@@ -50,6 +51,46 @@ class EffectAndTriggerContinuationResumer(
     ): ExecutionResult {
         if (response !is TargetsResponse) {
             return ExecutionResult.error(state, "Expected target selection response for triggered ability")
+        }
+
+        continuation.sequentialTargets?.let { prefix ->
+            val selected = response.selectedTargets[0]?.singleOrNull()
+                ?: return ExecutionResult.error(state, "Choose one target")
+            val chosen = prefix + selected
+            if (chosen.size < continuation.targetRequirements.size) {
+                val pipeline = continuation.carriedPipeline
+                val context = com.wingedsheep.engine.handlers.PredicateContext(
+                    controllerId = continuation.controllerId,
+                    sourceId = continuation.sourceId,
+                    triggeringEntityId = continuation.triggeringEntityId,
+                    triggeringPlayerId = continuation.triggeringPlayerId,
+                    xValue = continuation.xValue,
+                    storedCollections = pipeline?.storedCollections ?: emptyMap(),
+                    chosenValues = pipeline?.chosenValues ?: emptyMap(),
+                    storedStringLists = pipeline?.storedStringLists ?: emptyMap(),
+                    storedSubtypeGroups = pipeline?.storedSubtypeGroups ?: emptyMap(),
+                )
+                val legal = com.wingedsheep.engine.handlers.DependentTargetSelection.legalNext(
+                    state, continuation.targetRequirements, chosen, context
+                )
+                return com.wingedsheep.engine.handlers.DecisionHandler().createTargetDecision(
+                    state, continuation.controllerId, continuation.sourceId, continuation.sourceName,
+                    requirements = listOf(TargetRequirementInfo(
+                        index = 0,
+                        description = continuation.targetRequirements[chosen.size].description,
+                        minTargets = 1,
+                        maxTargets = 1,
+                    )),
+                    legalTargets = mapOf(0 to legal),
+                    effectHint = continuation.description,
+                    answer = continuation.copy(sequentialTargets = chosen),
+                )
+            }
+            return resumeTriggeredAbility(
+                state, continuation.copy(sequentialTargets = null),
+                response.copy(selectedTargets = chosen.mapIndexed { index, id -> index to listOf(id) }.toMap()),
+                checkForMore,
+            )
         }
 
         // Build the chosen-targets list in requirement-slot order, keeping it PARALLEL to the
@@ -105,6 +146,7 @@ class EffectAndTriggerContinuationResumer(
                 lastKnownToughness = continuation.lastKnownToughness,
                 diedBatchTotalPower = continuation.diedBatchTotalPower,
                 triggerScryCount = continuation.triggerScryCount,
+                triggerClashWon = continuation.triggerClashWon,
                 triggerDiscardCount = continuation.triggerDiscardCount,
                 triggerDiscoverValue = continuation.triggerDiscoverValue,
                 triggerExcessDamageAmount = continuation.triggerExcessDamageAmount,
@@ -168,6 +210,7 @@ class EffectAndTriggerContinuationResumer(
             triggerModesChosenCount = continuation.triggerModesChosenCount,
             enchantedCreatureLastKnownPower = continuation.enchantedCreatureLastKnownPower,
             triggerScryCount = continuation.triggerScryCount,
+            triggerClashWon = continuation.triggerClashWon,
             triggerDiscardCount = continuation.triggerDiscardCount,
             triggerDiscoverValue = continuation.triggerDiscoverValue,
             triggerExcessDamageAmount = continuation.triggerExcessDamageAmount,
@@ -311,6 +354,42 @@ class EffectAndTriggerContinuationResumer(
         }
 
         return checkForMore(stackResult.newState, stackResult.events.toList())
+    }
+
+    /**
+     * Resume a trigger after its controller picked which opponent chooses its "… of an opponent's
+     * choice" target (Mausoleum Turnkey). Raised only with two or more opponents; with one, the
+     * processor pins the decider without asking.
+     *
+     * The answer is pinned onto the trigger and target selection is re-entered, so the target
+     * decision itself is built by the same `processTargetedTrigger` path a trigger with no chooser
+     * takes — the pin is the only difference. Cancelling drops the trigger rather than silently
+     * handing the choice back to the controller: nothing has been paid or moved, and the trigger
+     * has not yet reached the stack.
+     */
+    private fun resumeTriggerOpponentChooser(
+        state: GameState,
+        continuation: TriggerOpponentChooserContinuation,
+        response: DecisionResponse,
+        checkForMore: CheckForMore
+    ): ExecutionResult {
+        if (response is CancelDecisionResponse) {
+            return checkForMore(state, emptyList())
+        }
+        if (response !is OptionChosenResponse) {
+            return ExecutionResult.error(state, "Expected option response for trigger opponent chooser")
+        }
+        val deciderId = continuation.opponentIds.getOrNull(response.optionIndex)
+            ?: return ExecutionResult.error(state, "Invalid opponent choice for trigger target")
+
+        val result = services.triggerProcessor.processTargetedTrigger(
+            state,
+            continuation.trigger.copy(opponentTargetChooserId = deciderId),
+            continuation.targetRequirement
+        )
+
+        if (result.isPaused || !result.isSuccess) return result
+        return checkForMore(result.newState, result.events.toList())
     }
 
     private fun resumeMayTrigger(

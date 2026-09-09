@@ -714,6 +714,17 @@ class TriggerMatcher(
                 if (binding == TriggerBinding.OTHER && event.trainedId == sourceId) return false
                 true
             }
+            is EventPattern.ChampionedEvent -> {
+                if (event !is com.wingedsheep.engine.core.ChampionedEvent) return false
+                // "When a Faerie is championed with THIS creature" (Mistbind Clique): SELF binding
+                // restricts to the ability's own source — the *championing* permanent, not the one
+                // that was exiled. OTHER would be "championed with another permanent you control";
+                // ANY has no restriction. The emit already gates on a permanent actually reaching
+                // exile (CR 702.72c), so any ChampionedEvent reaching here is a genuine champion.
+                if (binding == TriggerBinding.SELF && event.championId != sourceId) return false
+                if (binding == TriggerBinding.OTHER && event.championId == sourceId) return false
+                true
+            }
             is EventPattern.BendPerformedEvent -> {
                 event is com.wingedsheep.engine.core.BendPerformedEvent &&
                     event.bendType in trigger.types &&
@@ -2081,6 +2092,7 @@ class TriggerMatcher(
                 triggerLastKnownToughness = trigger.triggerContext.lastKnownToughness,
                 triggerDiedBatchTotalPower = trigger.triggerContext.diedBatchTotalPower,
                 triggerScryCount = trigger.triggerContext.scryCount,
+                triggerClashWon = trigger.triggerContext.clashWon,
                 triggerDiscardCount = trigger.triggerContext.discardedCardCount,
                 triggerDiscoverValue = trigger.triggerContext.discoverValue,
                 triggerExcessDamageAmount = trigger.triggerContext.excessDamageAmount,
@@ -2150,6 +2162,12 @@ class TriggerMatcher(
         /** The permanent whose triggered ability is being gated — the "source" of `createdBySource()`. */
         sourceId: EntityId
     ): Boolean = when (predicate) {
+        com.wingedsheep.sdk.scripting.predicates.StatePredicate.SharesNameWithSpellCastThisTurn -> {
+            if (event.fromZone == Zone.BATTLEFIELD)
+                com.wingedsheep.engine.handlers.predicates.sharesNameWithSpellCastThisTurn(state, event.lastKnown?.name)
+            else matchesStatePredicateForTrigger(predicate, state, event.entityId)
+        }
+
         // "the token" — this source's own token, not any token (Dance of Many, Tetravus). A token is
         // swept out of existence before this gate runs (CR 704.5d), so the creator stamp is read
         // from the event's last-known info, with a live read for a permanent that is still around
@@ -2267,6 +2285,12 @@ class TriggerMatcher(
         state: GameState,
         entityId: EntityId
     ): Boolean = when (predicate) {
+        com.wingedsheep.sdk.scripting.predicates.StatePredicate.SharesNameWithSpellCastThisTurn ->
+            com.wingedsheep.engine.handlers.predicates.sharesNameWithSpellCastThisTurn(
+                state, state.projectedState.getName(entityId)
+                    ?: state.getEntity(entityId)?.get<CardComponent>()?.name
+            )
+
         is com.wingedsheep.sdk.scripting.predicates.StatePredicate.IsFaceDown -> {
             val entity = state.getEntity(entityId) ?: return false
             entity.has<FaceDownComponent>()

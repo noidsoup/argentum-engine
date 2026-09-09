@@ -304,6 +304,14 @@ internal class AffectsFilterResolver {
             state.getEntity(sourceId)?.chosenColor() ?: return emptySet()
         } else null
 
+        // Relational predicates need the source and the intermediate projection, not base cards.
+        // Build the snapshot only when such a predicate is actually encountered, once per filter.
+        val relationalProjection by lazy { buildIntermediateProjectedState(state, projectedValues) }
+        val relationalEvaluator by lazy { com.wingedsheep.engine.handlers.PredicateEvaluator() }
+        val relationalContext by lazy {
+            controller?.let { com.wingedsheep.engine.handlers.PredicateContext(controllerId = it, sourceId = sourceId) }
+        }
+
         return state.getBattlefield().filter { entityId ->
             if (groupFilter.excludeSelf && entityId == sourceId) return@filter false
 
@@ -345,6 +353,18 @@ internal class AffectsFilterResolver {
             val keywords = projected?.keywords ?: (card.baseKeywords.map { it.name } + card.baseFlags.map { it.name }).toSet()
             val isFaceDown = projected?.isFaceDown ?: container.has<FaceDownComponent>()
 
+            fun matchesPredicate(predicate: CardPredicate): Boolean = when (predicate) {
+                is CardPredicate.And -> predicate.predicates.all(::matchesPredicate)
+                is CardPredicate.Or -> predicate.predicates.any(::matchesPredicate)
+                is CardPredicate.Not -> !matchesPredicate(predicate.predicate)
+                is CardPredicate.SharesColorWith -> relationalEvaluator.matchesCardPredicate(
+                    state, relationalProjection, entityId, predicate, relationalContext
+                )
+                else -> matchesCardPredicateForProjection(
+                    predicate, card, container, projected, types, subtypes, colors, keywords, isFaceDown
+                )
+            }
+
             for (predicate in baseFilter.cardPredicates) {
                 // The source-chosen-name predicate is resolved once above (sourceChosenName) and
                 // applied as a separate constraint below — skip it in the generic projection loop,
@@ -354,7 +374,7 @@ internal class AffectsFilterResolver {
                 // separate constraint below; the generic projection has no source in scope and
                 // would fail it closed.
                 if (predicate == CardPredicate.HasChosenColor) continue
-                if (!matchesCardPredicateForProjection(predicate, card, container, projected, types, subtypes, colors, keywords, isFaceDown)) {
+                if (!matchesPredicate(predicate)) {
                     return@filter false
                 }
             }
@@ -531,6 +551,10 @@ internal class AffectsFilterResolver {
         // that has become tapped for the first time this turn" resolves during projection.
         StatePredicate.BecameTappedOnlyOnceThisTurn ->
             becameTappedOnlyOnceThisTurn(container, state.turnNumber)
+        StatePredicate.SharesNameWithSpellCastThisTurn ->
+            com.wingedsheep.engine.handlers.predicates.sharesNameWithSpellCastThisTurn(
+                state, projectedValues[entityId]?.name ?: container.get<CardComponent>()?.name
+            )
         StatePredicate.WasDealtDamageThisTurn -> container.has<WasDealtDamageThisTurnComponent>()
         // Damage history — plain per-entity state with no source-relative half, so a group static
         // gated on "each creature that dealt damage this turn" resolves during projection and gives
@@ -963,6 +987,7 @@ internal class AffectsFilterResolver {
         is CardPredicate.SharesCreatureTypeWith,
         is CardPredicate.SharesCardTypeWith,
         CardPredicate.SharesCardTypeWithLinkedExile,
+        CardPredicate.SharesNameWithLinkedExile,
         is CardPredicate.SharesColorWith,
         is CardPredicate.SharesManaValueWith,
         is CardPredicate.SharesNameWith,

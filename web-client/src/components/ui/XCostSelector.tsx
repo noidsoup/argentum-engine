@@ -86,7 +86,7 @@ export function XCostSelector() {
         </div>
 
         <p style={styles.manaInfo}>
-          Available mana: {maxX + (xSelectionState.actionInfo.action.type === 'CastSpell' ? 0 : 0)}
+          {isRepeatCount ? 'Maximum activations' : 'Maximum X'}: {maxX}
         </p>
 
         <div style={styles.buttonRow}>

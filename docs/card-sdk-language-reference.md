@@ -535,6 +535,17 @@ exist in the cost and charges the life through the shared life-payment service.
   it. A forage that was declined, or one no mode was feasible for, emits nothing: forage has no
   "even if you can't" clause.
 - `Costs.RevealNotedCreatureType` (ability cost) — "Reveal the creature type you chose" (MKM — A Killer Among Us). Publishes the secret creature type this permanent's controller noted with `Effects.SecretlyChooseCreatureType(...)` (§ effects) and hands it to the ability's own effect as `chosenValues["chosenCreatureType"]` — the key `CardPredicate.HasSubtypeFromVariable` reads, so "if target attacking creature token is the chosen type" is an ordinary `Conditions.TargetMatchesFilter(Filters.creature.withSubtypeFromVariable("chosenCreatureType"))` test rather than new vocabulary. Two rules make it more than a formality. **Only the player who made the note can pay it**: for anyone else the cost is unpayable, so a permanent whose control changed hands stops offering the ability at all (the card's own ruling; CR 702.106d's linkage). And the type is **captured at activation, not at resolution** (CR 113.7a) — the same cost usually sacrifices the source, so by the time the ability resolves the permanent and its note are gone. Activated-ability-only: a spell has no source permanent to carry a note, and every other cost context reports it unpayable rather than half-paying it.
+- `Costs.Unattach` (ability cost) — "**Unattach this Equipment**" (RAV — Sunforger). Detaches the
+  ability's source from the permanent it is attached to, without moving it between zones (CR 701.3d).
+  The cost twin of `Effects.UnattachEquipment` (§ effects): the *effect* has existed since Stolen
+  Uniform's rider, the *cost* had not, and it is not a lookalike of any other atom — a sacrifice moves
+  zones, a tap can be restored, this does neither. Its affordability gate is the card's own ruling
+  ("You can't pay the cost of unattaching Sunforger unless Sunforger is attached to a creature"), so
+  the ability is offered as unaffordable while the Equipment sits loose. Payment runs through the same
+  `ZoneMovementUtils.unattachEmittingEvent` chokepoint as the effect, so a `Triggers.becomesUnattached`
+  trigger cannot tell the two apart. Activated-ability-only: a spell on the stack is attached to
+  nothing, so every other cost context reports it unpayable rather than half-paying it. Sunforger is
+  `Costs.Composite(Costs.Mana("{R}{W}"), Costs.Unattach)`.
 - `Costs.CollectEvidence(n)` (ability cost) / `Costs.additional.CollectEvidence(n)` (mandatory
   additional cost) / `card { collectEvidence(n) }` (the optional **linked** cast cost) — Collect
   evidence N (CR 701.59a): "exile any number of cards from your graveyard with total mana value N or
@@ -771,7 +782,8 @@ definitions construct these through the facade, e.g. `Costs.additional.Sacrifice
   cost as a whole is always payable. Which leg was taken is recovered at payment time from **which
   `additionalCostPayment` field the client populated**, so `cost` must be a selection-carrying cost
   — a `Behold`, or an atom cost over `Sacrifice` / `Discard` / `ExileFrom` / `TapPermanents` /
-  `ReturnToHand` — and must not share its field with another additional cost on the same card.
+  `ReturnToHand` / `RevealFromHand` — and must not share its field with another additional cost on
+  the same card.
   `CastSpellHandler.reduceCostAlternatives` then rewrites the whole cost to that plain leg cost (leg
   paid) or drops it (pay path), so validation, payment, LKI snapshots, behold's pipeline storage and
   discard tracking (CR 701.8) reuse the leg's own paths verbatim. `BlightOrPay` stays a separate
@@ -781,6 +793,23 @@ definitions construct these through the facade, e.g. `Costs.additional.Sacrifice
   storeAs = storeAs), …)`; the behold path surfaces as a `costType = "Behold"` cost over one
   candidate pool spanning battlefield *and* hand, and stores the chosen cards under `storeAs` for
   downstream costs/effects exactly as a plain `Behold` does.
+- `Costs.additional.RevealFromHand(filter = Filters.Any, count = 1)` — "as an additional cost to
+  cast this spell, reveal a [filter] card from your hand". `Atom(CostAtom.RevealFromHand(filter,
+  count))`; surfaces as a `costType = "RevealCard"` cost over `validRevealTargets` (the caster's
+  hand, minus the spell being cast) and the picks come back as
+  `additionalCostPayment.revealedCards`. **Paying moves nothing** — CR 701.20b: revealing a card
+  doesn't cause it to leave the zone it's in — so the revealed card is still in hand and still
+  castable afterwards; the payment is a `CardsRevealedEvent` and nothing else. As a *mandatory*
+  cost it fails closed: with no matching card in hand the spell isn't castable at all.
+- `Costs.additional.RevealFromHandOrPay(filter = Filters.Any, alternativeManaCost, count = 1)` —
+  "reveal a [filter] card from your hand or pay {mana}" (Lorwyn's tribal cycle: Wren's Run
+  Vanquisher, Silvergill Adept, Goldmeadow Stalwart, Squeaking Pie Sneak, Flamekin Bladewhirl).
+  `OrPay(RevealFromHand(filter, count), …)`. **Not `BeholdOrPay`**: CR 701.4a defines "behold a
+  [quality]" as "reveal a [quality] card from your hand **or** choose a [quality] permanent you
+  control", so behold's candidate pool also spans the battlefield and would wrongly let a permanent
+  pay a hand-only reveal. That width is also why the reveal has its own `revealedCards` payment
+  field rather than sharing `beheldCards` — on an `OrPay` leg the populated field is the only thing
+  telling the engine which leg the caster took.
 - `Costs.additional.ExileFromGraveyardOrPay(exileCount, alternativeManaCost, filter = Filters.Any)`
   — "exile N cards from your graveyard or pay {mana}" (Soaring Stoneglider: "exile two cards from
   your graveyard or pay {1}{W}"). `OrPay(Atom(CostAtom.ExileFrom(GRAVEYARD, filter, exileCount)), …)`;
@@ -891,6 +920,12 @@ preview — in the turn-face-up handler.)
   (CR 119.4). "...unless you pay 3 life."
 - `Costs.pay.Discard(filter = Any, count = 1, random = false)` — discard cards matching `filter`.
   Random variant prompts a yes/no and the engine picks the discards (Pillaging Horde).
+- `Costs.pay.DiscardHand` — discard your **entire** hand. Nothing is selected (every card goes), so
+  it prompts a yes/no, and it is **always affordable**: an empty hand discards nothing, and a cost
+  of nothing is a cost you can pay (CR 118.3). "Counter target spell unless its controller discards
+  their hand" (Perplex) is `PayOrSufferEffect(cost = Costs.pay.DiscardHand, suffer =
+  Effects.CounterSpell(), player = EffectTarget.TargetController)`. The shared-vocabulary twin of
+  `Costs.DiscardHand`, the activated-ability spelling of the same payable thing.
 - `Costs.pay.Sacrifice(filter = Any, count = 1)` — sacrifice permanents you control matching
   `filter`. **The source is included when it matches** — "sacrifice it unless you sacrifice an
   artifact" on an artifact creature may name that creature. "...unless you sacrifice three Forests"
@@ -1188,9 +1223,10 @@ Atomic effect factories. For library/zone manipulation, prefer the pipelines in 
   `MoveCollectionEffect.addCounterType`.
 - `ExileAndGrantOwnerPlayPermission(target, until?)` — exile + owner may play it (Garth-style).
 - `ExileOpponentsGraveyards()` — exile every card in each opponent's graveyard.
+- `MoveUntilSourceLeaves(target, destination)` — move an object to a non-battlefield, non-stack zone and return it to its previous zone immediately when the source's battlefield visit ends. The return does not use the stack and survives loss of the source's abilities. An exile also populates the ordinary linked-exile pile for client display and linked abilities. Returning permanents enter under their owner's control; tokens and objects that have since left the destination do not return. If the source has already left (including leaving and returning), the initial move does nothing. Ossification uses `Effects.MoveUntilSourceLeaves(victim, Zone.EXILE)` with no leaves trigger.
 - `ExileUntilLeaves(target)` — linked exile; the exiled card returns when the source leaves the battlefield (pair with `ReturnLinkedExile*` on the source's `LeavesBattlefield` trigger). The target is normally a **battlefield** permanent (O-Ring: Liminal Hold, Driftgloom Coyote), but a **graveyard card** is also legal — the executor moves the target to exile from whichever of those two zones it is in, so a cross-zone union `target(...)` ("creature on the battlefield **or** creature card from a graveyard") works directly (Savior of Ollenbock). Other zones are ignored.
 - `ExileWithAurasNotingCounters(target = ContextTarget(0))` / `ReturnNotedExileTappedWithAuras()` — the state-preserving "blink that remembers counters and Auras" pair (Tawnos's Coffin). The exile half exiles the target creature **and all Auras attached to it** (all linked to the source via `LinkedExileComponent`) and records the creature's identity + its `kind→count` counter snapshot on the source via `NotedExileComponent` (captures the Auras *before* exiling the creature, so the unattached-Aura SBA can't pre-empt them). The return half (a no-op when nothing is noted, so it's safe to fire from **both** a `LeavesBattlefield` and a `BecomesUntapped` trigger — whichever fires first returns the cards) returns the noted creature **tapped under its owner's control** with the noted counters restored, then returns the linked Auras attached to it; Auras that can't legally re-attach go to their owners' graveyards via the CR 704.5m unattached-Aura SBA (the "If you don't …" fallback). `NotedExileComponent` is preserved across the source's own zone change (like `LinkedExileComponent`) so the leaves-the-battlefield return still reads it, and stripped on battlefield re-entry (Rule 400.7).
-- `ExileLinkedToSource(target)` — exile a target **permanently** and record it in the source's linked-exile pile (`LinkedExileComponent`). Unlike `ExileUntilLeaves` there's no automatic return — the link just lets later abilities reference the exiled card (Territory Forge's "this permanent has all activated abilities of the exiled card").
+- `ExileLinkedToSource(target)` — exile a target **permanently** and record it in the source's linked-exile pile (`LinkedExileComponent`). Unlike `MoveUntilSourceLeaves` there's no automatic return — the link just lets later abilities reference the exiled card (Territory Forge's "this permanent has all activated abilities of the exiled card").
 - `RecordChosenLinkedExile(from)` — stamp the source's `ChosenLinkedExileComponent` with the first card in the pipeline collection `from` (its "last chosen card"). Pair after a `SelectFromCollection` over `CardSource.FromLinkedExile()` so a `HasAbilitiesOfChosenLinkedExiledCard` static ability grants the source that card's activated and triggered abilities (Koh, the Face Stealer's "Pay 1 life: Choose a creature card exiled with Koh").
 - `ExileGroupAndLink(filter, storeAs?)` — exile all matching permanents into source's linked exile pile.
 - `ExileFromTopRepeating(count, repeatCondition)` — keep exiling top cards while a condition holds.
@@ -2089,6 +2125,13 @@ Atomic effect factories. For library/zone manipulation, prefer the pipelines in 
   the condition fails — so a pump that wears off, a re-tap, or a re-acquired source never
   re-grabs the creature.
 - `ExchangeControlEffect(target1, target2)` — swap control of two permanents.
+  Triggered abilities with mandatory single-permanent target slots may compare a later target to an
+  earlier one using `EntityReference.Target(index)` (Spawnbroker: `powerAtMostEntity(Target(0))`).
+  The engine asks for these targets sequentially, offers only choices that can complete the remaining
+  slots, and rechecks the relationship against projected characteristics at resolution. The optional
+  exchange remains a resolution-time consent choice. This selection path does not support optional
+  or multiple-object slots.
+
 - `GainControlByRankEffect(metric, target?, direction?, tieBreak?)` — rank the players still in the
   game by a `PlayerRankMetric` and hand the target to whoever sits at one end. Three independent
   axes, so a new card in this family usually needs no new effect: **what** is ranked (`metric` —
@@ -3754,6 +3797,19 @@ A resolving nonpermanent spell retains its stack instance through serialized eff
   target of a spell or ability, that spell or ability's controller gains control of that creature")
   = `GiveControlToTargetPlayerEffect(permanent = EffectTarget.TriggeringEntity, newController =
   EffectTarget.PlayerRef(Player.ControllerOfTargetingSource))`.
+- `Player.ControllerOfTriggeringEntity` — the controller of the **triggering entity**: the `Player`
+  half of `EffectTarget.ControllerOfTriggeringEntity`, for the places keyed by `Player` rather than
+  `EffectTarget`. The zone pipelines are exactly those places — `CardSource.TopOfLibrary` and
+  `CardDestination.ToZone` take a `Player`, so `Patterns.Library.mill` / `.exileTop` cannot name the
+  triggering object's controller without it. Not `Player.TriggeringPlayer`, which reads the trigger
+  context's *player* slot and is null whenever the thing that triggered the ability was an object.
+  Resolves through the same ladder as the `EffectTarget` form (projected controller → controller
+  component → last-known controller → owner, CR 608.2h), so a burn spell that has left the stack by
+  the time the trigger resolves still names its caster. Belltower Sphinx ("whenever a source deals
+  damage to this creature, that source's controller mills that many cards") =
+  `Patterns.Library.mill(DynamicAmount.ContextProperty(TRIGGER_DAMAGE_AMOUNT),
+  EffectTarget.ControllerOfTriggeringEntity)`; Mesmeric Orb is the same shape on
+  `Triggers.becomesUntapped`.
 - `Player.ContextPlayer(i)` / `Player.Candidate` / `Player.Any` — positional target, CR 115
   candidate during target-restriction evaluation, and "a player" matching.
 - `EffectTarget.ContextProperty(key)` — value plumbed into `EffectContext` (damage amount, life gained, blight
@@ -3776,7 +3832,12 @@ A resolving nonpermanent spell retains its stack instance through serialized eff
 
 ### Cast-time (`Targets.*` / `TargetRequirement`)
 
-- `Targets.Any` — any creature, player, or planeswalker.
+- `Targets.Any` — any creature, player, planeswalker, or battle.
+- `Targets.Any(filter)` — the same domain narrowed by a `GameObjectFilter`, applied to both players
+  and permanents at announcement, resolution, and retargeting. For example,
+  `Targets.Any(GameObjectFilter.Any.wasDealtDamageThisTurn())` (Needle Drop) uses damage history,
+  including combat damage and damage dealt through counters. Prevented damage and life loss do not
+  qualify. History survives removing marked damage, but resets on zone changes and turn cleanup.
 - `Targets.AnyChosenByOpponent` — "any target **of an opponent's choice**" (Cuombajj Witches). A real
   target of *your* spell/ability that an **opponent** selects: announced at the same time as your own
   targets, equally respondable, and with legality (hexproof/protection/shroud) measured relative to
@@ -4044,8 +4105,11 @@ Every `TargetRequirement` carries count semantics (defaults shown):
   object/player it is (the controller chooses *which* opponent in multiplayer per CR 601.6a/602.3a, and
   that pick follows the controller's own choices per CR 601.6b/602.3b). Orthogonal to legality: target-finding and
   validation ignore `chooser` (always relative to the controller); only the announcement layer reads it
-  to route the selection decision. `TargetChooser.Opponent` is honored for **activated abilities**; list
-  the opponent-chosen requirement after the controller-chosen ones. `Targets.AnyChosenByOpponent` is the
+  to route the selection decision. `TargetChooser.Opponent` is honored for **activated and triggered
+  abilities** (Mausoleum Turnkey: "When this creature enters, return target creature card of an
+  opponent's choice from your graveyard to your hand") — both announcement paths pin the deciding
+  opponent before raising the target decision, asking the controller which opponent decides when
+  there is more than one. List the opponent-chosen requirement after the controller-chosen ones. `Targets.AnyChosenByOpponent` is the
   ready-made "any target of an opponent's choice"; `TargetObject` (and so the `TargetCreature` factory)
   carries `chooser` too, for opponent-chosen *permanent* targets — Preacher's "gain control of target
   creature of an opponent's choice they control" is `TargetCreature(filter =
@@ -4070,8 +4134,8 @@ Every `TargetRequirement` carries count semantics (defaults shown):
   requirement list — no printed card splits one trigger's targets between two deciders.
 
   `CardLinter` (§21) fails any card that puts a chooser in a context the engine doesn't route:
-  `Opponent` outside an activated ability, `TriggeringPlayer` / `ControllerOfTriggeringEntity` outside a
-  triggered one. In the wrong context the *controller* would silently choose the target instead.
+  `Opponent` outside an activated *or* triggered ability, `TriggeringPlayer` /
+  `ControllerOfTriggeringEntity` outside a triggered one. In the wrong context the *controller* would silently choose the target instead.
 
 ### Player-target restrictions (`TargetPlayer.restriction` / `TargetOpponent.restriction`)
 
@@ -4288,6 +4352,17 @@ This is the player-arm prerequisite for the planned composable mixed `TargetUnio
   `CastSpellTypesFromTopOfLibrary(GameObjectFilter.Any.sharingCardTypeWithLinkedExile(), maxCastsPerTurn = 1)`.
   The cost-side reading of the same pile is `CostReductionSource.SharedCardTypesWithLinkedExile`
   (Cemetery Prowler).
+- `.sharingNameWithLinkedExile()` — `CardPredicate.SharesNameWithLinkedExile`: **same name** as any card
+  still exiled with the filtering ability's source. The name axis of `.sharingCardTypeWithLinkedExile()`,
+  and pile-wide for the same reason: Circu, Dimir Lobotomist exiles on every blue *and* every black
+  spell you cast, so "a card exiled with Circu" is the whole pile and
+  `.sharingNameWith(EntityReference.LinkedExiledCard())` could only ever name one index of it. Printed
+  names on both sides — neither an exiled card nor a card in a hand or library has a battlefield
+  projection a Layer-3 rename could have touched. An empty pile matches nothing; no source in context
+  fails closed. Circu's third line is
+  `PlayersCantCastSpells(affected = Player.EachOpponent, spellFilter = GameObjectFilter.Any.sharingNameWithLinkedExile())`
+  — and note that a `PlayersCantCastSpells` filter is evaluated with the *granting permanent* as its
+  source, which is what makes any source-relative predicate usable there.
 - `.sharingColorWith(entity)` — `CardPredicate.SharesColorWith(entity)`: shares ≥1 (projected) color with
   a referenced entity (e.g. `EntityReference.Triggering`). Mirror of `.sharingCreatureTypeWith(entity)`.
   Colorless entities share no color (never match). Used by Spreading Plague ("destroy all other creatures
@@ -5041,6 +5116,26 @@ fall back to base data). Use `projected.isCreature(entityId)` rather than `cardC
 
 ---
 
+### Cast-name history filters
+
+`GameObjectFilter.sharesNameWithSpellCastThisTurn()` adds
+`StatePredicate.SharesNameWithSpellCastThisTurn`: the candidate shares at least one name with a spell
+cast by any player this turn. Reads cast-time history, so resolution, countering, and later zone changes
+do not erase eligibility; nameless and face-down spells never match. History resets on turn change.
+Used by **Twinning Glass**, composing hand gathering, an optional `SelectionMode.ChooseSpell` selection, and
+`Effects.CastFromCollectionWithoutPayingCost` for a cast during ability resolution.
+
+`SelectionMode.ChooseSpell` selects zero or one spell from a collection. Unlike a card selection, its
+filter tests each castable face separately: a matching Adventure, Omen, split half, or modal back face
+can qualify without the primary face qualifying. Preparation spells are excluded. The ordinary card
+picker chooses the physical card; if several faces qualify, the existing option picker chooses the
+spell name. The selection carries its face alongside the selected collection through continuations;
+`CastFromCollectionWithoutPayingCost` consumes that choice for targeting, permission, and casting.
+Spell eligibility uses the face filter; card-selection budget restrictions and the legacy
+`matchChosenCreatureType` flag are rejected in this mode. Declining creates no cast permission. The normal cast handler still enforces targets and additional
+costs, and records the chosen face's name in turn history.
+
+
 ## 8. Triggered abilities (`Triggers.*`)
 
 `triggeredAbility { trigger; effect; target?; triggerZone?/triggerZones?; interveningIf?; triggerRestriction?; optional?; elseEffect?; checkOnNextState?; dealsDamageBeforeResolve?; controlledByTriggeringEntityController?; oncePerTurn?; effectOncePerTurn?; triggersOnce? }`.
@@ -5081,6 +5176,13 @@ Getting the choice wrong is silent in both directions — an "if" filed as a res
 abilities that should do nothing, a "while" filed as an "if" fizzles abilities that should resolve —
 so `InterveningIfClassificationTest` re-derives the reading from each card's own Oracle text and
 fails the build on a mismatch, over the population where the pairing is unambiguous.
+
+A self-bound `EventPattern.ZoneChangeEvent(to = Zone.GRAVEYARD)` with
+`triggerZone = Zone.GRAVEYARD` models "put into a graveyard from anywhere" (Dread).
+It checks the card after the move, including a battlefield departure that restores abilities
+removed by Lignify. Explicit `from = Zone.BATTLEFIELD` triggers still use the departure snapshot.
+For "shuffle it into its owner's library", compose a graveyard-gated `Effects.Move` to the library
+with `ShuffleLibraryEffect()` so the owner still shuffles if the card has left the graveyard.
 
 **`triggerZones` — which zones the trigger condition functions in (CR 113.6b).** Defaults to
 `setOf(Zone.BATTLEFIELD)`, which CR 113.6 makes the rule for a permanent card's abilities. It is a
@@ -6093,6 +6195,21 @@ Triggers.youCastSpell(
   stack at all. You can win — and be paid for — a clash an opponent initiated. A card whose payoff
   merely *differs* on a win ("… If you won, …" — Entangling Trap) uses `WheneverYouClash` and
   branches inside its effect instead.
+- `Conditions.YouWonTheClash` — the **"if you won"** rider *inside* such an effect (CR 701.30d).
+  True when the clash that fired this trigger was won by the ability's controller; false on a tie,
+  on revealing nothing from an empty library, and for any trigger a clash did not fire. The clash
+  is over by the time the ability resolves, so the outcome travels as trigger context
+  (`ClashedEvent.won` → `TriggerContext.clashWon`) rather than in a pipeline collection — which is
+  also why it survives a mid-resolution pause such as Rebellion of the Flamekin's `Gate.MayPay`.
+  Resolution-only: false under projection.
+
+  Three spellings of "if you win", one per shape — pick by *what* is conditional:
+
+  | Wording | Spelling |
+  |---|---|
+  | "Clash with an opponent. If you win, …" (the card clashes) | `Patterns.Mechanic.clash(ifYouWin, otherwise?)` — reads the `clashWon` pipeline collection |
+  | "Whenever you clash **and win**, …" (whole ability) | `Triggers.WheneverYouClashAndWin` — nothing goes on the stack on a loss |
+  | "Whenever you clash, X. **If you won**, Y." (part of the effect) | `Triggers.WheneverYouClash` + `ConditionalEffect(Conditions.YouWonTheClash, …)` |
 
 ### Scry / Surveil
 
@@ -6297,6 +6414,15 @@ Dominant back faces that "stay" instead self-exile on their final chapter, dodgi
   is itself a Food counts its own sacrifice). Pick by the printed article — "one or more" → batch,
   "a" → `YouSacrificeA`, "another" → `YouSacrificeAnother`.
 - `Sacrificed` — source is sacrificed.
+- `EventPattern.ChampionedEvent` — "when a [quality] is championed with this creature" (CR 702.72c;
+  Mistbind Clique). Reach it through `Triggers.championedWith(binding)`. A parameterless pattern whose
+  subject is the **championing** permanent, selected by the ability's `TriggerBinding`: `SELF` is
+  "championed with **this** creature", `OTHER` is "with another permanent you control", `ANY` has no
+  restriction. Emitted by `EmitChampionedEventEffect`, the success branch of the champion ability's own
+  gate, so it fires once per permanent that actually reached exile and never when the choice was
+  declined. It carries no filter for the championed permanent's quality — a champion ability can only
+  exile something matching its own quality, so the printed "a Faerie is championed with this creature"
+  is already guaranteed by the champion clause. See the `Champion` keyword entry for full wiring.
 - `EventPattern.ExploitedEvent(player = Player.You, requireNontokenExploited = false)` — "whenever a creature you control
   exploits a creature" (CR 702.110b; the sacrifice half of the Exploit keyword). Fires once per exploited creature; the
   `exploit()` helper appends `EmitExploitedEventEffect` after the exploit sacrifice, so declining the optional sacrifice
@@ -8445,6 +8571,12 @@ copy of it (CR 707.10e). The activated-ability analogue of the spell-level `cant
 - `loyaltyAbility(+N) { ... }` — add loyalty + effect.
 - `loyaltyAbility(-N) { ... }` — remove loyalty + effect.
 - `loyaltyAbility(0) { ... }` — 0-loyalty ability.
+- `loyaltyAbilityX { ... }` — a −X loyalty cost (`AbilityCost.LoyaltyX`). The player chooses
+  X from zero through the source's current loyalty when activating; payment removes that many
+  loyalty counters and the effect reads the locked-in choice with `DynamicAmount.XValue`.
+  Uses the ordinary server X picker and the same sorcery-speed / per-turn loyalty restrictions
+  as fixed costs. Spending all loyalty is legal; the ability still resolves after its source leaves.
+  The client ability menu receives `loyaltyX = true` and renders −X. Chandra Nalaar uses this shape.
 
 ---
 
@@ -8775,7 +8907,7 @@ Flying, Menace, Intimidate, Fear, Shadow, Horsemanship, all basic landwalks (Pla
 Strike, Trample, Deathtouch, Lifelink, Vigilance, Reach, Provoke, Defender, Indestructible, Hexproof, Shroud, Haste,
 Flash, Prowess, Flurry, Changeling, Devoid (**not** display-only — see the note above: the engine
 derives `CardDefinition.colors` from it), Convoke, Delve, Improvise, Affinity, Emerge, Storm, Flashback, Harmonize, Mayhem, Disturb, Evoke, Sneak, Ninjutsu, Web-slinging, Impending, Conspire, Casualty, Miracle, Hideaway, Cascade, Plot,
-Offspring, Persist, Undying, Enduring, Ascend, Storied, Start your engines!, Max speed, Wither, Toxic, Eerie, Vivid, Fateful Bite, Exploit, Soulbond, Daybound, Nightbound, … (display-only — engine effect lives in handlers or
+Offspring, Persist, Undying, Enduring, Ascend, Storied, Start your engines!, Max speed, Wither, Toxic, Eerie, Vivid, Fateful Bite, Exploit, Champion, Soulbond, Daybound, Nightbound, … (display-only — engine effect lives in handlers or
 composite abilities).
 
 **Parameterized `KeywordAbility.*`**
@@ -9161,6 +9293,43 @@ composite abilities).
   is a battlefield replacement scoped by its own `appliesTo` pattern — while one is on the battlefield (or the "damage
   can't be prevented this turn" one-shot is active) `DamageUtils.applyDamagePreventionShields` applies no prevention
   shields to the damage instances that pattern names (CR 615.12).
+- `Champion an [object]` — "Champion a Goblin (When this enters, sacrifice it unless you exile another
+  Goblin you control. When this leaves the battlefield, that card returns to the battlefield.)"
+  (CR 702.72, Lorwyn). Display-only keyword (`Keyword.CHAMPION`); wire the behavior with the
+  `card { champion(Subtype.GOBLIN) }` builder helper — or `champion(quality: GameObjectFilter,
+  qualityDescription: String)` for a non-tribal quality, of which `championCreature()` ("champion a
+  creature", the three Changelings) is the only printed one. It adds the keyword plus **two linked
+  triggered abilities** (CR 702.72b / 607.2k), both composed from existing primitives with no new
+  executor:
+  - **enters** — an `IfYouDoEffect` over a Gather → Select → Move pipeline. The quality is chosen,
+    **not targeted** (the printed text has no "target"): `CardSource.BattlefieldMatching(filter =
+    quality.notSourceItself(), player = Player.You)`, then `SelectionMode.ChooseUpTo(1)` with
+    `useTargetingUI = true`, then a move to exile carrying `linkToSource = true` and
+    `storeMovedAs = CHAMPIONED_CARDS`. `ChooseUpTo(1)` **is** the "unless": picking nothing is always
+    legal, and with no eligible permanent the selection resolves with no prompt at all. The gate's
+    criterion is `SuccessCriterion.CollectionNonEmpty(CHAMPIONED_CARDS)` — the cards that actually
+    reached exile, not merely the ones picked — with `otherwise = SacrificeSelfEffect` and
+    `then = EmitChampionedEventEffect()`.
+  - **leaves** — `Triggers.LeavesBattlefield` running `Effects.ReturnLinkedExileUnderOwnersControl()`,
+    which reads the linked-exile pile of the **originating battlefield visit**, so a champion that
+    blinks never returns the other visit's card and never sacrifices for the other visit's obligation.
+  - **the quality is a permanent filter.** "Champion a Goblin" is a bare tribal noun, so per CR 109.2
+    it means a Goblin *permanent* — a Kindred noncreature Goblin is a legal choice. The `Subtype`
+    overload builds `GameObjectFilter.Permanent.withSubtype(subtype)`; narrowing it to `Creature`
+    would silently drop those. `notSourceItself()` supplies "another" and is *visit-aware*.
+  - **two triggers, not an "exile until" replacement.** This is what CR 702.72a says, and it
+    reproduces the printed interaction Fiend Hunter documents: a champion removed before its enters
+    trigger resolves has already run its leaves trigger against an empty pile, and then exiles a
+    permanent that never comes back. The sacrifice is a genuine no-op when the champion is already
+    gone, exactly as the printed instruction behaves.
+  - **CR 702.72c payoff** — `Triggers.championedWith()` (`EventPattern.ChampionedEvent`) is
+    "when a [quality] is championed with this creature" (Mistbind Clique). It fires only when a
+    permanent actually reached exile, so declining the choice taps nothing. The quality is not
+    restated on the trigger: the champion clause above it can only ever exile a matching permanent.
+  Cards: Boggart Mob, Changeling Berserker/Hero/Titan, Mistbind Clique, Nova Chaser, Thoughtweft
+  Trio, Wanderwine Prophets, Wren's Run Packmaster. Pinned by `ChampionKeywordTest` (17 scenarios
+  covering accept/decline/no-candidate, "another", the tribal-vs-creature quality, projected types,
+  owner's-control return, linkage, tokens, trigger ordering, and blinking).
 - `Exploit` — "Exploit (When this creature enters, you may sacrifice a creature.)" (CR 702.110, Dragons of Tarkir;
   reprinted MH1/MH2/VOW/PIP/MH3). Display-only keyword; wire the behavior with the `card { exploit(onExploit, onExploitTargets) }`
   builder helper. It adds the keyword plus one `EntersBattlefield` triggered ability whose effect is a
@@ -9842,6 +10011,14 @@ answer it and would silently return `false`.
   they came back as, so the guard fails and the loop stops. Reads
   `TriggerContext.lastKnownCardTypes`, populated from the `ZoneChangeEvent`'s
   `EntitySnapshot.typeLine`.
+- `YouWonTheClash` — the "if you won" rider inside a `Triggers.WheneverYouClash` effect (CR 701.30d).
+  True when the clash that fired this trigger was won by the ability's controller; false on a tie,
+  on revealing nothing from an empty library, and on any trigger a clash did not fire.
+  Resolution-only. Reads `TriggerContext.clashWon`, populated from `ClashedEvent.won` — the clash
+  has already ended when the ability resolves, so there is no pipeline collection to read and the
+  outcome has to travel on the trigger. Entangling Trap ("tap target creature an opponent controls.
+  If you won, that creature doesn't untap …") and Rebellion of the Flamekin. See
+  [Clash](#clash) for which of the three "if you win" spellings a given wording wants.
 - `TargetControlsCreature(target)` — target player has a creature.
 - `TargetControlsLand(target)` — target player has a land.
 - `TargetMatchesFilter(filter, targetIndex = 0)` — the context target matches a `GameObjectFilter`.
@@ -10978,6 +11155,13 @@ something other than the source.
   (`ManaCost.coloredSymbolCount`), so they agree symbol-for-symbol and differ only in scope.
   Being `Triggering`-scoped, it is rejected by `SetBaseStatsEffect(reevaluateContinuously = true)`
   like every other context-scoped amount; read off `EntityReference.Source` it is projector-safe.
+- `DynamicAmount.EntityProperty(entity, EntityNumericProperty.DamageDealtThisTurn)` — actual damage
+  dealt by a battlefield permanent or resolving spell this turn, including combat and noncombat
+  damage to any recipient. The tally is bound to the source’s object identity. Prevention
+  and damage replacement effects modify the tally; damage replaced entirely with counters contributes
+  zero. Turn changes make the value read zero and zone changes clear it. For “damage dealt this way”,
+  store the value before the damage and subtract it afterward (Brightflame). The stored baseline and
+  damage history survive resolution decisions, including optional damage redirection.
 - `EntityProperty(entity, EntityNumericProperty.ExcessMarkedDamage)` — the excess damage (CR 120.4a)
   marked on a creature: `max(0, marked − toughness)`, read from post-damage state. Amount-valued twin of
   the `TargetMarkedDamageExceedsToughness` condition. Read it AFTER a deal-damage step in the same
@@ -13364,3 +13548,24 @@ resolution executor is introduced. The existing Yes/No decision belongs to the
 drawing player, and its source identifies the public graveyard card. The client
 keyword label is `DREDGE`. The mtgish emitter preserves the numeric argument through
 `KeywordAbility.dredge(N)`; unsupported numeric shapes remain scaffolded.
+
+### Live library-top references
+
+`EntityReference.LibraryTop(player = Player.You)` reads the current top card of the named
+player's library for relational filters and dynamic amounts. `EffectTarget.LibraryTop(player)`
+is the matching effect/condition target: compose `Conditions.EntityMatches` with any card filter,
+or pass it to an ordinary zone-moving effect. Both resolve at evaluation time and return no entity
+for an empty library; they never use last-known information or reveal the card by themselves.
+Single-player `Player` references use the normal player resolver; group references resolve to no entity.
+During filter and condition projection, the source controller comes from the intermediate projection.
+
+Crown of Convergence combines `RevealTopOfLibrary`, a creature-card condition, `ModifyStats` with
+`sharingColorWith(EntityReference.LibraryTop())`, and `PutOnBottomOfLibrary`. The bonus follows
+changes to the top card, control, and projected creature colors, and never grants more than +1/+1
+for sharing multiple colors. A colorless card shares no colors.
+
+Continuous group filters also support `SharesColorWith(reference)`, including inside `And`, `Or`,
+and `Not`. They delegate that relational comparison to the shared predicate evaluator with an
+intermediate projection, preserving colorless results instead of falling back to printed colors.
+Public library-reveal statics follow projected control, so stealing a reveal source switches which
+player's top card is visible.

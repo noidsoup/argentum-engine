@@ -1131,6 +1131,14 @@ export interface AdditionalCostInfo {
   readonly tapBatchMaxActivations?: number
   readonly validDiscardTargets?: readonly EntityId[]
   readonly discardCount?: number
+  /**
+   * Cards in your hand that could pay a reveal-from-hand additional cost ("reveal an Elf card from
+   * your hand or pay {3}"), and how many to pick. Distinct from `validBeholdTargets` because
+   * behold also offers battlefield permanents (CR 701.4a); a reveal never does. Picks are
+   * submitted as `additionalCostPayment.revealedCards` — the cards stay in hand (CR 701.20b).
+   */
+  readonly validRevealTargets?: readonly EntityId[]
+  readonly revealCount?: number
   readonly validBounceTargets?: readonly EntityId[]
   readonly bounceCount?: number
   readonly validExileTargets?: readonly EntityId[]
@@ -1544,7 +1552,8 @@ export interface DraftPackReceivedMessage {
   readonly packNumber: number
   readonly pickNumber: number
   readonly cards: readonly SealedCardInfo[]
-  readonly timeRemainingSeconds: number
+  /** Seconds left to pick, or `null` when the draft has no time limit. */
+  readonly timeRemainingSeconds: number | null
   readonly passDirection: 'LEFT' | 'RIGHT'
   readonly picksPerRound: number  // Cards to pick this round (1 or 2)
   readonly pickedCards?: readonly SealedCardInfo[]  // Cards already picked (for reconnect)
@@ -1607,7 +1616,8 @@ export interface WinstonDraftStateMessage {
   readonly knownOpponentCards: readonly SealedCardInfo[]
   readonly unknownOpponentCardCount: number
   readonly lastAction: string | null
-  readonly timeRemainingSeconds: number
+  /** Seconds left to pick, or `null` when the draft has no time limit. */
+  readonly timeRemainingSeconds: number | null
   readonly lastPickedCards: readonly SealedCardInfo[]
 }
 
@@ -1629,7 +1639,8 @@ export interface GridDraftStateMessage {
   readonly totalPickedByOthers: Record<string, number>
   readonly pickedCardsByOthers: Record<string, readonly SealedCardInfo[]>
   readonly lastAction: string | null
-  readonly timeRemainingSeconds: number
+  /** Seconds left to pick, or `null` when the draft has no time limit. */
+  readonly timeRemainingSeconds: number | null
   /** Available row/column selections (e.g., ["ROW_0", "COL_1"]) */
   readonly availableSelections: readonly string[]
   /** Player names in pick order */

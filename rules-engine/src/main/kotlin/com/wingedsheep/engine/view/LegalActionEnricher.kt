@@ -287,6 +287,8 @@ class LegalActionEnricher(
         exileWeightPerTarget = exileWeightPerTarget,
         validBeholdTargets = validBeholdTargets,
         beholdCount = beholdCount,
+        validRevealTargets = validRevealTargets,
+        revealCount = revealCount,
         counterRemovalCreatures = counterRemovalCreatures.map { it.toDto() },
         validBlightTargets = validBlightTargets,
         blightAmount = blightAmount,

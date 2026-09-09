@@ -1535,7 +1535,16 @@ class TriggerDetector(
                                         enchantedCreatureLastKnownPower = enchantedPower,
                                         // Never clobber a capture the event itself carries
                                         // (manifest dread's graveyard cards).
-                                        capturedEntityIds = capturedTargets ?: ctx.capturedEntityIds
+                                        capturedEntityIds = capturedTargets ?: ctx.capturedEntityIds,
+                                        // "Whenever a source deals damage to this creature" binds
+                                        // the damage *source*, so "that source's controller …"
+                                        // (Belltower Sphinx) resolves. DamageTriggerDetector owns
+                                        // the same rule for the case where the creature died to
+                                        // that damage; both paths must agree.
+                                        triggeringEntityId =
+                                            if (event is DamageDealtEvent &&
+                                                DamageTriggerDetector.bindsDamageSource(ability)
+                                            ) event.sourceId else ctx.triggeringEntityId
                                     )
                                 }
                             )
@@ -1560,23 +1569,17 @@ class TriggerDetector(
                     val container = state.getEntity(entityId) ?: continue
                     val cardComponent = container.get<CardComponent>() ?: continue
 
-                    // The card's OWN battlefield-exit (its death / leaving) is owned by the dedicated
-                    // death and leaves-battlefield detectors below, which resolve the dying entity's
-                    // abilities regardless of activeZones. Skipping it here prevents a
-                    // graveyard-active dies trigger (triggerZone = GRAVEYARD, e.g. Paramecia
-                    // Coloniex) from being detected twice — once here, because the dead card already
-                    // sits in the graveyard and its trigger pattern matches its own death event, and
-                    // once in detectDeathTriggers. The same guard covers a commander that died and
-                    // went to the command zone instead. Other zone-resident reactions (another
-                    // creature dying, entering, a spell being cast) still fall through to the
-                    // matcher below.
-                    if (event is ZoneChangeEvent && event.fromZone == Zone.BATTLEFIELD &&
-                        event.entityId == entityId) continue
-
                     val abilities = abilityResolver.getTriggeredAbilities(entityId, cardComponent.cardDefinitionId, state, index.statics)
 
                     for (ability in abilities) {
                         if (zone !in ability.activeZones) continue
+                        // Explicit battlefield-exit triggers use the dedicated look-back detectors.
+                        // "From anywhere" triggers instead see the card in its destination zone,
+                        // including abilities restored when it leaves the battlefield.
+                        if (event is ZoneChangeEvent && event.fromZone == Zone.BATTLEFIELD &&
+                            event.entityId == entityId &&
+                            (ability.trigger as? EventPattern.ZoneChangeEvent)?.from == Zone.BATTLEFIELD
+                        ) continue
                         if (isGraveyardToHandSelfTrigger(ability, event, entityId)) continue
                         val ownerId = cardComponent.ownerId
                             ?: container.get<OwnerComponent>()?.playerId

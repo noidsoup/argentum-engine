@@ -257,6 +257,13 @@ object Costs {
      */
     val RevealNotedCreatureType: AbilityCost = AbilityCost.Atom(CostAtom.RevealNotedCreatureType)
 
+    /**
+     * "Unattach this Equipment" (Sunforger) — detach the source from the permanent it is attached
+     * to, without moving zones (CR 701.3d). Only payable while it *is* attached, which is the whole
+     * of Sunforger's first ruling. See [CostAtom.Unattach].
+     */
+    val Unattach: AbilityCost = AbilityCost.Atom(CostAtom.Unattach)
+
     // =========================================================================
     // Exile Costs
     // =========================================================================
@@ -436,6 +443,9 @@ object Costs {
      */
     fun Loyalty(change: Int): AbilityCost =
         AbilityCost.Loyalty(change)
+
+    /** Remove the chosen X loyalty counters from the source (−X). */
+    val LoyaltyX: AbilityCost = AbilityCost.LoyaltyX
 
     // =========================================================================
     // Tap Permanents Costs
@@ -732,11 +742,39 @@ object Costs {
         /**
          * Pay [cost] or pay [alternativeManaCost] instead — the general "do X or pay {N}" shape
          * ([AdditionalCost.OrPay]). [cost] must be a selection-carrying cost: a [Behold], or an
-         * atom cost over sacrifice / discard / exile-from-a-zone / tap / return-to-hand. The named
-         * shapes below are the printed wordings, and a new one is a one-line facade over this.
+         * atom cost over sacrifice / discard / exile-from-a-zone / tap / return-to-hand /
+         * reveal-from-hand. The named shapes below are the printed wordings, and a new one is a
+         * one-line facade over this.
          */
         fun OrPay(cost: AdditionalCost, alternativeManaCost: String): AdditionalCost =
             AdditionalCost.OrPay(cost, alternativeManaCost)
+
+        /**
+         * Reveal [count] cards matching [filter] from your hand. The cards stay in hand
+         * (CR 701.20b) — paying publishes them and nothing else.
+         *
+         * Narrower than [Behold] on purpose: CR 701.4a defines behold as "reveal a [quality] card
+         * from your hand **or** choose a [quality] permanent you control", so a behold cost is also
+         * payable off the battlefield and this one never is.
+         */
+        fun RevealFromHand(
+            filter: GameObjectFilter = GameObjectFilter.Any,
+            count: Int = 1,
+        ): AdditionalCost = AdditionalCost.Atom(CostAtom.RevealFromHand(filter, count))
+
+        /**
+         * Reveal a [filter] card from your hand, or pay [alternativeManaCost] instead — Lorwyn's
+         * tribal "reveal an Elf card from your hand or pay {3}" (Wren's Run Vanquisher, Silvergill
+         * Adept, Goldmeadow Stalwart, Squeaking Pie Sneak, Flamekin Bladewhirl).
+         *
+         * Not [BeholdOrPay]: behold's candidate pool spans the battlefield too (CR 701.4a), which
+         * would wrongly let a permanent pay a hand-only reveal.
+         */
+        fun RevealFromHandOrPay(
+            filter: GameObjectFilter = GameObjectFilter.Any,
+            alternativeManaCost: String,
+            count: Int = 1,
+        ): AdditionalCost = OrPay(RevealFromHand(filter, count), alternativeManaCost)
 
         /** Behold a [filter] card or pay [alternativeManaCost] instead (Lys Alana Dignitary). */
         fun BeholdOrPay(
@@ -859,6 +897,9 @@ object Costs {
             count: Int = 1,
             random: Boolean = false
         ): PayCost = PayCost.Atom(CostAtom.Discard(count, filter, random))
+
+        /** Discard your entire hand — "unless its controller discards their hand" (Perplex). */
+        val DiscardHand: PayCost = PayCost.Atom(CostAtom.DiscardHand)
 
         /**
          * Sacrifice [count] permanents matching [filter]. The source is a legal choice when it

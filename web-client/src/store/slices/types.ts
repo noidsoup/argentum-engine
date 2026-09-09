@@ -582,7 +582,8 @@ export interface DraftState {
   packNumber: number
   pickNumber: number
   pickedCards: readonly SealedCardInfo[]
-  timeRemaining: number
+  /** Seconds left to pick, or `null` when the draft has no time limit. */
+  timeRemaining: number | null
   passDirection: 'LEFT' | 'RIGHT'
   picksPerRound: number
   queuedPacks: number
@@ -610,7 +611,8 @@ export interface WinstonDraftState {
   knownOpponentCards: readonly SealedCardInfo[]
   unknownOpponentCardCount: number
   lastAction: string | null
-  timeRemaining: number
+  /** Seconds left to pick, or `null` when the draft has no time limit. */
+  timeRemaining: number | null
   lastPickedCards: readonly SealedCardInfo[]
 }
 
@@ -627,7 +629,8 @@ export interface GridDraftState {
   pickedCardsByOthers: Record<string, readonly SealedCardInfo[]>
   lastPickedCards: readonly SealedCardInfo[]
   lastAction: string | null
-  timeRemaining: number
+  /** Seconds left to pick, or `null` when the draft has no time limit. */
+  timeRemaining: number | null
   availableSelections: readonly string[]
   playerOrder: readonly string[]
   currentPickerIndex: number

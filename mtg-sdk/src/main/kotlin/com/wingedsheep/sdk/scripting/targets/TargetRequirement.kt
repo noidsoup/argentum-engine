@@ -82,9 +82,9 @@ sealed interface TargetRequirement : TextReplaceable<TargetRequirement> {
     /**
      * Who selects this requirement's target(s). Defaults to [TargetChooser.Controller]; set to
      * [TargetChooser.Opponent] for "… of an opponent's choice" wording. See [TargetChooser].
-     * Currently honored at announcement for activated abilities (the only printed use, Cuombajj
-     * Witches); a requirement whose chooser is an opponent should appear after the
-     * controller-chosen requirements in a script.
+     * Honored at announcement by the activated-ability path (Cuombajj Witches) and the
+     * triggered-ability path (Mausoleum Turnkey); a requirement whose chooser is an opponent should
+     * appear after the controller-chosen requirements in a script.
      */
     val chooser: TargetChooser get() = TargetChooser.Controller
     /**
@@ -246,7 +246,7 @@ fun TargetPermanent(
 // =============================================================================
 
 /**
- * "Any target" - can target any creature, player, or planeswalker.
+ * "Any target" - can target any creature, player, planeswalker, or battle.
  */
 @SerialName("AnyTarget")
 @Serializable
@@ -256,11 +256,19 @@ data class AnyTarget(
     override val optional: Boolean = false,
     override val id: String? = null,
     override val chooser: TargetChooser = TargetChooser.Controller,
-    private val descriptionOverride: String? = null
+    private val descriptionOverride: String? = null,
+    /** Additional predicates shared by permanent and player candidates. */
+    val filter: GameObjectFilter = GameObjectFilter.Any
 ) : TargetRequirement {
+    override fun applyTextReplacement(replacer: TextReplacer): TargetRequirement {
+        val replaced = filter.applyTextReplacement(replacer)
+        return if (replaced !== filter) copy(filter = replaced) else this
+    }
+
     override val description: String = descriptionOverride
         ?: buildString {
             append(if (count == 1) "any target" else "$count targets")
+            if (filter != GameObjectFilter.Any) append(" that ${filter.description}")
             if (chooser == TargetChooser.Opponent) append(" of an opponent's choice")
         }
 }

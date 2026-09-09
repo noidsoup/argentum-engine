@@ -56,6 +56,9 @@ object TargetResolutionUtils {
      * that need to look up attachment relationships).
      */
     fun resolveTarget(effectTarget: EffectTarget, context: EffectContext, state: GameState): EntityId? {
+        if (effectTarget is EffectTarget.LibraryTop) {
+            return resolveLibraryTop(effectTarget.player, context, state)
+        }
         if (effectTarget == EffectTarget.Self && !context.objectReferences.isSelfCurrent(state)) return null
         if (effectTarget == EffectTarget.TriggeringEntity && context.triggeringEntityId !in state.turnOrder &&
             !context.objectReferences.isCurrent(context.objectReferences.triggering, state)) return null
@@ -221,6 +224,14 @@ object TargetResolutionUtils {
             // stack, and [controllerOf] supplies last-known information once it has left.
             Player.ControllerOfTargetingSource -> context.targetingSourceEntityId
                 ?.let { stackObjectController(state, it) ?: controllerOf(state, it) }
+            // "That source's controller", for the pipelines that are keyed by Player rather than
+            // EffectTarget (Belltower Sphinx's mill). Same entity the EffectTarget form reads, and
+            // [controllerOf]'s ladder ends in last-known controller then owner — which is what
+            // makes it work for a burn spell that has already left the stack by resolution
+            // (CR 608.2h). Distinct from [Player.TriggeringPlayer], which reads the context's
+            // *player* slot and is null when the thing that triggered the ability was an object.
+            Player.ControllerOfTriggeringEntity -> context.triggeringEntityId
+                ?.let { controllerOf(state, it) }
             // Multi-player / list-only references have no single resolution here.
             // OwnersOfLinkedExile is resolved by ForEachExecutor.resolvePlayers (a player loop);
             // EachTargetedPlayer by DynamicAmountEvaluator.resolveUnifiedPlayerIds. Collapsing
@@ -419,6 +430,8 @@ object TargetResolutionUtils {
      */
     fun resolveEntityReference(ref: EntityReference, context: EffectContext, state: GameState): EntityId? =
         when (ref) {
+            is EntityReference.LibraryTop ->
+                resolveLibraryTop(ref.player, context, state)
             is EntityReference.Source -> context.sourceId
             is EntityReference.EnchantedCreature ->
                 context.sourceId?.let { state.getEntity(it)?.get<AttachedToComponent>()?.targetId }
@@ -454,6 +467,19 @@ object TargetResolutionUtils {
                 com.wingedsheep.engine.handlers.effects.linkedexile.LinkedExileLookup
                     .exiledCard(state, context.sourceId, ref.index)
         }
+
+    /** Library membership is read live, without revealing the card or retaining an old top. */
+    fun resolveLibraryTop(
+        player: Player,
+        context: EffectContext,
+        state: GameState,
+        projected: com.wingedsheep.engine.mechanics.layers.ProjectedState? = null
+    ): EntityId? {
+        val playerId = if (player == Player.ControllerOfSource && projected != null) {
+            context.sourceId?.let { projected.getController(it) } ?: context.controllerId
+        } else resolvePlayerRef(player, context, state)
+        return playerId?.takeIf { it in state.turnOrder }?.let { state.getLibrary(it).firstOrNull() }
+    }
 
     /**
      * Convert a ChosenTarget to an EntityId.

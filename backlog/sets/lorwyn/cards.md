@@ -2,7 +2,7 @@
 
 **Set Size:** 286 cards
 **Release Date:** October 12, 2007
-**Implemented:** 259 / 286
+**Implemented:** 281 / 286
 | Section    | Total | Done |
 |------------|-------|------|
 | White      | 49    | 43   |
@@ -27,16 +27,16 @@
 - [x] Brigid, Hero of Kinsbaile
 - [x] Burrenton Forge-Tender
 - [x] Cenn's Heir
-- [ ] Changeling Hero
+- [x] Changeling Hero
 - [x] Cloudgoat Ranger
 - [x] Crib Swap
 - [x] Dawnfluke
-- [ ] Entangling Trap
+- [x] Entangling Trap
 - [x] Favor of the Mighty
 - [x] Galepowder Mage
 - [x] Goldmeadow Dodger
 - [x] Goldmeadow Harrier
-- [ ] Goldmeadow Stalwart
+- [x] Goldmeadow Stalwart
 - [x] Harpoon Sniper
 - [x] Hillcomber Giant
 - [x] Hoofprints of the Stag
@@ -62,7 +62,7 @@
 - [x] Springjack Knight
 - [x] Summon the School
 - [x] Surge of Thoughtweft
-- [ ] Thoughtweft Trio
+- [x] Thoughtweft Trio
 - [x] Triclopean Sight
 - [x] Veteran of the Depths
 - [x] Wellgabber Apothecary
@@ -75,7 +75,7 @@
 - [x] Aquitect's Will
 - [x] Benthicore
 - [x] Broken Ambitions
-- [ ] Captivating Glance
+- [x] Captivating Glance
 - [x] Cryptic Command
 - [x] Deeptread Merrow
 - [x] Drowner of Secrets
@@ -95,7 +95,7 @@
 - [x] Merrow Commerce
 - [x] Merrow Harbinger
 - [x] Merrow Reejerey
-- [ ] Mistbind Clique
+- [x] Mistbind Clique
 - [x] Mulldrifter
 - [x] Paperfin Rascal
 - [x] Pestermite
@@ -106,7 +106,7 @@
 - [x] Scion of Oona
 - [x] Sentinels of Glen Elendra
 - [x] Shapesharer
-- [ ] Silvergill Adept
+- [x] Silvergill Adept
 - [x] Silvergill Douser
 - [x] Sower of Temptation
 - [x] Spellstutter Sprite
@@ -115,7 +115,7 @@
 - [x] Surgespanner
 - [x] Tideshaper Mystic
 - [x] Turtleshell Changeling
-- [ ] Wanderwine Prophets
+- [x] Wanderwine Prophets
 - [x] Whirlpool Whelm
 - [x] Wings of Velis Vel
 - [x] Zephyr Net
@@ -126,10 +126,10 @@
 - [x] Boggart Birth Rite
 - [x] Boggart Harbinger
 - [x] Boggart Loggers
-- [ ] Boggart Mob
+- [x] Boggart Mob
 - [ ] Cairn Wanderer
 - [x] Colfenor's Plans
-- [ ] Dread
+- [x] Dread
 - [x] Dreamspoiler Witches
 - [x] Exiled Boggart
 - [x] Eyeblight's Ending
@@ -164,7 +164,7 @@
 - [x] Shriekmaw
 - [x] Skeletal Changeling
 - [x] Spiderwig Boggart
-- [ ] Squeaking Pie Sneak
+- [x] Squeaking Pie Sneak
 - [x] Thieving Sprite
 - [x] Thorntooth Witch
 - [x] Thoughtseize
@@ -183,13 +183,13 @@
 - [x] Boggart Sprite-Chaser
 - [x] Caterwauling Boggart
 - [x] Ceaseless Searblades
-- [ ] Chandra Nalaar
-- [ ] Changeling Berserker
+- [x] Chandra Nalaar
+- [x] Changeling Berserker
 - [x] Consuming Bonfire
 - [x] Crush Underfoot
 - [x] Faultgrinder
 - [x] Fire-Belly Changeling
-- [ ] Flamekin Bladewhirl
+- [x] Flamekin Bladewhirl
 - [x] Flamekin Brawler
 - [x] Flamekin Harbinger
 - [x] Flamekin Spitfire
@@ -210,9 +210,9 @@
 - [x] Lash Out
 - [x] Lowland Oaf
 - [x] Mudbutton Torchrunner
-- [ ] Needle Drop
-- [ ] Nova Chaser
-- [ ] Rebellion of the Flamekin
+- [x] Needle Drop
+- [x] Nova Chaser
+- [x] Rebellion of the Flamekin
 - [x] Smokebraider
 - [x] Soulbright Flamekin
 - [x] Stinkdrinker Daredevil
@@ -226,7 +226,7 @@
 - [x] Battlewand Oak
 - [x] Bog-Strider Ash
 - [x] Briarhorn
-- [ ] Changeling Titan
+- [x] Changeling Titan
 - [x] Cloudcrown Oak
 - [x] Cloudthresher
 - [x] Dauntless Dourbark
@@ -270,13 +270,13 @@
 - [x] Warren-Scourge Elf
 - [x] Woodland Changeling
 - [x] Woodland Guidance
-- [ ] Wren's Run Packmaster
-- [ ] Wren's Run Vanquisher
+- [x] Wren's Run Packmaster
+- [x] Wren's Run Vanquisher
 
 ### Multicolor
 - [x] Brion Stoutarm
 - [x] Doran, the Siege Tower
-- [ ] Gaddock Teeg
+- [x] Gaddock Teeg
 - [x] Horde of Notions
 - [x] Nath of the Gilt-Leaf
 - [x] Sygg, River Guide
@@ -294,7 +294,7 @@
 - [x] Springleaf Drum
 - [x] Thorn of Amethyst
 - [x] Thousand-Year Elixir
-- [ ] Twinning Glass
+- [x] Twinning Glass
 - [x] Wanderer's Twig
 
 ### Land

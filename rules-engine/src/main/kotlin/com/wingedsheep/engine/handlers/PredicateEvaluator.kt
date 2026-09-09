@@ -658,7 +658,7 @@ class PredicateEvaluator(
                 cmc >= predicate.min
             }
             is CardPredicate.ManaValueAtMostEntity -> {
-                val refEntityId = resolveEntityReference(state, predicate.reference, context) ?: return false
+                val refEntityId = resolveEntityReference(state, predicate.reference, context, projected) ?: return false
                 val refManaValue = state.getEntity(refEntityId)?.get<CardComponent>()?.manaValue ?: return false
                 val cmc = if (projectedValues?.isFaceDown == true) 0 else card.manaValue
                 cmc <= refManaValue
@@ -670,13 +670,13 @@ class PredicateEvaluator(
                 cmc == refManaValue
             }
             is CardPredicate.ManaValueAtMostEntityManaSpent -> {
-                val refEntityId = resolveEntityReference(state, predicate.reference, context) ?: return false
+                val refEntityId = resolveEntityReference(state, predicate.reference, context, projected) ?: return false
                 val manaSpent = ManaSpentReader.totalSpent(state, refEntityId)
                 val cmc = if (projectedValues?.isFaceDown == true) 0 else card.manaValue
                 cmc <= manaSpent
             }
             is CardPredicate.ManaValueAtMostColorsSpent -> {
-                val refEntityId = resolveEntityReference(state, predicate.reference, context) ?: return false
+                val refEntityId = resolveEntityReference(state, predicate.reference, context, projected) ?: return false
                 val colorsSpent = ManaSpentReader.distinctColorsSpent(state, refEntityId)
                 val cmc = if (projectedValues?.isFaceDown == true) 0 else card.manaValue
                 cmc <= colorsSpent
@@ -807,7 +807,7 @@ class PredicateEvaluator(
             }
 
             is CardPredicate.PowerGreaterThanEntity -> {
-                val refEntityId = resolveEntityReference(state, predicate.reference, context) ?: return false
+                val refEntityId = resolveEntityReference(state, predicate.reference, context, projected) ?: return false
                 val refContainer = state.getEntity(refEntityId) ?: return false
                 // Prefer projected power for the reference (layer effects, +1/+1 counters, etc.);
                 // fall back to its base printed power when projection has no entry (e.g., off-battlefield).
@@ -819,7 +819,7 @@ class PredicateEvaluator(
             }
 
             is CardPredicate.PowerAtMostEntity -> {
-                val refEntityId = resolveEntityReference(state, predicate.reference, context) ?: return false
+                val refEntityId = resolveEntityReference(state, predicate.reference, context, projected) ?: return false
                 val refContainer = state.getEntity(refEntityId) ?: return false
                 val refPower = state.projectedState.getPower(refEntityId)
                     ?: refContainer.get<CardComponent>()?.baseStats?.basePower
@@ -829,7 +829,7 @@ class PredicateEvaluator(
             }
 
             is CardPredicate.PowerLessThanEntity -> {
-                val refEntityId = resolveEntityReference(state, predicate.reference, context) ?: return false
+                val refEntityId = resolveEntityReference(state, predicate.reference, context, projected) ?: return false
                 val refContainer = state.getEntity(refEntityId) ?: return false
                 val refPower = state.projectedState.getPower(refEntityId)
                     ?: refContainer.get<CardComponent>()?.baseStats?.basePower
@@ -902,7 +902,7 @@ class PredicateEvaluator(
             }
 
             is CardPredicate.SharesCreatureTypeWith -> {
-                val referenceId = resolveEntityReference(state, predicate.entity, context) ?: return false
+                val referenceId = resolveEntityReference(state, predicate.entity, context, projected) ?: return false
                 val referenceSubtypes = projected.getSubtypes(referenceId).ifEmpty {
                     state.getEntity(referenceId)?.get<CardComponent>()?.typeLine?.subtypes?.map { it.value }?.toSet()
                         ?: emptySet()
@@ -915,7 +915,7 @@ class PredicateEvaluator(
             }
 
             is CardPredicate.SharesCardTypeWith -> {
-                val referenceId = resolveEntityReference(state, predicate.entity, context) ?: return false
+                val referenceId = resolveEntityReference(state, predicate.entity, context, projected) ?: return false
                 val referenceTypes = cardTypesOf(state, projected, referenceId, null)
                 if (referenceTypes.isEmpty()) return false
                 val entityTypes = cardTypesOf(state, projected, entityId, projectedValues?.types)
@@ -942,8 +942,25 @@ class PredicateEvaluator(
                 entityTypes.any { it in exiledTypes }
             }
 
+            // "with the same name as a card exiled with this permanent" (Circu, Dimir Lobotomist).
+            // The name axis of the branch above, and pile-wide for the same reason: Circu keeps
+            // exiling on every blue and every black spell, so no single index names "a card exiled
+            // with Circu". Printed names on both sides — a card in exile and a card in a hand or
+            // library have no battlefield projection a Layer-3 rename could have touched. Fails
+            // closed with no source in context.
+            CardPredicate.SharesNameWithLinkedExile -> {
+                val sourceId = context?.sourceId ?: return false
+                val exiledNames = com.wingedsheep.engine.handlers.effects.linkedexile.LinkedExileLookup
+                    .exiledCards(state, sourceId)
+                    .mapNotNull { state.getEntity(it)?.get<CardComponent>()?.name?.takeIf { n -> n.isNotBlank() } }
+                    .toSet()
+                if (exiledNames.isEmpty()) return false
+                val entityName = projected.getName(entityId)?.takeIf { it.isNotBlank() } ?: card.name
+                entityName.isNotBlank() && entityName in exiledNames
+            }
+
             is CardPredicate.SharesNameWith -> {
-                val referenceId = resolveEntityReference(state, predicate.entity, context) ?: return false
+                val referenceId = resolveEntityReference(state, predicate.entity, context, projected) ?: return false
                 // Projected first so a renamed permanent (Layer 3, CR 613.1c) compares under its
                 // new name; base card data second so a reference with no projection entry — an
                 // Imprint pile's exiled card — still has a name to compare.
@@ -967,17 +984,16 @@ class PredicateEvaluator(
             }
 
             is CardPredicate.SharesColorWith -> {
-                val referenceId = resolveEntityReference(state, predicate.entity, context) ?: return false
-                val referenceColors = projected.getColors(referenceId).ifEmpty {
-                    state.getEntity(referenceId)?.get<CardComponent>()?.colors?.map { it.name }?.toSet()
-                        ?: emptySet()
-                }
+                val referenceId = resolveEntityReference(state, predicate.entity, context, projected) ?: return false
+                val referenceColors = projected.getProjectedValues(referenceId)?.colors
+                    ?: state.getEntity(referenceId)?.get<CardComponent>()?.colors?.map { it.name }?.toSet()
+                    ?: emptySet()
                 if (referenceColors.isEmpty()) return false
                 colors.any { it in referenceColors }
             }
 
             is CardPredicate.SharesManaValueWith -> {
-                val referenceId = resolveEntityReference(state, predicate.entity, context) ?: return false
+                val referenceId = resolveEntityReference(state, predicate.entity, context, projected) ?: return false
                 // Mana value is not a projected characteristic — no layer changes it — so both sides
                 // read their card component directly. That is also what lets the reference be a card
                 // outside the battlefield (an Imprint pile's exiled card).
@@ -1324,9 +1340,18 @@ class PredicateEvaluator(
     private fun resolveEntityReference(
         state: GameState,
         ref: EntityReference,
-        context: PredicateContext?
+        context: PredicateContext?,
+        projected: ProjectedState
     ): EntityId? {
         return when (ref) {
+            is EntityReference.LibraryTop -> context?.let {
+                val effectContext = EffectContext(
+                    controllerId = it.controllerId, sourceId = it.sourceId, targets = it.targets,
+                    triggeringEntityId = it.triggeringEntityId, triggeringPlayerId = it.triggeringPlayerId
+                )
+                com.wingedsheep.engine.handlers.effects.TargetResolutionUtils
+                    .resolveLibraryTop(ref.player, effectContext, state, projected)
+            }
             is EntityReference.Source -> context?.sourceId
             // The card exiled with the source (Imprint). Resolvable here because the pile hangs off
             // the source entity, which every predicate context that names a source already knows —
@@ -1590,6 +1615,11 @@ class PredicateEvaluator(
             // tap counter so CR 603.4's resolution-time re-check can differ from the trigger-time one.
             StatePredicate.BecameTappedOnlyOnceThisTurn ->
                 becameTappedOnlyOnceThisTurn(container, state.turnNumber)
+
+            StatePredicate.SharesNameWithSpellCastThisTurn ->
+                com.wingedsheep.engine.handlers.predicates.sharesNameWithSpellCastThisTurn(
+                    state, projected.getName(entityId) ?: container.get<CardComponent>()?.name
+                )
 
             // Damage state
             StatePredicate.WasDealtDamageThisTurn -> {
@@ -2195,6 +2225,7 @@ class PredicateEvaluator(
             is CardPredicate.SharesCreatureTypeWith,
             is CardPredicate.SharesCardTypeWith,
             CardPredicate.SharesCardTypeWithLinkedExile,
+            CardPredicate.SharesNameWithLinkedExile,
             is CardPredicate.SharesColorWith,
             is CardPredicate.SharesManaValueWith,
             is CardPredicate.SharesNameWith,

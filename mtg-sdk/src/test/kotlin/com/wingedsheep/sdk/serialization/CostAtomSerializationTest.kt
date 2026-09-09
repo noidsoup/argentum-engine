@@ -50,6 +50,8 @@ class CostAtomSerializationTest : FunSpec({
         // so the one whose round-trip is worth pinning separately from the literal.
         CostAtom.CollectEvidence(CostAtom.CollectEvidence.TARGET_SUM),
         CostAtom.RevealNotedCreatureType,
+        CostAtom.DiscardHand,
+        CostAtom.Unattach,
         CostAtom.ExileFromGraveyardForTotal(
             filter = GameObjectFilter.Any.withColor(Color.BLACK),
             measure = CardMeasure.ColoredManaSymbols(listOf(Color.BLACK)),
