@@ -1406,3 +1406,82 @@
         "BLUE"
     ]
 }
+
+// Umbris, Fear Manifest
+{
+    "name": "Umbris, Fear Manifest",
+    "manaCost": "{3}{U}{B}",
+    "typeLine": "Legendary Creature — Nightmare Horror",
+    "oracleText": "Umbris gets +1/+1 for each card your opponents own in exile.\nWhenever Umbris or another Nightmare or Horror you control enters, target opponent exiles cards from the top of their library until they exile a land card.",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 1
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "filter": "permanent Nightmare|Horror ctrl:you",
+                    "to": "Battlefield"
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "GatherUntilMatch",
+                            "player": "TargetOpponent",
+                            "filter": "land",
+                            "storeMatch": "land",
+                            "storeRevealed": "revealed"
+                        },
+                        {
+                            "type": "MoveCollection",
+                            "from": "revealed",
+                            "destination": {
+                                "type": "ToZone",
+                                "zone": "Exile"
+                            }
+                        }
+                    ]
+                },
+                "targetRequirement": {
+                    "type": "TargetOpponent",
+                    "id": "target opponent"
+                },
+                "descriptionOverride": "Whenever Umbris or another Nightmare or Horror you control enters, target opponent exiles cards from the top of their library until they exile a land card."
+            }
+        ],
+        "staticAbilities": [
+            {
+                "type": "GrantDynamicStats",
+                "filter": {
+                    "baseFilter": "permanent",
+                    "scope": "Self"
+                },
+                "powerBonus": {
+                    "type": "AggregateZone",
+                    "player": "EachOpponent",
+                    "zone": "Exile"
+                },
+                "toughnessBonus": {
+                    "type": "AggregateZone",
+                    "player": "EachOpponent",
+                    "zone": "Exile"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "38",
+        "rarity": "MYTHIC",
+        "artist": "Daarken",
+        "imageUri": "https://cards.scryfall.io/normal/front/7/a/7aead6a8-bada-42cf-b7cc-0b730f564582.jpg?1783924994"
+    },
+    "colorIdentityOverride": [
+        "BLUE",
+        "BLACK"
+    ]
+}

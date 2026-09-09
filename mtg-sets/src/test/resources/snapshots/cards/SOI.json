@@ -1131,6 +1131,55 @@
     ]
 }
 
+// Bygone Bishop
+{
+    "name": "Bygone Bishop",
+    "manaCost": "{2}{W}",
+    "typeLine": "Creature — Spirit Cleric",
+    "oracleText": "Flying\nWhenever you cast a creature spell with mana value 3 or less, investigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 3
+    },
+    "keywords": [
+        "FLYING"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "SpellCastEvent",
+                    "spellFilter": {
+                        "cardPredicates": [
+                            "IsCreature",
+                            {
+                                "type": "ManaValueAtMost",
+                                "max": 3
+                            }
+                        ]
+                    }
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "CreatePredefinedToken",
+                    "tokenType": "Clue"
+                },
+                "descriptionOverride": "Whenever you cast a creature spell with mana value 3 or less, investigate."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "8",
+        "rarity": "RARE",
+        "artist": "Jason A. Engle",
+        "imageUri": "https://cards.scryfall.io/normal/front/7/c/7c45198f-fb2b-4c83-abdc-8b1a0071cfed.jpg?1783937823"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
 // Call the Bloodline
 {
     "name": "Call the Bloodline",
