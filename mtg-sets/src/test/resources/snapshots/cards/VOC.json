@@ -370,6 +370,61 @@
     ]
 }
 
+// Drogskol Reinforcements
+{
+    "name": "Drogskol Reinforcements",
+    "manaCost": "{3}{W}",
+    "typeLine": "Creature — Spirit Soldier",
+    "oracleText": "Melee (Whenever this creature attacks, it gets +1/+1 until end of turn for each opponent you attacked this combat.)\nOther Spirits you control have melee.\nPrevent all noncombat damage that would be dealt to Spirits you control.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 2
+    },
+    "keywords": [
+        "MELEE"
+    ],
+    "keywordAbilities": [
+        {
+            "type": "Simple",
+            "keyword": "MELEE"
+        }
+    ],
+    "script": {
+        "staticAbilities": [
+            {
+                "type": "GrantKeyword",
+                "keyword": "MELEE",
+                "filter": {
+                    "baseFilter": "creature Spirit ctrl:you",
+                    "excludeSelf": true
+                }
+            }
+        ],
+        "replacementEffects": [
+            {
+                "type": "PreventDamage",
+                "appliesTo": {
+                    "type": "DamageEvent",
+                    "recipient": {
+                        "type": "RecipientMatching",
+                        "filter": "creature Spirit ctrl:you"
+                    },
+                    "damageType": "DamageNonCombat"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "5",
+        "rarity": "RARE",
+        "artist": "Antonio José Manzanedo",
+        "imageUri": "https://cards.scryfall.io/normal/front/c/8/c86bdb28-9b0c-426d-b603-cc10cd301cc6.jpg?1783925010"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
 // Glass-Cast Heart
 {
     "name": "Glass-Cast Heart",
@@ -613,6 +668,143 @@
     },
     "colorIdentityOverride": [
         "GREEN"
+    ]
+}
+
+// Laurine, the Diversion
+{
+    "name": "Laurine, the Diversion",
+    "manaCost": "{2}{R}",
+    "typeLine": "Legendary Creature — Human Rogue",
+    "oracleText": "Partner with Kamber, the Plunderer (When this creature enters, target player may put Kamber into their hand from their library, then shuffle.)\nFirst strike\n{2}, Sacrifice an artifact or creature: Goad target creature. (Until your next turn, that creature attacks each combat if able and attacks a player other than you if able.)",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 3
+    },
+    "keywords": [
+        "FIRST_STRIKE"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "Composite",
+                        "effects": [
+                            {
+                                "type": "GatherCards",
+                                "source": {
+                                    "type": "FromZone",
+                                    "zone": "Library",
+                                    "player": "TargetPlayer",
+                                    "filter": {
+                                        "cardPredicates": [
+                                            {
+                                                "type": "NameEquals",
+                                                "name": "Kamber, the Plunderer"
+                                            }
+                                        ]
+                                    }
+                                },
+                                "storeAs": "kamberInLibrary"
+                            },
+                            {
+                                "type": "SelectFromCollection",
+                                "from": "kamberInLibrary",
+                                "selection": {
+                                    "type": "ChooseUpTo",
+                                    "count": {
+                                        "type": "Fixed",
+                                        "amount": 1
+                                    }
+                                },
+                                "chooser": "TargetPlayer",
+                                "storeSelected": "kamberFound",
+                                "prompt": "Search your library for a card named Kamber, the Plunderer"
+                            },
+                            {
+                                "type": "MoveCollection",
+                                "from": "kamberFound",
+                                "destination": {
+                                    "type": "ToZone",
+                                    "zone": "Hand",
+                                    "player": "TargetPlayer"
+                                },
+                                "revealed": true
+                            },
+                            {
+                                "type": "ShuffleLibrary",
+                                "target": {
+                                    "type": "BoundVariable",
+                                    "name": "target player"
+                                }
+                            },
+                            "EmitLibrarySearchedEvent"
+                        ]
+                    }
+                },
+                "targetRequirement": {
+                    "type": "TargetPlayer",
+                    "id": "target player"
+                }
+            }
+        ],
+        "activatedAbilities": [
+            {
+                "id": "ability_2",
+                "cost": {
+                    "type": "CostComposite",
+                    "costs": [
+                        {
+                            "type": "CostAtomWrapper",
+                            "atom": {
+                                "type": "AtomMana",
+                                "cost": "{2}"
+                            }
+                        },
+                        {
+                            "type": "CostAtomWrapper",
+                            "atom": {
+                                "type": "AtomSacrifice",
+                                "filter": "creature|artifact"
+                            }
+                        }
+                    ]
+                },
+                "effect": {
+                    "type": "Goad",
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "target creature"
+                    }
+                },
+                "targetRequirements": [
+                    {
+                        "type": "TargetObject",
+                        "filter": {
+                            "baseFilter": "creature"
+                        },
+                        "id": "target creature"
+                    }
+                ]
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "25",
+        "rarity": "RARE",
+        "artist": "Andrey Kuzinskiy",
+        "imageUri": "https://cards.scryfall.io/normal/front/9/0/909b3afa-a836-4b8a-9ceb-67559fe42420.jpg?1783924999"
+    },
+    "colorIdentityOverride": [
+        "RED"
     ]
 }
 

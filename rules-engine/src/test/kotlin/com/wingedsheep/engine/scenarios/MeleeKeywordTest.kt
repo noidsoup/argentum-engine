@@ -173,6 +173,40 @@ class MeleeKeywordTest : FunSpec({
         projected.getPower(solo) shouldBe 2
     }
 
+    test("melee lord with excludeSelf does not double-count its own printed melee") {
+        val drogskolShape = card("Test Drogskol Shape") {
+            manaCost = "{3}{W}"
+            typeLine = "Creature — Spirit Soldier"
+            power = 2
+            toughness = 2
+            keywords(Keyword.MELEE)
+            staticAbility {
+                ability = GrantKeyword(
+                    Keyword.MELEE,
+                    GroupFilter(
+                        GameObjectFilter.Creature.withSubtype(Subtype.SPIRIT).youControl(),
+                        excludeSelf = true,
+                    ),
+                )
+            }
+        }
+        val driver = GameTestDriver()
+        driver.registerCards(TestCards.all + listOf(drogskolShape))
+        val players = initThreePlayer(driver)
+        val you = players[0]
+        val oppA = players[1]
+
+        val lord = driver.putCreatureOnBattlefield(you, "Test Drogskol Shape")
+        driver.removeSummoningSickness(lord)
+
+        driver.passPriorityUntil(Step.DECLARE_ATTACKERS)
+        driver.declareAttackers(you, mapOf(lord to oppA))
+        resolveThroughCombat(driver)
+
+        val projected = projector.project(driver.state)
+        projected.getPower(lord) shouldBe 3 // 2 base + 1 for one opponent, not doubled by its own lord line
+    }
+
     test("granted melee on another Spirit triggers when that Spirit attacks") {
         val driver = GameTestDriver()
         val spiritScout = CardDefinition.creature(

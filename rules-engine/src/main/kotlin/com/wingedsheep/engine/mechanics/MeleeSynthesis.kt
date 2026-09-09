@@ -52,6 +52,7 @@ object MeleeSynthesis {
             val cardDef = cardRegistry.getCard(sourceCard.cardDefinitionId) ?: continue
             for (ability in cardDef.staticAbilities) {
                 if (ability !is GrantKeyword || ability.keyword != Keyword.MELEE.name) continue
+                if (ability.filter.excludeSelf && permanentId == entityId) continue
                 if (ability.filter.scope !is Scope.Battlefield) continue
                 val filter = ability.filter.baseFilter
                 val matchesAll = filter.cardPredicates.all { predicate ->
