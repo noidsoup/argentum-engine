@@ -1,3 +1,115 @@
+// Benevolent Offering
+{
+    "name": "Benevolent Offering",
+    "manaCost": "{3}{W}",
+    "typeLine": "Instant",
+    "oracleText": "Choose an opponent. You and that player each create three 1/1 white Spirit creature tokens with flying.\nChoose an opponent. You gain 2 life for each creature you control and that player gains 2 life for each creature they control.",
+    "script": {
+        "spellEffect": {
+            "type": "Modal",
+            "modes": [
+                {
+                    "effect": {
+                        "type": "Composite",
+                        "effects": [
+                            "ChooseOpponentForSource",
+                            {
+                                "type": "CreateToken",
+                                "count": {
+                                    "type": "Fixed",
+                                    "amount": 3
+                                },
+                                "power": 1,
+                                "toughness": 1,
+                                "colors": [
+                                    "WHITE"
+                                ],
+                                "creatureTypes": [
+                                    "Spirit"
+                                ],
+                                "keywords": [
+                                    "FLYING"
+                                ],
+                                "imageUri": "https://cards.scryfall.io/normal/front/8/3/83497714-97ae-4846-8096-f7f1524f0e09.jpg?1783924702"
+                            },
+                            {
+                                "type": "CreateToken",
+                                "count": {
+                                    "type": "Fixed",
+                                    "amount": 3
+                                },
+                                "power": 1,
+                                "toughness": 1,
+                                "colors": [
+                                    "WHITE"
+                                ],
+                                "creatureTypes": [
+                                    "Spirit"
+                                ],
+                                "keywords": [
+                                    "FLYING"
+                                ],
+                                "imageUri": "https://cards.scryfall.io/normal/front/8/3/83497714-97ae-4846-8096-f7f1524f0e09.jpg?1783924702",
+                                "controller": {
+                                    "type": "PlayerRef",
+                                    "player": "ChosenOpponent"
+                                }
+                            }
+                        ]
+                    },
+                    "description": "Choose an opponent. You and that player each create three 1/1 white Spirit creature tokens with flying."
+                },
+                {
+                    "effect": {
+                        "type": "Composite",
+                        "effects": [
+                            "ChooseOpponentForSource",
+                            {
+                                "type": "GainLife",
+                                "amount": {
+                                    "type": "Multiply",
+                                    "amount": {
+                                        "type": "AggregateBattlefield",
+                                        "player": "You",
+                                        "filter": "creature"
+                                    },
+                                    "multiplier": 2
+                                }
+                            },
+                            {
+                                "type": "GainLife",
+                                "amount": {
+                                    "type": "Multiply",
+                                    "amount": {
+                                        "type": "AggregateBattlefield",
+                                        "player": "ChosenOpponent",
+                                        "filter": "creature"
+                                    },
+                                    "multiplier": 2
+                                },
+                                "target": {
+                                    "type": "PlayerRef",
+                                    "player": "ChosenOpponent"
+                                }
+                            }
+                        ]
+                    },
+                    "description": "Choose an opponent. You gain 2 life for each creature you control and that player gains 2 life for each creature they control."
+                }
+            ]
+        }
+    },
+    "metadata": {
+        "collectorNumber": "3",
+        "rarity": "RARE",
+        "artist": "Ryan Yee",
+        "imageUri": "https://cards.scryfall.io/normal/front/2/a/2a1603aa-bf6f-4a9d-b370-22f2286d0d36.jpg?1783938874"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
 // Commander's Sphere
 {
     "name": "Commander's Sphere",

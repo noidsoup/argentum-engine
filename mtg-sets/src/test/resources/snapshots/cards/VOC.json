@@ -2144,6 +2144,86 @@
     ]
 }
 
+// Sinister Waltz
+{
+    "name": "Sinister Waltz",
+    "manaCost": "{3}{B}{R}",
+    "typeLine": "Sorcery",
+    "oracleText": "Choose three target creature cards in your graveyard. Return two of them at random to the battlefield and put the other on the bottom of your library.",
+    "script": {
+        "spellEffect": {
+            "type": "Composite",
+            "effects": [
+                {
+                    "type": "GatherCards",
+                    "source": "ChosenTargets",
+                    "storeAs": "waltzChosen"
+                },
+                {
+                    "type": "SelectFromCollection",
+                    "from": "waltzChosen",
+                    "selection": {
+                        "type": "Random",
+                        "count": {
+                            "type": "Fixed",
+                            "amount": 2
+                        }
+                    },
+                    "storeSelected": "waltzReturned"
+                },
+                {
+                    "type": "FilterCollection",
+                    "from": "waltzChosen",
+                    "filter": {
+                        "type": "ExcludeOtherCollection",
+                        "otherCollectionName": "waltzReturned"
+                    },
+                    "storeMatching": "waltzRemainder"
+                },
+                {
+                    "type": "MoveCollection",
+                    "from": "waltzReturned",
+                    "destination": {
+                        "type": "ToZone",
+                        "zone": "Battlefield"
+                    }
+                },
+                {
+                    "type": "MoveCollection",
+                    "from": "waltzRemainder",
+                    "destination": {
+                        "type": "ToZone",
+                        "zone": "Library",
+                        "placement": "Bottom"
+                    }
+                }
+            ]
+        },
+        "targetRequirements": [
+            {
+                "type": "TargetObject",
+                "count": 3,
+                "filter": {
+                    "baseFilter": "creature own:you",
+                    "zone": "Graveyard"
+                },
+                "id": "three target creature cards in your graveyard"
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "30",
+        "rarity": "RARE",
+        "artist": "Jason Rainville",
+        "flavorText": "For one evening, the dueling bloodlines channeled their feuds into elaborate footwork.",
+        "imageUri": "https://cards.scryfall.io/normal/front/e/4/e44f81b2-768f-4874-99e3-2f87b73b0159.jpg?1783924997"
+    },
+    "colorIdentityOverride": [
+        "BLACK",
+        "RED"
+    ]
+}
+
 // Spectral Arcanist
 {
     "name": "Spectral Arcanist",

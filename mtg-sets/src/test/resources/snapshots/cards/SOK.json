@@ -56,6 +56,53 @@
     ]
 }
 
+// Kami of the Crescent Moon
+{
+    "name": "Kami of the Crescent Moon",
+    "manaCost": "{U}{U}",
+    "typeLine": "Legendary Creature — Spirit",
+    "oracleText": "At the beginning of each player's draw step, that player draws an additional card.",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 3
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "StepEvent",
+                    "step": "DRAW",
+                    "player": "Each"
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "DrawCards",
+                    "count": {
+                        "type": "Fixed",
+                        "amount": 1
+                    },
+                    "target": {
+                        "type": "PlayerRef",
+                        "player": "TriggeringPlayer"
+                    }
+                },
+                "descriptionOverride": "At the beginning of each player's draw step, that player draws an additional card."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "42",
+        "rarity": "RARE",
+        "artist": "Darrell Riche",
+        "flavorText": "\"He's a lot like me, that masterless little kami . . . unimpressed by grandeur and never at a loss for a trick.\"\n—Toshiro Umezawa",
+        "imageUri": "https://cards.scryfall.io/normal/front/f/0/f01ee008-76dd-4d4d-8273-ad5b28c8a2c7.jpg?1783944163"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
+
 // Promise of Bunrei
 {
     "name": "Promise of Bunrei",
