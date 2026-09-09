@@ -1752,6 +1752,78 @@
     ]
 }
 
+// Shadowgrange Archfiend
+{
+    "name": "Shadowgrange Archfiend",
+    "manaCost": "{6}{B}",
+    "typeLine": "Creature — Demon",
+    "oracleText": "When this creature enters, each opponent sacrifices a creature with the greatest power among creatures they control. You gain life equal to the greatest power among creatures sacrificed this way.\nMadness—{2}{B}, Pay 8 life. (If you discard this card, discard it into exile. When you do, cast it for its madness cost or put it into your graveyard.)",
+    "creatureStats": {
+        "power": 8,
+        "toughness": 4
+    },
+    "keywords": [
+        "MADNESS"
+    ],
+    "keywordAbilities": [
+        {
+            "type": "Madness",
+            "cost": "{2}{B}",
+            "additionalCost": {
+                "type": "AdditionalAtom",
+                "atom": {
+                    "type": "AtomPayLife",
+                    "amount": 8
+                }
+            }
+        }
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "ForceSacrifice",
+                            "filter": {
+                                "cardPredicates": [
+                                    "IsCreature"
+                                ],
+                                "statePredicates": [
+                                    "HasGreatestPower"
+                                ]
+                            },
+                            "target": {
+                                "type": "PlayerRef",
+                                "player": "EachOpponent"
+                            }
+                        },
+                        {
+                            "type": "GainLife",
+                            "amount": "GreatestPowerSacrificedThisWay"
+                        }
+                    ]
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "22",
+        "rarity": "RARE",
+        "artist": "Oleksandr Kozachenko",
+        "imageUri": "https://cards.scryfall.io/normal/front/d/e/de4e445f-4d54-44a8-a5f5-ef02b3d57251.jpg?1783925001"
+    },
+    "colorIdentityOverride": [
+        "BLACK"
+    ]
+}
+
 // Spectral Arcanist
 {
     "name": "Spectral Arcanist",
