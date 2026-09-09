@@ -249,6 +249,130 @@
     ]
 }
 
+// Mob Rule
+{
+    "name": "Mob Rule",
+    "manaCost": "{4}{R}{R}",
+    "typeLine": "Sorcery",
+    "oracleText": "Choose one —\n• Gain control of all creatures with power 4 or greater until end of turn. Untap those creatures. They gain haste until end of turn.\n• Gain control of all creatures with power 3 or less until end of turn. Untap those creatures. They gain haste until end of turn.",
+    "script": {
+        "spellEffect": {
+            "type": "Modal",
+            "modes": [
+                {
+                    "effect": {
+                        "type": "Composite",
+                        "effects": [
+                            {
+                                "type": "ForEach",
+                                "space": {
+                                    "type": "IterationSpace.Group",
+                                    "filter": {
+                                        "baseFilter": "creature pow>=4"
+                                    }
+                                },
+                                "body": {
+                                    "type": "GainControl",
+                                    "target": "Self",
+                                    "duration": "EndOfTurn"
+                                }
+                            },
+                            {
+                                "type": "ForEach",
+                                "space": {
+                                    "type": "IterationSpace.Group",
+                                    "filter": {
+                                        "baseFilter": "creature pow>=4"
+                                    }
+                                },
+                                "body": {
+                                    "type": "TapUntap",
+                                    "target": "Self",
+                                    "tap": false
+                                }
+                            },
+                            {
+                                "type": "ForEach",
+                                "space": {
+                                    "type": "IterationSpace.Group",
+                                    "filter": {
+                                        "baseFilter": "creature pow>=4"
+                                    }
+                                },
+                                "body": {
+                                    "type": "GrantKeyword",
+                                    "keyword": "HASTE",
+                                    "target": "Self"
+                                }
+                            }
+                        ]
+                    },
+                    "description": "Gain control of all creatures with power 4 or greater until end of turn. Untap those creatures. They gain haste until end of turn."
+                },
+                {
+                    "effect": {
+                        "type": "Composite",
+                        "effects": [
+                            {
+                                "type": "ForEach",
+                                "space": {
+                                    "type": "IterationSpace.Group",
+                                    "filter": {
+                                        "baseFilter": "creature pow<=3"
+                                    }
+                                },
+                                "body": {
+                                    "type": "GainControl",
+                                    "target": "Self",
+                                    "duration": "EndOfTurn"
+                                }
+                            },
+                            {
+                                "type": "ForEach",
+                                "space": {
+                                    "type": "IterationSpace.Group",
+                                    "filter": {
+                                        "baseFilter": "creature pow<=3"
+                                    }
+                                },
+                                "body": {
+                                    "type": "TapUntap",
+                                    "target": "Self",
+                                    "tap": false
+                                }
+                            },
+                            {
+                                "type": "ForEach",
+                                "space": {
+                                    "type": "IterationSpace.Group",
+                                    "filter": {
+                                        "baseFilter": "creature pow<=3"
+                                    }
+                                },
+                                "body": {
+                                    "type": "GrantKeyword",
+                                    "keyword": "HASTE",
+                                    "target": "Self"
+                                }
+                            }
+                        ]
+                    },
+                    "description": "Gain control of all creatures with power 3 or less until end of turn. Untap those creatures. They gain haste until end of turn."
+                }
+            ]
+        }
+    },
+    "metadata": {
+        "collectorNumber": "109",
+        "rarity": "RARE",
+        "artist": "Jakub Kasper",
+        "imageUri": "https://cards.scryfall.io/normal/front/1/d/1d76845f-c827-4cb4-b2d0-3f2cf5ee0e81.jpg?1783938686"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
 // Monastery Mentor
 {
     "name": "Monastery Mentor",
