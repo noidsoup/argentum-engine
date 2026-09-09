@@ -147,6 +147,16 @@ enum class ChoiceSlot {
      */
     MAYHEM_CAST,
 
+    /**
+     * Whether the spell's madness cost was paid when cast (CR 702.35 — e.g. Avacyn's Judgment).
+     * A present value means "cast from exile for its madness cost" after the discard replacement
+     * diverted it there. Read back through
+     * [com.wingedsheep.sdk.scripting.conditions.MadnessCostWasPaid]. Distinct from [MAYHEM_CAST]
+     * and the other alt-cost slots: CR 702.35 links a card's "if this spell's madness cost was
+     * paid" abilities to its own madness ability.
+     */
+    MADNESS_CAST,
+
     /** The X declared for a `blight X` additional cost when cast (e.g. Soul Immolation). */
     BLIGHT_AMOUNT,
 

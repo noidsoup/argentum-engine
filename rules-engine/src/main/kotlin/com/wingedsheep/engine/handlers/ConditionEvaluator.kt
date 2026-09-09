@@ -132,6 +132,7 @@ import com.wingedsheep.sdk.scripting.conditions.BlightWasPaid
 import com.wingedsheep.sdk.scripting.conditions.SneakCostWasPaid
 import com.wingedsheep.sdk.scripting.conditions.WebSlungCostWasPaid
 import com.wingedsheep.sdk.scripting.conditions.MayhemCostWasPaid
+import com.wingedsheep.sdk.scripting.conditions.MadnessCostWasPaid
 import com.wingedsheep.sdk.scripting.conditions.WaterbendWasPaid
 import com.wingedsheep.sdk.scripting.conditions.SourceIsRingBearer
 import com.wingedsheep.sdk.scripting.conditions.YouChoseOtherCreatureAsRingBearer
@@ -645,6 +646,7 @@ class ConditionEvaluator(
             is SneakCostWasPaid -> ifResolution { evaluateSneakCostWasPaid(state, it) }
             is WebSlungCostWasPaid -> ifResolution { evaluateWebSlungCostWasPaid(state, it) }
             is MayhemCostWasPaid -> ifResolution { evaluateMayhemCostWasPaid(state, it) }
+            is MadnessCostWasPaid -> ifResolution { evaluateMadnessCostWasPaid(state, it) }
             is BlightWasPaid -> ifResolution { it.wasBlightPaid }
             is WaterbendWasPaid -> ifResolution { evaluateWaterbendWasPaid(state, it) }
             is ManaSpentToCastIncludes -> ifResolution { evaluateManaSpentToCastIncludes(state, condition, it) }
@@ -1666,6 +1668,18 @@ class ConditionEvaluator(
             ?.containsKey(ChoiceSlot.MAYHEM_CAST) == true
         if (flagged) return true
         return context.wasMayhem
+    }
+
+    private fun evaluateMadnessCostWasPaid(state: GameState, context: EffectContext): Boolean {
+        // Durable bag on the resolved permanent first (ETB / ongoing reads); fall back to the
+        // resolution context for a non-permanent spell's own resolving effect (Avacyn's Judgment).
+        val sourceId = context.sourceId ?: return context.wasMadness
+        val flagged = state.getEntity(sourceId)
+            ?.get<CastChoicesComponent>()
+            ?.chosen
+            ?.containsKey(ChoiceSlot.MADNESS_CAST) == true
+        if (flagged) return true
+        return context.wasMadness
     }
 
     private fun evaluateWaterbendWasPaid(state: GameState, context: EffectContext): Boolean {

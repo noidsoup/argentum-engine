@@ -184,6 +184,7 @@ class StackResolver(
         wasWebSlung: Boolean = false,
         webSlungReturnedManaValue: Int = 0,
         wasMayhem: Boolean = false,
+        wasMadness: Boolean = false,
         chosenModes: List<Int> = emptyList(),
         modeTargetsOrdered: List<List<ChosenTarget>> = emptyList(),
         modeTargetRequirements: Map<Int, List<TargetRequirement>> = emptyMap(),
@@ -356,6 +357,7 @@ class StackResolver(
                 wasWebSlung = wasWebSlung,
                 webSlungReturnedManaValue = webSlungReturnedManaValue,
                 wasMayhem = wasMayhem,
+                wasMadness = wasMadness,
                 beheldCards = beheldCards,
                 discardedAsCostCards = discardedAsCostCards,
                 exiledAsCostCards = exiledAsCostCards,
@@ -1529,6 +1531,14 @@ class StackResolver(
                         com.wingedsheep.engine.state.components.battlefield.ChoiceValue.Flag
                     )
                 }
+                // Madness (CR 702.35): durably mark a permanent cast from exile for its madness
+                // cost so Conditions.MadnessCostWasPaid reads it for the permanent's whole life.
+                if (spellComponent.wasMadness) {
+                    bag = bag.withChoice(
+                        com.wingedsheep.sdk.scripting.ChoiceSlot.MADNESS_CAST,
+                        com.wingedsheep.engine.state.components.battlefield.ChoiceValue.Flag
+                    )
+                }
                 // Waterbend (Avatar): durably mark a permanent cast with its (optional) waterbend
                 // cost paid so Conditions.WaterbendWasPaid reads it for the permanent's whole life.
                 if (spellComponent.wasWaterbendPaid) {
@@ -2174,6 +2184,7 @@ class StackResolver(
                 wasSneaked = spellComponent.wasSneaked,
                 wasWebSlung = spellComponent.wasWebSlung,
                 wasMayhem = spellComponent.wasMayhem,
+                wasMadness = spellComponent.wasMadness,
                 sacrificedPermanents = spellComponent.sacrificedPermanents,
                 discardedAsCostCards = spellComponent.discardedAsCostCards,
                 exiledAsCostCards = spellComponent.exiledAsCostCards,

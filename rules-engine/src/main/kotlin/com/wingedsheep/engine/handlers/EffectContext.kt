@@ -171,6 +171,8 @@ data class EffectContext(
     val wasWebSlung: Boolean = false,
     /** True if the spell was cast for its mayhem cost (CR 702.187). Read by `MayhemCostWasPaid`. */
     val wasMayhem: Boolean = false,
+    /** True if the spell was cast for its madness cost (CR 702.35). Read by `MadnessCostWasPaid`. */
+    val wasMadness: Boolean = false,
     // --- Cast-time state ---
     /**
      * Projected snapshots of permanents sacrificed as part of the cost (Rule 113.7a /

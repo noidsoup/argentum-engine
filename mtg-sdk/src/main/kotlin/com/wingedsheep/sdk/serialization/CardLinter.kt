@@ -806,6 +806,7 @@ object CardLinter {
         "GrantLandwalkOfChosenType" to "LAND_TYPE",
         "NotOfSourceChosenType" to "CREATURE_TYPE",
         "SneakCostWasPaid" to "SNEAK",
+        "MadnessCostWasPaid" to "MADNESS_CAST",
         "SourceChosenModeIs" to "MODE",
         "CardTypeEqualsChosenComponent" to "CARD_TYPE",
     )

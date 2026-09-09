@@ -29,6 +29,7 @@ import com.wingedsheep.sdk.scripting.conditions.WaterbendWasPaid as WaterbendWas
 import com.wingedsheep.sdk.scripting.conditions.SneakCostWasPaid as SneakCostWasPaidCondition
 import com.wingedsheep.sdk.scripting.conditions.WebSlungCostWasPaid as WebSlungCostWasPaidCondition
 import com.wingedsheep.sdk.scripting.conditions.MayhemCostWasPaid as MayhemCostWasPaidCondition
+import com.wingedsheep.sdk.scripting.conditions.MadnessCostWasPaid as MadnessCostWasPaidCondition
 import com.wingedsheep.sdk.scripting.conditions.CastChoiceMade as CastChoiceMadeCondition
 import com.wingedsheep.sdk.scripting.conditions.CastChoiceIs as CastChoiceIsCondition
 import com.wingedsheep.sdk.scripting.conditions.CastTimeFlagSet as CastTimeFlagSetCondition
@@ -1062,6 +1063,14 @@ object Conditions {
      */
     val MayhemCostWasPaid: ConditionInterface =
         MayhemCostWasPaidCondition
+
+    /**
+     * If this spell's madness cost was paid (CR 702.35 —
+     * [com.wingedsheep.sdk.scripting.KeywordAbility.Madness]). Used for riders like Avacyn's
+     * Judgment whose resolution behavior changes when the spell was cast for its madness cost.
+     */
+    val MadnessCostWasPaid: ConditionInterface =
+        MadnessCostWasPaidCondition
 
     /**
      * If this spell's blight additional cost was paid (`AdditionalCost.BlightOrPay`).
