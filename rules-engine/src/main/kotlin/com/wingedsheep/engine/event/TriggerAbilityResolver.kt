@@ -138,6 +138,10 @@ class TriggerAbilityResolver(
         // instances each get their own trigger (702.121b).
         val meleeAbilities = getMeleeTriggeredAbilities(entityId, cardDefinitionId, state)
 
+        // Echo [cost] (CR 702.30) — the upkeep sacrifice-unless-pay trigger is intrinsic to the
+        // keyword, printed on no card as a separate line. Same derivation shape as vanishing.
+        val echoAbilities = getEchoTriggeredAbilities(entityId, cardDefinitionId, state)
+
         val allGranted = buildList {
             addAll(grantedAbilities)
             addAll(staticGrantedAbilities)
@@ -153,6 +157,7 @@ class TriggerAbilityResolver(
             addAll(fabricateAbilities)
             addAll(renownAbilities)
             addAll(meleeAbilities)
+            addAll(echoAbilities)
         }
         val combined = if (allGranted.isNotEmpty()) base + allGranted else base
 
@@ -374,6 +379,9 @@ class TriggerAbilityResolver(
         // instances each get their own trigger (702.121b).
         val meleeAbilities = getMeleeTriggeredAbilities(entityId, cardDefinitionId, state)
 
+        // Echo [cost] (CR 702.30) — upkeep sacrifice-unless-pay, same derivation shape as vanishing.
+        val echoAbilities = getEchoTriggeredAbilities(entityId, cardDefinitionId, state)
+
         val allGranted = buildList {
             addAll(grantedAbilities)
             addAll(staticGrantedAbilities)
@@ -389,6 +397,7 @@ class TriggerAbilityResolver(
             addAll(fabricateAbilities)
             addAll(renownAbilities)
             addAll(meleeAbilities)
+            addAll(echoAbilities)
         }
         val combined = if (allGranted.isNotEmpty()) base + allGranted else base
 
@@ -841,6 +850,30 @@ class TriggerAbilityResolver(
         } else {
             emptyList()
         }
+
+    /**
+     * Echo [cost] (CR 702.30a) as the keyword-derived upkeep trigger it is. A card prints one
+     * keyword line and a reminder, never the ability itself, so the engine supplies it — the same
+     * shape as [getVanishingTriggeredAbilities]. The *gate* is the projected [Keyword.ECHO]; the
+     * *cost* is read from each printed [KeywordAbility.Echo] on the card definition.
+     */
+    private fun getEchoTriggeredAbilities(
+        entityId: EntityId,
+        cardDefinitionId: String,
+        state: GameState,
+    ): List<TriggeredAbility> {
+        if (!state.projectedState.hasKeyword(entityId, com.wingedsheep.sdk.core.Keyword.ECHO)) {
+            return emptyList()
+        }
+        val cardDef = cardRegistry.getCard(cardDefinitionId) ?: return emptyList()
+        val costs = com.wingedsheep.sdk.scripting.Echo.printedCosts(cardDef)
+        // A granted ECHO with no printed KeywordAbility.Echo falls back to the card's mana cost,
+        // matching CR 702.30b errata for the legacy no-cost-printed shape.
+        val resolvedCosts = costs.ifEmpty { listOf(cardDef.manaCost) }
+        return resolvedCosts.mapIndexed { instance, cost ->
+            com.wingedsheep.sdk.scripting.Echo.upkeepAbility(cost, instance)
+        }
+    }
 
     /**
      * Fabricate N (CR 702.123) as the keyword-derived enters-the-battlefield ability it is. A

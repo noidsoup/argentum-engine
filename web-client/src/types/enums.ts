@@ -212,6 +212,7 @@ export enum Keyword {
   // Spell mechanics
   STORM = 'STORM',
   FLASHBACK = 'FLASHBACK',
+  ECHO = 'ECHO',
   EVOKE = 'EVOKE',
   EXPLOIT = 'EXPLOIT',
   SOULBOND = 'SOULBOND',
@@ -312,6 +313,7 @@ export const KeywordDisplayNames: Record<Keyword, string> = {
   [Keyword.EMERGE]: 'Emerge',
   [Keyword.STORM]: 'Storm',
   [Keyword.FLASHBACK]: 'Flashback',
+  [Keyword.ECHO]: 'Echo',
   [Keyword.EVOKE]: 'Evoke',
   [Keyword.EXPLOIT]: 'Exploit',
   [Keyword.SOULBOND]: 'Soulbond',

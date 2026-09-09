@@ -237,6 +237,18 @@ enum class Keyword(val displayName: String) {
     EVOKE("Evoke"),
 
     /**
+     * Echo [cost] (CR 702.30, Urza block). "At the beginning of your upkeep, if this permanent
+     * came under your control since the beginning of your last upkeep, sacrifice it unless you pay
+     * [cost]."
+     *
+     * Display tag plus cost carrier on [com.wingedsheep.sdk.scripting.KeywordAbility.Echo]; the
+     * upkeep trigger is synthesized by the engine for any permanent whose projected keywords
+     * include ECHO ([com.wingedsheep.sdk.scripting.Echo.upkeepAbility]). Upkeep-boundary tracking
+     * lives in [com.wingedsheep.engine.mechanics.echo.EchoUpkeepTracking].
+     */
+    ECHO("Echo"),
+
+    /**
      * Sneak [cost] (CR 702.190, Teenage Mutant Ninja Turtles).
      * "Any time you could cast an instant during your declare blockers step, you may cast
      * this spell by paying [cost] and returning an unblocked creature you control to its

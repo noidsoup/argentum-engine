@@ -9203,6 +9203,13 @@ composite abilities).
   time-counter machinery: fading counts a distinct fade counter type this codebase does not have, and
   its third ability is "if you *can't* remove a counter, sacrifice it" — one turn earlier than
   vanishing's. Hand-lower it, or add the counter type first.
+- `Echo(cost)` — **engine-live.** Declare it and nothing else: `keywordAbility(KeywordAbility.echo("{3}{W}{W}"))`
+  (Karmic Guide). The engine supplies the CR 702.30 upkeep sacrifice-unless-pay trigger from
+  [`Echo`](../mtg-sdk/src/main/kotlin/com/wingedsheep/sdk/scripting/Echo.kt), granted from the
+  **projected** keyword while the **cost** is read from each printed `KeywordAbility.Echo` (or the
+  card's mana cost when echo is granted without a printed cost — CR 702.30b errata). Upkeep-boundary
+  tracking lives in `EchoUpkeepTracking`. Do **not** hand-write the upkeep trigger; it would stack
+  with the engine's.
 - `Vanishing(n)` — **engine-live.** Declare it and nothing else: `keywordAbility(KeywordAbility.vanishing(3))`
   (Deep Forest Hermit). The engine supplies all three CR 702.62 abilities from
   [`Vanishing`](../mtg-sdk/src/main/kotlin/com/wingedsheep/sdk/scripting/Vanishing.kt) — the

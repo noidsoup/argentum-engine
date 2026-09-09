@@ -564,6 +564,7 @@ class BeginningPhaseManager(
         StatePredicate.IsBlockingIterationEntity,
         StatePredicate.CreatedBySource,
         StatePredicate.EnteredThisTurn,
+        StatePredicate.PresentAtControllersLastUpkeep,
         StatePredicate.WasDealtDamageThisTurn,
         StatePredicate.HasDealtCombatDamageToPlayer,
         StatePredicate.DealtCombatDamageToSourceControllerThisTurn,

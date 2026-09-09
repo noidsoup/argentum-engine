@@ -4,6 +4,9 @@ package com.wingedsheep.tooling.coverage.bridge
  *  free via the probe's PascalCase→enum auto-resolve; these are the ones worth pinning explicitly. */
 internal fun BridgeBuilder.keywords() {
     supported("Dredge", "keywordAbility(KeywordAbility.dredge(N)): optional graveyard draw replacement")
+    // Echo [cost] (CR 702.30) — parameterized upkeep sacrifice-unless-pay; engine synthesizes the
+    // trigger from KeywordAbility.Echo + projected Keyword.ECHO. Emitter renders the pure-mana shape.
+    supported("Echo", "keyword ability: Echo [cost] -> KeywordAbility.echo(cost) (CR 702.30)")
     keyword("Flying", "FLYING")
     keyword("Haste", "HASTE")
     keyword("Vigilance", "VIGILANCE")

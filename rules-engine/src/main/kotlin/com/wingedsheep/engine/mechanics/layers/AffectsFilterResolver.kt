@@ -13,6 +13,7 @@ import com.wingedsheep.engine.state.components.battlefield.AttachedToComponent
 import com.wingedsheep.engine.state.components.battlefield.AttachmentsComponent
 import com.wingedsheep.engine.state.components.battlefield.CountersComponent
 import com.wingedsheep.engine.state.components.battlefield.EnteredThisTurnComponent
+import com.wingedsheep.engine.state.components.battlefield.PresentAtControllersLastUpkeepComponent
 import com.wingedsheep.engine.state.components.battlefield.HasDealtCombatDamageToPlayerComponent
 import com.wingedsheep.engine.state.components.battlefield.TappedComponent
 import com.wingedsheep.engine.state.components.battlefield.WasDealtDamageThisTurnComponent
@@ -554,6 +555,12 @@ internal class AffectsFilterResolver {
         // group-static projection.
         StatePredicate.ExiledWithSource -> false
         StatePredicate.EnteredThisTurn -> container.has<EnteredThisTurnComponent>()
+        StatePredicate.PresentAtControllersLastUpkeep -> {
+            val marker = container.get<PresentAtControllersLastUpkeepComponent>()
+            val controller = projectedValues[entityId]?.controllerId
+                ?: container.get<ControllerComponent>()?.playerId
+            marker != null && controller != null && marker.controllerId == controller
+        }
         // Counter history — the per-permanent marker, so a group static gated on "each creature you
         // control that you've put one or more +1/+1 counters on this turn" (Kid Loki) resolves
         // during projection. Plain per-entity state with no source-relative half, so the answer here

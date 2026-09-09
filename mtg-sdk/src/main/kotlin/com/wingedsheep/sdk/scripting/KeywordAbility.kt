@@ -630,6 +630,27 @@ sealed interface KeywordAbility {
     }
 
     // =========================================================================
+    // Echo
+    // =========================================================================
+
+    /**
+     * Echo [cost] (CR 702.30, Urza block). "At the beginning of your upkeep, if this permanent
+     * came under your control since the beginning of your last upkeep, sacrifice it unless you pay
+     * [cost]."
+     *
+     * The triggered half is engine-driven off this entry rather than off printed script: the
+     * synthesized [com.wingedsheep.sdk.scripting.Echo.upkeepAbility] is granted to any permanent
+     * whose projected keywords include [com.wingedsheep.sdk.core.Keyword.ECHO], while [cost] is
+     * read from the printed [Echo] on the card definition.
+     */
+    @SerialName("Echo")
+    @Serializable
+    data class Echo(val cost: ManaCost) : KeywordAbility {
+        override val keyword: Keyword = Keyword.ECHO
+        override val description: String = "Echo $cost"
+    }
+
+    // =========================================================================
     // Dash
     // =========================================================================
 
@@ -1313,6 +1334,11 @@ sealed interface KeywordAbility {
          * Create Flashback with mana cost from string.
          */
         fun flashback(cost: String): KeywordAbility = Flashback(ManaCost.parse(cost))
+
+        /**
+         * Create Echo with mana cost from string (e.g., "Echo {3}{W}{W}").
+         */
+        fun echo(cost: String): KeywordAbility = Echo(ManaCost.parse(cost))
 
         /**
          * Create Flashback with a mana cost and an additional cost (e.g., "Flashback—{1}{R}, Behold three Elementals").

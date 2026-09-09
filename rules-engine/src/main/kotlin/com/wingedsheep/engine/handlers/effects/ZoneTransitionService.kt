@@ -1350,6 +1350,9 @@ object ZoneTransitionService {
             // this entry path runs.
             updated = updated.without<CraftedFromExiledComponent>()
 
+            // Echo (CR 702.30a) — a new battlefield object has no upkeep-presence memory.
+            updated = updated.without<PresentAtControllersLastUpkeepComponent>()
+
             // Track that this permanent entered the battlefield this turn
             updated = updated.with(EnteredThisTurnComponent)
 

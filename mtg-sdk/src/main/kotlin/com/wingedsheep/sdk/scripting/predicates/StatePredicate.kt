@@ -275,6 +275,18 @@ sealed interface StatePredicate {
         override val description: String = "entered the battlefield this turn"
     }
 
+    /**
+     * Was under its controller's control when that controller's previous upkeep step ended (CR
+     * 702.30a). Echo's intervening-`if` is the negation: a permanent that does *not* match was
+     * not present at the beginning of its controller's last upkeep and therefore echoes.
+     */
+    @SerialName("PresentAtControllersLastUpkeep")
+    @Serializable
+    data object PresentAtControllersLastUpkeep : Entity {
+        override val description: String =
+            "was under its controller's control at that controller's last upkeep"
+    }
+
     // =============================================================================
     // Tap History (History)
     // =============================================================================

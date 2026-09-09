@@ -4,6 +4,7 @@ import com.wingedsheep.engine.core.ControlChangedEvent
 import com.wingedsheep.engine.core.EffectResult
 import com.wingedsheep.engine.handlers.EffectContext
 import com.wingedsheep.engine.handlers.effects.EffectExecutor
+import com.wingedsheep.engine.mechanics.echo.EchoUpkeepTracking
 import com.wingedsheep.engine.mechanics.layers.Layer
 import com.wingedsheep.engine.mechanics.layers.SerializableModification
 import com.wingedsheep.engine.mechanics.layers.addFloatingEffect
@@ -92,7 +93,7 @@ class GainControlExecutor : EffectExecutor<GainControlEffect> {
             stateWithControlEffect
         }
 
-        val newState = stateWithSickness
+        val newState = EchoUpkeepTracking.clearPresence(stateWithSickness, targetId)
             .let { clearRingBearerOnControlChange(it, targetId, newControllerId) }
             .let { com.wingedsheep.engine.handlers.effects.permanent.soulbond.clearSoulbondOnControlChange(it, targetId) }
 
