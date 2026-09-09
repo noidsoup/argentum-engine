@@ -469,6 +469,18 @@ class DynamicAmountEvaluator(
             // has lost a player reports the live number (CR 800.4a).
             is DynamicAmount.PlayerCount -> resolveUnifiedPlayerIds(state, amount.scope, context).size
 
+            is DynamicAmount.OpponentsAttackedThisCombat -> {
+                val attackerIds = resolveUnifiedPlayerIds(state, amount.player, context)
+                attackerIds.sumOf { attackerId ->
+                    val defenders = state.getEntity(attackerId)
+                        ?.get<com.wingedsheep.engine.state.components.combat.PlayerAttackedPlayersThisCombatComponent>()
+                        ?.defendingPlayerIds ?: emptySet()
+                    defenders.count { defenderId ->
+                        state.isOpponentOf(defenderId, attackerId)
+                    }
+                }
+            }
+
             is DynamicAmount.CountPlayersWith -> {
                 val eval = conditionEvaluator ?: ConditionEvaluator()
                 val playerIds = resolveUnifiedPlayerIds(state, amount.scope, context)

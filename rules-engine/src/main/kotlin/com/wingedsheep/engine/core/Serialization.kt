@@ -585,6 +585,7 @@ val engineSerializersModule = SerializersModule {
         subclass(PlayerAttackersThisTurnComponent::class)
         subclass(PlayerAttackersLastTurnComponent::class)
         subclass(PlayerAttackedPlayersThisTurnComponent::class)
+        subclass(PlayerAttackedPlayersThisCombatComponent::class)
 
         // Player components
         subclass(ManaPoolComponent::class)

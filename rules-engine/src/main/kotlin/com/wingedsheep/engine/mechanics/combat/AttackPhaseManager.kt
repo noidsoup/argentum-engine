@@ -265,6 +265,14 @@ internal class AttackPhaseManager(
                                 previousDefenders + defendingPlayers
                             )
                         )
+                        val previousCombatDefenders = container
+                            .get<com.wingedsheep.engine.state.components.combat.PlayerAttackedPlayersThisCombatComponent>()
+                            ?.defendingPlayerIds ?: emptySet()
+                        updated = updated.with(
+                            com.wingedsheep.engine.state.components.combat.PlayerAttackedPlayersThisCombatComponent(
+                                previousCombatDefenders + defendingPlayers
+                            )
+                        )
                     }
                 }
                 updated

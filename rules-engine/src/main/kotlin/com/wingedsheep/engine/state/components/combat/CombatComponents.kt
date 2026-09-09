@@ -276,6 +276,18 @@ data class PlayerAttackedPlayersThisTurnComponent(
 ) : Component
 
 /**
+ * Combat-scoped sibling of [PlayerAttackedPlayersThisTurnComponent]: which opponents this player
+ * has attacked with a creature **this combat** (CR 508.6). Cleared when combat ends
+ * ([com.wingedsheep.engine.mechanics.combat.CombatManager.endCombat]), so a second combat in the
+ * same turn starts from an empty set. Read by [DynamicAmount.OpponentsAttackedThisCombat] for Melee
+ * (CR 702.121a) and any future "each opponent you attacked this combat" scaling.
+ */
+@Serializable
+data class PlayerAttackedPlayersThisCombatComponent(
+    val defendingPlayerIds: Set<EntityId>
+) : Component
+
+/**
  * The creature carries the "goaded" designation (CR 701.15).
  *
  * Each entry in [goaderIds] is a player who has goaded this creature; the designation

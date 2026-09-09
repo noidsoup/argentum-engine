@@ -143,6 +143,7 @@ class CombatManager(
                     .without<BlockersDeclaredThisCombatComponent>()
                     .without<AttackedThisCombatComponent>()
                     .without<BlockedThisCombatComponent>()
+                    .without<com.wingedsheep.engine.state.components.combat.PlayerAttackedPlayersThisCombatComponent>()
             }
         )
 

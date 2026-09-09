@@ -633,6 +633,16 @@ enum class Keyword(val displayName: String) {
     CHAMPION("Champion"),
 
     /**
+     * Melee (CR 702.121). "Whenever this creature attacks, it gets +1/+1 until end of turn for
+     * each opponent you attacked with a creature this combat."
+     *
+     * Display-only on the keyword; the behavior is composed by the `melee()` DSL helper and
+     * synthesized by the engine for any permanent that has the projected keyword (printed or
+     * granted — "Other Spirits you control have melee"). See [com.wingedsheep.sdk.scripting.Melee].
+     */
+    MELEE("Melee"),
+
+    /**
      * Training (CR 702.149, Innistrad: Midnight Hunt). A triggered attack ability:
      * "Whenever this creature and at least one other creature with power greater than this
      * creature's power attack, put a +1/+1 counter on this creature" (CR 702.149a). Multiple

@@ -22,7 +22,9 @@ import kotlinx.serialization.Serializable
 @Serializable
 enum class PreventionScope {
     AllDamage,
-    CombatOnly
+    CombatOnly,
+    /** Noncombat damage only — combat damage is not prevented (Drogskol Reinforcements). */
+    NoncombatOnly,
 }
 
 /**
@@ -167,6 +169,7 @@ data class PreventDamageEffect(
         }
         when (scope) {
             PreventionScope.CombatOnly -> append("combat damage ")
+            PreventionScope.NoncombatOnly -> append("noncombat damage ")
             PreventionScope.AllDamage -> append("damage ")
         }
         when {

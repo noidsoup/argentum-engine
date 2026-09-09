@@ -1023,6 +1023,22 @@ sealed interface DynamicAmount : TextReplaceable<DynamicAmount> {
     }
 
     /**
+     * How many distinct **opponents** [player] has attacked with a creature this combat (CR
+     * 508.6 / 702.121a). Attacking an opponent's planeswalker or battle counts as having attacked
+     * that opponent. Cleared at end of combat, so a second combat in the same turn starts from zero.
+     *
+     * Backed by the attacking player's `PlayerAttackedPlayersThisCombatComponent`, stamped at
+     * declare attackers. Used by [com.wingedsheep.sdk.scripting.Melee] and any future effect that
+     * scales on "each opponent you attacked this combat".
+     */
+    @SerialName("OpponentsAttackedThisCombat")
+    @Serializable
+    data class OpponentsAttackedThisCombat(val player: Player = Player.You) : DynamicAmount {
+        override val description: String =
+            "the number of opponents ${player.description} attacked with a creature this combat"
+    }
+
+    /**
      * Count of players in [scope] for whom [condition] evaluates to true.
      *
      * The condition is evaluated with the context's controllerId rebound to each candidate

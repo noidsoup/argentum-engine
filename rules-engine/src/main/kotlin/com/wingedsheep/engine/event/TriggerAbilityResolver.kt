@@ -134,6 +134,10 @@ class TriggerAbilityResolver(
         // gates it, the printed KeywordAbility.Numeric supplies N.
         val renownAbilities = getRenownTriggeredAbilities(entityId, cardDefinitionId, state)
 
+        // Melee (CR 702.121) — attack trigger derived from projected keyword; printed and granted
+        // instances each get their own trigger (702.121b).
+        val meleeAbilities = getMeleeTriggeredAbilities(entityId, cardDefinitionId, state)
+
         val allGranted = buildList {
             addAll(grantedAbilities)
             addAll(staticGrantedAbilities)
@@ -148,6 +152,7 @@ class TriggerAbilityResolver(
             addAll(vanishingAbilities)
             addAll(fabricateAbilities)
             addAll(renownAbilities)
+            addAll(meleeAbilities)
         }
         val combined = if (allGranted.isNotEmpty()) base + allGranted else base
 
@@ -365,6 +370,10 @@ class TriggerAbilityResolver(
         // gates it, the printed KeywordAbility.Numeric supplies N.
         val renownAbilities = getRenownTriggeredAbilities(entityId, cardDefinitionId, state)
 
+        // Melee (CR 702.121) — attack trigger derived from projected keyword; printed and granted
+        // instances each get their own trigger (702.121b).
+        val meleeAbilities = getMeleeTriggeredAbilities(entityId, cardDefinitionId, state)
+
         val allGranted = buildList {
             addAll(grantedAbilities)
             addAll(staticGrantedAbilities)
@@ -379,6 +388,7 @@ class TriggerAbilityResolver(
             addAll(vanishingAbilities)
             addAll(fabricateAbilities)
             addAll(renownAbilities)
+            addAll(meleeAbilities)
         }
         val combined = if (allGranted.isNotEmpty()) base + allGranted else base
 
@@ -789,6 +799,23 @@ class TriggerAbilityResolver(
         } else {
             emptyList()
         }
+
+    /**
+     * Melee (CR 702.121) as a keyword-derived attack trigger. Any creature that has
+     * [Keyword.MELEE] — printed or granted — gets one synthesized trigger per instance; see
+     * [com.wingedsheep.engine.mechanics.MeleeSynthesis].
+     */
+    private fun getMeleeTriggeredAbilities(
+        entityId: EntityId,
+        cardDefinitionId: String,
+        state: GameState,
+    ): List<TriggeredAbility> {
+        val count = com.wingedsheep.engine.mechanics.MeleeSynthesis.instanceCount(
+            entityId, cardDefinitionId, state, cardRegistry,
+        )
+        if (count == 0) return emptyList()
+        return (0 until count).map { com.wingedsheep.sdk.scripting.Melee.attackTrigger(it) }
+    }
 
     /**
      * Vanishing N (CR 702.62) as two keyword-derived triggered abilities: the upkeep countdown
