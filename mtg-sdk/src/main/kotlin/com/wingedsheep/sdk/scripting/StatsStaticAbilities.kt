@@ -33,6 +33,37 @@ data class ModifyStats(
 }
 
 /**
+ * Layer 7c pump on **creatures equipped to** permanents matching [equipmentFilter], where the
+ * granter is a different permanent (Arterial Alchemy: "Blood tokens you control … have 'Equipped
+ * creature gets +2/+0'").
+ *
+ * Unlike [ModifyStats] with [GroupFilter.attachedCreature], which reads the granter's own
+ * attachment, this scans the battlefield for equipment/sources matching [equipmentFilter] (relative
+ * to the granter's controller) and applies the bonus to each creature they are attached to.
+ *
+ * Pair with [com.wingedsheep.sdk.scripting.GrantAdditionalTypesToGroup] and
+ * [com.wingedsheep.sdk.scripting.GrantActivatedAbility] via [com.wingedsheep.sdk.dsl.Patterns.Token.grantAsEquipmentWithPumpAndEquip].
+ */
+@SerialName("ModifyStatsOnCreaturesEquippedTo")
+@Serializable
+data class ModifyStatsOnCreaturesEquippedTo(
+    val equipmentFilter: GroupFilter,
+    val powerBonus: Int,
+    val toughnessBonus: Int,
+) : StaticAbility {
+    override val description: String = buildString {
+        val powerStr = if (powerBonus >= 0) "+$powerBonus" else "$powerBonus"
+        val toughStr = if (toughnessBonus >= 0) "+$toughnessBonus" else "$toughnessBonus"
+        append("Creatures equipped to ${equipmentFilter.description} get $powerStr/$toughStr")
+    }
+
+    override fun applyTextReplacement(replacer: TextReplacer): StaticAbility {
+        val newFilter = equipmentFilter.applyTextReplacement(replacer)
+        return if (newFilter !== equipmentFilter) copy(equipmentFilter = newFilter) else this
+    }
+}
+
+/**
  * Grants dynamic power/toughness bonus based on a variable amount.
  * Used for effects like "Creatures you control get +X/+X where X is..."
  */

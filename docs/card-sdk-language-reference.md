@@ -3071,7 +3071,7 @@ Atomic effect factories. For library/zone manipulation, prefer the pipelines in 
 
 ---
 
-## 5. Effect patterns (`Patterns.Library.*` / `Patterns.Hand.*` / `Patterns.Group.*` / `Patterns.Exile.*` / `Patterns.Sideboard.*` / `Patterns.CreatureType.*` / `Patterns.Mechanic.*`)
+## 5. Effect patterns (`Patterns.Library.*` / `Patterns.Hand.*` / `Patterns.Group.*` / `Patterns.Exile.*` / `Patterns.Sideboard.*` / `Patterns.CreatureType.*` / `Patterns.Mechanic.*` / `Patterns.Token.*`)
 
 Composed pipelines (`GatherCards → SelectFromCollection → MoveCollection` shapes and similar).
 Named entries here are for named MTG mechanics and shapes with a demonstrated second user — a
@@ -3267,6 +3267,13 @@ one-off pipeline belongs inline in the card file via `Effects.Pipeline { }` (§5
 - `chooseCreatureTypeUntap()` — pick a type, untap your matching.
 - `chooseCreatureTypeGainControl(duration?)` — pick a type, control matching.
 - `becomeChosenTypeAllCreatures(...)` — all creatures become the chosen type.
+
+**Predefined tokens (`Patterns.Token.*`)**
+
+- `createBloodForEachOpponent()` — "create a Blood token for each opponent you have" (`Effects.CreateBlood(DynamicAmount.PlayerCount(EachOpponent))`). Arterial Alchemy ETB.
+- `bloodTokensYouControl()` — `GroupFilter` over `Filters.BloodToken.youControl()`.
+- `grantAsEquipmentWithPumpAndEquip(tokenFilter, power, toughness, equipCost)` — three static abilities: `GrantAdditionalTypesToGroup` (+Equipment subtype), `ModifyStatsOnCreaturesEquippedTo` (+P/+T on equipped creatures), `GrantActivatedAbility(ActivatedAbility.equip(...))`. Ragost's Food line is the same shape with Food + sac-for-life instead of equip.
+- `grantBloodTokensAsEquipment(power = 2, toughness = 0, equipCost = {2})` — shorthand for Arterial Alchemy's Blood-token bundle.
 
 **Misc mechanic shapes**
 
@@ -4184,6 +4191,7 @@ This is the player-arm prerequisite for the planned composable mixed `TargetUnio
 - `Filters.Creature` — any creature card.
 - `Filters.CreatureWithNoAbilities` — creature card whose Oracle rules-text box is empty
   (`CardPredicate.HasNoAbilities`), for printed-characteristic searches and graveyard targets.
+- `Filters.BloodToken` — predefined Blood artifact token (`Artifact — Blood`).
 - `Filters.Land` — any land card.
 - `Filters.BasicLand` — any basic land.
 - `Filters.PlainsCard` / `IslandCard` / `SwampCard` / `MountainCard` / `ForestCard` — specific basics.
@@ -6742,7 +6750,8 @@ staticAbility {
 - `AddSubtype(subtype)` — add a subtype to matching creatures.
 - `RemoveSubtype(subtype)` — strip a subtype.
 - `ReplaceSubtypes(subtypes)` — set the subtype list outright.
-- `ModifyStats(p, t)` — `±P/±T`.
+- `ModifyStats(p, t)` — `±P/±T` on permanents matching the static's `GroupFilter` (default: equipped creature).
+- `ModifyStatsOnCreaturesEquippedTo(equipmentFilter, power, toughness)` — `±P/±T` on **creatures equipped to** permanents matching `equipmentFilter`, where the granter is a different permanent (Arterial Alchemy: Blood tokens you control have "Equipped creature gets +2/+0"). Lowers to `AffectsFilter.CreaturesEquippedToMatching`. Pair with `GrantAdditionalTypesToGroup` + `GrantActivatedAbility(equip(...))` via `Patterns.Token.grantAsEquipmentWithPumpAndEquip`.
 - `SetPower(p)` — overwrite power.
 - `SetToughness(t)` — overwrite toughness.
 - `SetStats(p, t)` — overwrite both.

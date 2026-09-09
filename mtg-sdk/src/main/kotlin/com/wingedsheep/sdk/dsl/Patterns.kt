@@ -31,4 +31,7 @@ object Patterns {
 
     /** Named MTG keyword mechanics: Blight, Bolster, Forage, Gift, Incubate. */
     val Mechanic = MechanicPatterns
+
+    /** Predefined-token creation and "tokens are Equipment" lord bundles. */
+    val Token = TokenPatterns
 }

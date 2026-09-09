@@ -9,6 +9,7 @@ import com.wingedsheep.engine.handlers.predicates.hasDealtDamage
 import com.wingedsheep.engine.handlers.predicates.receivedCounterThisTurn
 import com.wingedsheep.engine.state.ComponentContainer
 import com.wingedsheep.engine.state.GameState
+import com.wingedsheep.engine.state.components.battlefield.AttachedToComponent
 import com.wingedsheep.engine.state.components.battlefield.AttachmentsComponent
 import com.wingedsheep.engine.state.components.battlefield.CountersComponent
 import com.wingedsheep.engine.state.components.battlefield.EnteredThisTurnComponent
@@ -225,6 +226,17 @@ internal class AffectsFilterResolver {
             is AffectsFilter.Generic -> {
                 resolveGenericFilter(state, sourceId, filter.groupFilter, projectedValues)
             }
+            is AffectsFilter.CreaturesEquippedToMatching -> {
+                val equipmentIds = resolveGenericFilter(
+                    state,
+                    sourceId,
+                    filter.equipmentFilter,
+                    projectedValues,
+                )
+                equipmentIds.mapNotNull { equipmentId ->
+                    state.getEntity(equipmentId)?.get<AttachedToComponent>()?.targetId
+                }.toSet()
+            }
         }
     }
 
@@ -244,7 +256,8 @@ internal class AffectsFilterResolver {
             filter is AffectsFilter.OtherCreaturesYouControl ||
             filter is AffectsFilter.OwnCreaturesWithCounter ||
             filter is AffectsFilter.OtherCreaturesWithSubtype ||
-            (filter is AffectsFilter.Generic && filter.groupFilter.baseFilter.controllerPredicate != null)
+            (filter is AffectsFilter.Generic && filter.groupFilter.baseFilter.controllerPredicate != null) ||
+            filter is AffectsFilter.CreaturesEquippedToMatching
     }
 
     /**
