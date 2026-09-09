@@ -2267,6 +2267,61 @@
     ]
 }
 
+// Nirkana Revenant
+{
+    "name": "Nirkana Revenant",
+    "manaCost": "{4}{B}{B}",
+    "typeLine": "Creature — Vampire Shade",
+    "oracleText": "Whenever you tap a Swamp for mana, add an additional {B}.\n{B}: This creature gets +1/+1 until end of turn.",
+    "creatureStats": {
+        "power": 4,
+        "toughness": 4
+    },
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": {
+                    "type": "CostAtomWrapper",
+                    "atom": {
+                        "type": "AtomMana",
+                        "cost": "{B}"
+                    }
+                },
+                "effect": {
+                    "type": "ModifyStats",
+                    "powerModifier": {
+                        "type": "Fixed",
+                        "amount": 1
+                    },
+                    "toughnessModifier": {
+                        "type": "Fixed",
+                        "amount": 1
+                    },
+                    "target": "Self"
+                }
+            }
+        ],
+        "staticAbilities": [
+            {
+                "type": "AdditionalManaOnSourceTap",
+                "sourceFilter": "land Swamp ctrl:you",
+                "color": "BLACK"
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "120",
+        "rarity": "MYTHIC",
+        "artist": "Igor Kieryluk",
+        "flavorText": "Hate is an everlasting wellspring from which it is eternally sustained.",
+        "imageUri": "https://cards.scryfall.io/normal/front/a/a/aa7c53cf-d314-4f60-bb5b-cf5068ed9915.jpg?1783941983"
+    },
+    "colorIdentityOverride": [
+        "BLACK"
+    ]
+}
+
 // Nomads' Assembly
 {
     "name": "Nomads' Assembly",
