@@ -9,6 +9,8 @@ import com.wingedsheep.engine.core.CastWithCreatureTypeContinuation
 import com.wingedsheep.engine.core.ChooseOptionDecision
 import com.wingedsheep.engine.core.AdditionalCostSelectionKind
 import com.wingedsheep.engine.core.CastSpellAdditionalCostContinuation
+import com.wingedsheep.engine.core.CastSpellChooseXContinuation
+import com.wingedsheep.engine.core.ChooseNumberDecision
 import com.wingedsheep.engine.core.DecisionContext
 import com.wingedsheep.engine.core.DecisionPhase
 import com.wingedsheep.engine.core.EngineServices
@@ -164,6 +166,34 @@ private fun isCleaveCast(action: CastSpell, cardDef: com.wingedsheep.sdk.model.C
     action.useAlternativeCost &&
         action.altAllows(AlternativeCostType.CLEAVE) &&
         cardDef.keywordAbilities.any { it is KeywordAbility.Cleave }
+
+/** True when [cardId] is being cast from exile for its madness cost (CR 702.35). */
+private fun isMadnessCast(state: GameState, cardId: EntityId): Boolean =
+    state.getEntity(cardId)?.has<MadnessExiledComponent>() == true
+
+/**
+ * Optional-additional-cost alternate targeting/effects (`kickerTargetRequirements` /
+ * `kickerSpellEffect`) also serve madness riders whose cast-time shape diverges from the normal
+ * cast (Avacyn's Judgment).
+ */
+private fun usesOptionalCostBranchTargets(
+    state: GameState,
+    action: CastSpell,
+    cardDef: com.wingedsheep.sdk.model.CardDefinition,
+): Boolean =
+    cardDef.script.kickerTargetRequirements.isNotEmpty() &&
+        (action.declaredCostSlot != null || isMadnessCast(state, action.cardId))
+
+private fun optionalCostBranchSpellEffect(
+    state: GameState,
+    action: CastSpell,
+    cardDef: com.wingedsheep.sdk.model.CardDefinition,
+): com.wingedsheep.sdk.scripting.effects.Effect? =
+    if (usesOptionalCostBranchTargets(state, action, cardDef)) {
+        cardDef.script.kickerSpellEffect
+    } else {
+        null
+    }
 
 /**
  * The card's optional-additional-cost keywords matching the slot this cast declared (CR 601.2b) —
@@ -754,7 +784,7 @@ class CastSpellHandler(
                 action.chosenModes.flatMap { modeIndex ->
                     modalEffect.modes.getOrNull(modeIndex)?.targetRequirements ?: emptyList()
                 }
-            } else if (action.declaredCostSlot != null && cardDef.script.kickerTargetRequirements.isNotEmpty()) {
+            } else if (usesOptionalCostBranchTargets(state, action, cardDef)) {
                 cardDef.script.kickerTargetRequirements
             } else if (isCleaveCast(action, cardDef) && cardDef.script.cleaveTargetRequirements.isNotEmpty()) {
                 // Cleave (CR 702.148): removing bracketed text can change the legal target set
@@ -798,37 +828,38 @@ class CastSpellHandler(
 
         // Validate damage distribution for DividedDamageEffect spells
         // Use kickerSpellEffect when kicked, cleaveSpellEffect when cleaved, else the printed effect.
-        val spellEffect = if (action.declaredCostSlot != null && cardDef?.script?.kickerSpellEffect != null) {
-            cardDef.script.kickerSpellEffect
-        } else if (cardDef != null && isCleaveCast(action, cardDef) && cardDef.script.cleaveSpellEffect != null) {
-            cardDef.script.cleaveSpellEffect
+        val spellEffect = if (cardDef != null) {
+            optionalCostBranchSpellEffect(state, action, cardDef)
+                ?: if (isCleaveCast(action, cardDef) && cardDef.script.cleaveSpellEffect != null) {
+                    cardDef.script.cleaveSpellEffect
+                } else {
+                    cardDef.script.spellEffect
+                }
         } else {
-            cardDef?.script?.spellEffect
+            null
         }
         if (spellEffect is DividedDamageEffect && action.targets.size > 1) {
             val distribution = action.damageDistribution
-            if (distribution == null) {
-                return "Damage distribution required for this spell when targeting multiple creatures"
-            }
+            // A pre-announced division (web client, AI) is validated here. When absent — the usual
+            // synthesized-cast path (madness, cascade, discover) — DividedDamageExecutor prompts at
+            // resolution (CR 601.2d legacy path).
+            if (distribution != null) {
+                val targetIds = action.targets.map { it.toEntityId() }.toSet()
+                val distributionTargets = distribution.keys
+                if (distributionTargets != targetIds) {
+                    return "Damage distribution targets must match chosen targets"
+                }
 
-            // Check that distribution targets match chosen targets
-            val targetIds = action.targets.map { it.toEntityId() }.toSet()
-            val distributionTargets = distribution.keys
-            if (distributionTargets != targetIds) {
-                return "Damage distribution targets must match chosen targets"
-            }
+                val totalDistributed = distribution.values.sum()
+                if (spellEffect.dynamicTotal == null && totalDistributed != spellEffect.totalDamage) {
+                    return "Total distributed damage ($totalDistributed) must equal ${spellEffect.totalDamage}"
+                }
 
-            // Check that total damage equals the spell's total damage
-            val totalDistributed = distribution.values.sum()
-            if (totalDistributed != spellEffect.totalDamage) {
-                return "Total distributed damage ($totalDistributed) must equal ${spellEffect.totalDamage}"
-            }
-
-            // Check that each target gets at least 1 damage (per MTG rules)
-            val minPerTarget = 1
-            for ((targetId, damage) in distribution) {
-                if (damage < minPerTarget) {
-                    return "Each target must receive at least $minPerTarget damage"
+                val minPerTarget = 1
+                for ((_, damage) in distribution) {
+                    if (damage < minPerTarget) {
+                        return "Each target must receive at least $minPerTarget damage"
+                    }
                 }
             }
         }
@@ -2398,6 +2429,50 @@ class CastSpellHandler(
         // Mutual-exclusion + gate already enforced in validate().
         val playForFreeFromComponentExecute = zoneResolver.hasPlayWithoutPayingCost(currentState, action.playerId, action.cardId)
         val playForFreeInExecute = playForFreeFromComponentExecute || action.useWithoutPayingManaCost
+
+        // {X} madness cost (CR 107.3a / 702.35) — synthesized exile casts through
+        // CastFromCollectionWithoutPayingCost arrive without xValue. Normal hand/graveyard casts
+        // still treat a missing xValue as 0 (Day of Black Sun, Namor, …).
+        if (!playForFreeInExecute && action.xValue == null) {
+            val containerForX = currentState.getEntity(action.cardId)
+            val isMadnessCast = containerForX?.has<MadnessExiledComponent>() == true
+            val xCost = if (isMadnessCast) {
+                containerForX?.let {
+                    com.wingedsheep.engine.mechanics.foretell.ForetellCastCosts.resolveCost(
+                        it,
+                        action.playerId,
+                        action.foretellCostIndex,
+                    )
+                }?.takeIf { it.hasX }
+            } else {
+                null
+            }
+            if (xCost != null) {
+                val fixedMana = xCost.withXAs(0).cmc
+                val maxX = (
+                    (manaSolver.getAvailableManaCount(currentState, action.playerId) - fixedMana) /
+                        xCost.xCount.coerceAtLeast(1)
+                    ).coerceAtLeast(0)
+                return currentState.withPriority(action.playerId).suspendForDecision(
+                    question = { decisionId ->
+                        ChooseNumberDecision(
+                            id = decisionId,
+                            playerId = action.playerId,
+                            prompt = "Choose X to cast ${cardComponent.name} (0-$maxX)",
+                            context = DecisionContext(
+                                sourceId = action.cardId,
+                                sourceName = cardComponent.name,
+                                phase = DecisionPhase.CASTING,
+                            ),
+                            minValue = 0,
+                            maxValue = maxX,
+                        )
+                    },
+                    answer = CastSpellChooseXContinuation(baseCastAction = action),
+                )
+            }
+        }
+
         // Split-layout (CR 709.3a) — see validate() for the rationale. Mirror the override here.
         val faceManaCostOverrideExecute: ManaCost? = action.faceIndex?.let { idx ->
             cardDef?.cardFaces?.getOrNull(idx)?.manaCost
@@ -3449,7 +3524,7 @@ class CastSpellHandler(
                 action.chosenModes.flatMap { idx ->
                     modalEffectForTargets.modes.getOrNull(idx)?.targetRequirements ?: emptyList()
                 }
-            } else if (action.declaredCostSlot != null && cardDef.script.kickerTargetRequirements.isNotEmpty()) {
+            } else if (usesOptionalCostBranchTargets(state, action, cardDef)) {
                 cardDef.script.kickerTargetRequirements
             } else if (isCleaveCast(action, cardDef) && cardDef.script.cleaveTargetRequirements.isNotEmpty()) {
                 cardDef.script.cleaveTargetRequirements

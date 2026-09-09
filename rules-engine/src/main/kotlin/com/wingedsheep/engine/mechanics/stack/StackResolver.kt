@@ -2105,7 +2105,7 @@ class StackResolver(
         }
         val baseSpellEffect = when {
             faceSpellEffect != null -> faceSpellEffect
-            spellComponent.declaredCostSlot != null && cardComponent != null ->
+            (spellComponent.declaredCostSlot != null || spellComponent.wasMadness) && cardComponent != null ->
                 resolvedCardDef?.script?.kickerSpellEffect ?: cardComponent.spellEffect
             // Cleave (CR 702.148): a spell cast for its cleave cost resolves with its
             // brackets-removed effect variant, applied structurally at cast time rather than by

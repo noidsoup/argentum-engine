@@ -913,6 +913,63 @@
     ]
 }
 
+// Avacyn's Judgment
+{
+    "name": "Avacyn's Judgment",
+    "manaCost": "{1}{R}",
+    "typeLine": "Sorcery",
+    "oracleText": "Madness {X}{R} (If you discard this card, discard it into exile. When you do, cast it for its madness cost or put it into your graveyard.)\nAvacyn's Judgment deals 2 damage divided as you choose among any number of targets. If this spell's madness cost was paid, it deals X damage divided as you choose among those permanents and/or players instead.",
+    "keywords": [
+        "MADNESS"
+    ],
+    "keywordAbilities": [
+        {
+            "type": "Madness",
+            "cost": "{X}{R}"
+        }
+    ],
+    "script": {
+        "spellEffect": {
+            "type": "DividedDamage",
+            "totalDamage": 2,
+            "minTargets": 0,
+            "maxTargets": 2
+        },
+        "targetRequirements": [
+            {
+                "type": "AnyTarget",
+                "count": 2,
+                "minCount": 0,
+                "optional": true
+            }
+        ],
+        "kickerTargetRequirements": [
+            {
+                "type": "TargetPermanentOrPlayer",
+                "count": 20,
+                "optional": true,
+                "descriptionOverride": "any number of target permanents and/or players"
+            }
+        ],
+        "kickerSpellEffect": {
+            "type": "DividedDamage",
+            "totalDamage": 0,
+            "minTargets": 0,
+            "maxTargets": 20,
+            "dynamicTotal": "XValue"
+        }
+    },
+    "metadata": {
+        "collectorNumber": "145",
+        "rarity": "RARE",
+        "artist": "Victor Adame Minguez",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/c/0c5f44ce-1464-4282-9afa-20e9ea44c613.jpg?1783937759"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
 // Biting Rain
 {
     "name": "Biting Rain",

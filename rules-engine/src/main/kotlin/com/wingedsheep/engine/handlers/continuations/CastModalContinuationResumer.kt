@@ -5,6 +5,8 @@ import com.wingedsheep.engine.core.CardsSelectedResponse
 import com.wingedsheep.engine.core.CastModalModeSelectionContinuation
 import com.wingedsheep.engine.core.CastModalTargetSelectionContinuation
 import com.wingedsheep.engine.core.CastSpellAdditionalCostContinuation
+import com.wingedsheep.engine.core.CastSpellChooseXContinuation
+import com.wingedsheep.engine.core.NumberChosenResponse
 import com.wingedsheep.engine.core.DecisionResponse
 import com.wingedsheep.engine.core.EngineServices
 import com.wingedsheep.engine.core.ExecutionResult
@@ -39,8 +41,28 @@ class CastModalContinuationResumer(
     override fun resumers(): List<ContinuationResumer<*>> = listOf(
         resumer(CastModalModeSelectionContinuation::class, ::resumeCastModalModeSelection),
         resumer(CastModalTargetSelectionContinuation::class, ::resumeCastModalTargetSelection),
-        resumer(CastSpellAdditionalCostContinuation::class, ::resumeCastSpellAdditionalCost)
+        resumer(CastSpellAdditionalCostContinuation::class, ::resumeCastSpellAdditionalCost),
+        resumer(CastSpellChooseXContinuation::class, ::resumeCastSpellChooseX),
     )
+
+    fun resumeCastSpellChooseX(
+        state: GameState,
+        continuation: CastSpellChooseXContinuation,
+        response: DecisionResponse,
+        @Suppress("UNUSED_PARAMETER") checkForMore: CheckForMore,
+    ): ExecutionResult {
+        if (response is CancelDecisionResponse) {
+            return ExecutionResult.success(state.withPriority(continuation.baseCastAction.playerId))
+        }
+        if (response !is NumberChosenResponse) {
+            return ExecutionResult.error(state, "Expected number response for cast X choice")
+        }
+        val chosenX = response.number.coerceAtLeast(0)
+        return castSpellHandler.execute(
+            state.withPriority(continuation.baseCastAction.playerId),
+            continuation.baseCastAction.copy(xValue = chosenX),
+        )
+    }
 
     /**
      * Resume after the caster picks how to pay one selection-requiring additional cost on a free

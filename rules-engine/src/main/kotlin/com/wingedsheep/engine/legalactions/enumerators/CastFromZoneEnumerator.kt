@@ -20,6 +20,7 @@ import com.wingedsheep.engine.state.permissions.hasMayPlayFor
 import com.wingedsheep.engine.state.components.player.MayCastCreaturesFromGraveyardWithForageComponent
 import com.wingedsheep.engine.state.components.identity.PlayWithAdditionalCostComponent
 import com.wingedsheep.engine.state.components.identity.PlayWithCostIncreaseComponent
+import com.wingedsheep.engine.state.components.identity.MadnessExiledComponent
 import com.wingedsheep.engine.state.components.identity.PlayWithFixedAlternativeManaCostComponent
 import com.wingedsheep.engine.state.components.identity.PlayWithoutPayingCostComponent
 import com.wingedsheep.engine.handlers.PredicateContext
@@ -599,8 +600,23 @@ class CastFromZoneEnumerator : ActionEnumerator {
 
                         if (hasCorrectTiming && meetsRestrictions && canAfford && canPayAdditionalCost) {
                             anyForetellVariantAffordable = true
+                            val isMadnessCast = container.has<MadnessExiledComponent>()
+                            val madnessBranch = isMadnessCast &&
+                                cardDef?.script?.kickerTargetRequirements?.isNotEmpty() == true
+                            val branchEffect = if (madnessBranch) {
+                                cardDef?.script?.kickerSpellEffect ?: effectiveScript?.spellEffect
+                            } else {
+                                effectiveScript?.spellEffect
+                            }
+                            val dividedDamage = branchEffect as? DividedDamageEffect
                             val targetReqs = buildList {
-                                addAll(effectiveScript?.targetRequirements ?: emptyList())
+                                addAll(
+                                    if (madnessBranch) {
+                                        cardDef!!.script.kickerTargetRequirements
+                                    } else {
+                                        effectiveScript?.targetRequirements ?: emptyList()
+                                    }
+                                )
                                 effectiveScript?.auraTarget?.let { add(it) }
                             }
 
@@ -630,6 +646,9 @@ class CastFromZoneEnumerator : ActionEnumerator {
                                             xConstrainsTargetManaValueExactly = firstInfo.xConstrainsManaValueExactly,
                                             xConstrainsTargetPower = firstInfo.xConstrainsPower,
                                             xConstrainsTargetCount = firstInfo.xConstrainsCount,
+                                            requiresDamageDistribution = dividedDamage != null,
+                                            totalDamageToDistribute = dividedDamage?.totalDamage,
+                                            minDamagePerTarget = if (dividedDamage != null) 1 else null,
                                             manaCostString = costString,
                                             hasXCost = hasXCost,
                                             maxAffordableX = maxAffordableX,

@@ -32,3 +32,13 @@ data class CastSpellAdditionalCostContinuation(
     val baseCastAction: CastSpell,
     val costKind: AdditionalCostSelectionKind,
 ) : AnswerContinuation
+
+/**
+ * Resume a cast after the player announces X for an `{X}` mana cost (CR 107.3a). Server-initiated
+ * casts — madness (CR 702.35), foretell, cascade — often reach [CastSpellHandler.execute] without
+ * a client-supplied [CastSpell.xValue]; this pause binds X before payment and stack placement.
+ */
+@Serializable
+data class CastSpellChooseXContinuation(
+    val baseCastAction: CastSpell,
+) : AnswerContinuation

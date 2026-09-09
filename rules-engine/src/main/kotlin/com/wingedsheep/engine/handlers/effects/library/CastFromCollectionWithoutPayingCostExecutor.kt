@@ -17,6 +17,7 @@ import com.wingedsheep.engine.registry.CardRegistry
 import com.wingedsheep.engine.state.GameState
 import com.wingedsheep.engine.state.components.identity.CardComponent
 import com.wingedsheep.engine.state.components.identity.AfterResolveDestinationComponent
+import com.wingedsheep.engine.state.components.identity.MadnessExiledComponent
 import com.wingedsheep.engine.state.components.identity.PlayWithoutPayingCostComponent
 import com.wingedsheep.engine.state.permissions.MayPlayPermission
 import com.wingedsheep.engine.state.permissions.addMayPlayPermission
@@ -295,8 +296,13 @@ class CastFromCollectionWithoutPayingCostExecutor(
             val selectedFace = faceIndex?.let { printedDef?.cardFaces?.getOrNull(it) }
             val script = selectedFace?.script ?: cardDef?.script
             val isModalSpell = script?.spellEffect is ModalEffect
+            val isMadnessCast = state.getEntity(cardId)?.has<MadnessExiledComponent>() == true
             val targetRequirements = buildList {
-                addAll(script?.targetRequirements.orEmpty())
+                if (isMadnessCast && script?.kickerTargetRequirements?.isNotEmpty() == true) {
+                    addAll(script.kickerTargetRequirements)
+                } else {
+                    addAll(script?.targetRequirements.orEmpty())
+                }
                 script?.auraTarget?.let { add(it) }
             }
             if (isModalSpell || targetRequirements.isEmpty()) {
