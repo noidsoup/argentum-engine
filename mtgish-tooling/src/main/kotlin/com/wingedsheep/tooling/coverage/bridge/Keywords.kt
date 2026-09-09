@@ -7,6 +7,8 @@ internal fun BridgeBuilder.keywords() {
     // Echo [cost] (CR 702.30) — parameterized upkeep sacrifice-unless-pay; engine synthesizes the
     // trigger from KeywordAbility.Echo + projected Keyword.ECHO. Emitter renders the pure-mana shape.
     supported("Echo", "keyword ability: Echo [cost] -> KeywordAbility.echo(cost) (CR 702.30)")
+    // Bloodthirst N (CR 702.53) — parameterized entry replacement synthesized at the entry seam.
+    supported("Bloodthirst", "keyword ability: Bloodthirst N -> bloodthirst(N) / KeywordAbility.bloodthirst(N) (CR 702.53)")
     keyword("Flying", "FLYING")
     keyword("Haste", "HASTE")
     keyword("Vigilance", "VIGILANCE")

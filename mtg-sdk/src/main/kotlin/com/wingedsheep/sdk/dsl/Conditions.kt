@@ -1800,6 +1800,16 @@ object Conditions {
         trackerAtLeast(com.wingedsheep.sdk.scripting.values.TurnTracker.LIFE_LOST, player = player)
 
     /**
+     * If an opponent was dealt damage this turn (from any source).
+     * Used for bloodthirst (CR 702.53) and cards like War Elemental's entry sacrifice gate.
+     */
+    val AnOpponentWasDealtDamageThisTurn: ConditionInterface =
+        trackerAtLeast(
+            com.wingedsheep.sdk.scripting.values.TurnTracker.DAMAGE_RECEIVED,
+            player = Player.EachOpponent,
+        )
+
+    /**
      * If an opponent was dealt combat damage by a legendary creature this turn.
      * Used for cards like Blitzball: "Activate only if an opponent was dealt combat damage by a
      * legendary creature this turn."

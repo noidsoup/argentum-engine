@@ -4089,9 +4089,14 @@ object Effects {
      */
     fun GrantKeywordToSpell(
         keyword: com.wingedsheep.sdk.core.Keyword,
-        target: EffectTarget = EffectTarget.TriggeringEntity
+        target: EffectTarget = EffectTarget.TriggeringEntity,
+        keywordParameter: Int? = null,
     ): Effect =
-        com.wingedsheep.sdk.scripting.effects.GrantKeywordToSpellEffect(keyword.name, target)
+        com.wingedsheep.sdk.scripting.effects.GrantKeywordToSpellEffect(
+            keyword.name,
+            target,
+            keywordParameter,
+        )
 
     /**
      * Copy target triggered ability. You may choose new targets for the copy.

@@ -7,6 +7,7 @@ import com.wingedsheep.engine.handlers.DynamicAmountEvaluator
 import com.wingedsheep.engine.handlers.EffectContext
 import com.wingedsheep.engine.handlers.PredicateContext
 import com.wingedsheep.engine.handlers.PredicateEvaluator
+import com.wingedsheep.engine.mechanics.bloodthirst.BloodthirstSynthesis
 import com.wingedsheep.engine.handlers.effects.permanent.counters.counterTypeToString
 import com.wingedsheep.engine.mechanics.layers.Layer
 import com.wingedsheep.engine.mechanics.layers.SerializableModification
@@ -126,7 +127,7 @@ object EntersWithReplacements {
         val events = mutableListOf<GameEvent>()
 
         val (ownState, ownEvents) = applyFromDefinition(
-            newState, enteringEntityId, cardDef, enteringControllerId, xValue
+            newState, enteringEntityId, cardDef, enteringControllerId, xValue, cardRegistry = cardRegistry
         )
         newState = ownState
         events.addAll(ownEvents)
@@ -151,7 +152,9 @@ object EntersWithReplacements {
         cardDef: CardDefinition,
         controllerId: EntityId,
         xValue: Int? = null,
-        totalManaSpent: Int = 0
+        totalManaSpent: Int = 0,
+        cardRegistry: CardRegistry? = null,
+        spellCastEntry: Boolean = false,
     ): Pair<GameState, List<GameEvent>> {
         var newState = state
         val events = mutableListOf<GameEvent>()
@@ -163,7 +166,12 @@ object EntersWithReplacements {
         // authored one. Same `printed + listOfNotNull(synthetic)` shape as granted Riot's
         // enters-with choice in StackResolver.
         val vanishingEntry = Vanishing.printedCount(cardDef)?.let { Vanishing.entersWithCounters(it) }
-        val replacementEffects = cardDef.script.replacementEffects + listOfNotNull(vanishingEntry)
+        val bloodthirstEntries = BloodthirstSynthesis.syntheticEntries(
+            state, entityId, cardDef, controllerId, cardRegistry, spellCastEntry
+        )
+        val replacementEffects = cardDef.script.replacementEffects +
+            listOfNotNull(vanishingEntry) +
+            bloodthirstEntries
 
         for (effect in replacementEffects) {
             // A replacement effect that functions only from another zone (Dearly Departed's

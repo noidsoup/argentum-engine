@@ -567,7 +567,12 @@ data class SpellContextComponent(
  */
 @Serializable
 data class SpellGrantedKeywordsComponent(
-    val keywords: Set<String> = emptySet()
+    val keywords: Set<String> = emptySet(),
+    /**
+     * Numeric parameters for parameterized keywords on this spell (e.g. Bloodthirst 3). Values
+     * from separate grants are summed so multiple instances stack.
+     */
+    val keywordParameters: Map<String, Int> = emptyMap(),
 ) : Component
 
 /**

@@ -127,6 +127,18 @@ enum class Keyword(val displayName: String) {
     DEVOUR("Devour"),
 
     /**
+     * Bloodthirst N (CR 702.53). "If an opponent was dealt damage this turn, this permanent
+     * enters the battlefield with N +1/+1 counters on it."
+     *
+     * Display tag plus `N` carrier on [com.wingedsheep.sdk.scripting.KeywordAbility.Numeric];
+     * the enters-with replacement is synthesized at the entry seam from every bloodthirst
+     * instance on the object — printed, spell-granted, or lord-granted — at the entry seam
+     * (see [com.wingedsheep.sdk.scripting.Bloodthirst]). Wired by the
+     * `bloodthirst(n)` DSL helper on [com.wingedsheep.sdk.dsl.CardBuilder].
+     */
+    BLOODTHIRST("Bloodthirst"),
+
+    /**
      * Craft (CR 702.167, The Lost Caverns of Ixalan). On a transforming
      * double-faced permanent. "Craft with [filter] [cost] ([cost], Exile this
      * permanent, Exile [filter] you control and/or [filter] cards from your

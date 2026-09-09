@@ -1536,6 +1536,7 @@ sealed interface KeywordAbility {
          * Do not also hand-write those three parts, or they will stack with the engine's.
          */
         fun vanishing(n: Int): KeywordAbility = Numeric(Keyword.VANISHING, n)
+        fun bloodthirst(n: Int): KeywordAbility = Numeric(Keyword.BLOODTHIRST, n)
         fun renown(n: Int): KeywordAbility = Numeric(Keyword.RENOWN, n)
         fun fabricate(n: Int): KeywordAbility = Numeric(Keyword.FABRICATE, n)
         fun tribute(n: Int): KeywordAbility = Numeric(Keyword.TRIBUTE, n)

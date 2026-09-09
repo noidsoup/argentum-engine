@@ -32,7 +32,18 @@ class GrantKeywordToSpellExecutor : EffectExecutor<GrantKeywordToSpellEffect> {
             ?: return EffectResult.success(state)
 
         val existing = container.get<SpellGrantedKeywordsComponent>()
-        val updated = SpellGrantedKeywordsComponent((existing?.keywords ?: emptySet()) + effect.keyword)
+        val parameter = effect.keywordParameter
+        val updatedParameters = if (parameter != null) {
+            val prior = existing?.keywordParameters ?: emptyMap()
+            val summed = (prior[effect.keyword] ?: 0) + parameter
+            prior + (effect.keyword to summed)
+        } else {
+            existing?.keywordParameters ?: emptyMap()
+        }
+        val updated = SpellGrantedKeywordsComponent(
+            keywords = (existing?.keywords ?: emptySet()) + effect.keyword,
+            keywordParameters = updatedParameters,
+        )
         val newState = state.updateEntity(targetId) { it.with(updated) }
 
         return EffectResult.success(newState)

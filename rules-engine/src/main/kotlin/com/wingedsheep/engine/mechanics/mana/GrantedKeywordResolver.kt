@@ -45,6 +45,35 @@ class GrantedKeywordResolver(
      * parameter first, then any granting source's [GrantKeywordToOwnSpells.keywordParameter].
      * Returns null when the spell does not have the keyword.
      */
+    /**
+     * Every bloodthirst [N] a battlefield lord grants to [cardDef] when cast by [playerId].
+     * Each matching [GrantKeywordToOwnSpells] is a separate instance (CR 702.53c).
+     */
+    fun bloodthirstAmountsFromLords(
+        state: GameState,
+        playerId: EntityId,
+        cardDef: CardDefinition,
+    ): List<Int> {
+        val amounts = mutableListOf<Int>()
+        for (permanentId in state.getBattlefield()) {
+            val container = state.getEntity(permanentId) ?: continue
+            val controllerId = container.get<com.wingedsheep.engine.state.components.identity.ControllerComponent>()?.playerId
+                ?: continue
+            if (controllerId != playerId) continue
+            val cardComponent = container.get<com.wingedsheep.engine.state.components.identity.CardComponent>() ?: continue
+            val sourceDef = cardRegistry.getCard(cardComponent.cardDefinitionId) ?: continue
+            for (ability in sourceDef.script.staticAbilities) {
+                if (ability is GrantKeywordToOwnSpells &&
+                    ability.keyword == Keyword.BLOODTHIRST &&
+                    matchesSpellFilter(ability.spellFilter, cardDef)
+                ) {
+                    amounts.add(ability.keywordParameter ?: 1)
+                }
+            }
+        }
+        return amounts
+    }
+
     fun casualtyThreshold(
         state: GameState,
         playerId: EntityId,

@@ -363,7 +363,8 @@ class StormCopyEffectExecutor(
                     val existing = updated.get<com.wingedsheep.engine.state.components.stack.SpellGrantedKeywordsComponent>()
                     updated = updated.with(
                         com.wingedsheep.engine.state.components.stack.SpellGrantedKeywordsComponent(
-                            (existing?.keywords ?: emptySet()) + keywordsForCopy
+                            keywords = (existing?.keywords ?: emptySet()) + keywordsForCopy,
+                            keywordParameters = existing?.keywordParameters ?: emptyMap(),
                         )
                     )
                 }

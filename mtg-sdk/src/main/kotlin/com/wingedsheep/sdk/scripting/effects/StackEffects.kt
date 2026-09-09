@@ -851,12 +851,24 @@ data class StormCopyEffect(
 @Serializable
 data class GrantKeywordToSpellEffect(
     val keyword: String,
-    val target: EffectTarget = EffectTarget.TriggeringEntity
+    val target: EffectTarget = EffectTarget.TriggeringEntity,
+    /**
+     * Numeric parameter for parameterized keywords granted to the spell (e.g. Bloodthirst 3 →
+     * `keyword = BLOODTHIRST`, `keywordParameter = 3`). Read by the entry seam when the spell
+     * resolves into a permanent.
+     */
+    val keywordParameter: Int? = null,
 ) : Effect {
-    constructor(keyword: Keyword, target: EffectTarget = EffectTarget.TriggeringEntity) :
-        this(keyword.name, target)
+    constructor(
+        keyword: Keyword,
+        target: EffectTarget = EffectTarget.TriggeringEntity,
+        keywordParameter: Int? = null,
+    ) : this(keyword.name, target, keywordParameter)
 
-    override val description: String = "${target.description} gains ${keyword.lowercase().replace('_', ' ')}"
+    override val description: String = buildString {
+        append("${target.description} gains ${keyword.lowercase().replace('_', ' ')}")
+        keywordParameter?.let { append(" $it") }
+    }
 }
 
 @SerialName("CopyTargetSpell")

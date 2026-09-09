@@ -224,7 +224,8 @@ class CopyTargetSpellExecutor(
             val existing = container.get<com.wingedsheep.engine.state.components.stack.SpellGrantedKeywordsComponent>()
             container.with(
                 com.wingedsheep.engine.state.components.stack.SpellGrantedKeywordsComponent(
-                    (existing?.keywords ?: emptySet()) + keywords
+                    keywords = (existing?.keywords ?: emptySet()) + keywords,
+                    keywordParameters = existing?.keywordParameters ?: emptyMap(),
                 )
             )
         }

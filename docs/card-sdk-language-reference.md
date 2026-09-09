@@ -9248,6 +9248,15 @@ composite abilities).
   card's mana cost when echo is granted without a printed cost — CR 702.30b errata). Upkeep-boundary
   tracking lives in `EchoUpkeepTracking`. Do **not** hand-write the upkeep trigger; it would stack
   with the engine's.
+- `bloodthirst(n)` / `Bloodthirst(n)` — **engine-live.** Declare it and nothing else:
+  `bloodthirst(3)` or `keywordAbility(KeywordAbility.bloodthirst(3))` (Bloodlord of Vaasgoth,
+  Carnage Wurm). The engine synthesizes the CR 702.53 enters-with replacement at the entry seam from
+  every bloodthirst instance on the object — printed, one-shot spell-granted
+  (`Effects.GrantKeywordToSpell(Keyword.BLOODTHIRST, keywordParameter = N)`), or lord-granted
+  (`GrantKeywordToOwnSpells(Keyword.BLOODTHIRST, keywordParameter = N)`) — gated on
+  `Conditions.AnOpponentWasDealtDamageThisTurn` (damage received, not life loss). Multiple
+  instances stack (702.53c). Do **not** hand-write the replacement; it would double-apply with the
+  engine's. See [`Bloodthirst`](../mtg-sdk/src/main/kotlin/com/wingedsheep/sdk/scripting/Bloodthirst.kt).
 - `Vanishing(n)` — **engine-live.** Declare it and nothing else: `keywordAbility(KeywordAbility.vanishing(3))`
   (Deep Forest Hermit). The engine supplies all three CR 702.62 abilities from
   [`Vanishing`](../mtg-sdk/src/main/kotlin/com/wingedsheep/sdk/scripting/Vanishing.kt) — the

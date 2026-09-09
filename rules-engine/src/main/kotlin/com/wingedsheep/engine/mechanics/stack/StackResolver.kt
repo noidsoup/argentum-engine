@@ -2954,7 +2954,8 @@ class StackResolver(
         val events = mutableListOf<GameEvent>()
 
         val (ownState, ownEvents) = EntersWithReplacements.applyFromDefinition(
-            newState, entityId, cardDef, controllerId, xValue, totalManaSpent
+            newState, entityId, cardDef, controllerId, xValue, totalManaSpent, cardRegistry,
+            spellCastEntry = true,
         )
         newState = ownState
         events.addAll(ownEvents)
