@@ -9681,11 +9681,7 @@ composite abilities).
   card leaves exile, so a lingering fixed cost can never re-price a later graveyard cast. Riders that branch on whether
   "this spell's madness cost was paid" read `Conditions.MadnessCostWasPaid` off the resolution context (or the durable
   `ChoiceSlot.MADNESS_CAST` flag on a resolving permanent) — e.g. *Avacyn's Judgment*.
-<<<<<<< HEAD
   *Fiery Temper*, *Gisa's Bidding*, *Bloodmad Vampire*, *Shadowgrange Archfiend* (Madness—{2}{B}, Pay 8 life).
-=======
-  *Fiery Temper*, *Gisa's Bidding*, *Bloodmad Vampire*.
->>>>>>> feat/grind-grind-avacyn-s-judgment-dao-desk-6
   - **Granting madness** — `GrantMadnessToOwnedCards(filter)` is the static half of Falkenrath Gorger:
     *"Each Vampire creature card you own that isn't on the battlefield has madness. The madness cost is equal to its
     mana cost."* It carries no cost field — "equal to its mana cost" is the only printed shape, so the cost is derived
