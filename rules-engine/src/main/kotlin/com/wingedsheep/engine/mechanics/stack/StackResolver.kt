@@ -179,6 +179,7 @@ class StackResolver(
         wasEvoked: Boolean = false,
         wasImpending: Boolean = false,
         wasCleaved: Boolean = false,
+        wasOverloaded: Boolean = false,
         wasSneaked: Boolean = false,
         sneakAttackDefenderId: EntityId? = null,
         wasWebSlung: Boolean = false,
@@ -352,6 +353,7 @@ class StackResolver(
                 wasEvoked = wasEvoked,
                 wasImpending = wasImpending,
                 wasCleaved = wasCleaved,
+                wasOverloaded = wasOverloaded,
                 wasSneaked = wasSneaked,
                 sneakAttackDefenderId = sneakAttackDefenderId,
                 wasWebSlung = wasWebSlung,
@@ -2112,6 +2114,8 @@ class StackResolver(
             // editing text — so e.g. a bracketed delayed-trigger clause is never created.
             spellComponent.wasCleaved && cardComponent != null ->
                 resolvedCardDef?.script?.cleaveSpellEffect ?: cardComponent.spellEffect
+            spellComponent.wasOverloaded && cardComponent != null ->
+                resolvedCardDef?.script?.overloadSpellEffect ?: cardComponent.spellEffect
             else -> cardComponent?.spellEffect
         }
         val rawSpellEffect = baseSpellEffect

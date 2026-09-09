@@ -861,6 +861,39 @@ abstract class ScenarioTestBase : FunSpec() {
         }
 
         /**
+         * Cast a spell for its Overload cost (CR 702.95), optionally targeting a permanent. Overload
+         * is an alternative cost, so this drives [CastSpell.useAlternativeCost] gated on
+         * [AlternativeCostType.OVERLOAD]; the handler swaps in the overload effect / target variant.
+         *
+         * [xValue] threads a chosen X through the cast when the overload cost carries {X}.
+         */
+        fun castSpellWithOverload(
+            playerNumber: Int,
+            spellName: String,
+            targetId: EntityId? = null,
+            xValue: Int? = null
+        ): ExecutionResult {
+            val playerId = if (playerNumber == 1) player1Id else player2Id
+            val hand = state.getHand(playerId)
+            val cardId = hand.find { entityId ->
+                state.getEntity(entityId)?.get<CardComponent>()?.name == spellName
+            } ?: error("Card '$spellName' not found in player $playerNumber's hand")
+
+            val targets = if (targetId != null) {
+                listOf(ChosenTarget.Permanent(targetId))
+            } else {
+                emptyList()
+            }
+
+            return execute(CastSpell(
+                playerId, cardId, targets,
+                xValue = xValue,
+                useAlternativeCost = true,
+                alternativeCostType = AlternativeCostType.OVERLOAD
+            ))
+        }
+
+        /**
          * Cast a spell for its Cleave cost (CR 702.148), targeting a player (e.g. the cleaved Dread
          * Fugue, which still targets a player but lifts the effect's mana-value cap). Mirrors
          * [castSpellTargetingPlayer] but pays the cleave alternative cost.

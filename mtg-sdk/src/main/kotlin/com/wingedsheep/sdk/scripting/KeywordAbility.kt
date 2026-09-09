@@ -1069,6 +1069,34 @@ sealed interface KeywordAbility {
     }
 
     // =========================================================================
+    // Overload
+    // =========================================================================
+
+    /**
+     * Overload [cost] (CR 702.95, Return to Ravnica).
+     * "Overload [cost]" means "You may cast this spell for its overload cost" and "If this spell's
+     * overload cost was paid, change its text by replacing all instances of [its printed effect] with
+     * [its overload effect]." (CR 702.95a)
+     *
+     * An alternative cost (like [Cleave]) whose second ability is a text-changing effect
+     * (CR 702.95b / 612). The card author supplies the overload effect/target variant via
+     * [com.wingedsheep.sdk.model.CardScript.overloadSpellEffect] /
+     * [com.wingedsheep.sdk.model.CardScript.overloadTargetRequirements]. Casting for overload swaps
+     * in that variant at cast time. When [overloadTargetRequirements] is empty, the overloaded cast
+     * is untargeted even if the printed spell targeted (Vandalblast). The overload cost never
+     * changes the spell's mana value (CR 202.3b).
+     *
+     * Declare with `keywordAbility(KeywordAbility.overload("{cost}"))` and set `overloadEffect` /
+     * `overloadTarget(...)` inside the `spell { }` block.
+     */
+    @SerialName("Overload")
+    @Serializable
+    data class Overload(val cost: ManaCost) : KeywordAbility {
+        override val keyword: Keyword = Keyword.OVERLOAD
+        override val description: String = "Overload $cost"
+    }
+
+    // =========================================================================
     // Devour
     // =========================================================================
 
@@ -1497,6 +1525,14 @@ sealed interface KeywordAbility {
          * `cleaveTarget(...)` (mirroring how kicker declares `kickerEffect` / `kickerTarget`).
          */
         fun cleave(cost: String): KeywordAbility = Cleave(ManaCost.parse(cost))
+
+        /**
+         * Create Overload with an overload mana cost (CR 702.95). Declared on the card via
+         * `keywordAbility(KeywordAbility.overload("{cost}"))`; the replacement effect / target
+         * variant is supplied inside the card's `spell { }` block via `overloadEffect` /
+         * `overloadTarget(...)` (mirroring cleave's `cleaveEffect` / `cleaveTarget`).
+         */
+        fun overload(cost: String): KeywordAbility = Overload(ManaCost.parse(cost))
 
         /**
          * Create Conspire keyword ability.

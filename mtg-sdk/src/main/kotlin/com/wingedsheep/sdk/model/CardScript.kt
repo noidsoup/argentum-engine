@@ -250,6 +250,24 @@ data class CardScript(
     val cleaveSpellEffect: Effect? = null,
 
     /**
+     * Alternate target requirements used when this spell is cast for its overload cost
+     * (CR 702.95, Return to Ravnica). When the spell was overloaded, these replace
+     * [targetRequirements] — including with an empty list when the overload effect is untargeted
+     * (Vandalblast: printed "destroy target artifact" → overload "destroy each artifact you don't
+     * control"). When non-empty, the overload variant may also change targeting (e.g. a future
+     * overload that widens a target restriction).
+     */
+    val overloadTargetRequirements: List<TargetRequirement> = emptyList(),
+
+    /**
+     * Alternate spell effect used when this spell is cast for its overload cost (CR 702.95).
+     * When non-null and the spell was overloaded, this replaces [spellEffect] entirely — the
+     * overload text-change is modelled structurally at cast time (Vandalblast: single-target destroy
+     * → destroy each artifact you don't control).
+     */
+    val overloadSpellEffect: Effect? = null,
+
+    /**
      * Class level abilities (for Class enchantments).
      * Level 1 abilities use the base CardScript fields (triggeredAbilities, staticAbilities, etc.).
      * Levels 2+ are stored here with their level-up costs.

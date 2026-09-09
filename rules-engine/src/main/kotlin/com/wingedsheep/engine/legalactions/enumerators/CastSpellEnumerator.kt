@@ -664,6 +664,12 @@ class CastSpellEnumerator : ActionEnumerator {
                 context.manaSolver.canPay(state, playerId, cleaveMana, precomputedSources = cachedSources)
             } else false
 
+            val overloadAbility = cardDef.keywordAbilities.filterIsInstance<KeywordAbility.Overload>().firstOrNull()
+            val canAffordOverload = if (overloadAbility != null) {
+                val overloadMana = context.costCalculator.calculateEffectiveCostWithAlternativeBase(state, cardDef, overloadAbility.cost, playerId)
+                context.manaSolver.canPay(state, playerId, overloadMana, precomputedSources = cachedSources)
+            } else false
+
             // Check blight path affordability (base cost without the extra mana, but needs a creature)
             val canAffordBlightPath = if (blightOrPayCost != null && blightCreatures.isNotEmpty()) {
                 context.manaSolver.canPay(state, playerId, blightBaseCost, spellContext = spellContext, precomputedSources = cachedSources)
@@ -682,7 +688,7 @@ class CastSpellEnumerator : ActionEnumerator {
             // spell affordable for {0} when its gates are open. Emitted by its own branch below;
             // don't continue out before reaching it.
             val canAffordFreeCast = context.freeCastPermissionFor(cardId)
-            if (!canAfford && !canAffordAlternative && !canAffordSelfAlternative && !canAffordEvoke && !canAffordImpending && !canAffordCleave && !canAffordBlightPath && !canAffordOrPayPath && !canAffordFreeCast) {
+            if (!canAfford && !canAffordAlternative && !canAffordSelfAlternative && !canAffordEvoke && !canAffordImpending && !canAffordCleave && !canAffordOverload && !canAffordBlightPath && !canAffordOrPayPath && !canAffordFreeCast) {
                 // The primary face can't be paid for by any path. Normally we skip it entirely.
                 // But if this is an Adventure/Omen/modal-DFC card whose *secondary* face is
                 // affordable, surface a grayed-out placeholder for the primary face so the
@@ -1592,6 +1598,9 @@ class CastSpellEnumerator : ActionEnumerator {
 
         // --- Cleave (CR 702.148) ---
         enumerateCleave(context, hand, result)
+
+        // --- Overload (CR 702.95) ---
+        enumerateOverload(context, hand, result)
 
         // --- Conspire ---
         enumerateConspire(context, hand, result)
@@ -2683,6 +2692,114 @@ class CastSpellEnumerator : ActionEnumerator {
                     hasXCost = cleaveHasX,
                     maxAffordableX = cleaveMaxAffordableX,
                     autoTapPreview = cleaveAutoTapPreview
+                ))
+            }
+        }
+    }
+
+    /**
+     * Enumerates the overload cast (CR 702.95) for cards with the Overload keyword. Overload is an
+     * *alternative* cost tagged [AlternativeCostType.OVERLOAD]. Paying it replaces the spell's
+     * printed effect with [com.wingedsheep.sdk.model.CardScript.overloadSpellEffect] and its targets
+     * with [com.wingedsheep.sdk.model.CardScript.overloadTargetRequirements] — an empty overload
+     * target list means the overloaded cast is untargeted even when the printed spell targeted.
+     */
+    private fun enumerateOverload(
+        context: EnumerationContext,
+        hand: List<EntityId>,
+        result: MutableList<LegalAction>
+    ) {
+        val state = context.state
+        val playerId = context.playerId
+
+        for (cardId in hand) {
+            val cardComponent = state.getEntity(cardId)?.get<CardComponent>() ?: continue
+            if (cardComponent.typeLine.isLand) continue
+            if (context.cantCastSpell(cardId)) continue
+
+            val cardDef = context.cardRegistry.getCard(cardComponent.name) ?: continue
+            val overloadAbility = cardDef.keywordAbilities.filterIsInstance<KeywordAbility.Overload>().firstOrNull() ?: continue
+
+            val isInstant = cardComponent.typeLine.isInstant
+            val grantedFlash = cardDef.keywords.contains(Keyword.FLASH) || context.castPermissionUtils.hasGrantedFlash(state, cardId)
+            if (!isInstant && !grantedFlash && !context.canPlaySorcerySpeed) continue
+
+            val castRestrictions = cardDef.script.castRestrictions
+            if (castRestrictions.isNotEmpty() && !context.castPermissionUtils.checkCastRestrictions(state, playerId, castRestrictions)) continue
+
+            val overloadCost = context.costCalculator.calculateEffectiveCostWithAlternativeBase(state, cardDef, overloadAbility.cost, playerId)
+            val canAffordOverload = context.manaSolver.canPay(state, playerId, overloadCost, precomputedSources = context.availableManaSources)
+            val overloadCostString = overloadCost.toString()
+            val overloadAutoTapPreview = if (context.skipAutoTapPreview) null else {
+                context.manaSolver.solve(state, playerId, overloadCost, precomputedSources = context.availableManaSources)
+                    ?.sources?.map { it.entityId }
+            }
+
+            val overloadHasX = overloadCost.hasX
+            val overloadMaxAffordableX: Int? = if (overloadHasX) {
+                val spellContext = spellPaymentContextFor(cardComponent).copy(hasXInCost = overloadCost.hasX)
+                val availableSources = context.manaSolver.getAvailableManaCount(
+                    state, playerId, precomputedSources = context.availableManaSources, spellContext = spellContext
+                )
+                val fixedCost = overloadCost.cmc
+                val xSymbolCount = overloadCost.xCount.coerceAtLeast(1)
+                ((availableSources - fixedCost) / xSymbolCount).coerceAtLeast(0)
+            } else null
+
+            val targetReqs = buildList {
+                addAll(cardDef.script.overloadTargetRequirements)
+                cardDef.script.auraTarget?.let { add(it) }
+            }
+
+            if (targetReqs.isNotEmpty()) {
+                val targetReqInfos = context.targetUtils.buildTargetInfos(state, playerId, targetReqs, cardId)
+                if (!context.targetUtils.allRequirementsSatisfied(targetReqInfos)) continue
+                val firstReq = targetReqs.first()
+                val firstReqInfo = targetReqInfos.first()
+
+                val canAutoSelect = targetReqs.size == 1 &&
+                    TargetEnumerationUtils.shouldAutoSelectPlayerTarget(firstReq, firstReqInfo.validTargets)
+
+                if (canAutoSelect) {
+                    val autoSelectedTarget = ChosenTarget.Player(firstReqInfo.validTargets.first())
+                    result.add(LegalAction(
+                        actionType = "CastWithAlternativeCost",
+                        description = "Overload ${cardComponent.name} ($overloadCostString)",
+                        action = CastSpell(playerId, cardId, targets = listOf(autoSelectedTarget), useAlternativeCost = true, alternativeCostType = AlternativeCostType.OVERLOAD),
+                        affordable = canAffordOverload,
+                        manaCostString = overloadCostString,
+                        hasXCost = overloadHasX,
+                        maxAffordableX = overloadMaxAffordableX,
+                        autoTapPreview = overloadAutoTapPreview
+                    ))
+                } else {
+                    result.add(LegalAction(
+                        actionType = "CastWithAlternativeCost",
+                        description = "Overload ${cardComponent.name} ($overloadCostString)",
+                        action = CastSpell(playerId, cardId, useAlternativeCost = true, alternativeCostType = AlternativeCostType.OVERLOAD),
+                        validTargets = firstReqInfo.validTargets,
+                        requiresTargets = true,
+                        targetCount = firstReqInfo.maxTargets,
+                        minTargets = firstReq.effectiveMinCount,
+                        targetDescription = firstReq.description,
+                        targetRequirements = if (targetReqInfos.size > 1) targetReqInfos else null,
+                        affordable = canAffordOverload,
+                        manaCostString = overloadCostString,
+                        hasXCost = overloadHasX,
+                        maxAffordableX = overloadMaxAffordableX,
+                        autoTapPreview = overloadAutoTapPreview
+                    ))
+                }
+            } else {
+                result.add(LegalAction(
+                    actionType = "CastWithAlternativeCost",
+                    description = "Overload ${cardComponent.name} ($overloadCostString)",
+                    action = CastSpell(playerId, cardId, useAlternativeCost = true, alternativeCostType = AlternativeCostType.OVERLOAD),
+                    affordable = canAffordOverload,
+                    manaCostString = overloadCostString,
+                    hasXCost = overloadHasX,
+                    maxAffordableX = overloadMaxAffordableX,
+                    autoTapPreview = overloadAutoTapPreview
                 ))
             }
         }

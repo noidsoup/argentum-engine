@@ -920,6 +920,7 @@ class CostCalculator(
         requirements.addAll(script.targetRequirements)
         requirements.addAll(script.kickerTargetRequirements)
         requirements.addAll(script.cleaveTargetRequirements)
+        requirements.addAll(script.overloadTargetRequirements)
         collectEffectTargetRequirements(script.spellEffect, requirements)
         return requirements
     }

@@ -396,6 +396,7 @@ object Keywords {
         costKeyword("dash", { KeywordAbility.dash(it.toString()) }) { (it as? KeywordAbility.Dash)?.cost },
         costKeyword("warp", { KeywordAbility.warp(it.toString()) }) { (it as? KeywordAbility.Warp)?.cost },
         costKeyword("cleave", { KeywordAbility.cleave(it.toString()) }) { (it as? KeywordAbility.Cleave)?.cost },
+        costKeyword("overload", { KeywordAbility.overload(it.toString()) }) { (it as? KeywordAbility.Overload)?.cost },
         costKeyword("harmonize", { KeywordAbility.harmonize(it.toString()) }) { (it as? KeywordAbility.Harmonize)?.cost },
         costKeyword("mayhem", { KeywordAbility.mayhem(it.toString()) }) { (it as? KeywordAbility.Mayhem)?.cost },
         costKeyword("ninjutsu", { KeywordAbility.ninjutsu(it.toString()) }) { (it as? KeywordAbility.Ninjutsu)?.cost },

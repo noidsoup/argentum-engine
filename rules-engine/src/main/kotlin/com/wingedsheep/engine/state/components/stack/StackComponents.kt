@@ -89,6 +89,7 @@ data class SpellOnStackComponent(
     val wasEvoked: Boolean = false,  // For evoke - permanent is sacrificed on ETB
     val wasImpending: Boolean = false,  // For impending - permanent enters with time counters and isn't a creature until they're gone
     val wasCleaved: Boolean = false,  // For cleave (CR 702.148) - spell resolves with its brackets-removed effect/target variant
+    val wasOverloaded: Boolean = false,  // For overload (CR 702.95) - spell resolves with its overload effect/target variant
     /** For sneak (CR 702.190) - permanent spell enters tapped and attacking; the flag is readable via SneakCostWasPaid. */
     val wasSneaked: Boolean = false,
     /**

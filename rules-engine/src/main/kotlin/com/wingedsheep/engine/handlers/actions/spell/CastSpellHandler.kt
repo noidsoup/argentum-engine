@@ -167,6 +167,18 @@ private fun isCleaveCast(action: CastSpell, cardDef: com.wingedsheep.sdk.model.C
         action.altAllows(AlternativeCostType.CLEAVE) &&
         cardDef.keywordAbilities.any { it is KeywordAbility.Cleave }
 
+/**
+ * True if this cast is paying the card's overload cost (CR 702.95). Overload is an alternative cost,
+ * so it's driven by [CastSpell.useAlternativeCost] gated on [AlternativeCostType.OVERLOAD]. When
+ * true, the resolver swaps in the overload effect / target-requirement variant (`overloadSpellEffect` /
+ * `overloadTargetRequirements`). An empty overload target list means the overloaded cast is
+ * untargeted even when the printed spell targeted.
+ */
+private fun isOverloadCast(action: CastSpell, cardDef: com.wingedsheep.sdk.model.CardDefinition): Boolean =
+    action.useAlternativeCost &&
+        action.altAllows(AlternativeCostType.OVERLOAD) &&
+        cardDef.keywordAbilities.any { it is KeywordAbility.Overload }
+
 /** True when [cardId] is being cast from exile for its madness cost (CR 702.35). */
 private fun isMadnessCast(state: GameState, cardId: EntityId): Boolean =
     state.getEntity(cardId)?.has<MadnessExiledComponent>() == true
@@ -786,6 +798,10 @@ class CastSpellHandler(
                 }
             } else if (usesOptionalCostBranchTargets(state, action, cardDef)) {
                 cardDef.script.kickerTargetRequirements
+            } else if (isOverloadCast(action, cardDef)) {
+                // Overload (CR 702.95): the overload effect replaces the printed one and may drop
+                // targeting entirely (Vandalblast) or supply alternate requirements.
+                cardDef.script.overloadTargetRequirements
             } else if (isCleaveCast(action, cardDef) && cardDef.script.cleaveTargetRequirements.isNotEmpty()) {
                 // Cleave (CR 702.148): removing bracketed text can change the legal target set
                 // (e.g. Fierce Retribution's "target [attacking] creature" → "target creature").
@@ -827,10 +843,13 @@ class CastSpellHandler(
         }
 
         // Validate damage distribution for DividedDamageEffect spells
-        // Use kickerSpellEffect when kicked, cleaveSpellEffect when cleaved, else the printed effect.
+        // Use kickerSpellEffect when kicked, overloadSpellEffect when overloaded, cleaveSpellEffect
+        // when cleaved, else the printed effect.
         val spellEffect = if (cardDef != null) {
             optionalCostBranchSpellEffect(state, action, cardDef)
-                ?: if (isCleaveCast(action, cardDef) && cardDef.script.cleaveSpellEffect != null) {
+                ?: if (isOverloadCast(action, cardDef) && cardDef.script.overloadSpellEffect != null) {
+                    cardDef.script.overloadSpellEffect
+                } else if (isCleaveCast(action, cardDef) && cardDef.script.cleaveSpellEffect != null) {
                     cardDef.script.cleaveSpellEffect
                 } else {
                     cardDef.script.spellEffect
@@ -1123,6 +1142,7 @@ class CastSpellHandler(
                         // Check cleave cost (CR 702.148 — an alternative cost; the brackets-removed
                         // text variant is chosen structurally at resolution, not here).
                         val cleaveAbility = cardDef.keywordAbilities.filterIsInstance<KeywordAbility.Cleave>().firstOrNull()
+                        val overloadAbility = cardDef.keywordAbilities.filterIsInstance<KeywordAbility.Overload>().firstOrNull()
                         // Check miracle cost (CR 702.94 — printed or granted in hand, window-gated).
                         // The window component must be present (opened when drawn as the first card
                         // this turn); without it, the miracle alternative cost is unavailable.
@@ -1135,6 +1155,8 @@ class CastSpellHandler(
                             costCalculator.calculateEffectiveCostWithAlternativeBase(state, cardDef, impendingAbility.cost, action.playerId)
                         } else if (action.altAllows(AlternativeCostType.CLEAVE) && cleaveAbility != null) {
                             costCalculator.calculateEffectiveCostWithAlternativeBase(state, cardDef, cleaveAbility.cost, action.playerId)
+                        } else if (action.altAllows(AlternativeCostType.OVERLOAD) && overloadAbility != null) {
+                            costCalculator.calculateEffectiveCostWithAlternativeBase(state, cardDef, overloadAbility.cost, action.playerId)
                         } else if (action.altAllows(AlternativeCostType.MIRACLE) && miracleAbility != null) {
                             costCalculator.calculateEffectiveCostWithAlternativeBase(state, cardDef, miracleAbility.cost, action.playerId)
                         } else {
@@ -2558,6 +2580,7 @@ class CastSpellHandler(
                         val impendingAbility = cardDef.keywordAbilities.filterIsInstance<KeywordAbility.Impending>().firstOrNull()
                         // Check cleave cost (CR 702.148 — an alternative cost).
                         val cleaveAbility = cardDef.keywordAbilities.filterIsInstance<KeywordAbility.Cleave>().firstOrNull()
+                        val overloadAbility = cardDef.keywordAbilities.filterIsInstance<KeywordAbility.Overload>().firstOrNull()
                         // Check miracle cost (CR 702.94 — printed or granted in hand, window-gated).
                         val miracleWindowOpen = currentState.getEntity(action.cardId)
                             ?.has<com.wingedsheep.engine.state.components.identity.MiracleWindowComponent>() == true
@@ -2568,6 +2591,8 @@ class CastSpellHandler(
                             costCalculator.calculateEffectiveCostWithAlternativeBase(currentState, cardDef, impendingAbility.cost, action.playerId)
                         } else if (action.altAllows(AlternativeCostType.CLEAVE) && cleaveAbility != null) {
                             costCalculator.calculateEffectiveCostWithAlternativeBase(currentState, cardDef, cleaveAbility.cost, action.playerId)
+                        } else if (action.altAllows(AlternativeCostType.OVERLOAD) && overloadAbility != null) {
+                            costCalculator.calculateEffectiveCostWithAlternativeBase(currentState, cardDef, overloadAbility.cost, action.playerId)
                         } else if (action.altAllows(AlternativeCostType.MIRACLE) && miracleAbility != null) {
                             costCalculator.calculateEffectiveCostWithAlternativeBase(currentState, cardDef, miracleAbility.cost, action.playerId)
                         } else {
@@ -3526,6 +3551,8 @@ class CastSpellHandler(
                 }
             } else if (usesOptionalCostBranchTargets(state, action, cardDef)) {
                 cardDef.script.kickerTargetRequirements
+            } else if (isOverloadCast(action, cardDef)) {
+                cardDef.script.overloadTargetRequirements
             } else if (isCleaveCast(action, cardDef) && cardDef.script.cleaveTargetRequirements.isNotEmpty()) {
                 cardDef.script.cleaveTargetRequirements
             } else {
@@ -3657,6 +3684,13 @@ class CastSpellHandler(
         val wasCleaved = action.useAlternativeCost && cardDef != null &&
             action.altAllows(AlternativeCostType.CLEAVE) &&
             cardDef.keywordAbilities.any { it is KeywordAbility.Cleave }
+
+        // Determine if this spell is being cast using overload (CR 702.95). When true, the spell
+        // resolves with its overload effect/target variant (overloadSpellEffect /
+        // overloadTargetRequirements) instead of its printed one.
+        val wasOverloaded = action.useAlternativeCost && cardDef != null &&
+            action.altAllows(AlternativeCostType.OVERLOAD) &&
+            cardDef.keywordAbilities.any { it is KeywordAbility.Overload }
 
         // Extract per-color mana spent from payment events (for mana-spent-gated triggers)
         val manaSpentEvent = paymentResult.events.filterIsInstance<ManaSpentEvent>().firstOrNull()
@@ -3822,6 +3856,7 @@ class CastSpellHandler(
             wasEvoked = wasEvoked,
             wasImpending = wasImpending,
             wasCleaved = wasCleaved,
+            wasOverloaded = wasOverloaded,
             wasSneaked = wasSneaked,
             sneakAttackDefenderId = sneakAttackDefenderId,
             wasWebSlung = wasWebSlung,

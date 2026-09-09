@@ -1926,6 +1926,7 @@ class TriggerMatcher(
         // "a kicked spell" is specifically the kicker mechanic — a spell that declared some other
         // optional additional cost on the same rail (bargain, CR 702.166c) does not qualify.
         SpellCastPredicate.WasKicked -> event.declaredCostSlot == ChoiceSlot.KICKED
+        SpellCastPredicate.WasOverloaded -> event.alternativeCost == com.wingedsheep.engine.core.AlternativeCostType.OVERLOAD
         is SpellCastPredicate.PaidWithManaFromSubtype -> predicate.subtype in event.spentManaSubtypes
         is SpellCastPredicate.PaidWithManaFromSource -> sourceId in event.spentManaSourceIds
         SpellCastPredicate.IsModal -> event.chosenModesCount > 0

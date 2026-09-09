@@ -454,6 +454,19 @@ enum class Keyword(val displayName: String) {
     CLEAVE("Cleave"),
 
     /**
+     * Overload [cost] (CR 702.95, Return to Ravnica). Two static abilities on a spell with overload
+     * (CR 702.95a): "You may cast this spell for its overload cost" and "If this spell's overload
+     * cost was paid, change its text by replacing all instances of [its printed effect] with [its
+     * overload effect]." Modelled as an alternative cost ([KeywordAbility.Overload]) whose paid
+     * branch swaps the spell's effect and target requirements for the overload variant the card
+     * author supplies explicitly ([com.wingedsheep.sdk.model.CardScript.overloadSpellEffect] /
+     * `overloadTargetRequirements`) — a structural swap at cast time, not runtime text editing.
+     * Overload never changes mana value (CR 202.3b). Wired by `keywordAbility(KeywordAbility.overload("{cost}"))`
+     * plus `overloadEffect` / `overloadTarget(...)` inside the `spell { }` block.
+     */
+    OVERLOAD("Overload"),
+
+    /**
      * Daybound (CR 702.145, Innistrad: Midnight Hunt / Crimson Vow). Found on the **front** faces of
      * some transforming double-faced cards; represents three static abilities: "If it is night and
      * this permanent is represented by a transforming double-faced card, it enters transformed"; "As

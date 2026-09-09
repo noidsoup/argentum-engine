@@ -953,6 +953,8 @@ class CardBuilder(private val name: String) {
             kickerSpellEffect = spellBuilder?.kickerEffect,
             cleaveTargetRequirements = spellBuilder?.cleaveTargetRequirements ?: emptyList(),
             cleaveSpellEffect = spellBuilder?.cleaveEffect,
+            overloadTargetRequirements = spellBuilder?.overloadTargetRequirements ?: emptyList(),
+            overloadSpellEffect = spellBuilder?.overloadEffect,
             classLevels = classLevelsList.toList(),
             sagaChapters = sagaChaptersList.toList(),
             selfExileOnResolve = spellBuilder?.exilesOnResolve ?: false,
@@ -1226,6 +1228,39 @@ class SpellBuilder {
             namedCleaveTargets.map { it.second }
         } else {
             listOfNotNull(cleaveTarget)
+        }
+
+    /**
+     * Alternate effect used when this spell is cast for its overload cost (CR 702.95). When set, the
+     * overloaded version uses this effect instead of the normal [effect]. Declare the keyword at card
+     * level with `keywordAbility(KeywordAbility.overload("{cost}"))`; set this inside the `spell { }`
+     * block (mirrors [cleaveEffect]).
+     */
+    var overloadEffect: Effect? = null
+
+    /**
+     * Alternate target used when this spell is cast for its overload cost. When set, the overloaded
+     * version uses this target requirement instead of the normal [target]. Leave unset when the
+     * overload effect is untargeted (Vandalblast). For multiple/named overload targets use
+     * [overloadTarget].
+     */
+    var overloadTarget: TargetRequirement? = null
+
+    private val namedOverloadTargets: MutableList<Pair<String, TargetRequirement>> = mutableListOf()
+
+    /**
+     * Declare a named overload target and get an EffectTarget reference to use in [overloadEffect].
+     */
+    fun overloadTarget(name: String, requirement: TargetRequirement): EffectTarget.BoundVariable {
+        namedOverloadTargets.add(name to requirement.withId(name))
+        return EffectTarget.BoundVariable(name)
+    }
+
+    internal val overloadTargetRequirements: List<TargetRequirement>
+        get() = if (namedOverloadTargets.isNotEmpty()) {
+            namedOverloadTargets.map { it.second }
+        } else {
+            listOfNotNull(overloadTarget)
         }
 
     // Named target bindings

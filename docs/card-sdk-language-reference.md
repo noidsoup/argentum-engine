@@ -5956,6 +5956,8 @@ matcher branch — `SpellCastEvent` does not grow a new field per axis.
   don't.
 - `SpellCastPredicate.WasKicked` — spell was cast with kicker (CR 702.32) — specifically the kicker family (`ChoiceSlot.KICKED`); a spell that declared a *different* optional additional cost on the same rail, such as bargain, does not match. Used for
   Hallar / Bloodstone Goblin.
+- `SpellCastPredicate.WasOverloaded` — spell was cast for its overload cost (CR 702.95). Matches
+  `SpellCastEvent.alternativeCost == OVERLOAD`.
 - `SpellCastPredicate.PaidWithManaFromSubtype(subtype)` — mana produced by a permanent of this
   subtype was spent on the cast (Treasure — Rain of Riches, Alchemist's Talent; Cave; …). The
   producing-source subtype is snapshotted when the mana is produced (`ManaProvenanceTracker`), so a
@@ -9194,6 +9196,25 @@ composite abilities).
   alongside the normal cast so the player explicitly picks one (CR 118.9a). When the cleave cost
   carries {X} (Lantern Flare), the cleave action also carries `hasXCost`/`maxAffordableX` so the
   client prompts for X, just like an {X} in a printed cost.
+- `Overload(cost)` (`KeywordAbility.overload("{cost}")`) — Overload {cost} (CR 702.95, Return to
+  Ravnica). Two static abilities on a spell with overload: "You may cast this spell for its overload
+  cost" **and** "If this spell's overload cost was paid, change its text by replacing all instances
+  of [its printed effect] with [its overload effect]." Modeled as an **alternative casting cost**
+  (`AlternativeCostType.OVERLOAD`) whose text change is a **structural swap at cast time**, like
+  cleave but replacing the whole printed effect rather than removing bracketed spans. Declare the
+  keyword at card level, then supply the overload variant inside the `spell { }` block:
+  - base `target(...)` / `effect` = the **printed** (usually targeted) shape;
+  - `overloadTarget(...)` / `overloadEffect` = the **overload-replacement** shape.
+
+  When the spell is cast for its overload cost, `CastSpellHandler` swaps `overloadTargetRequirements` /
+  `overloadSpellEffect` in for the base ones. Unlike cleave, an **empty** `overloadTargetRequirements`
+  list means the overloaded cast is **untargeted** even when the printed spell targeted (Vandalblast:
+  "destroy target artifact" → "destroy each artifact you don't control"). Leave `overloadTarget` unset
+  for that shape; set it when the overload variant still targets but with different requirements.
+  The overload cost **never changes mana value** (CR 202.3b). The alternative cast is surfaced as a
+  distinct "Overload …" legal action (`CastWithAlternativeCost` + `AlternativeCostType.OVERLOAD`)
+  alongside the normal cast (CR 118.9a). `SpellCastPredicate.WasOverloaded` gates "whenever you cast
+  an overloaded spell" triggers.
 - `Afflict(n)` — defender loses N when this becomes blocked.
 - `Crew(n)` (`KeywordAbility.crew(n, onceEachTurn = false)` / `Numeric(Keyword.CREW, n, onceEachTurn)`) —
   Crew N (CR 702.122): tap any number of untapped creatures you control with total power N or greater to

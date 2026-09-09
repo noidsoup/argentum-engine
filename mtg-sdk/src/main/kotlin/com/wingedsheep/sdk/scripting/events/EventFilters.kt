@@ -501,6 +501,13 @@ sealed interface SpellCastPredicate {
         override val description = "kicked"
     }
 
+    /** The spell was cast for its overload cost (CR 702.95). */
+    @SerialName("SpellWasOverloaded")
+    @Serializable
+    data object WasOverloaded : SpellCastPredicate {
+        override val description = "overloaded"
+    }
+
     /**
      * Mana produced by a permanent with this subtype was spent on the cast — Treasure
      * (Alchemist's Talent, Rain of Riches), Cave, or any other producing-source subtype. The
