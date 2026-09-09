@@ -349,6 +349,57 @@
     ]
 }
 
+// Cordial Vampire
+{
+    "name": "Cordial Vampire",
+    "manaCost": "{B}{B}",
+    "typeLine": "Creature — Vampire",
+    "oracleText": "Whenever this creature or another creature dies, put a +1/+1 counter on each Vampire you control.",
+    "creatureStats": {
+        "power": 1,
+        "toughness": 1
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "filter": "creature",
+                    "from": "Battlefield",
+                    "to": "Graveyard"
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "ForEach",
+                    "space": {
+                        "type": "IterationSpace.Group",
+                        "filter": {
+                            "baseFilter": "creature Vampire ctrl:you"
+                        }
+                    },
+                    "body": {
+                        "type": "AddCounters",
+                        "counterType": "+1/+1",
+                        "count": 1,
+                        "target": "Self"
+                    }
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "83",
+        "rarity": "RARE",
+        "artist": "Winona Nelson",
+        "flavorText": "\"Please, come in! Hors d'oeuvres are on the table.\"",
+        "imageUri": "https://cards.scryfall.io/normal/front/a/9/a90a1c44-ee0f-4c12-bfaf-6f371bcce167.jpg?1783933130"
+    },
+    "colorIdentityOverride": [
+        "BLACK"
+    ]
+}
+
 // Crashing Footfalls
 {
     "name": "Crashing Footfalls",
