@@ -3940,6 +3940,17 @@ object Effects {
         com.wingedsheep.sdk.scripting.effects.ReturnSpellOrPermanentToOwnersHandEffect(target)
 
     /**
+     * Return the resolving spell ([EffectTarget.Self] on the stack) to its owner's hand.
+     *
+     * Not a counter — "this spell can't be countered" does not block it. When the spell is still
+     * on the stack as its own effect resolves, this removes it to hand so [StackResolver] skips the
+     * usual graveyard placement. Used by riders like Haunting Imitation ("if no creature cards
+     * were revealed this way, return ~ to its owner's hand").
+     */
+    fun ReturnSourceSpellToOwnersHand(): Effect =
+        ReturnSpellOrPermanentToOwnersHand(EffectTarget.Self)
+
+    /**
      * Counter all spells and abilities your opponents control on the stack.
      * "Counter all spells your opponents control and all abilities your opponents control."
      *

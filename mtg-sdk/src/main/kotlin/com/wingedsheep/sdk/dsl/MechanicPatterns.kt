@@ -2,6 +2,7 @@ package com.wingedsheep.sdk.dsl
 
 import com.wingedsheep.sdk.core.Color
 import com.wingedsheep.sdk.core.Counters
+import com.wingedsheep.sdk.core.Keyword
 import com.wingedsheep.sdk.core.Subtype
 import com.wingedsheep.sdk.core.Zone
 import com.wingedsheep.sdk.scripting.GameObjectFilter
@@ -20,8 +21,11 @@ import com.wingedsheep.sdk.scripting.effects.ClashEffect
 import com.wingedsheep.sdk.scripting.effects.CollectionFilter
 import com.wingedsheep.sdk.scripting.effects.CompositeEffect
 import com.wingedsheep.sdk.scripting.effects.ConditionalOnCollectionEffect
+import com.wingedsheep.sdk.scripting.effects.CreateTokenCopyOfTargetEffect
 import com.wingedsheep.sdk.scripting.effects.CreateTokenEffect
 import com.wingedsheep.sdk.scripting.effects.DrawCardsEffect
+import com.wingedsheep.sdk.scripting.effects.ForEachInCollectionEffect
+import com.wingedsheep.sdk.scripting.effects.ReturnSpellOrPermanentToOwnersHandEffect
 import com.wingedsheep.sdk.scripting.effects.Effect
 import com.wingedsheep.sdk.scripting.effects.EffectChoice
 import com.wingedsheep.sdk.scripting.conditions.CollectionContainsMatch
@@ -556,6 +560,58 @@ object MechanicPatterns {
             destination = SearchDestination.HAND,
             reveal = true,
         )
+
+    /** Pipeline collection: every card revealed by [eachPlayerRevealTopCreaturesCreateCopiesElseReturnSource]. */
+    const val HAUNTING_ALL_REVEALED = "haunting_allRevealed"
+
+    /** Pipeline collection: creature cards among [HAUNTING_ALL_REVEALED]. */
+    const val HAUNTING_CREATURES = "haunting_creatures"
+
+    /**
+     * Haunting Imitation shape — each player reveals their library top; for each revealed creature
+     * card create a token copy with the given characteristic overrides; if no creature was revealed,
+     * return the resolving spell to its owner's hand instead of the graveyard.
+     *
+     * Tokens are created by the effect's controller (the spell's caster), regardless of which
+     * player's library supplied the creature. Revealed non-creature cards stay on top of their
+     * libraries; empty libraries contribute nothing to the reveal pile.
+     */
+    fun eachPlayerRevealTopCreaturesCreateCopiesElseReturnSource(
+        matchFilter: GameObjectFilter = GameObjectFilter.Creature,
+        overridePower: Int = 1,
+        overrideToughness: Int = 1,
+        addedSubtypes: Set<Subtype> = setOf(Subtype("Spirit")),
+        addedKeywords: Set<Keyword> = setOf(Keyword.FLYING),
+        allRevealedCollection: String = HAUNTING_ALL_REVEALED,
+        matchingCollection: String = HAUNTING_CREATURES,
+    ): CompositeEffect = CompositeEffect(
+        listOf(
+            LibraryPatterns.eachPlayerRevealTop(allRevealedCollection),
+            FilterCollectionEffect(
+                from = allRevealedCollection,
+                filter = CollectionFilter.MatchesFilter(matchFilter),
+                storeMatching = matchingCollection,
+            ),
+            ForEachInCollectionEffect(
+                collection = matchingCollection,
+                effect = CreateTokenCopyOfTargetEffect(
+                    target = EffectTarget.Self,
+                    overridePower = overridePower,
+                    overrideToughness = overrideToughness,
+                    addedSubtypes = addedSubtypes,
+                    addedKeywords = addedKeywords,
+                ),
+            ),
+            ConditionalOnCollectionEffect(
+                collection = matchingCollection,
+                ifNotEmpty = CompositeEffect(emptyList()),
+                ifEmpty = ReturnSpellOrPermanentToOwnersHandEffect(EffectTarget.Self),
+            ),
+        ),
+        descriptionOverride = "Each player reveals the top card of their library. For each creature " +
+            "card revealed this way, create a token that's a copy of that card. If no creature " +
+            "cards were revealed this way, return this spell to its owner's hand.",
+    )
 
     // =========================================================================
     // Will of the Council (Conspiracy / CR 701.38)

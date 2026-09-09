@@ -906,6 +906,22 @@ object LibraryPatterns {
     }
 
     /**
+     * Each player reveals the top card of their library. Cards stay on top of their libraries;
+     * the gathered ids land in [storeAs] and a public [CardsRevealedEvent] is emitted.
+     *
+     * One [GatherCardsEffect] with [CardSource.TopOfLibrary] and [Player.Each] fans out across
+     * every player in turn order. Pair with [FilterCollectionEffect] and a payoff/else branch for
+     * "for each creature card revealed this way … / if no creature cards were revealed …"
+     * shapes (Haunting Imitation).
+     */
+    fun eachPlayerRevealTop(storeAs: String = "allRevealed"): Effect =
+        GatherCardsEffect(
+            source = CardSource.TopOfLibrary(DynamicAmount.Fixed(1), Player.Each),
+            storeAs = storeAs,
+            revealed = true,
+        )
+
+    /**
      * "Each player searches their library for [count] card(s) matching [filter], reveals them,
      * puts them into their hand, then shuffles." Per-player Gather → Select → Move → Shuffle.
      */
