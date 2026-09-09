@@ -1651,17 +1651,6 @@ class StackResolver(
                 )
             }
 
-            // CR 707.10f token-copy riders: a copy of a permanent spell that carried added keywords
-            // (e.g. "the copy gains haste", Choreographed Sparks) bakes them onto the resulting
-            // token's base keywords for its whole life on the battlefield.
-            val copyRiders = updated.get<com.wingedsheep.engine.state.components.stack.SpellCopyTokenRidersComponent>()
-            if (copyRiders != null && copyRiders.addedKeywords.isNotEmpty()) {
-                val card = updated.get<CardComponent>()
-                if (card != null) {
-                    updated = updated.with(card.copy(baseKeywords = card.baseKeywords + copyRiders.addedKeywords))
-                }
-            }
-
             updated
         }
 

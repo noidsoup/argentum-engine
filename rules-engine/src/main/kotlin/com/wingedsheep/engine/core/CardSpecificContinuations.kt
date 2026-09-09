@@ -455,6 +455,8 @@ data class StormCopyTargetContinuation(
     /** Keyword enum names (e.g., "WITHER") to grant to each copy while it's on the stack. */
     val keywordsForCopy: Set<String> = emptySet(),
     val removeLegendary: Boolean = false,
+    /** Token-side riders (CR 707.10f) stamped onto each copy via [applyCopyMutations]. */
+    val tokenRiders: com.wingedsheep.engine.state.components.stack.SpellCopyTokenRidersComponent? = null,
     val objectReferences: com.wingedsheep.engine.handlers.ObjectReferenceEnvironment = com.wingedsheep.engine.handlers.ObjectReferenceEnvironment(),
 ) : AnswerContinuation
 

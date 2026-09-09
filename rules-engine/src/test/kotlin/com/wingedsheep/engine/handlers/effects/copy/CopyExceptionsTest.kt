@@ -336,4 +336,24 @@ class CopyExceptionsTest : FunSpec({
         result.typeLine.isLegendary shouldBe false
         result.typeLine.cardTypes shouldBe setOf(CardType.ARTIFACT, CardType.CREATURE)
     }
+
+    test("mergedSpellCopyTokenExceptions folds removeLegendary and addedKeywords into exceptions") {
+        val riders = com.wingedsheep.engine.state.components.stack.SpellCopyTokenRidersComponent(
+            addedKeywords = setOf(Keyword.HASTE),
+            exceptions = CopyExceptions(
+                powerOverride = 1,
+                toughnessOverride = 1,
+                addedSubtypes = setOf(Subtype.SPIRIT),
+            ),
+        )
+        val merged = CopyExceptionApplier.mergedSpellCopyTokenExceptions(
+            removeLegendary = true,
+            riders = riders,
+        )
+        merged.removedSupertypes shouldBe setOf(Supertype.LEGENDARY)
+        merged.addedKeywords shouldBe setOf(Keyword.HASTE)
+        merged.powerOverride shouldBe 1
+        merged.toughnessOverride shouldBe 1
+        merged.addedSubtypes shouldBe setOf(Subtype.SPIRIT)
+    }
 })

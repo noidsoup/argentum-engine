@@ -582,7 +582,10 @@ data class SpellGrantedKeywordsComponent(
 data class SpellCopyTokenRidersComponent(
     val addedKeywords: Set<Keyword> = emptySet(),
     val sacrificeAtStep: Step? = null,
-    val sacrificeOnlyOnControllersTurn: Boolean = false
+    val sacrificeOnlyOnControllersTurn: Boolean = false,
+    /** Characteristic overrides baked onto the token at resolution (CR 707.10f / 707.9b). */
+    val exceptions: com.wingedsheep.sdk.scripting.effects.CopyExceptions =
+        com.wingedsheep.sdk.scripting.effects.CopyExceptions.None,
 ) : Component
 
 /**

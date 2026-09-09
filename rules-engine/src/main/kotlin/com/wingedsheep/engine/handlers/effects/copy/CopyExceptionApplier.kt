@@ -1,7 +1,9 @@
 package com.wingedsheep.engine.handlers.effects.copy
 
 import com.wingedsheep.engine.state.components.identity.CardComponent
+import com.wingedsheep.engine.state.components.stack.SpellCopyTokenRidersComponent
 import com.wingedsheep.sdk.core.ManaCost
+import com.wingedsheep.sdk.core.Supertype
 import com.wingedsheep.sdk.core.TypeLine
 import com.wingedsheep.sdk.model.CharacteristicValue
 import com.wingedsheep.sdk.model.CreatureStats
@@ -27,12 +29,12 @@ import com.wingedsheep.sdk.scripting.effects.CopyExceptions
  * tokens and silently did nothing on permanents. Keeping the arithmetic here means a new exception
  * is written once and every path above gets it.
  *
- * Not (yet) routed through here: the two paths whose only "except" clause is the single boolean
- * `removeLegendary` and which therefore have no arithmetic to share —
- * [com.wingedsheep.engine.handlers.effects.token.CreateTokenCopyOfEquippedCreatureExecutor]
- * (Helm of the Host) and
- * [com.wingedsheep.engine.handlers.effects.stack.StormCopyEffectExecutor] (copies of *spells*,
- * CR 707.10, where the copy lives on the stack rather than as a permanent's copiable values).
+ *  - [com.wingedsheep.engine.handlers.effects.stack.StormCopyEffectExecutor.applyCopyMutations]
+ *    — a copy of a permanent *spell* on the stack (CR 707.10f), stamped via
+ *    [SpellCopyTokenRidersComponent.exceptions] and applied when the copy is created.
+ *
+ * Not routed through here: [CreateTokenCopyOfEquippedCreatureExecutor] (Helm of the Host), whose
+ * only "except" clause is the legacy `removeLegendary` boolean with no shared arithmetic.
  *
  * Copiable values only: everything applied here lives on the [CardComponent], so it is itself
  * copiable (a later copy of the copy sees it) and it lasts exactly as long as the copy does.
@@ -40,6 +42,26 @@ import com.wingedsheep.sdk.scripting.effects.CopyExceptions
  * other components.
  */
 object CopyExceptionApplier {
+
+    /**
+     * Fold every token-side rider on a spell copy into one [CopyExceptions] value.
+     *
+     * [removeLegendary] is the legacy boolean folded in for backward compatibility;
+     * [riders] may carry [SpellCopyTokenRidersComponent.exceptions] and [addedKeywords].
+     */
+    fun mergedSpellCopyTokenExceptions(
+        removeLegendary: Boolean,
+        riders: SpellCopyTokenRidersComponent?,
+    ): CopyExceptions {
+        var merged = riders?.exceptions ?: CopyExceptions.None
+        if (removeLegendary) {
+            merged = CopyExceptions(removedSupertypes = setOf(Supertype.LEGENDARY)).over(merged)
+        }
+        if (riders != null && riders.addedKeywords.isNotEmpty()) {
+            merged = CopyExceptions(addedKeywords = riders.addedKeywords).over(merged)
+        }
+        return merged
+    }
 
     /**
      * The type line a copy of [base] ends up with. Split out so callers that need to know what the

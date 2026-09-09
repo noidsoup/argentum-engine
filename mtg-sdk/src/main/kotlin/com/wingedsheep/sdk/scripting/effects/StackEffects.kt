@@ -898,6 +898,15 @@ data class CopyTargetSpellEffect(
      */
     val sacrificeTokenOnlyOnControllersTurn: Boolean = false,
     /**
+     * Characteristic overrides on the *token* a permanent-spell copy resolves into (CR 707.10f), via
+     * the shared [CopyExceptions] vocabulary — P/T, subtypes "in addition to its other types",
+     * supertypes, colors, and the rest. Applied when the copy is put on the stack and carried onto
+     * the battlefield token. Models "except the copy is a 1/1 Spirit in addition to its other
+     * types" (Donal, Herald of Wings). Prefer this over the legacy [addedTokenKeywords] /
+     * [removeLegendary] riders when the clause names copiable characteristics.
+     */
+    val exceptions: CopyExceptions = CopyExceptions.None,
+    /**
      * How many copies to create (CR 707.10 — each is an independent copy, and the controller may
      * choose new targets for each one separately). Defaults to a single copy. Pass a [DynamicAmount]
      * for "copy it for each …" clauses whose count is only known at resolution — Thousand-Year Storm

@@ -61,14 +61,19 @@ class CopyTargetSpellExecutor(
 
         val stackResolver = StackResolver(cardRegistry = cardRegistry)
 
-        // Token-side riders (CR 707.10f): keywords baked onto, and a delayed sacrifice trigger for,
-        // the token the copy resolves into when the copied spell is a permanent spell. Stamped on
-        // the copy entity and consumed by StackResolver at resolution.
-        val tokenRiders = if (effect.addedTokenKeywords.isNotEmpty() || effect.sacrificeTokenAtStep != null) {
+        // Token-side riders (CR 707.10f): characteristic overrides, keywords baked onto, and a
+        // delayed sacrifice trigger for the token the copy resolves into when the copied spell is
+        // a permanent spell. Stamped on the copy entity and consumed by StackResolver at resolution.
+        val tokenRiders = if (
+            effect.addedTokenKeywords.isNotEmpty() ||
+            effect.sacrificeTokenAtStep != null ||
+            !effect.exceptions.isEmpty
+        ) {
             com.wingedsheep.engine.state.components.stack.SpellCopyTokenRidersComponent(
                 addedKeywords = effect.addedTokenKeywords,
                 sacrificeAtStep = effect.sacrificeTokenAtStep,
-                sacrificeOnlyOnControllersTurn = effect.sacrificeTokenOnlyOnControllersTurn
+                sacrificeOnlyOnControllersTurn = effect.sacrificeTokenOnlyOnControllersTurn,
+                exceptions = effect.exceptions,
             )
         } else null
 
@@ -163,7 +168,7 @@ class CopyTargetSpellExecutor(
         // CR 707.10f token tagging happens at resolution in StackResolver.
         return promptForCopyTargets(
             state, context, spellEntityId, spellEffect, targetRequirements, spellName,
-            effect.keywordsForCopy.toSet(), effect.removeLegendary, copyCount, stackResolver
+            effect.keywordsForCopy.toSet(), effect.removeLegendary, copyCount, stackResolver, tokenRiders
         )
     }
 
@@ -236,7 +241,8 @@ class CopyTargetSpellExecutor(
         keywordsForCopy: Set<String> = emptySet(),
         removeLegendary: Boolean = false,
         copyCount: Int = 1,
-        stackResolver: StackResolver = StackResolver(cardRegistry = cardRegistry)
+        stackResolver: StackResolver = StackResolver(cardRegistry = cardRegistry),
+        tokenRiders: com.wingedsheep.engine.state.components.stack.SpellCopyTokenRidersComponent? = null,
     ): EffectResult {
 
         val legalTargetsMap = mutableMapOf<Int, List<EntityId>>()
@@ -255,7 +261,7 @@ class CopyTargetSpellExecutor(
             return EffectResult.from(
                 putInheritedCopies(
                     state, stackResolver, spellEntityId, context.controllerId, copyCount,
-                    keywordsForCopy, removeLegendary, tokenRiders = null
+                    keywordsForCopy, removeLegendary, tokenRiders
                 )
             )
         }
@@ -275,7 +281,8 @@ class CopyTargetSpellExecutor(
             sourceId = spellEntityId,
             totalCopies = copyCount,
             keywordsForCopy = keywordsForCopy,
-            removeLegendary = removeLegendary
+            removeLegendary = removeLegendary,
+            tokenRiders = tokenRiders,
         )
         val targetReqInfos = targetRequirements.mapIndexed { index, req ->
             TargetRequirementInfo(
