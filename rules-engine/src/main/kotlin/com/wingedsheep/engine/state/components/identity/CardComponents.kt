@@ -59,6 +59,13 @@ data class CardComponent(
      */
     val hasActivatedAbility: Boolean = false,
     /**
+     * Precomputed from the card definition: does this card have at least one intrinsic activated
+     * mana ability activatable from the battlefield? Used by `CardPredicate.WithoutManaAbilities`
+     * for "artifacts without mana abilities" (Midnight Arsonist). Printed abilities only — granted
+     * abilities are not counted.
+     */
+    val hasManaActivatedAbility: Boolean = false,
+    /**
      * The set this card was *originally printed* in (the canonical [CardDefinition.setCode], not the
      * specific printing the player owns). Read by `CardPredicate.OriginallyPrintedInSet` to model
      * "permanent with a name originally printed in [set]" (Golgothian Sylex, ARN City in a Bottle).

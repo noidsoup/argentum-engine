@@ -4812,6 +4812,13 @@ work for abilities-on-stack (which carry no `CardComponent`).
   hand-only cycling ability does not). Used by The Enigma Jewel's craft material clause ("four or more
   nonlands with activated abilities"). Compose onto any filter with `.withCardPredicate(...)`, e.g.
   `GameObjectFilter.Nonland.withCardPredicate(CardPredicate.HasActivatedAbility)`.
+- `CardPredicate.WithoutManaAbilities` — matches a permanent whose printed activated abilities include
+  **no** mana abilities activatable from the battlefield. Backed by the precomputed
+  `CardComponent.hasManaActivatedAbility` flag (from `CardDefinition.hasManaActivatedAbility`); granted
+  abilities aren't counted. An artifact with only non-mana activated abilities (equip, crew, etc.) still
+  matches; one with any intrinsic mana ability does not. Used by Midnight Arsonist ("destroy up to X
+  target artifacts without mana abilities"). Convenience builder:
+  `GameObjectFilter.Artifact.withoutManaAbilities()`.
 
 ### `StatePredicate` — battlefield state checks
 

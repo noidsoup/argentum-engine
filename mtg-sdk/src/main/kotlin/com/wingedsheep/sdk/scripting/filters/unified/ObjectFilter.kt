@@ -390,6 +390,14 @@ data class GameObjectFilter(
         cardPredicates = cardPredicates + CardPredicate.NotKeyword(keyword)
     )
 
+    /**
+     * Match permanents whose printed activated abilities include no mana abilities — "artifacts
+     * without mana abilities" (Midnight Arsonist). See [CardPredicate.WithoutManaAbilities].
+     */
+    fun withoutManaAbilities() = copy(
+        cardPredicates = cardPredicates + CardPredicate.WithoutManaAbilities
+    )
+
     /** Match by exact card name */
     fun named(name: String) = copy(
         cardPredicates = cardPredicates + CardPredicate.NameEquals(name)

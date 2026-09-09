@@ -1240,6 +1240,20 @@ sealed interface CardPredicate : TextReplaceable<CardPredicate> {
     }
 
     /**
+     * Matches a permanent whose printed activated abilities include **no** mana abilities
+     * activatable from the battlefield. Backed by the precomputed `CardComponent.hasManaActivatedAbility`
+     * flag (set at entity creation from `CardDefinition.hasManaActivatedAbility`), so abilities
+     * granted by other continuous effects are not counted. An artifact with only non-mana activated
+     * abilities (equip, crew, etc.) still matches; one with any intrinsic mana ability does not.
+     * Used by Midnight Arsonist ("destroy up to X target artifacts without mana abilities").
+     */
+    @SerialName("WithoutManaAbilities")
+    @Serializable
+    data object WithoutManaAbilities : CardPredicate {
+        override val description: String = "without mana abilities"
+    }
+
+    /**
      * Aura (or other enchantment with an [auraTarget]) that could legally enchant [host] at
      * evaluation time. Used when searching a library for "an Aura card that could enchant it"
      * (Auratouched Mage). Targeting restrictions (hexproof, shroud) are ignored per Rule 303.4f.
