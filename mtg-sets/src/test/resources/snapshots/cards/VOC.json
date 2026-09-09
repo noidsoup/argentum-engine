@@ -1451,6 +1451,134 @@
     ]
 }
 
+// Rhoda, Geist Avenger
+{
+    "name": "Rhoda, Geist Avenger",
+    "manaCost": "{3}{W}",
+    "typeLine": "Legendary Creature — Human Soldier",
+    "oracleText": "Partner with Timin, Youthful Geist (When this creature enters, target player may put Timin into their hand from their library, then shuffle.)\nVigilance\nWhenever a creature an opponent controls becomes tapped, if it isn't being declared as an attacker, put a +1/+1 counter on Rhoda.",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 3
+    },
+    "keywords": [
+        "VIGILANCE"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "Composite",
+                        "effects": [
+                            {
+                                "type": "GatherCards",
+                                "source": {
+                                    "type": "FromZone",
+                                    "zone": "Library",
+                                    "player": "TargetPlayer",
+                                    "filter": "name:Timin, Youthful Geist"
+                                },
+                                "storeAs": "timinInLibrary"
+                            },
+                            {
+                                "type": "SelectFromCollection",
+                                "from": "timinInLibrary",
+                                "selection": {
+                                    "type": "ChooseUpTo",
+                                    "count": {
+                                        "type": "Fixed",
+                                        "amount": 1
+                                    }
+                                },
+                                "chooser": "TargetPlayer",
+                                "storeSelected": "timinFound",
+                                "prompt": "Search your library for a card named Timin, Youthful Geist"
+                            },
+                            {
+                                "type": "MoveCollection",
+                                "from": "timinFound",
+                                "destination": {
+                                    "type": "ToZone",
+                                    "zone": "Hand",
+                                    "player": "TargetPlayer"
+                                },
+                                "revealed": true
+                            },
+                            {
+                                "type": "ShuffleLibrary",
+                                "target": {
+                                    "type": "BoundVariable",
+                                    "name": "target player"
+                                }
+                            },
+                            "EmitLibrarySearchedEvent"
+                        ]
+                    }
+                },
+                "targetRequirement": {
+                    "type": "TargetPlayer",
+                    "id": "target player"
+                }
+            },
+            {
+                "id": "ability_2",
+                "trigger": {
+                    "type": "TapEvent",
+                    "filter": "creature ctrl:opponent"
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "AddCounters",
+                    "counterType": "+1/+1",
+                    "count": 1,
+                    "target": "Self"
+                },
+                "interveningIf": {
+                    "type": "Not",
+                    "condition": {
+                        "type": "All",
+                        "conditions": [
+                            {
+                                "type": "IsInStep",
+                                "steps": [
+                                    "DECLARE_ATTACKERS"
+                                ],
+                                "yoursOnly": false
+                            },
+                            {
+                                "type": "EntityMatches",
+                                "entity": "TriggeringEntity",
+                                "filter": {
+                                    "statePredicates": [
+                                        "AttackedThisCombat"
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "8",
+        "rarity": "RARE",
+        "artist": "Randy Vargas",
+        "imageUri": "https://cards.scryfall.io/normal/front/c/4/c434e774-c908-46b9-ba18-52e1efe092de.jpg?1783925007"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
 // Spectral Arcanist
 {
     "name": "Spectral Arcanist",
