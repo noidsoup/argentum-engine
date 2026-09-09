@@ -1,3 +1,66 @@
+// Crimson Honor Guard
+{
+    "name": "Crimson Honor Guard",
+    "manaCost": "{3}{R}{R}",
+    "typeLine": "Creature — Vampire Knight",
+    "oracleText": "Trample\nAt the beginning of each player's end step, this creature deals 4 damage to that player unless they control a commander.",
+    "creatureStats": {
+        "power": 4,
+        "toughness": 5
+    },
+    "keywords": [
+        "TRAMPLE"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "StepEvent",
+                    "step": "END",
+                    "player": "Each"
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "Gated",
+                    "gate": {
+                        "type": "Gate.WhenCondition",
+                        "condition": {
+                            "type": "Not",
+                            "condition": {
+                                "type": "PlayerControlsCommander",
+                                "player": "TriggeringPlayer"
+                            }
+                        }
+                    },
+                    "then": {
+                        "type": "DealDamage",
+                        "amount": {
+                            "type": "Fixed",
+                            "amount": 4
+                        },
+                        "target": {
+                            "type": "PlayerRef",
+                            "player": "TriggeringPlayer"
+                        },
+                        "damageSource": "Self"
+                    }
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "23",
+        "rarity": "RARE",
+        "artist": "Kieran Yanner",
+        "flavorText": "The finest soldiers aren't worth a whit without a set of hands to lead them and a set of eyes to guide them.",
+        "imageUri": "https://cards.scryfall.io/normal/front/9/5/9597255c-2657-40e4-855f-c8701a70aa39.jpg?1783935943"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
 // Edgar Markov
 {
     "name": "Edgar Markov",
