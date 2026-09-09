@@ -841,6 +841,59 @@
     "colorIdentityOverride": []
 }
 
+// Damnable Pact
+{
+    "name": "Damnable Pact",
+    "manaCost": "{X}{B}{B}",
+    "typeLine": "Sorcery",
+    "oracleText": "Target player draws X cards and loses X life.",
+    "script": {
+        "spellEffect": {
+            "type": "Composite",
+            "effects": [
+                {
+                    "type": "DrawCards",
+                    "count": "XValue",
+                    "target": {
+                        "type": "ContextTarget",
+                        "index": 0
+                    }
+                },
+                {
+                    "type": "LoseLife",
+                    "amount": "XValue",
+                    "target": {
+                        "type": "ContextTarget",
+                        "index": 0
+                    }
+                }
+            ]
+        },
+        "targetRequirements": [
+            {
+                "type": "TargetPlayer",
+                "id": "target player"
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "93",
+        "rarity": "RARE",
+        "artist": "Zack Stella",
+        "flavorText": "\"Silumgar's mind is a dark labyrinth, full of grim secrets and subtle traps.\"\n—Siara, the Dragon's Mouth",
+        "imageUri": "https://cards.scryfall.io/normal/front/f/6/f65bcf62-48c3-4e4d-b129-8e03b3635326.jpg?1783938599",
+        "rulings": [
+            {
+                "date": "2007-10-01",
+                "text": "The value chosen for X applies to each X in the spell's effect. You pay {X} only once."
+            }
+        ]
+    },
+    "colorIdentityOverride": [
+        "BLACK"
+    ]
+}
+
 // Defeat
 {
     "name": "Defeat",
