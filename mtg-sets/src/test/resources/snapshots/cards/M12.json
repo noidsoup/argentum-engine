@@ -207,6 +207,64 @@
     ]
 }
 
+// Bloodlord of Vaasgoth
+{
+    "name": "Bloodlord of Vaasgoth",
+    "manaCost": "{3}{B}{B}",
+    "typeLine": "Creature — Vampire Warrior",
+    "oracleText": "Bloodthirst 3 (If an opponent was dealt damage this turn, this creature enters with three +1/+1 counters on it.)\nFlying\nWhenever you cast a Vampire creature spell, it gains bloodthirst 3.",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 3
+    },
+    "keywords": [
+        "BLOODTHIRST",
+        "FLYING"
+    ],
+    "keywordAbilities": [
+        {
+            "type": "Numeric",
+            "keyword": "BLOODTHIRST",
+            "n": 3
+        }
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "SpellCastEvent",
+                    "spellFilter": {
+                        "cardPredicates": [
+                            "IsCreature",
+                            {
+                                "type": "HasSubtype",
+                                "subtype": "Vampire"
+                            }
+                        ]
+                    }
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "GrantKeywordToSpell",
+                    "keyword": "BLOODTHIRST",
+                    "keywordParameter": 3
+                },
+                "descriptionOverride": "Whenever you cast a Vampire creature spell, it gains bloodthirst 3."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "82",
+        "rarity": "MYTHIC",
+        "artist": "Greg Staples",
+        "imageUri": "https://cards.scryfall.io/normal/front/1/2/125c5cff-d4e9-4655-9cc5-3ce21e577569.jpg?1783941086"
+    },
+    "colorIdentityOverride": [
+        "BLACK"
+    ]
+}
+
 // Bonebreaker Giant
 {
     "name": "Bonebreaker Giant",
