@@ -3020,6 +3020,64 @@
     ]
 }
 
+// Sanctum Seeker
+{
+    "name": "Sanctum Seeker",
+    "manaCost": "{2}{B}{B}",
+    "typeLine": "Creature — Vampire Knight",
+    "oracleText": "Whenever a Vampire you control attacks, each opponent loses 1 life and you gain 1 life.",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 4
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "AttackEvent",
+                    "filter": "creature Vampire ctrl:you"
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "LoseLife",
+                            "amount": {
+                                "type": "Fixed",
+                                "amount": 1
+                            },
+                            "target": {
+                                "type": "PlayerRef",
+                                "player": "EachOpponent"
+                            }
+                        },
+                        {
+                            "type": "GainLife",
+                            "amount": {
+                                "type": "Fixed",
+                                "amount": 1
+                            }
+                        }
+                    ]
+                },
+                "descriptionOverride": "Whenever a Vampire you control attacks, each opponent loses 1 life and you gain 1 life."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "120",
+        "rarity": "RARE",
+        "artist": "Volkan Baǵa",
+        "flavorText": "The Sanctum Seekers were the first of the knightly orders to cross the sea and are still the most zealous.",
+        "imageUri": "https://cards.scryfall.io/normal/front/7/2/72150779-0bb6-4d20-a898-cda93a66e7cd.jpg?1783935756"
+    },
+    "colorIdentityOverride": [
+        "BLACK"
+    ]
+}
+
 // Settle the Wreckage
 {
     "name": "Settle the Wreckage",
