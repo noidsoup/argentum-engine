@@ -1189,6 +1189,165 @@
     ]
 }
 
+// Midnight Arsonist
+{
+    "name": "Midnight Arsonist",
+    "manaCost": "{3}{R}",
+    "typeLine": "Creature — Vampire",
+    "oracleText": "When this creature enters, destroy up to X target artifacts without mana abilities, where X is the number of Vampires you control.",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 2
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "ForEach",
+                    "space": "IterationSpace.Targets",
+                    "body": {
+                        "type": "MoveToZone",
+                        "target": {
+                            "type": "ContextTarget",
+                            "index": 0
+                        },
+                        "destination": "Graveyard",
+                        "byDestruction": true
+                    }
+                },
+                "targetRequirement": {
+                    "type": "TargetObject",
+                    "optional": true,
+                    "filter": {
+                        "baseFilter": {
+                            "cardPredicates": [
+                                "IsArtifact",
+                                "WithoutManaAbilities"
+                            ]
+                        }
+                    },
+                    "id": "up to X target artifacts without mana abilities",
+                    "dynamicMaxCount": {
+                        "type": "AggregateBattlefield",
+                        "player": "You",
+                        "filter": "permanent Vampire"
+                    }
+                },
+                "descriptionOverride": "When this creature enters, destroy up to X target artifacts without mana abilities, where X is the number of Vampires you control."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "27",
+        "rarity": "RARE",
+        "artist": "Campbell White",
+        "flavorText": "Killing the slayers was self-preservation. The fire was just for fun.",
+        "imageUri": "https://cards.scryfall.io/normal/front/4/d/4d322638-9775-42f4-b75e-d2e1a08bd75d.jpg?1783924997"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
+// Millicent, Restless Revenant
+{
+    "name": "Millicent, Restless Revenant",
+    "manaCost": "{5}{W}{U}",
+    "typeLine": "Legendary Creature — Spirit Soldier",
+    "oracleText": "Affinity for Spirits (This spell costs {1} less to cast for each Spirit you control.)\nFlying\nWhenever Millicent or another nontoken Spirit you control dies or deals combat damage to a player, create a 1/1 white Spirit creature token with flying.",
+    "creatureStats": {
+        "power": 4,
+        "toughness": 4
+    },
+    "keywords": [
+        "FLYING",
+        "AFFINITY"
+    ],
+    "keywordAbilities": [
+        {
+            "type": "AffinityForSubtype",
+            "forSubtype": "Spirit"
+        }
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "filter": "creature Spirit nontoken ctrl:you",
+                    "from": "Battlefield",
+                    "to": "Graveyard"
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "CreateToken",
+                    "power": 1,
+                    "toughness": 1,
+                    "colors": [
+                        "WHITE"
+                    ],
+                    "creatureTypes": [
+                        "Spirit"
+                    ],
+                    "keywords": [
+                        "FLYING"
+                    ],
+                    "imageUri": "https://cards.scryfall.io/normal/front/8/3/83497714-97ae-4846-8096-f7f1524f0e09.jpg?1783924702"
+                },
+                "descriptionOverride": "Whenever Millicent or another nontoken Spirit you control dies, create a 1/1 white Spirit creature token with flying."
+            }
+        ],
+        "staticAbilities": [
+            {
+                "type": "GrantTriggeredAbility",
+                "ability": {
+                    "id": "ability_2",
+                    "trigger": {
+                        "type": "DealsDamageEvent",
+                        "damageType": "DamageCombat",
+                        "recipient": "AnyPlayer"
+                    },
+                    "effect": {
+                        "type": "CreateToken",
+                        "power": 1,
+                        "toughness": 1,
+                        "colors": [
+                            "WHITE"
+                        ],
+                        "creatureTypes": [
+                            "Spirit"
+                        ],
+                        "keywords": [
+                            "FLYING"
+                        ],
+                        "imageUri": "https://cards.scryfall.io/normal/front/8/3/83497714-97ae-4846-8096-f7f1524f0e09.jpg?1783924702"
+                    },
+                    "descriptionOverride": "Whenever this creature deals combat damage to a player, create a 1/1 white Spirit creature token with flying."
+                },
+                "filter": {
+                    "baseFilter": "creature Spirit nontoken ctrl:you"
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "1",
+        "rarity": "MYTHIC",
+        "artist": "Denman Rooke",
+        "imageUri": "https://cards.scryfall.io/normal/front/2/b/2b86b538-0766-440d-a2cd-f5d5bfcfb010.jpg?1783925010"
+    },
+    "colorIdentityOverride": [
+        "WHITE",
+        "BLUE"
+    ]
+}
+
 // Mirage Phalanx
 {
     "name": "Mirage Phalanx",
