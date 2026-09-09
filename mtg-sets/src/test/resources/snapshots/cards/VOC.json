@@ -757,6 +757,68 @@
     ]
 }
 
+// Imposing Grandeur
+{
+    "name": "Imposing Grandeur",
+    "manaCost": "{4}{R}",
+    "typeLine": "Sorcery",
+    "oracleText": "Each player may discard their hand and draw cards equal to the greatest mana value of a commander they own on the battlefield or in the command zone.",
+    "script": {
+        "spellEffect": {
+            "type": "ForEach",
+            "space": {
+                "type": "IterationSpace.Players",
+                "players": "ActivePlayerFirst"
+            },
+            "body": {
+                "type": "Gated",
+                "gate": "Gate.MayDecide",
+                "then": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "Composite",
+                            "effects": [
+                                {
+                                    "type": "GatherCards",
+                                    "source": {
+                                        "type": "FromZone",
+                                        "zone": "Hand"
+                                    },
+                                    "storeAs": "discardedHand"
+                                },
+                                {
+                                    "type": "MoveCollection",
+                                    "from": "discardedHand",
+                                    "destination": {
+                                        "type": "ToZone",
+                                        "zone": "Graveyard"
+                                    },
+                                    "moveType": "Discard"
+                                }
+                            ]
+                        },
+                        {
+                            "type": "DrawCards",
+                            "count": "GreatestManaValueAmongOwnedCommanders"
+                        }
+                    ]
+                },
+                "decisionMaker": "Controller"
+            }
+        }
+    },
+    "metadata": {
+        "collectorNumber": "24",
+        "rarity": "RARE",
+        "artist": "Mila Pesic",
+        "imageUri": "https://cards.scryfall.io/normal/front/8/d/8d236055-d524-4312-9c6f-eddb34703e3e.jpg?1783925000"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
 // Laurine, the Diversion
 {
     "name": "Laurine, the Diversion",
