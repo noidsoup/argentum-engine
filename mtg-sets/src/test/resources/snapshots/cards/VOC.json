@@ -729,6 +729,71 @@
     ]
 }
 
+// Ethereal Investigator
+{
+    "name": "Ethereal Investigator",
+    "manaCost": "{3}{U}",
+    "typeLine": "Creature — Spirit",
+    "oracleText": "Flying\nWhen this creature enters, investigate X times, where X is the number of opponents you have. (To investigate, create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")\nWhenever you draw your second card each turn, create a 1/1 white Spirit creature token with flying.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 3
+    },
+    "keywords": [
+        "FLYING"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "CreatePredefinedToken",
+                    "tokenType": "Clue",
+                    "dynamicCount": "PlayerCount"
+                },
+                "descriptionOverride": "When this creature enters, investigate X times, where X is the number of opponents you have."
+            },
+            {
+                "id": "ability_2",
+                "trigger": {
+                    "type": "NthCardDrawnEvent",
+                    "nthCard": 2
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "CreateToken",
+                    "power": 1,
+                    "toughness": 1,
+                    "colors": [
+                        "WHITE"
+                    ],
+                    "creatureTypes": [
+                        "Spirit"
+                    ],
+                    "keywords": [
+                        "FLYING"
+                    ],
+                    "imageUri": "https://cards.scryfall.io/normal/front/8/3/83497714-97ae-4846-8096-f7f1524f0e09.jpg?1783924702"
+                },
+                "descriptionOverride": "Whenever you draw your second card each turn, create a 1/1 white Spirit creature token with flying."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "12",
+        "rarity": "RARE",
+        "artist": "Sean Murray",
+        "imageUri": "https://cards.scryfall.io/normal/front/a/8/a81b1492-ef70-4d8d-9458-c25a084107a7.jpg?1783925004"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
+
 // Glass-Cast Heart
 {
     "name": "Glass-Cast Heart",

@@ -1,3 +1,78 @@
+// Bloodtracker
+{
+    "name": "Bloodtracker",
+    "manaCost": "{3}{B}",
+    "typeLine": "Creature — Vampire Wizard",
+    "oracleText": "Flying\n{B}, Pay 2 life: Put a +1/+1 counter on this creature.\nWhen this creature leaves the battlefield, draw a card for each +1/+1 counter on it.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 2
+    },
+    "keywords": [
+        "FLYING"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "from": "Battlefield"
+                },
+                "effect": {
+                    "type": "DrawCards",
+                    "count": {
+                        "type": "ContextProperty",
+                        "key": "LAST_KNOWN_PLUS_ONE_COUNTER_COUNT"
+                    }
+                },
+                "descriptionOverride": "When this creature leaves the battlefield, draw a card for each +1/+1 counter on it."
+            }
+        ],
+        "activatedAbilities": [
+            {
+                "id": "ability_2",
+                "cost": {
+                    "type": "CostComposite",
+                    "costs": [
+                        {
+                            "type": "CostAtomWrapper",
+                            "atom": {
+                                "type": "AtomMana",
+                                "cost": "{B}"
+                            }
+                        },
+                        {
+                            "type": "CostAtomWrapper",
+                            "atom": {
+                                "type": "AtomPayLife",
+                                "amount": 2
+                            }
+                        }
+                    ]
+                },
+                "effect": {
+                    "type": "AddCounters",
+                    "counterType": "+1/+1",
+                    "count": 1,
+                    "target": "Self"
+                },
+                "descriptionOverride": "{B}, Pay 2 life: Put a +1/+1 counter on this creature."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "14",
+        "rarity": "RARE",
+        "artist": "Magali Villeneuve",
+        "flavorText": "Flee all you like. The further you run the more firmly I feel your heartbeat.",
+        "imageUri": "https://cards.scryfall.io/normal/front/c/a/ca3519c4-4d8c-4caf-bc93-6e6160a3d5b6.jpg?1783934340"
+    },
+    "colorIdentityOverride": [
+        "BLACK"
+    ]
+}
+
 // Boreas Charger
 {
     "name": "Boreas Charger",

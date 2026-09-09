@@ -209,6 +209,64 @@
     ]
 }
 
+// Hallowed Spiritkeeper
+{
+    "name": "Hallowed Spiritkeeper",
+    "manaCost": "{1}{W}{W}",
+    "typeLine": "Creature — Avatar",
+    "oracleText": "Vigilance\nWhen this creature dies, create X 1/1 white Spirit creature tokens with flying, where X is the number of creature cards in your graveyard.",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 2
+    },
+    "keywords": [
+        "VIGILANCE"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "from": "Battlefield",
+                    "to": "Graveyard"
+                },
+                "effect": {
+                    "type": "CreateToken",
+                    "count": {
+                        "type": "Count",
+                        "player": "You",
+                        "zone": "Graveyard",
+                        "filter": "creature"
+                    },
+                    "power": 1,
+                    "toughness": 1,
+                    "colors": [
+                        "WHITE"
+                    ],
+                    "creatureTypes": [
+                        "Spirit"
+                    ],
+                    "keywords": [
+                        "FLYING"
+                    ],
+                    "imageUri": "https://cards.scryfall.io/normal/front/8/3/83497714-97ae-4846-8096-f7f1524f0e09.jpg?1783924702"
+                },
+                "descriptionOverride": "When this creature dies, create X 1/1 white Spirit creature tokens with flying, where X is the number of creature cards in your graveyard."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "8",
+        "rarity": "RARE",
+        "artist": "Steve Prescott",
+        "imageUri": "https://cards.scryfall.io/normal/front/9/4/94ebd5bd-99b3-4371-9ca2-e0504db1458e.jpg?1783938873"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
 // Jazal Goldmane
 {
     "name": "Jazal Goldmane",
