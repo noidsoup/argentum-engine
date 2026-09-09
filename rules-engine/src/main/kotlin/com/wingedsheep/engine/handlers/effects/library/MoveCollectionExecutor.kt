@@ -95,8 +95,13 @@ class MoveCollectionExecutor(
             is CardDestination.ToZoneExiledFrom ->
                 moveToZonesExiledFrom(state, context, cards, destination, effect)
         }
-        if (effect.linkToSource && result.isSuccess) {
-            result = linkCardsToSource(result, context, cards)
+        if (result.isSuccess) {
+            val linkTarget = effect.linkToTarget
+            result = when {
+                linkTarget != null -> linkCardsToTarget(result, context, cards, linkTarget)
+                effect.linkToSource -> linkCardsToSource(result, context, cards)
+                else -> result
+            }
         }
         if (effect.unlinkFromSource && result.isSuccess) {
             result = unlinkCardsFromSource(result, context, cards)
@@ -300,6 +305,21 @@ class MoveCollectionExecutor(
     ): EffectResult {
         return result.copy(state = com.wingedsheep.engine.handlers.effects.linkedexile.LinkedExileLookup
             .link(result.state, context, cards))
+    }
+
+    private fun linkCardsToTarget(
+        result: EffectResult,
+        context: EffectContext,
+        cards: List<EntityId>,
+        linkToTarget: com.wingedsheep.sdk.scripting.targets.EffectTarget,
+    ): EffectResult {
+        val holderId = com.wingedsheep.engine.handlers.effects.TargetResolutionUtils
+            .resolveTarget(linkToTarget, context, result.state)
+            ?: return result
+        return result.copy(
+            state = com.wingedsheep.engine.handlers.effects.linkedexile.LinkedExileLookup
+                .linkToHolder(result.state, holderId, cards)
+        )
     }
 
     /**

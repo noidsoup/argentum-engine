@@ -17,6 +17,7 @@ import com.wingedsheep.sdk.scripting.effects.MayPlayExpiry
 import com.wingedsheep.sdk.scripting.effects.MoveCollectionEffect
 import com.wingedsheep.sdk.scripting.effects.MoveToZoneEffect
 import com.wingedsheep.sdk.scripting.effects.ShuffleLibraryEffect
+import com.wingedsheep.sdk.scripting.effects.ZonePlacement
 import com.wingedsheep.sdk.scripting.filters.unified.GroupFilter
 import com.wingedsheep.sdk.scripting.targets.EffectTarget
 import com.wingedsheep.sdk.scripting.values.DynamicAmount
@@ -95,6 +96,18 @@ object ExilePatterns {
         storeAs: String = "linked_return_origin"
     ): CompositeEffect = returnLinkedExile(
         destination = CardDestination.ToZoneExiledFrom(),
+        underOwnersControl = true,
+        storeAs = storeAs
+    )
+
+    /**
+     * Return each linked-exiled card to the battlefield **tapped** under its owner's control.
+     * Timothar, Baron of Bats' Bat token: "return the exiled card to the battlefield tapped."
+     */
+    fun returnLinkedExileTappedUnderOwnersControl(
+        storeAs: String = "linked_return_tapped"
+    ): CompositeEffect = returnLinkedExile(
+        destination = CardDestination.ToZone(Zone.BATTLEFIELD, placement = ZonePlacement.Tapped),
         underOwnersControl = true,
         storeAs = storeAs
     )

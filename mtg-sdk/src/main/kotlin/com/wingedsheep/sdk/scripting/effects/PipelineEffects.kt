@@ -1187,6 +1187,11 @@ data class MoveCollectionEffect(
     val revealToSelf: Boolean = true,
     val moveType: MoveType = MoveType.Default,
     val linkToSource: Boolean = false,
+    /**
+     * When set and the destination is exile, link each moved card to the entity resolved from this
+     * target instead of the effect source. Takes precedence over [linkToSource].
+     */
+    val linkToTarget: EffectTarget? = null,
     val unlinkFromSource: Boolean = false,
     /**
      * When non-null, each moved card enters face down: to the battlefield as a 2/2 creature

@@ -359,6 +359,13 @@ data class MoveToZoneEffect(
     /** When true and destination is EXILE, the exiled card is linked to the source permanent via LinkedExileComponent. */
     val linkToSource: Boolean = false,
     /**
+     * When set and destination is EXILE, the exiled card is linked to the entity resolved from this
+     * target instead of the effect source — e.g. a token created earlier in the same
+     * [CompositeEffect] via [com.wingedsheep.sdk.scripting.effects.CREATED_TOKENS]. Takes
+     * precedence over [linkToSource].
+     */
+    val linkToTarget: EffectTarget? = null,
+    /**
      * When set and destination is LIBRARY, places the card at this position from the top (0-indexed).
      * 0 = top, 1 = second from top, 2 = third from top, etc.
      * Takes precedence over [placement] when destination is LIBRARY.

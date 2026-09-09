@@ -150,10 +150,23 @@ class MoveToZoneEffectExecutor(
             }
         }
 
-        // Link exiled card to source permanent via LinkedExileComponent
-        if (effect.linkToSource && effect.destination == Zone.EXILE) {
-            resultState = com.wingedsheep.engine.handlers.effects.linkedexile.LinkedExileLookup
-                .link(resultState, context, listOf(targetId))
+        // Link exiled card via LinkedExileComponent — to [linkToTarget] when set, else the source.
+        if (effect.destination == Zone.EXILE) {
+            val linkTarget = effect.linkToTarget
+            when {
+                linkTarget != null -> {
+                    val linkHolderId = com.wingedsheep.engine.handlers.effects.TargetResolutionUtils
+                        .resolveTarget(linkTarget, context, resultState)
+                    if (linkHolderId != null) {
+                        resultState = com.wingedsheep.engine.handlers.effects.linkedexile.LinkedExileLookup
+                            .linkToHolder(resultState, linkHolderId, listOf(targetId))
+                    }
+                }
+                effect.linkToSource -> {
+                    resultState = com.wingedsheep.engine.handlers.effects.linkedexile.LinkedExileLookup
+                        .link(resultState, context, listOf(targetId))
+                }
+            }
         }
 
         // Auto-reveal: when a card moves from a publicly visible zone (graveyard/exile)

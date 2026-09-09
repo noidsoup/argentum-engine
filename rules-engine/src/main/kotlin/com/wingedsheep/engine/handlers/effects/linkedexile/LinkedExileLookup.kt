@@ -32,15 +32,32 @@ object LinkedExileLookup {
     /** Append to the resolving source visit, which need no longer be on the battlefield. */
     fun link(state: GameState, context: EffectContext, cards: List<EntityId>): GameState {
         val sourceId = context.sourceId ?: return state
-        val timestamp = context.sourceBattlefieldTimestamp
-        val current = state.getEntity(sourceId)
+        return linkToHolder(state, sourceId, cards, context.sourceBattlefieldTimestamp)
+    }
+
+    /**
+     * Append [cards] to [holderId]'s linked-exile pile. Used when the exile link belongs to an
+     * entity other than the resolving ability's source — e.g. a Bat token that remembers the
+     * creature exiled when Timothar's dies trigger resolves.
+     */
+    fun linkToHolder(
+        state: GameState,
+        holderId: EntityId,
+        cards: List<EntityId>,
+        sourceBattlefieldTimestamp: Long? = null,
+    ): GameState {
+        if (cards.isEmpty()) return state
+        val timestamp = sourceBattlefieldTimestamp
+        val current = state.getEntity(holderId)
             ?.get<BattlefieldEntryTimestampComponent>()?.timestamp
         if (timestamp != null && timestamp != current) {
             return state.copy(departedLinkedExile = state.departedLinkedExile +
                 (timestamp to (state.departedLinkedExile[timestamp].orEmpty() + cards)))
         }
-        val existing = state.getEntity(sourceId)?.get<LinkedExileComponent>()?.exiledIds.orEmpty()
-        return state.updateEntity(sourceId) { it.with(LinkedExileComponent(existing + cards)) }
+        val existing = state.getEntity(holderId)?.get<LinkedExileComponent>()?.exiledIds.orEmpty()
+        val newIds = cards.filter { it !in existing }
+        if (newIds.isEmpty()) return state
+        return state.updateEntity(holderId) { it.with(LinkedExileComponent(existing + newIds)) }
     }
 
     /**

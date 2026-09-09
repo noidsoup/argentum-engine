@@ -1056,6 +1056,15 @@ object Effects {
     fun ReturnLinkedExileUnderOwnersControl(): Effect = ExilePatterns.returnLinkedExile(underOwnersControl = true)
 
     /**
+     * Return every card in the source's linked-exile pile to the battlefield **tapped** under its
+     * owner's control. The Timothar Bat-token shape ("return the exiled card to the battlefield
+     * tapped") — pair with [MoveToZoneEffect.linkToTarget] on a token created in the same
+     * resolution so the return reads that token's pile, not the original permanent's.
+     */
+    fun ReturnLinkedExileTappedUnderOwnersControl(): Effect =
+        ExilePatterns.returnLinkedExileTappedUnderOwnersControl()
+
+    /**
      * Return all cards linked to the source permanent (via LinkedExileComponent)
      * to their owner's hand.
      */

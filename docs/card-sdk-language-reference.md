@@ -1414,6 +1414,7 @@ Atomic effect factories. For library/zone manipulation, prefer the pipelines in 
 
 - `ReturnLinkedExile()` — return all from source's linked exile, under controller.
 - `ReturnLinkedExileUnderOwnersControl()` — return under each card's owner. `CardSource.FromLinkedExile()` and `linkToSource` pipeline moves retain the resolving ability's original battlefield source visit: a source that blinks gets a new pile, while its old return trigger reads the departed visit's pile. A token source may cease to exist before that trigger resolves. Leaving exile invalidates the old link even if the same card later returns to exile.
+- `ReturnLinkedExileTappedUnderOwnersControl()` — same as above but each card enters the battlefield **tapped** (`CardDestination.ToZone(BATTLEFIELD, placement = Tapped)`). Timothar, Baron of Bats' Bat token: "return the exiled card to the battlefield tapped." Pair with a token whose linked-exile pile holds the card (`MoveToZoneEffect.linkToTarget` below) and a granted `DealsCombatDamageToPlayer` trigger that runs `SacrificeSelf` then this return.
 - `ReturnLinkedExileToHand()` — return all from linked exile to hand.
 - `ReturnLinkedExileToZoneExiledFrom()` — return each linked-exiled card to **the zone it was exiled from** (CR 610.3 "this second one-shot effect returns the object to its previous zone"), under its owner's control when that zone is the battlefield (CR 610.3c). For an exile-until clause whose exile half can reach more than one zone: **Cloak and Dagger, Entwined** exiles either a nonland card from an opponent's *hand* or the chosen creature from the *battlefield*, and one leaves-the-battlefield trigger puts each back where it belongs. Built on `CardDestination.ToZoneExiledFrom` (below); prefer the fixed-destination siblings when the card names one zone explicitly. Recorded origins are honoured as-is (battlefield, hand, graveyard, library, command zone, sideboard), with two special cases: a card recorded as exiled from the **stack**, or with no recorded origin at all, falls back to the battlefield, and a card exiled **from exile** (CR 406.7) stays put.
 - `ReturnOneFromLinkedExile()` — return one chosen card.
@@ -11421,6 +11422,10 @@ sibling effect that reads `DynamicAmount.EntityProperty(EntityReference.AmassedA
   `LinkedExileComponent` pile, which the Mirrodin *Imprint* keyword (CR 702.15) fills with exactly one
   card, and which any `linkToSource = true` exile writes (`Effects.ExileLinkedToSource`,
   `Patterns.Hand.revealHandAndExileChosen(linkToSource = true)`, `MoveToZone`/`MoveCollection`'s flag).
+  **`linkToTarget`** on `MoveToZoneEffect` / `MoveCollectionEffect` links to a *different* entity
+  resolved at execution time — typically `EffectTarget.PipelineTarget(CREATED_TOKENS, 0)` after a
+  `CreateTokenEffect` in the same `CompositeEffect`, so a created token remembers an exiled card
+  (Timothar's Bat). Takes precedence over `linkToSource`.
   Resolution walks the pile in exile order and **skips ids that have since left exile**, so index `0`
   is the oldest card still exiled and a pile whose card has moved on resolves to null.
 - It is the read-side companion to that flag, and it exists so an imprint payoff needs no
