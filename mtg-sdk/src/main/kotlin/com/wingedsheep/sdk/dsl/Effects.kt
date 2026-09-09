@@ -2738,6 +2738,7 @@ object Effects {
         overridePower: Int? = null,
         overrideToughness: Int? = null,
         removeLegendary: Boolean = false,
+        exileAtStep: com.wingedsheep.sdk.core.Step? = null,
         exceptions: com.wingedsheep.sdk.scripting.effects.CopyExceptions =
             com.wingedsheep.sdk.scripting.effects.CopyExceptions.None,
     ): Effect =
@@ -2745,6 +2746,7 @@ object Effects {
             count,
             overridePower,
             overrideToughness,
+            exileAtStep = exileAtStep,
             removeLegendary = removeLegendary,
             exceptions = exceptions,
         )

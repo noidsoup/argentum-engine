@@ -1,3 +1,60 @@
+// Breath of the Sleepless
+{
+    "name": "Breath of the Sleepless",
+    "manaCost": "{3}{U}",
+    "typeLine": "Enchantment",
+    "oracleText": "You may cast Spirit spells as though they had flash.\nWhenever you cast a creature spell during an opponent's turn, tap up to one target creature.",
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "SpellCastEvent",
+                    "spellFilter": {
+                        "cardPredicates": [
+                            "IsCreature"
+                        ]
+                    }
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "TapUntap",
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "target"
+                    }
+                },
+                "targetRequirement": {
+                    "type": "TargetObject",
+                    "optional": true,
+                    "filter": {
+                        "baseFilter": "creature"
+                    },
+                    "id": "target"
+                },
+                "triggerRestriction": "IsNotYourTurn"
+            }
+        ],
+        "staticAbilities": [
+            {
+                "type": "GrantFlashToSpellType",
+                "filter": "creature Spirit",
+                "controllerOnly": true
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "11",
+        "rarity": "RARE",
+        "artist": "Robin Olausson",
+        "flavorText": "Worse than the obscuring mists are the ghastly faces that appear in the glow of spectral lanterns.",
+        "imageUri": "https://cards.scryfall.io/normal/front/8/c/8c59af37-5c01-4f65-97f6-2478aa29949a.jpg?1783925004"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
+
 // Crossway Troublemakers
 {
     "name": "Crossway Troublemakers",
@@ -275,5 +332,62 @@
     },
     "colorIdentityOverride": [
         "BLACK"
+    ]
+}
+
+// Haunted Library
+{
+    "name": "Haunted Library",
+    "manaCost": "{1}{W}",
+    "typeLine": "Enchantment",
+    "oracleText": "Whenever a creature an opponent controls dies, you may pay {1}. If you do, create a 1/1 white Spirit creature token with flying.",
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "filter": "creature ctrl:opponent",
+                    "from": "Battlefield",
+                    "to": "Graveyard"
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "Gated",
+                    "gate": {
+                        "type": "Gate.MayPay",
+                        "cost": {
+                            "type": "PayManaCost",
+                            "cost": "{1}"
+                        }
+                    },
+                    "then": {
+                        "type": "CreateToken",
+                        "power": 1,
+                        "toughness": 1,
+                        "colors": [
+                            "WHITE"
+                        ],
+                        "creatureTypes": [
+                            "Spirit"
+                        ],
+                        "keywords": [
+                            "FLYING"
+                        ],
+                        "imageUri": "https://cards.scryfall.io/normal/front/8/3/83497714-97ae-4846-8096-f7f1524f0e09.jpg?1783924702"
+                    }
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "6",
+        "rarity": "RARE",
+        "artist": "Justyna Dura",
+        "flavorText": "The library of Moormanor had been open to all before the Travails, and it continues to attract curious visitors.",
+        "imageUri": "https://cards.scryfall.io/normal/front/b/0/b0193151-0f5f-457b-a6b2-08f66b53c9b2.jpg?1783925008"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
     ]
 }

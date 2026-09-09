@@ -171,6 +171,28 @@ class CopyExceptionsTest : FunSpec({
         result.baseKeywords shouldBe setOf(Keyword.TRAMPLE, Keyword.VIGILANCE)
     }
 
+    test("removedKeywords strips keywords — 'except it loses soulbond'") {
+        val base = legendaryArtifactBear().copy(
+            baseKeywords = setOf(Keyword.TRAMPLE, Keyword.SOULBOND),
+        )
+        val result = CopyExceptionApplier.apply(
+            base,
+            CopyExceptions(removedKeywords = setOf(Keyword.SOULBOND)),
+        )
+        result.baseKeywords shouldBe setOf(Keyword.TRAMPLE)
+    }
+
+    test("a keyword named as both added and removed ends up removed") {
+        val result = CopyExceptionApplier.apply(
+            legendaryArtifactBear(),
+            CopyExceptions(
+                addedKeywords = setOf(Keyword.SOULBOND),
+                removedKeywords = setOf(Keyword.SOULBOND),
+            ),
+        )
+        result.baseKeywords shouldBe setOf(Keyword.TRAMPLE)
+    }
+
     test("nameOverride and noManaCost replace name and mana cost") {
         val result = CopyExceptionApplier.apply(
             legendaryArtifactBear(),

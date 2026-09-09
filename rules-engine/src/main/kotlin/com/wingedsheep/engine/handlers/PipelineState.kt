@@ -20,6 +20,11 @@ data class PipelineState(
     val chosenValues: Map<String, String> = emptyMap(),
     /** Named numeric values stored by pipeline effects (e.g., cards not drawn). */
     val storedNumbers: Map<String, Int> = emptyMap(),
+    /**
+     * Per-player numeric tallies stored by [com.wingedsheep.sdk.scripting.effects.RecordPerPlayerNumberEffect].
+     * Outer key is the store name; inner key is the player entity id.
+     */
+    val storedPerPlayerNumbers: Map<String, Map<EntityId, Int>> = emptyMap(),
     /** Named string lists stored by pipeline effects (e.g., chosen creature types). */
     val storedStringLists: Map<String, List<String>> = emptyMap(),
     /**
@@ -45,5 +50,19 @@ data class PipelineState(
          */
         const val TRIGGER_CAPTURED_COLLECTION =
             com.wingedsheep.sdk.scripting.effects.IterationSpace.TRIGGER_CAPTURED_COLLECTION
+
+        /** Merge per-player tallies from a sub-effect into the running pipeline table. */
+        fun mergePerPlayerNumbers(
+            existing: Map<String, Map<EntityId, Int>>,
+            update: Map<String, Map<EntityId, Int>>,
+        ): Map<String, Map<EntityId, Int>> {
+            if (update.isEmpty()) return existing
+            if (existing.isEmpty()) return update
+            val merged = existing.toMutableMap()
+            for ((storeAs, playerCounts) in update) {
+                merged[storeAs] = (existing[storeAs] ?: emptyMap()) + playerCounts
+            }
+            return merged
+        }
     }
 }

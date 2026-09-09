@@ -153,11 +153,20 @@ class TriggerAbilityResolver(
 
         // Apply text replacement if the entity has one
         val textReplacement = state.getEntity(entityId)?.get<TextReplacementComponent>()
-        return if (textReplacement != null) {
+        val withTextReplacement = if (textReplacement != null) {
             combined.map { it.applyTextReplacement(textReplacement) }
         } else {
             combined
         }
+
+        // CR 702.95a — Soulbond is a keyword that *represents* two pairing triggers. A copy that
+        // "loses soulbond" strips the keyword from its copiable values; without this pass the
+        // printed pairing triggers would still fire.
+        return KeywordRepresentativeTriggerFilter.filter(
+            withTextReplacement,
+            entityId,
+            state.projectedState,
+        )
     }
 
     /**
@@ -374,11 +383,17 @@ class TriggerAbilityResolver(
         val combined = if (allGranted.isNotEmpty()) base + allGranted else base
 
         val textReplacement = state.getEntity(entityId)?.get<TextReplacementComponent>()
-        return if (textReplacement != null) {
+        val withTextReplacement = if (textReplacement != null) {
             combined.map { it.applyTextReplacement(textReplacement) }
         } else {
             combined
         }
+
+        return KeywordRepresentativeTriggerFilter.filter(
+            withTextReplacement,
+            entityId,
+            state.projectedState,
+        )
     }
 
     /**

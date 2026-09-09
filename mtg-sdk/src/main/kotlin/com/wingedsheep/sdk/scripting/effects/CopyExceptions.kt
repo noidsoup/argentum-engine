@@ -42,6 +42,8 @@ import kotlinx.serialization.Serializable
  *   rule and every name-matching effect see the override.
  * @property addedKeywords Keywords the copy has *in addition* to the ones it copied — "except it
  *   has flying" (Likeness Looter), "and he has vigilance" (Absorbing Man).
+ * @property removedKeywords Keywords stripped from the copied set — "except it loses soulbond"
+ *   (Mirage Phalanx). Applied **after** [addedKeywords], so a keyword named in both is removed.
  * @property addedSupertypes Supertypes unioned onto the copied type line — "except it's legendary"
  *   (Adagia, Windswept Bastion).
  * @property removedSupertypes Supertypes stripped from the copied type line — "except it isn't
@@ -72,6 +74,7 @@ import kotlinx.serialization.Serializable
 data class CopyExceptions(
     val nameOverride: String? = null,
     val addedKeywords: Set<Keyword> = emptySet(),
+    val removedKeywords: Set<Keyword> = emptySet(),
     val addedSupertypes: Set<Supertype> = emptySet(),
     val removedSupertypes: Set<Supertype> = emptySet(),
     val addedCardTypes: Set<CardType> = emptySet(),
@@ -106,6 +109,7 @@ data class CopyExceptions(
         return CopyExceptions(
             nameOverride = nameOverride ?: base.nameOverride,
             addedKeywords = base.addedKeywords + addedKeywords,
+            removedKeywords = base.removedKeywords + removedKeywords,
             addedSupertypes = base.addedSupertypes + addedSupertypes,
             removedSupertypes = base.removedSupertypes + removedSupertypes,
             addedCardTypes = base.addedCardTypes + addedCardTypes,
@@ -159,6 +163,9 @@ data class CopyExceptions(
         }
         if (addedKeywords.isNotEmpty()) {
             add("it has ${addedKeywords.joinToString(", ") { it.name.lowercase().replace('_', ' ') }}")
+        }
+        if (removedKeywords.isNotEmpty()) {
+            add("it loses ${removedKeywords.joinToString(", ") { it.name.lowercase().replace('_', ' ') }}")
         }
         if (noManaCost) add("it has no mana cost")
     }

@@ -75,7 +75,7 @@ object CopyExceptionApplier {
             name = exceptions.nameOverride ?: base.name,
             typeLine = typeLine(base.typeLine, exceptions),
             baseStats = baseStats(base.baseStats, exceptions),
-            baseKeywords = base.baseKeywords + exceptions.addedKeywords,
+            baseKeywords = base.baseKeywords + exceptions.addedKeywords - exceptions.removedKeywords,
             colors = exceptions.overrideColors ?: (base.colors + exceptions.addedColors),
             // "…and it has no mana cost" (Embalm / Eternalize, CR 702.128a) — mana value 0, and
             // that 0 is itself a copiable value.

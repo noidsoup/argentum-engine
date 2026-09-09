@@ -664,7 +664,7 @@ class PredicateEvaluator(
                 cmc <= refManaValue
             }
             is CardPredicate.ManaValueEqualsEntity -> {
-                val refEntityId = resolveEntityReference(state, predicate.reference, context) ?: return false
+                val refEntityId = resolveEntityReference(state, predicate.reference, context, projected) ?: return false
                 val refManaValue = state.getEntity(refEntityId)?.get<CardComponent>()?.manaValue ?: return false
                 val cmc = if (projectedValues?.isFaceDown == true) 0 else card.manaValue
                 cmc == refManaValue
