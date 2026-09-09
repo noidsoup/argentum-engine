@@ -2280,6 +2280,65 @@
     ]
 }
 
+// Malakir Bloodwitch
+{
+    "name": "Malakir Bloodwitch",
+    "manaCost": "{3}{B}{B}",
+    "typeLine": "Creature — Vampire Shaman",
+    "oracleText": "Flying, protection from white\nWhen this creature enters, each opponent loses life equal to the number of Vampires you control. You gain life equal to the life lost this way.",
+    "creatureStats": {
+        "power": 4,
+        "toughness": 4
+    },
+    "keywords": [
+        "FLYING"
+    ],
+    "keywordAbilities": [
+        {
+            "type": "Protection",
+            "scope": {
+                "type": "ProtectionScope.Color",
+                "color": "WHITE"
+            }
+        }
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "DrainLife",
+                    "amount": {
+                        "type": "AggregateBattlefield",
+                        "player": "You",
+                        "filter": "permanent Vampire"
+                    }
+                },
+                "descriptionOverride": "When this creature enters, each opponent loses life equal to the number of Vampires you control. You gain life equal to the life lost this way."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "100",
+        "rarity": "RARE",
+        "artist": "Shelly Wan",
+        "imageUri": "https://cards.scryfall.io/normal/front/8/6/865ac36f-4c61-468b-a2ed-ed2d1bbbf4e3.jpg?1783942152",
+        "rulings": [
+            {
+                "date": "2009-10-01",
+                "text": "The number of Vampires you control is counted only as Malakir Bloodwitch's ability resolves. If Malakir Bloodwitch is still on the battlefield, it'll count itself."
+            }
+        ]
+    },
+    "colorIdentityOverride": [
+        "BLACK"
+    ]
+}
+
 // Mark of Mutiny
 {
     "name": "Mark of Mutiny",

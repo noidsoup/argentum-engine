@@ -456,6 +456,66 @@
     ]
 }
 
+// Donal, Herald of Wings
+{
+    "name": "Donal, Herald of Wings",
+    "manaCost": "{2}{U}{U}",
+    "typeLine": "Legendary Creature — Human Wizard",
+    "oracleText": "Whenever you cast a nonlegendary creature spell with flying, you may copy it, except the copy is a 1/1 Spirit in addition to its other types. Do this only once each turn. (The copy becomes a token.)",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 3
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "SpellCastEvent",
+                    "spellFilter": {
+                        "cardPredicates": [
+                            "IsCreature",
+                            "IsNonlegendary",
+                            {
+                                "type": "HasKeyword",
+                                "keyword": "FLYING"
+                            }
+                        ]
+                    }
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "CopyTargetSpell",
+                        "target": "TriggeringEntity",
+                        "exceptions": {
+                            "addedSubtypes": [
+                                "Spirit"
+                            ],
+                            "powerOverride": 1,
+                            "toughnessOverride": 1
+                        }
+                    }
+                },
+                "effectOncePerTurn": true,
+                "descriptionOverride": "Whenever you cast a nonlegendary creature spell with flying, you may copy it, except the copy is a 1/1 Spirit in addition to its other types. Do this only once each turn."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "3",
+        "rarity": "MYTHIC",
+        "artist": "Wayne Reynolds",
+        "flavorText": "He sees a flicker of Avacyn's grace in every wingbeat.",
+        "imageUri": "https://cards.scryfall.io/normal/front/7/0/70cf8d2b-5220-4fe9-b39d-6700f0b27cca.jpg?1783925009"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
+
 // Doom Weaver
 {
     "name": "Doom Weaver",

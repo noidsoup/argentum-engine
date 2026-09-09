@@ -6035,6 +6035,78 @@
     ]
 }
 
+// Vampiric Dragon
+{
+    "name": "Vampiric Dragon",
+    "manaCost": "{6}{B}{R}",
+    "typeLine": "Creature — Vampire Dragon",
+    "oracleText": "Flying\nWhenever a creature dealt damage by this creature this turn dies, put a +1/+1 counter on this creature.\n{1}{R}: This creature deals 1 damage to target creature.",
+    "creatureStats": {
+        "power": 5,
+        "toughness": 5
+    },
+    "keywords": [
+        "FLYING"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": "CreatureDealtDamageBySourceDiesEvent",
+                "effect": {
+                    "type": "AddCounters",
+                    "counterType": "+1/+1",
+                    "count": 1,
+                    "target": "Self"
+                },
+                "descriptionOverride": "Whenever a creature dealt damage by this creature this turn dies, put a +1/+1 counter on this creature."
+            }
+        ],
+        "activatedAbilities": [
+            {
+                "id": "ability_2",
+                "cost": {
+                    "type": "CostAtomWrapper",
+                    "atom": {
+                        "type": "AtomMana",
+                        "cost": "{1}{R}"
+                    }
+                },
+                "effect": {
+                    "type": "DealDamage",
+                    "amount": {
+                        "type": "Fixed",
+                        "amount": 1
+                    },
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "target creature"
+                    }
+                },
+                "targetRequirements": [
+                    {
+                        "type": "TargetObject",
+                        "filter": {
+                            "baseFilter": "creature"
+                        },
+                        "id": "target creature"
+                    }
+                ]
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "296",
+        "rarity": "RARE",
+        "artist": "Gary Ruddell",
+        "imageUri": "https://cards.scryfall.io/normal/front/4/f/4f21d595-c248-4aae-9fd7-4e5787ab8781.jpg?1783945205"
+    },
+    "colorIdentityOverride": [
+        "BLACK",
+        "RED"
+    ]
+}
+
 // Volcanic Spray
 {
     "name": "Volcanic Spray",
