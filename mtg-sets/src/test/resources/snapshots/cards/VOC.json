@@ -1978,6 +1978,100 @@
     ]
 }
 
+// Scion of Opulence
+{
+    "name": "Scion of Opulence",
+    "manaCost": "{2}{R}",
+    "typeLine": "Creature — Vampire Noble",
+    "oracleText": "Whenever this creature or another nontoken Vampire you control dies, create a Treasure token. (It's an artifact with \"{T}, Sacrifice this token: Add one mana of any color.\")\n{R}, Sacrifice two artifacts: Exile the top card of your library. You may play that card this turn.",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 1
+    },
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "filter": "creature Vampire nontoken ctrl:you",
+                    "from": "Battlefield",
+                    "to": "Graveyard"
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "CreatePredefinedToken",
+                    "tokenType": "Treasure"
+                },
+                "descriptionOverride": "Whenever this creature or another nontoken Vampire you control dies, create a Treasure token."
+            }
+        ],
+        "activatedAbilities": [
+            {
+                "id": "ability_2",
+                "cost": {
+                    "type": "CostComposite",
+                    "costs": [
+                        {
+                            "type": "CostAtomWrapper",
+                            "atom": {
+                                "type": "AtomMana",
+                                "cost": "{R}"
+                            }
+                        },
+                        {
+                            "type": "CostAtomWrapper",
+                            "atom": {
+                                "type": "AtomSacrifice",
+                                "filter": "artifact",
+                                "count": 2
+                            }
+                        }
+                    ]
+                },
+                "effect": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "GatherCards",
+                            "source": {
+                                "type": "TopOfLibrary",
+                                "count": {
+                                    "type": "Fixed",
+                                    "amount": 1
+                                }
+                            },
+                            "storeAs": "impulseExiled"
+                        },
+                        {
+                            "type": "MoveCollection",
+                            "from": "impulseExiled",
+                            "destination": {
+                                "type": "ToZone",
+                                "zone": "Exile"
+                            }
+                        },
+                        {
+                            "type": "GrantMayPlayFromExile",
+                            "from": "impulseExiled"
+                        }
+                    ]
+                },
+                "descriptionOverride": "{R}, Sacrifice two artifacts: Exile the top card of your library. You may play that card this turn."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "28",
+        "rarity": "RARE",
+        "artist": "Chris Rallis",
+        "imageUri": "https://cards.scryfall.io/normal/front/d/c/dc0296ec-0401-49c6-82c3-9d7e8aa5ee25.jpg?1783924998"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
 // Shadowgrange Archfiend
 {
     "name": "Shadowgrange Archfiend",
@@ -2590,5 +2684,103 @@
     "colorIdentityOverride": [
         "BLUE",
         "BLACK"
+    ]
+}
+
+// Wedding Ring
+{
+    "name": "Wedding Ring",
+    "manaCost": "{2}{W}{W}",
+    "typeLine": "Artifact",
+    "oracleText": "When this artifact enters, if it was cast, target opponent creates a token that's a copy of it.\nWhenever an opponent who controls an artifact named Wedding Ring draws a card during their turn, you draw a card.\nWhenever an opponent who controls an artifact named Wedding Ring gains life during their turn, you gain that much life.",
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "CreateTokenCopyOfTarget",
+                    "target": "Self",
+                    "controller": {
+                        "type": "BoundVariable",
+                        "name": "target opponent"
+                    }
+                },
+                "targetRequirement": {
+                    "type": "TargetOpponent",
+                    "id": "target opponent"
+                },
+                "interveningIf": "WasCast",
+                "descriptionOverride": "When this artifact enters, if it was cast, target opponent creates a token that's a copy of it."
+            },
+            {
+                "id": "ability_2",
+                "trigger": {
+                    "type": "DrawEvent",
+                    "player": "EachOpponent"
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "DrawCards",
+                    "count": {
+                        "type": "Fixed",
+                        "amount": 1
+                    }
+                },
+                "triggerRestriction": {
+                    "type": "All",
+                    "conditions": [
+                        "IsNotYourTurn",
+                        {
+                            "type": "Exists",
+                            "player": "TriggeringPlayer",
+                            "zone": "Battlefield",
+                            "filter": "artifact name:Wedding Ring"
+                        }
+                    ]
+                },
+                "descriptionOverride": "Whenever an opponent who controls an artifact named Wedding Ring draws a card during their turn, you draw a card."
+            },
+            {
+                "id": "ability_3",
+                "trigger": {
+                    "type": "LifeGainEvent",
+                    "player": "EachOpponent"
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "GainLife",
+                    "amount": {
+                        "type": "ContextProperty",
+                        "key": "TRIGGER_LIFE_GAINED"
+                    }
+                },
+                "triggerRestriction": {
+                    "type": "All",
+                    "conditions": [
+                        "IsNotYourTurn",
+                        {
+                            "type": "Exists",
+                            "player": "TriggeringPlayer",
+                            "zone": "Battlefield",
+                            "filter": "artifact name:Wedding Ring"
+                        }
+                    ]
+                },
+                "descriptionOverride": "Whenever an opponent who controls an artifact named Wedding Ring gains life during their turn, you gain that much life."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "32",
+        "rarity": "MYTHIC",
+        "artist": "Olena Richards",
+        "imageUri": "https://cards.scryfall.io/normal/front/7/f/7f0b1400-0608-47fd-9c73-b7730bcf6b7f.jpg?1783924997"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
     ]
 }
