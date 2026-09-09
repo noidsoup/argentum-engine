@@ -12968,7 +12968,9 @@ Counter effects live in §4 (`AddCounters`, `RemoveCounters`, `Proliferate`, `Mo
 
 - `MoveToZoneEffect(target, zone, faceDown?, byDestruction?, linked?)` — single-target move. Card
   definitions construct it via the facade `Effects.Move(target, destination, …)` (or the named
-  shortcuts `Effects.Destroy/Exile/ReturnToHand/PutOnTopOfLibrary/ShuffleIntoLibrary/…`).
+  shortcuts `Effects.Destroy/Exile/ReturnToHand/PutOnTopOfLibrary/ShuffleIntoLibrary/…`). Use
+  `linkToTarget` when exile should attach to a different permanent than the effect source (e.g.
+  Timothar's Bat token holding the linked-exile pile for the dying Vampire).
 - `MoveTrackedBattlefieldObjectEffect(target, destination, enteredBattlefieldTimestamp?)` — moves
   only the battlefield object identified by both entity ID and entry timestamp. When nested in a
   delayed trigger, target resolution snapshots the timestamp automatically. Use for delayed moves

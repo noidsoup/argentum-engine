@@ -3542,7 +3542,7 @@ object Effects {
      * Prefer the named shortcuts ([Destroy], [Exile], [ReturnToHand], [PutOnTopOfLibrary],
      * [ShuffleIntoLibrary], [PutOntoBattlefield], …) when one fits; reach for `Move` for the
      * less-common shapes (custom placement, `fromZone` gating, face-down entry, linked exile,
-     * `positionFromTop`, controller override).
+     * `linkToTarget`, `positionFromTop`, controller override).
      */
     fun Move(
         target: EffectTarget,
@@ -3553,6 +3553,7 @@ object Effects {
         fromZone: Zone? = null,
         faceDown: FaceDownMode? = null,
         linkToSource: Boolean = false,
+        linkToTarget: EffectTarget? = null,
         positionFromTop: Int? = null,
         addCounterType: CounterType? = null
     ): Effect = MoveToZoneEffect(
@@ -3564,6 +3565,7 @@ object Effects {
         fromZone = fromZone,
         faceDown = faceDown,
         linkToSource = linkToSource,
+        linkToTarget = linkToTarget,
         positionFromTop = positionFromTop,
         addCounterType = addCounterType
     )
