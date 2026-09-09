@@ -1335,6 +1335,38 @@ sealed interface DynamicAmount : TextReplaceable<DynamicAmount> {
     }
 
     /**
+     * The greatest mana value among commanders [player] owns on the battlefield and/or in their
+     * command zone — "the greatest mana value of a commander you own on the battlefield or in the
+     * command zone" (Imposing Grandeur, Majestic Genesis, Visions of Glory). Cloudkill uses the
+     * battlefield-only variant (`includeCommandZone = false`).
+     *
+     * Ownership, not control, is what matters on the battlefield: a commander you own still counts
+     * even when another player controls it. The command zone is per-player, so ownership there is
+     * implicit. Returns 0 when no qualifying commander is present.
+     */
+    @SerialName("GreatestManaValueAmongOwnedCommanders")
+    @Serializable
+    data class GreatestManaValueAmongOwnedCommanders(
+        val player: Player = Player.You,
+        val includeBattlefield: Boolean = true,
+        val includeCommandZone: Boolean = true,
+    ) : DynamicAmount {
+        override val description: String = buildString {
+            append("the greatest mana value of a commander ")
+            append(if (player == Player.You) "you" else player.description)
+            append(" own")
+            when {
+                includeBattlefield && includeCommandZone ->
+                    append(" on the battlefield or in the command zone")
+                includeBattlefield -> append(" on the battlefield")
+                includeCommandZone -> append(" in the command zone")
+            }
+        }
+
+        override fun applyTextReplacement(replacer: TextReplacer): DynamicAmount = this
+    }
+
+    /**
      * Generic zone aggregation primitive.
      * Queries cards in a player's zone, filters them, optionally maps to a numeric
      * property, and applies an aggregation function.

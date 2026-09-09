@@ -3232,6 +3232,7 @@ one-off pipeline belongs inline in the card file via `Effects.Pipeline { }` (§5
 - `eachPlayerDiscards(count)` — each player *including you* discards N, each from their own hand (facade `Effects.EachPlayerDiscards(count)`). Rankle's Prank's first mode, Lore Broker's second half. One `ForEachPlayer(Player.ActivePlayerFirst)` iteration per player so the choices happen in APNAP order (CR 101.4); iterations run sequentially, so a later player chooses after an earlier player's cards have already hit the graveyard, where the rules would have every player choose face down (CR 101.4a) and discard simultaneously. The mtgish emitter renders `EachPlayerAction(AnyPlayer, Discard…)` to this pattern when the discard is the player's sole action.
 - `eachPlayerDiscardsDraws(controllerBonusDraw?)` — Flux: each player discards any number of cards from their hand, then draws that many. Optional controller draw rider (Flux draws one).
 - `eachPlayerDiscardsHandDrawsGreatest()` — Windfall / Whispering Madness / Jace's Archivist: each player discards their entire hand, then each player draws cards equal to the greatest per-player discard count recorded during that step (not each player's own count).
+- `eachPlayerMayDiscardHandAndDraw(drawCount)` — Imposing Grandeur / Raphael's Technique / Ruin Grinder: each player, in APNAP order, may discard their entire hand and draw `drawCount` cards as one combined optional action (`MayEffect` over `discardHand` + `DrawCardsEffect`). Pass `DynamicAmount.Fixed(7)` for the fixed-seven shape; pair with `DynamicAmounts.greatestOwnedCommanderManaValue()` for the commander-mana-value shape.
 - `eachPlayerDrawsX(includeController?, includeOpponents?)` — Howling Mine shape.
 - `eachPlayerMayDraw(maxCards, lifePerCardNotDrawn?)` — optional group draw with a tax.
 - `exileFromHand(count?, target)` — exile N from hand.
@@ -4685,6 +4686,10 @@ This is the player-arm prerequisite for the planned composable mixed `TargetUnio
   doesn't matter who controlled the permanent when the damage landed, or whether it was on the battlefield
   then. Same lifetime and source-relative caveats as its mirror.
 - `.saddled()` — permanent is saddled (CR 702.171b); backed by `StatePredicate.IsSaddled`.
+- `.commander()` / `GameObjectFilter.Commander` — card carries `CommanderComponent` (Commander/Brawl
+  formats). Matches in the command zone and on the battlefield, including a commander you own but
+  another player controls; token copies do not carry the marker (CR 903.10a). Backed by
+  `StatePredicate.IsCommander`.
 - `.renowned()` — creature has the **renowned** designation (CR 702.112b); backed by
   `StatePredicate.IsRenowned` and the engine's `RenownedComponent`. Component-backed and sticky
   exactly like `.solved()`: it lasts until the permanent leaves the battlefield, there is no
@@ -10921,6 +10926,12 @@ Numbers computed at resolution time.
 - `GreatestPerPlayerNumber(storeAs)` — the largest tally in pipeline `storedPerPlayerNumbers[storeAs]`.
   Used after a [RecordPerPlayerNumberEffect] loop to read "the greatest number of cards a player
   discarded this way" ([Patterns.Hand.eachPlayerDiscardsHandDrawsGreatest]).
+- `GreatestManaValueAmongOwnedCommanders(player?, includeBattlefield?, includeCommandZone?)` /
+  facade `DynamicAmounts.greatestOwnedCommanderManaValue(...)` — the greatest mana value among
+  commanders [player] **owns** on the battlefield and/or in their command zone (Imposing Grandeur,
+  Majestic Genesis, Visions of Glory). Battlefield candidates match by immutable owner, not projected
+  controller, so a stolen commander still counts for its owner. Set `includeCommandZone = false` for
+  battlefield-only wordings (Cloudkill). Returns 0 when no qualifying commander is present.
 - `AggregateZone(player, zone, filter?, aggregation?)` — count cards in a zone.
 - `CountPermanentsOfType(player, subtype)` — count by creature type.
 - `CountCreaturesYouControl` — shorthand for "your creatures".

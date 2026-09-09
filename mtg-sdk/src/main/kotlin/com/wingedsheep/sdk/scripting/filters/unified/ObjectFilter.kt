@@ -118,6 +118,9 @@ data class GameObjectFilter(
         val Any = GameObjectFilter()
 
         // Type filters
+        /** A card carrying `CommanderComponent` — see [StatePredicate.IsCommander]. */
+        val Commander = GameObjectFilter(statePredicates = listOf(StatePredicate.IsCommander))
+
         val Creature = GameObjectFilter(cardPredicates = listOf(CardPredicate.IsCreature))
         val Land = GameObjectFilter(cardPredicates = listOf(CardPredicate.IsLand))
         val BasicLand = GameObjectFilter(cardPredicates = listOf(CardPredicate.IsBasicLand))
@@ -1216,6 +1219,11 @@ data class GameObjectFilter(
     /** Must have the renowned designation (CR 702.112b) — see [StatePredicate.IsRenowned]. */
     fun renowned() = copy(
         statePredicates = statePredicates + StatePredicate.IsRenowned
+    )
+
+    /** Must carry `CommanderComponent` — see [StatePredicate.IsCommander]. */
+    fun commander() = copy(
+        statePredicates = statePredicates + StatePredicate.IsCommander
     )
 
     /**

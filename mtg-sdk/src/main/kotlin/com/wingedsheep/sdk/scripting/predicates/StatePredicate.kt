@@ -960,6 +960,18 @@ sealed interface StatePredicate {
         override val description: String = "renowned"
     }
 
+    /**
+     * Carries the engine's `CommanderComponent` — a card designated as a player's commander in
+     * Commander/Brawl formats. Matches in the command zone and on the battlefield (including a
+     * commander you own but another player controls). Token copies of a commander do not carry
+     * this marker (CR 903.10a).
+     */
+    @SerialName("IsCommander")
+    @Serializable
+    data object IsCommander : Entity {
+        override val description: String = "commander"
+    }
+
     // =============================================================================
     // Saddle (Entity)
     // =============================================================================

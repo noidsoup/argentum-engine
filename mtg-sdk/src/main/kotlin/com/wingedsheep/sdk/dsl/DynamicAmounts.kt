@@ -632,6 +632,21 @@ object DynamicAmounts {
     fun energyCount(player: Player = Player.You): DynamicAmount =
         DynamicAmount.PlayerCounterCount(com.wingedsheep.sdk.core.Counters.ENERGY, player)
 
+    /**
+     * Greatest mana value among commanders [player] owns on the battlefield and/or in their command
+     * zone (Imposing Grandeur, Majestic Genesis, Visions of Glory). Pass `includeCommandZone = false`
+     * for battlefield-only wordings (Cloudkill).
+     */
+    fun greatestOwnedCommanderManaValue(
+        player: Player = Player.You,
+        includeBattlefield: Boolean = true,
+        includeCommandZone: Boolean = true,
+    ): DynamicAmount = DynamicAmount.GreatestManaValueAmongOwnedCommanders(
+        player = player,
+        includeBattlefield = includeBattlefield,
+        includeCommandZone = includeCommandZone,
+    )
+
     // =========================================================================
     // Entity property shortcuts (composable entity + property)
     // =========================================================================

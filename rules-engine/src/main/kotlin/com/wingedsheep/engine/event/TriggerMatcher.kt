@@ -2310,6 +2310,9 @@ class TriggerMatcher(
         com.wingedsheep.sdk.scripting.predicates.StatePredicate.IsRenowned ->
             state.getEntity(entityId)
                 ?.has<com.wingedsheep.engine.state.components.battlefield.RenownedComponent>() == true
+        com.wingedsheep.sdk.scripting.predicates.StatePredicate.IsCommander ->
+            state.getEntity(entityId)
+                ?.has<com.wingedsheep.engine.state.components.identity.CommanderComponent>() == true
         // Soulbond pairing (CR 702.95b) — plain per-entity state, evaluable here, so a
         // "whenever a paired creature …" trigger filter gates correctly instead of failing open.
         com.wingedsheep.sdk.scripting.predicates.StatePredicate.IsPaired ->

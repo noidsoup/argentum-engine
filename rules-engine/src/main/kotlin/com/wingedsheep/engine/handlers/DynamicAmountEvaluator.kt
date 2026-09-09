@@ -18,6 +18,7 @@ import com.wingedsheep.engine.state.components.battlefield.chosenOpponent
 import com.wingedsheep.engine.state.components.battlefield.CountersComponent
 import com.wingedsheep.engine.state.components.battlefield.GrantsStationUsingToughnessComponent
 import com.wingedsheep.engine.state.components.identity.CardComponent
+import com.wingedsheep.engine.state.components.identity.CommanderComponent
 import com.wingedsheep.engine.state.components.identity.ControllerComponent
 import com.wingedsheep.engine.state.components.identity.FaceDownComponent
 import com.wingedsheep.engine.state.components.identity.LifeTotalComponent
@@ -436,6 +437,14 @@ class DynamicAmountEvaluator(
 
             is DynamicAmount.GreatestPerPlayerNumber ->
                 context.pipeline.storedPerPlayerNumbers[amount.storeAs]?.values?.maxOrNull() ?: 0
+
+            is DynamicAmount.GreatestManaValueAmongOwnedCommanders ->
+                evaluateGreatestManaValueAmongOwnedCommanders(
+                    state,
+                    amount,
+                    context,
+                    projectedState,
+                )
 
             // Devotion (CR 700.5): the number of mana symbols of the named colors among the mana
             // costs of permanents the player controls. Hybrid ({W/U}), monocolored hybrid ({2/B}),
@@ -1207,6 +1216,45 @@ class DynamicAmountEvaluator(
                 }.size
             }
         }
+    }
+
+    /**
+     * Greatest mana value among commanders a player owns on the battlefield and/or in their command
+     * zone. Battlefield candidates are matched by immutable owner, not projected controller, so a
+     * stolen commander still counts for its owner (Imposing Grandeur ruling).
+     */
+    private fun evaluateGreatestManaValueAmongOwnedCommanders(
+        state: GameState,
+        amount: DynamicAmount.GreatestManaValueAmongOwnedCommanders,
+        context: EffectContext,
+        explicitProjection: ProjectedState?,
+    ): Int {
+        val playerIds = resolveUnifiedPlayerIds(state, amount.player, context)
+        val projection = resolveProjection(state, explicitProjection)
+
+        return playerIds.maxOfOrNull { playerId ->
+            val candidates = buildList {
+                if (amount.includeBattlefield) {
+                    addAll(
+                        state.getBattlefield().filter { entityId ->
+                            val container = state.getEntity(entityId)
+                            container?.has<CommanderComponent>() == true &&
+                                container.get<CardComponent>()?.ownerId == playerId
+                        },
+                    )
+                }
+                if (amount.includeCommandZone) {
+                    addAll(
+                        state.getZone(ZoneKey(playerId, Zone.COMMAND)).filter { entityId ->
+                            state.getEntity(entityId)?.has<CommanderComponent>() == true
+                        },
+                    )
+                }
+            }
+            candidates.maxOfOrNull { entityId ->
+                resolveCardNumericProperty(state, projection, entityId, CardNumericProperty.MANA_VALUE)
+            } ?: 0
+        } ?: 0
     }
 
     private fun resolveUnifiedPlayerIds(

@@ -22,6 +22,7 @@ import com.wingedsheep.sdk.scripting.effects.ForEachPlayerCollectingEffect
 import com.wingedsheep.sdk.scripting.effects.GainLifeEffect
 import com.wingedsheep.sdk.scripting.effects.GatherCardsEffect
 import com.wingedsheep.sdk.scripting.effects.MoveCollectionEffect
+import com.wingedsheep.sdk.scripting.effects.MayEffect
 import com.wingedsheep.sdk.scripting.effects.MoveType
 import com.wingedsheep.sdk.scripting.effects.RecordPerPlayerNumberEffect
 import com.wingedsheep.sdk.scripting.effects.RepeatDynamicTimesEffect
@@ -516,6 +517,28 @@ object HandPatterns {
         descriptionOverride = "Each player discards their hand, then draws cards equal to the " +
             "greatest number of cards a player discarded this way.",
     )
+
+    /**
+     * "Each player may discard their hand and draw cards equal to …" — Imposing Grandeur,
+     * Raphael's Technique (pass [DynamicAmount.Fixed(7)]), Ruin Grinder. APNAP per-player
+     * [MayEffect] over [discardHand] then [DrawCardsEffect]: declining skips both the discard and
+     * the draw as one combined optional action.
+     */
+    fun eachPlayerMayDiscardHandAndDraw(drawCount: DynamicAmount): Effect =
+        ForEachPlayerEffect(
+            players = Player.ActivePlayerFirst,
+            effects = listOf(
+                MayEffect(
+                    decisionMaker = EffectTarget.Controller,
+                    effect = CompositeEffect(
+                        listOf(
+                            discardHand(EffectTarget.Controller),
+                            DrawCardsEffect(drawCount, EffectTarget.Controller),
+                        ),
+                    ),
+                ),
+            ),
+        )
 
     fun discardHand(target: EffectTarget = EffectTarget.Controller): CompositeEffect {
         val player = effectTargetToPlayer(target)
