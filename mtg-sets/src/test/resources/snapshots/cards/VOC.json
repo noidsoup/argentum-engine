@@ -992,6 +992,129 @@
     ]
 }
 
+// Kamber, the Plunderer
+{
+    "name": "Kamber, the Plunderer",
+    "manaCost": "{3}{B}",
+    "typeLine": "Legendary Creature — Vampire Rogue",
+    "oracleText": "Partner with Laurine, the Diversion (When this creature enters, target player may put Laurine into their hand from their library, then shuffle.)\nLifelink\nWhenever a creature an opponent controls dies, you gain 1 life and create a Blood token. (It's an artifact with \"{1}, {T}, Discard a card, Sacrifice this token: Draw a card.\")",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 4
+    },
+    "keywords": [
+        "LIFELINK"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "Composite",
+                        "effects": [
+                            {
+                                "type": "GatherCards",
+                                "source": {
+                                    "type": "FromZone",
+                                    "zone": "Library",
+                                    "player": "TargetPlayer",
+                                    "filter": {
+                                        "cardPredicates": [
+                                            {
+                                                "type": "NameEquals",
+                                                "name": "Laurine, the Diversion"
+                                            }
+                                        ]
+                                    }
+                                },
+                                "storeAs": "laurineInLibrary"
+                            },
+                            {
+                                "type": "SelectFromCollection",
+                                "from": "laurineInLibrary",
+                                "selection": {
+                                    "type": "ChooseUpTo",
+                                    "count": {
+                                        "type": "Fixed",
+                                        "amount": 1
+                                    }
+                                },
+                                "chooser": "TargetPlayer",
+                                "storeSelected": "laurineFound",
+                                "prompt": "Search your library for a card named Laurine, the Diversion"
+                            },
+                            {
+                                "type": "MoveCollection",
+                                "from": "laurineFound",
+                                "destination": {
+                                    "type": "ToZone",
+                                    "zone": "Hand",
+                                    "player": "TargetPlayer"
+                                },
+                                "revealed": true
+                            },
+                            {
+                                "type": "ShuffleLibrary",
+                                "target": {
+                                    "type": "BoundVariable",
+                                    "name": "target player"
+                                }
+                            },
+                            "EmitLibrarySearchedEvent"
+                        ]
+                    }
+                },
+                "targetRequirement": {
+                    "type": "TargetPlayer",
+                    "id": "target player"
+                }
+            },
+            {
+                "id": "ability_2",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "filter": "creature ctrl:opponent",
+                    "from": "Battlefield",
+                    "to": "Graveyard"
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "GainLife",
+                            "amount": {
+                                "type": "Fixed",
+                                "amount": 1
+                            }
+                        },
+                        {
+                            "type": "CreatePredefinedToken",
+                            "tokenType": "Blood"
+                        }
+                    ]
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "19",
+        "rarity": "RARE",
+        "artist": "Andrey Kuzinskiy",
+        "imageUri": "https://cards.scryfall.io/normal/front/c/2/c2e932f7-1a72-44e7-89f7-b853eada74f0.jpg?1783925004"
+    },
+    "colorIdentityOverride": [
+        "BLACK"
+    ]
+}
+
 // Laurine, the Diversion
 {
     "name": "Laurine, the Diversion",
