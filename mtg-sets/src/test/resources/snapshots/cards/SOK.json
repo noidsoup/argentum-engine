@@ -55,3 +55,59 @@
         "RED"
     ]
 }
+
+// Promise of Bunrei
+{
+    "name": "Promise of Bunrei",
+    "manaCost": "{2}{W}",
+    "typeLine": "Enchantment",
+    "oracleText": "When a creature you control dies, sacrifice this enchantment. If you do, create four 1/1 colorless Spirit creature tokens.",
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "filter": "creature ctrl:you",
+                    "from": "Battlefield",
+                    "to": "Graveyard"
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "Gated",
+                    "gate": {
+                        "type": "Gate.DoAction",
+                        "action": {
+                            "type": "SacrificeTarget",
+                            "target": "Self"
+                        },
+                        "successCriterion": "SuccessCriterion.PermanentsSacrificed"
+                    },
+                    "then": {
+                        "type": "CreateToken",
+                        "count": {
+                            "type": "Fixed",
+                            "amount": 4
+                        },
+                        "power": 1,
+                        "toughness": 1,
+                        "colors": [],
+                        "creatureTypes": [
+                            "Spirit"
+                        ]
+                    }
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "24",
+        "rarity": "RARE",
+        "artist": "Stephen Tappin",
+        "flavorText": "\"I am not afraid to die today nor afraid of what death will bring.\"",
+        "imageUri": "https://cards.scryfall.io/normal/front/1/2/1250735d-d43b-488f-bddf-ed10261a6382.jpg?1783944168"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}

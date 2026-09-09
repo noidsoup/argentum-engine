@@ -4443,6 +4443,63 @@
     "colorIdentityOverride": []
 }
 
+// Stromkirk Condemned
+{
+    "name": "Stromkirk Condemned",
+    "manaCost": "{B}{B}",
+    "typeLine": "Creature — Vampire Horror",
+    "oracleText": "Discard a card: Vampires you control get +1/+1 until end of turn. Activate only once each turn.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 2
+    },
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": {
+                    "type": "CostAtomWrapper",
+                    "atom": "AtomDiscard"
+                },
+                "effect": {
+                    "type": "ForEach",
+                    "space": {
+                        "type": "IterationSpace.Group",
+                        "filter": {
+                            "baseFilter": "creature Vampire ctrl:you"
+                        }
+                    },
+                    "body": {
+                        "type": "ModifyStats",
+                        "powerModifier": {
+                            "type": "Fixed",
+                            "amount": 1
+                        },
+                        "toughnessModifier": {
+                            "type": "Fixed",
+                            "amount": 1
+                        },
+                        "target": "Self"
+                    }
+                },
+                "restrictions": [
+                    "OncePerTurn"
+                ]
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "106",
+        "rarity": "RARE",
+        "artist": "Magali Villeneuve",
+        "flavorText": "\"Blood from the vein is the finest vintage to accompany a feast of the mind.\"\n—Runo Stromkirk",
+        "imageUri": "https://cards.scryfall.io/normal/front/c/4/c4a8403e-bf4c-4aae-9102-188f49c61ddf.jpg?1783937473"
+    },
+    "colorIdentityOverride": [
+        "BLACK"
+    ]
+}
+
 // Stromkirk Occultist
 {
     "name": "Stromkirk Occultist",
