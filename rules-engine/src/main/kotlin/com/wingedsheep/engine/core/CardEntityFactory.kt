@@ -134,7 +134,7 @@ object CardEntityFactory {
         // so the cost has to ride the card entity in every zone rather than be looked up from the
         // battlefield — see [MadnessComponent].
         (cardDef.keywordAbilities.firstOrNull { it is KeywordAbility.Madness } as? KeywordAbility.Madness)
-            ?.let { result = result.with(MadnessComponent(it.cost)) }
+            ?.let { result = result.with(MadnessComponent(it.cost, it.additionalCost)) }
 
         val dredgeAmounts = cardDef.keywordAbilities.filterIsInstance<KeywordAbility.Dredge>().map { it.amount }
         if (dredgeAmounts.isNotEmpty()) result = result.with(DredgeComponent(dredgeAmounts))

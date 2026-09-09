@@ -855,6 +855,12 @@ class DynamicAmountEvaluator(
             is DynamicAmount.TotalPowerSacrificedThisWay ->
                 context.sacrificedPermanents.sumOf { it.power ?: 0 }
 
+            // "The greatest power among creatures sacrificed this way" over the same snapshots —
+            // last-known power as each permanent was sacrificed (Rule 608.2h). Noncreatures add
+            // nothing; ties across opponents all contribute the same max value.
+            is DynamicAmount.GreatestPowerSacrificedThisWay ->
+                context.sacrificedPermanents.mapNotNull { it.power }.maxOrNull() ?: 0
+
             // "The greatest number of creatures you control that have a creature type in common"
             // (White Lotus Tile). For every creature type present among the player's creatures,
             // tally how many of those creatures have it, then take the max. A creature with several

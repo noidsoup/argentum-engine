@@ -586,10 +586,13 @@ sealed interface KeywordAbility {
     @SerialName("Madness")
     @Serializable
     data class Madness(
-        val cost: ManaCost
+        val cost: ManaCost,
+        val additionalCost: AdditionalCost? = null
     ) : KeywordAbility {
         override val keyword: Keyword = Keyword.MADNESS
-        override val description: String = "Madness $cost"
+        override val description: String =
+            if (additionalCost == null) "Madness $cost"
+            else "Madness—$cost, ${additionalCost.description}"
     }
 
     // =========================================================================
@@ -1332,6 +1335,12 @@ sealed interface KeywordAbility {
          * Create Madness with mana cost from string (e.g., "Madness {R}").
          */
         fun madness(cost: String): KeywordAbility = Madness(ManaCost.parse(cost))
+
+        /**
+         * Create Madness with a mana cost and an additional cost (e.g., "Madness—{2}{B}, Pay 8 life").
+         */
+        fun madness(cost: String, additionalCost: AdditionalCost): KeywordAbility =
+            Madness(ManaCost.parse(cost), additionalCost)
 
         /** Replace a draw by milling [amount] and returning this graveyard card to hand. */
         fun dredge(amount: Int): KeywordAbility = Dredge(amount)

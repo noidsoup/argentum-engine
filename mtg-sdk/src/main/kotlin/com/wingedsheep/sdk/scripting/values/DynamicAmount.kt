@@ -1785,6 +1785,24 @@ sealed interface DynamicAmount : TextReplaceable<DynamicAmount> {
     }
 
     /**
+     * Greatest power among the permanents sacrificed by the current resolving effect ("the greatest
+     * power among creatures sacrificed this way"). Reads the same `EffectContext.sacrificedPermanents`
+     * snapshot list as [PermanentsSacrificedThisWay] and [TotalPowerSacrificedThisWay], taking the
+     * maximum last-known power rather than the sum.
+     *
+     * Snapshots without power (a sacrificed noncreature) are ignored. When nothing with power was
+     * sacrificed, the amount is zero — "gain life equal to…" then gains no life.
+     *
+     * Used by Shadowgrange Archfiend's ETB rider after an edict that sacrifices each opponent's
+     * greatest-power creature.
+     */
+    @SerialName("GreatestPowerSacrificedThisWay")
+    @Serializable
+    data object GreatestPowerSacrificedThisWay : DynamicAmount {
+        override val description: String = "the greatest power among creatures sacrificed this way"
+    }
+
+    /**
      * The size of the largest creature-type tribe among the creatures [player] controls — i.e.
      * "the greatest number of creatures you control that have a creature type in common."
      *

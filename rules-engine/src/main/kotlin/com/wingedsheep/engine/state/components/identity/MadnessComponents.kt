@@ -18,7 +18,8 @@ import kotlinx.serialization.Serializable
  */
 @Serializable
 data class MadnessComponent(
-    val cost: ManaCost
+    val cost: ManaCost,
+    val additionalCost: com.wingedsheep.sdk.scripting.AdditionalCost? = null
 ) : Component
 
 /**

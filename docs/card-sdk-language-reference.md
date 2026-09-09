@@ -9612,7 +9612,8 @@ composite abilities).
   splice changes once it leaves the stack"* (CR 702.47e) needs no cleanup code. The engine handles **arbitrarily many**
   spliced cards (`CastSpell.splicedCardIds` is an ordered list), but the enumerator deliberately surfaces one splice card
   per action — every subset would be exponential. *Through the Breach* (CHK, reprinted in INR).
-- `Madness(cost)` — `card { madness("{cost}") }` builder helper (CR 702.35). One keyword, **two abilities**
+- `Madness(cost)` / `madness(cost, additionalCost)` — `card { madness("{cost}") }` or
+  `madness("{cost}", AdditionalCost.Atom(CostAtom.PayLife(n)))` builder helper (CR 702.35). One keyword, **two abilities**
   (CR 702.35a): a *static* one functioning in **hand** — *"if a player would discard this card, that player discards it,
   but exiles it instead of putting it into their graveyard"* — and a *triggered* one functioning on that exile —
   *"when this card is exiled this way, its owner may cast it by paying [cost] rather than paying its mana cost. If that
@@ -9622,7 +9623,9 @@ composite abilities).
   **every** discard route — an opponent's Mind Rot, a cost payment, cycling, the CR 514.1 cleanup-step hand-size
   discard. The card is still *discarded*, so "whenever you discard" payoffs and `CardsDiscardedThisTurnComponent`
   still see it. As it lands in exile it is stamped `MadnessExiledComponent` plus a
-  `PlayWithFixedAlternativeManaCostComponent` carrying the madness cost, and `ZoneTransitionService.moveToZone` emits
+  `PlayWithFixedAlternativeManaCostComponent` carrying the madness cost (and, when the keyword carries a bundled
+  [additionalCost], a `PlayWithAdditionalCostComponent` so the exile cast path pays it per CR 601.2f–h), and
+  `ZoneTransitionService.moveToZone` emits
   `CardExiledWithMadnessEvent`; `TriggerDetector.detectMadnessCastTriggers` turns that into `Madness.castAbility`, an
   **owner-controlled** synthesized trigger (`activeZone = EXILE`) composing `MayEffect(GatherCardsEffect(CardSource.Self)
   → CastFromCollectionWithoutPayingCostEffect(payManaCost = true))` with a trailing
@@ -9633,7 +9636,7 @@ composite abilities).
   card leaves exile, so a lingering fixed cost can never re-price a later graveyard cast. Riders that branch on whether
   "this spell's madness cost was paid" read `Conditions.MadnessCostWasPaid` off the resolution context (or the durable
   `ChoiceSlot.MADNESS_CAST` flag on a resolving permanent) — e.g. *Avacyn's Judgment*.
-  *Fiery Temper*, *Gisa's Bidding*, *Bloodmad Vampire*.
+  *Fiery Temper*, *Gisa's Bidding*, *Bloodmad Vampire*, *Shadowgrange Archfiend* (Madness—{2}{B}, Pay 8 life).
   - **Granting madness** — `GrantMadnessToOwnedCards(filter)` is the static half of Falkenrath Gorger:
     *"Each Vampire creature card you own that isn't on the battlefield has madness. The madness cost is equal to its
     mana cost."* It carries no cost field — "equal to its mana cost" is the only printed shape, so the cost is derived
@@ -11057,6 +11060,10 @@ both spellings, and the ability its bare-noun line grants says "Regenerate this 
   (Rule 608.2h) — which is what the wording has to mean, since they are all in the graveyard by the
   time a later sibling effect reads them. A sacrificed noncreature contributes 0 rather than
   erroring. Evaluates to 0 when nothing was sacrificed.
+- `GreatestPowerSacrificedThisWay` (facade `DynamicAmounts.greatestPowerSacrificedThisWay()`) — the max
+  power among the same `sacrificedPermanents` snapshots (not the sum): "You gain life equal to the greatest
+  power among creatures sacrificed this way" (Shadowgrange Archfiend) after a greatest-power edict in the
+  same composite. Snapshots without power are ignored; evaluates to 0 when nothing with power was sacrificed.
 - `LargestSharedCreatureTypeCount(player = You)` — the size of the largest creature-type tribe among
   the creatures `player` controls, i.e. "the greatest number of creatures you control that have a
   creature type in common." For every creature type present, tally how many of the player's creatures

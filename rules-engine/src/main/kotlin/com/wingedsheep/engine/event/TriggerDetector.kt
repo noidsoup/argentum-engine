@@ -36,6 +36,7 @@ import com.wingedsheep.engine.state.components.identity.CardComponent
 import com.wingedsheep.engine.state.components.identity.EmblemSourceComponent
 import com.wingedsheep.engine.state.components.identity.ControllerComponent
 import com.wingedsheep.engine.state.components.identity.FaceDownComponent
+import com.wingedsheep.engine.state.components.identity.PlayWithAdditionalCostComponent
 import com.wingedsheep.engine.state.components.identity.PlayWithFixedAlternativeManaCostComponent
 import com.wingedsheep.engine.state.components.identity.MadnessExiledComponent
 import com.wingedsheep.sdk.scripting.GameObjectFilter
@@ -2119,11 +2120,16 @@ class TriggerDetector(
         // The cost comes off the fixed alternative cost stamped alongside the marker rather than
         // off the card's printed MadnessComponent: madness can also be *granted* (Falkenrath
         // Gorger), and the stamped cost is the one the cast will actually charge either way.
-        val cost = container.get<PlayWithFixedAlternativeManaCostComponent>()?.fixedCost ?: return
+        val fixedAlt = container.get<PlayWithFixedAlternativeManaCostComponent>() ?: return
+        val cost = fixedAlt.fixedCost
+        val additionalCost = container.get<PlayWithAdditionalCostComponent>()
+            ?.takeIf { it.controllerId == event.ownerId }
+            ?.additionalCosts
+            ?.singleOrNull()
 
         triggers.add(
             PendingTrigger(
-                ability = Madness.castAbility(cost),
+                ability = Madness.castAbility(cost, additionalCost),
                 sourceId = event.cardId,
                 sourceName = event.cardName,
                 controllerId = event.ownerId,

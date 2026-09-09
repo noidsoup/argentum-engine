@@ -785,6 +785,15 @@ object DynamicAmounts {
         DynamicAmount.TotalPowerSacrificedThisWay
 
     /**
+     * Greatest power among permanents sacrificed by the current resolving effect ("the greatest
+     * power among creatures sacrificed this way"), read from the same `sacrificedPermanents`
+     * snapshots as [permanentsSacrificedThisWay]. See [DynamicAmount.GreatestPowerSacrificedThisWay].
+     * Used by Shadowgrange Archfiend's life-gain rider after a greatest-power edict.
+     */
+    fun greatestPowerSacrificedThisWay(): DynamicAmount =
+        DynamicAmount.GreatestPowerSacrificedThisWay
+
+    /**
      * "That many" — the number of repetitions a
      * [com.wingedsheep.sdk.scripting.effects.PayManaCostRepeatedlyEffect] was paid, read back out
      * of the resolution pipeline. Pair it with the matching `storeCountAs` when the effect uses a

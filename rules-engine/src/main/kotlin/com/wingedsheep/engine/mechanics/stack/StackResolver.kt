@@ -431,8 +431,12 @@ class StackResolver(
             updated = updated.without<com.wingedsheep.engine.state.components.identity.PlayWithCostIncreaseComponent>()
             updated = updated.without<com.wingedsheep.engine.state.components.identity.PlayWithFixedAlternativeManaCostComponent>()
             // The madness offer (CR 702.35a) is spent the moment the card is cast; drop the marker
-            // with the fixed madness cost it published so the two never outlive each other.
-            updated = updated.without<com.wingedsheep.engine.state.components.identity.MadnessExiledComponent>()
+            // with the fixed madness cost it published so the two never outlive each other. The
+            // bundled pay-life (or other) additional cost stamped alongside madness exile goes too.
+            if (c.has<com.wingedsheep.engine.state.components.identity.MadnessExiledComponent>()) {
+                updated = updated.without<com.wingedsheep.engine.state.components.identity.MadnessExiledComponent>()
+                updated = updated.without<com.wingedsheep.engine.state.components.identity.PlayWithAdditionalCostComponent>()
+            }
             // A card cast face up is revealed as it goes on the stack. Foretold cards (and any
             // other hidden-in-exile card) carry a FaceDownComponent for opponent masking while
             // exiled; strip it here so the spell isn't masked on the stack (CR 702.143 — casting a

@@ -17,3 +17,8 @@ import com.wingedsheep.sdk.scripting.KeywordAbility
 fun CardBuilder.madness(cost: String) {
     keywordAbilityList.add(KeywordAbility.madness(cost))
 }
+
+/** Madness with a bundled additional cost (e.g. Shadowgrange Archfiend's "Pay 8 life"). */
+fun CardBuilder.madness(cost: String, additionalCost: com.wingedsheep.sdk.scripting.AdditionalCost) {
+    keywordAbilityList.add(KeywordAbility.madness(cost, additionalCost))
+}

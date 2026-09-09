@@ -33,6 +33,28 @@ object MadnessGrants {
 
     private val predicateEvaluator = PredicateEvaluator()
 
+    /** Printed or granted madness cost and any bundled additional cost. */
+    data class EffectiveMadness(
+        val cost: ManaCost,
+        val additionalCost: com.wingedsheep.sdk.scripting.AdditionalCost? = null
+    )
+
+    /**
+     * The madness [cost] and optional [additionalCost] [cardId] effectively has, or null if it has
+     * none. Printed madness on the card wins; otherwise the first matching battlefield grant applies
+     * at the card's own mana cost with no additional cost.
+     */
+    fun effectiveMadness(
+        state: GameState,
+        cardId: EntityId,
+        container: ComponentContainer
+    ): EffectiveMadness? {
+        container.get<MadnessComponent>()?.let {
+            return EffectiveMadness(it.cost, it.additionalCost)
+        }
+        return grantedMadnessCost(state, cardId, container)?.let { EffectiveMadness(it) }
+    }
+
     /**
      * The madness cost [cardId] effectively has, or null if it has none. Printed madness on the
      * card wins; otherwise the first matching battlefield grant applies at the card's own mana
@@ -45,10 +67,7 @@ object MadnessGrants {
         state: GameState,
         cardId: EntityId,
         container: ComponentContainer
-    ): ManaCost? {
-        container.get<MadnessComponent>()?.let { return it.cost }
-        return grantedMadnessCost(state, cardId, container)
-    }
+    ): ManaCost? = effectiveMadness(state, cardId, container)?.cost
 
     /**
      * The granted madness cost for [cardId] — its own mana cost, if some battlefield permanent

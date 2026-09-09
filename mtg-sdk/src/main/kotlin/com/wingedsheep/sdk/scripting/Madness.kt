@@ -55,7 +55,7 @@ object Madness {
      * chance to take the card, and "cast it for {R}" is a decision they can make without going to
      * look the card up.
      */
-    fun castAbility(cost: ManaCost): TriggeredAbility = TriggeredAbility(
+    fun castAbility(cost: ManaCost, additionalCost: AdditionalCost? = null): TriggeredAbility = TriggeredAbility(
         id = AbilityId("madness_cast"),
         trigger = EventPattern.ZoneChangeEvent(
             filter = GameObjectFilter.Any,
@@ -76,12 +76,19 @@ object Madness {
                             ),
                         )
                     ),
-                    descriptionOverride = "cast it for its madness cost $cost",
+                    descriptionOverride = buildString {
+                        append("cast it for its madness cost $cost")
+                        if (additionalCost != null) append(" and ${additionalCost.description.lowercase()}")
+                    },
                 ),
                 MoveToZoneEffect(EffectTarget.Self, Zone.GRAVEYARD, fromZone = Zone.EXILE),
             )
         ),
-        descriptionOverride = "When this card is discarded into exile, its owner may cast it for " +
-            "its madness cost $cost. If they don't, they put it into their graveyard.",
+        descriptionOverride = buildString {
+            append("When this card is discarded into exile, its owner may cast it for ")
+            append("its madness cost $cost")
+            if (additionalCost != null) append(" and ${additionalCost.description.lowercase()}")
+            append(". If they don't, they put it into their graveyard.")
+        },
     )
 }
