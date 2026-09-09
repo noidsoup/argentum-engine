@@ -27,6 +27,7 @@ import com.wingedsheep.sdk.scripting.effects.ManaSpellRider
 import com.wingedsheep.sdk.scripting.effects.AddCardTypeEffect
 import com.wingedsheep.sdk.scripting.effects.CantBeRegeneratedEffect
 import com.wingedsheep.sdk.scripting.effects.OpenLifeBidEffect
+import com.wingedsheep.sdk.scripting.effects.VoteEffect
 import com.wingedsheep.sdk.scripting.effects.AddCountersEffect
 import com.wingedsheep.sdk.scripting.effects.AddCountersUpToEffect
 import com.wingedsheep.sdk.scripting.effects.AddDynamicCountersEffect
@@ -265,6 +266,35 @@ object Effects {
      */
     fun DealDamage(amount: DynamicAmount, target: EffectTarget, damageSource: EffectTarget? = null): Effect =
         DealDamageEffect(amount, target, damageSource = damageSource)
+
+    /**
+     * "[Deal damage] unless [unless]." — runs [DealDamage] only when [unless] is false at
+     * resolution. The unless clause is checked synchronously (no player choice). Pair with
+     * [com.wingedsheep.sdk.dsl.Triggers.EachEndStep] for "at the beginning of each player's end
+     * step, ~ deals N damage to that player unless …" (Crimson Honor Guard).
+     */
+    fun DealDamageUnless(
+        unless: com.wingedsheep.sdk.scripting.conditions.Condition,
+        amount: Int,
+        target: EffectTarget,
+        damageSource: EffectTarget? = null,
+    ): Effect = ConditionalEffect(
+        condition = com.wingedsheep.sdk.scripting.conditions.NotCondition(unless),
+        effect = DealDamage(amount, target, damageSource),
+    )
+
+    /**
+     * Dynamic-amount sibling of [DealDamageUnless].
+     */
+    fun DealDamageUnless(
+        unless: com.wingedsheep.sdk.scripting.conditions.Condition,
+        amount: DynamicAmount,
+        target: EffectTarget,
+        damageSource: EffectTarget? = null,
+    ): Effect = ConditionalEffect(
+        condition = com.wingedsheep.sdk.scripting.conditions.NotCondition(unless),
+        effect = DealDamage(amount, target, damageSource),
+    )
 
     /**
      * Deal damage to a creature, dealing any excess (CR 120.4a — damage beyond lethal) to that
@@ -531,6 +561,15 @@ object Effects {
      */
     fun DrawCards(count: DynamicAmount, target: EffectTarget = EffectTarget.Controller): Effect =
         DrawCardsEffect(count, target)
+
+    /**
+     * Draw a card for each opponent who controls one or more permanents from pipeline collection
+     * [from]. Counts distinct opponents, not permanents — an opponent controlling two of those cards
+     * still draws one card. Reads live projected control on the battlefield; pair after a return step
+     * that leaves the returned entity ids in [from] (Sudden Salvation).
+     */
+    fun DrawCardsForEachOpponentControllingFromCollection(from: String): Effect =
+        DrawCardsEffect(DynamicAmount.OpponentsControllingFromCollection(from))
 
     /**
      * Draw up to N cards. The player chooses how many (0 to maxCards).
@@ -2738,6 +2777,7 @@ object Effects {
         overridePower: Int? = null,
         overrideToughness: Int? = null,
         removeLegendary: Boolean = false,
+        exileAtStep: com.wingedsheep.sdk.core.Step? = null,
         exceptions: com.wingedsheep.sdk.scripting.effects.CopyExceptions =
             com.wingedsheep.sdk.scripting.effects.CopyExceptions.None,
     ): Effect =
@@ -2745,6 +2785,7 @@ object Effects {
             count,
             overridePower,
             overrideToughness,
+            exileAtStep = exileAtStep,
             removeLegendary = removeLegendary,
             exceptions = exceptions,
         )
@@ -3819,6 +3860,28 @@ object Effects {
         OpenLifeBidEffect(onWin = onWin, participant = participant)
 
     /**
+     * Non-secret vote (CR 701.38): each player, starting with [startingPlayer] and proceeding in
+     * turn order, chooses exactly one option from the pipeline collection [from]. Winners — options
+     * with the greatest vote count, ties included — are written to [storeWinnersAs].
+     *
+     * Prefer [Patterns.Hand.playerChoiceFromGraveyard] for the common council shape over a
+     * controller's graveyard, and [Patterns.Mechanic.council] to chain vote + payoff.
+     */
+    fun Vote(
+        from: String,
+        storeVotesAs: String = com.wingedsheep.sdk.scripting.effects.COUNCIL_VOTES,
+        storeWinnersAs: String = com.wingedsheep.sdk.scripting.effects.COUNCIL_WINNERS,
+        startingPlayer: Player = Player.You,
+        prompt: String? = null,
+    ): Effect = VoteEffect(
+        from = from,
+        storeVotesAs = storeVotesAs,
+        storeWinnersAs = storeWinnersAs,
+        startingPlayer = startingPlayer,
+        prompt = prompt,
+    )
+
+    /**
      * Counter target spell or activated/triggered ability. Used by cards like
      * Teferi's Response that can target either a spell or an ability on the stack.
      */
@@ -3968,6 +4031,8 @@ object Effects {
         addedTokenKeywords: Set<com.wingedsheep.sdk.core.Keyword> = emptySet(),
         sacrificeTokenAtStep: com.wingedsheep.sdk.core.Step? = null,
         sacrificeTokenOnlyOnControllersTurn: Boolean = false,
+        exceptions: com.wingedsheep.sdk.scripting.effects.CopyExceptions =
+            com.wingedsheep.sdk.scripting.effects.CopyExceptions.None,
         copies: DynamicAmount = DynamicAmount.Fixed(1)
     ): Effect =
         CopyTargetSpellEffect(
@@ -3977,6 +4042,7 @@ object Effects {
             addedTokenKeywords,
             sacrificeTokenAtStep,
             sacrificeTokenOnlyOnControllersTurn,
+            exceptions,
             copies
         )
 

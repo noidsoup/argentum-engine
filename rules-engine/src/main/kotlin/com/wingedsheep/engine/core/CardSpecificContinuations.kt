@@ -3,6 +3,7 @@ package com.wingedsheep.engine.core
 import com.wingedsheep.engine.state.components.stack.ChosenTarget
 import com.wingedsheep.sdk.model.EntityId
 import com.wingedsheep.sdk.scripting.effects.Effect
+import com.wingedsheep.sdk.scripting.effects.VoteEffect
 import com.wingedsheep.sdk.scripting.targets.TargetRequirement
 import kotlinx.serialization.Serializable
 
@@ -51,6 +52,31 @@ data class SecretBidContinuation(
     val lowestBidderEffect: Effect?,
     val tiedBidderEffect: Effect?,
     val objectReferences: com.wingedsheep.engine.handlers.ObjectReferenceEnvironment = com.wingedsheep.engine.handlers.ObjectReferenceEnvironment(),
+) : AnswerContinuation
+
+/**
+ * Resume a [VoteEffect] (CR 701.38) after each player's public vote.
+ *
+ * @property effect The vote being conducted
+ * @property options Snapshot of legal vote options at vote start
+ * @property currentPlayerId The player whose selection we are waiting for
+ * @property remainingPlayers Players who still need to vote, in turn order
+ * @property votes Options chosen so far (one entity id per vote)
+ */
+@Serializable
+data class VoteContinuation(
+    val effect: VoteEffect,
+    val options: List<EntityId>,
+    val currentPlayerId: EntityId,
+    val remainingPlayers: List<EntityId>,
+    val votes: List<EntityId>,
+    val sourceId: EntityId?,
+    val sourceName: String?,
+    val controllerId: EntityId,
+    val storedCollections: Map<String, List<EntityId>> = emptyMap(),
+    val effectContext: com.wingedsheep.engine.handlers.EffectContext? = null,
+    val objectReferences: com.wingedsheep.engine.handlers.ObjectReferenceEnvironment =
+        com.wingedsheep.engine.handlers.ObjectReferenceEnvironment(),
 ) : AnswerContinuation
 
 /**
@@ -429,6 +455,8 @@ data class StormCopyTargetContinuation(
     /** Keyword enum names (e.g., "WITHER") to grant to each copy while it's on the stack. */
     val keywordsForCopy: Set<String> = emptySet(),
     val removeLegendary: Boolean = false,
+    /** Token-side riders (CR 707.10f) stamped onto each copy via [applyCopyMutations]. */
+    val tokenRiders: com.wingedsheep.engine.state.components.stack.SpellCopyTokenRidersComponent? = null,
     val objectReferences: com.wingedsheep.engine.handlers.ObjectReferenceEnvironment = com.wingedsheep.engine.handlers.ObjectReferenceEnvironment(),
 ) : AnswerContinuation
 

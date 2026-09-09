@@ -76,7 +76,10 @@ class CreateRoleTokenExecutor(
             manaCost = ManaCost.ZERO,
             typeLine = cardDef.typeLine,
             ownerId = tokenControllerId,
-            imageUri = cardDef.metadata.imageUri
+            imageUri = cardDef.metadata.imageUri,
+            hasNonManaActivatedAbility = cardDef.hasNonManaActivatedAbility,
+            hasActivatedAbility = cardDef.hasActivatedAbility,
+            hasManaActivatedAbility = cardDef.hasManaActivatedAbility,
         )
 
         var container = ComponentContainer.of(

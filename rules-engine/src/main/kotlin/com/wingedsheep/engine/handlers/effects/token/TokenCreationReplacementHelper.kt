@@ -220,7 +220,10 @@ object TokenCreationReplacementHelper {
                     // back to mana-cost-derived colors for tokens without an override.
                     colors = cardDef.colorIdentityOverride ?: cardDef.colors,
                     ownerId = tokenControllerId,
-                    imageUri = cardDef.metadata.imageUri
+                    imageUri = cardDef.metadata.imageUri,
+                    hasNonManaActivatedAbility = cardDef.hasNonManaActivatedAbility,
+                    hasActivatedAbility = cardDef.hasActivatedAbility,
+                    hasManaActivatedAbility = cardDef.hasManaActivatedAbility,
                 )
 
                 var tokenContainer = ComponentContainer.of(

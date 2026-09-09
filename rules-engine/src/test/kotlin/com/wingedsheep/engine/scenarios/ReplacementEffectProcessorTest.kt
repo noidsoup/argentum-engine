@@ -434,6 +434,7 @@ class ReplacementEffectProcessorTest : ScenarioTestBase() {
                         ownerId = game.player1Id,
                         spellEffect = inspDef.spellEffect,
                         hasNonManaActivatedAbility = inspDef.hasNonManaActivatedAbility,
+                        hasManaActivatedAbility = inspDef.hasManaActivatedAbility,
                     ),
                     OwnerComponent(game.player1Id),
                     ControllerComponent(game.player1Id)
@@ -517,6 +518,7 @@ class ReplacementEffectProcessorTest : ScenarioTestBase() {
                         ownerId = game.player1Id,
                         spellEffect = inspDef.spellEffect,
                         hasNonManaActivatedAbility = inspDef.hasNonManaActivatedAbility,
+                        hasManaActivatedAbility = inspDef.hasManaActivatedAbility,
                     ),
                     OwnerComponent(game.player1Id),
                     ControllerComponent(game.player1Id)

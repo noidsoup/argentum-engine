@@ -3,6 +3,7 @@ package com.wingedsheep.engine.core
 import com.wingedsheep.engine.handlers.DecisionHandler
 import com.wingedsheep.engine.handlers.EffectContext
 import com.wingedsheep.engine.mechanics.combat.CombatManager
+import com.wingedsheep.engine.mechanics.echo.EchoUpkeepTracking
 import com.wingedsheep.engine.mechanics.StateBasedActionChecker
 import com.wingedsheep.engine.state.GameState
 import com.wingedsheep.engine.state.ZoneKey
@@ -334,11 +335,19 @@ class TurnManager(
         val activePlayer = incomingState.activePlayerId
             ?: return ExecutionResult.error(incomingState, "No active player")
 
+        // Echo (CR 702.30a): stamp which permanents were under the active player's control when
+        // their upkeep step ends, so next upkeep's echo intervening-if can tell whether a permanent
+        // came under that controller since the beginning of their last upkeep.
+        var state = if (currentStep == Step.UPKEEP) {
+            EchoUpkeepTracking.stampPresentAtUpkeep(incomingState, activePlayer)
+        } else {
+            incomingState
+        }
+
         // End a combat-phase-scoped hijack (Secret of Bloodbending) as its combat phase closes:
         // the affected player is leaving their end-of-combat step, so input authority reverts.
         // Done here (rather than on entry to postcombat main) so it also fires when an *additional*
         // combat phase follows — "their next combat phase" is a single phase, never the extra ones.
-        var state = incomingState
         if (currentStep == Step.END_COMBAT) {
             // Every member of the active team — a combat hijack controls the team (CR 805.8).
             for (member in state.sharedTurnTeam(activePlayer)) {

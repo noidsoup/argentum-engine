@@ -29,6 +29,7 @@ import com.wingedsheep.sdk.scripting.conditions.WaterbendWasPaid as WaterbendWas
 import com.wingedsheep.sdk.scripting.conditions.SneakCostWasPaid as SneakCostWasPaidCondition
 import com.wingedsheep.sdk.scripting.conditions.WebSlungCostWasPaid as WebSlungCostWasPaidCondition
 import com.wingedsheep.sdk.scripting.conditions.MayhemCostWasPaid as MayhemCostWasPaidCondition
+import com.wingedsheep.sdk.scripting.conditions.MadnessCostWasPaid as MadnessCostWasPaidCondition
 import com.wingedsheep.sdk.scripting.conditions.CastChoiceMade as CastChoiceMadeCondition
 import com.wingedsheep.sdk.scripting.conditions.CastChoiceIs as CastChoiceIsCondition
 import com.wingedsheep.sdk.scripting.conditions.CastTimeFlagSet as CastTimeFlagSetCondition
@@ -620,6 +621,15 @@ object Conditions {
         com.wingedsheep.sdk.scripting.conditions.PlayerControlsMostPermanents(player, filter)
 
     /**
+     * [player] controls a commander — in their command zone or on the battlefield under their
+     * control, including another player's commander they gained control of. Commanders in other
+     * zones do not count. Checked at resolution (Crimson Honor Guard: "unless they control a
+     * commander").
+     */
+    fun PlayerControlsCommander(player: Player = Player.You): ConditionInterface =
+        com.wingedsheep.sdk.scripting.conditions.PlayerControlsCommander(player)
+
+    /**
      * If the context target at [targetIndex] is a tapped battlefield permanent. Branch on a
      * target's tapped state at resolution — e.g. Shackle Slinger's "If it's tapped, put a stun
      * counter on it. Otherwise, tap it."
@@ -1053,6 +1063,14 @@ object Conditions {
      */
     val MayhemCostWasPaid: ConditionInterface =
         MayhemCostWasPaidCondition
+
+    /**
+     * If this spell's madness cost was paid (CR 702.35 —
+     * [com.wingedsheep.sdk.scripting.KeywordAbility.Madness]). Used for riders like Avacyn's
+     * Judgment whose resolution behavior changes when the spell was cast for its madness cost.
+     */
+    val MadnessCostWasPaid: ConditionInterface =
+        MadnessCostWasPaidCondition
 
     /**
      * If this spell's blight additional cost was paid (`AdditionalCost.BlightOrPay`).

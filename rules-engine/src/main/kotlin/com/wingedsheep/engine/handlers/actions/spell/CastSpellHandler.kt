@@ -83,6 +83,7 @@ import com.wingedsheep.engine.state.components.identity.ControllerComponent
 import com.wingedsheep.engine.state.permissions.activeMayPlayFor
 import com.wingedsheep.engine.state.components.identity.PlayWithAdditionalCostComponent
 import com.wingedsheep.engine.state.components.identity.PlayWithCostIncreaseComponent
+import com.wingedsheep.engine.state.components.identity.MadnessExiledComponent
 import com.wingedsheep.engine.state.components.identity.PlayWithFixedAlternativeManaCostComponent
 import com.wingedsheep.engine.state.components.identity.PlayWithoutPayingCostComponent
 import com.wingedsheep.engine.state.components.player.ManaPoolComponent
@@ -3542,6 +3543,11 @@ class CastSpellHandler(
                 .untrackDiscardedCard(currentState, action.cardId)
         }
 
+        // Madness (CR 702.35): the card carries MadnessExiledComponent from the discard-into-exile
+        // replacement until it hits the stack; StackResolver strips it with the fixed madness cost.
+        // Drives Avacyn's Judgment's "if this spell's madness cost was paid" rider.
+        val wasMadness = currentState.getEntity(action.cardId)?.has<MadnessExiledComponent>() == true
+
         // Determine if this spell is being cast using warp. Gated by the chosen alternative-cost
         // type so that when warp collides with another alternative cost (e.g. a granted warp on a
         // card being evoked) only the chosen one drives its post-resolution behavior. With no
@@ -3746,6 +3752,7 @@ class CastSpellHandler(
             wasWebSlung = wasWebSlung,
             webSlungReturnedManaValue = webSlungReturnedManaValue,
             wasMayhem = wasMayhem,
+            wasMadness = wasMadness,
             chosenModes = action.chosenModes,
             modeTargetsOrdered = effectiveModeTargetsOrdered,
             modeTargetRequirements = perModeTargetRequirements,

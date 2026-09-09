@@ -134,6 +134,14 @@ class TriggerAbilityResolver(
         // gates it, the printed KeywordAbility.Numeric supplies N.
         val renownAbilities = getRenownTriggeredAbilities(entityId, cardDefinitionId, state)
 
+        // Melee (CR 702.121) — attack trigger derived from projected keyword; printed and granted
+        // instances each get their own trigger (702.121b).
+        val meleeAbilities = getMeleeTriggeredAbilities(entityId, cardDefinitionId, state)
+
+        // Echo [cost] (CR 702.30) — the upkeep sacrifice-unless-pay trigger is intrinsic to the
+        // keyword, printed on no card as a separate line. Same derivation shape as vanishing.
+        val echoAbilities = getEchoTriggeredAbilities(entityId, cardDefinitionId, state)
+
         val allGranted = buildList {
             addAll(grantedAbilities)
             addAll(staticGrantedAbilities)
@@ -148,16 +156,27 @@ class TriggerAbilityResolver(
             addAll(vanishingAbilities)
             addAll(fabricateAbilities)
             addAll(renownAbilities)
+            addAll(meleeAbilities)
+            addAll(echoAbilities)
         }
         val combined = if (allGranted.isNotEmpty()) base + allGranted else base
 
         // Apply text replacement if the entity has one
         val textReplacement = state.getEntity(entityId)?.get<TextReplacementComponent>()
-        return if (textReplacement != null) {
+        val withTextReplacement = if (textReplacement != null) {
             combined.map { it.applyTextReplacement(textReplacement) }
         } else {
             combined
         }
+
+        // CR 702.95a — Soulbond is a keyword that *represents* two pairing triggers. A copy that
+        // "loses soulbond" strips the keyword from its copiable values; without this pass the
+        // printed pairing triggers would still fire.
+        return KeywordRepresentativeTriggerFilter.filter(
+            withTextReplacement,
+            entityId,
+            state.projectedState,
+        )
     }
 
     /**
@@ -356,6 +375,13 @@ class TriggerAbilityResolver(
         // gates it, the printed KeywordAbility.Numeric supplies N.
         val renownAbilities = getRenownTriggeredAbilities(entityId, cardDefinitionId, state)
 
+        // Melee (CR 702.121) — attack trigger derived from projected keyword; printed and granted
+        // instances each get their own trigger (702.121b).
+        val meleeAbilities = getMeleeTriggeredAbilities(entityId, cardDefinitionId, state)
+
+        // Echo [cost] (CR 702.30) — upkeep sacrifice-unless-pay, same derivation shape as vanishing.
+        val echoAbilities = getEchoTriggeredAbilities(entityId, cardDefinitionId, state)
+
         val allGranted = buildList {
             addAll(grantedAbilities)
             addAll(staticGrantedAbilities)
@@ -370,15 +396,23 @@ class TriggerAbilityResolver(
             addAll(vanishingAbilities)
             addAll(fabricateAbilities)
             addAll(renownAbilities)
+            addAll(meleeAbilities)
+            addAll(echoAbilities)
         }
         val combined = if (allGranted.isNotEmpty()) base + allGranted else base
 
         val textReplacement = state.getEntity(entityId)?.get<TextReplacementComponent>()
-        return if (textReplacement != null) {
+        val withTextReplacement = if (textReplacement != null) {
             combined.map { it.applyTextReplacement(textReplacement) }
         } else {
             combined
         }
+
+        return KeywordRepresentativeTriggerFilter.filter(
+            withTextReplacement,
+            entityId,
+            state.projectedState,
+        )
     }
 
     /**
@@ -776,6 +810,23 @@ class TriggerAbilityResolver(
         }
 
     /**
+     * Melee (CR 702.121) as a keyword-derived attack trigger. Any creature that has
+     * [Keyword.MELEE] — printed or granted — gets one synthesized trigger per instance; see
+     * [com.wingedsheep.engine.mechanics.MeleeSynthesis].
+     */
+    private fun getMeleeTriggeredAbilities(
+        entityId: EntityId,
+        cardDefinitionId: String,
+        state: GameState,
+    ): List<TriggeredAbility> {
+        val count = com.wingedsheep.engine.mechanics.MeleeSynthesis.instanceCount(
+            entityId, cardDefinitionId, state, cardRegistry,
+        )
+        if (count == 0) return emptyList()
+        return (0 until count).map { com.wingedsheep.sdk.scripting.Melee.attackTrigger(it) }
+    }
+
+    /**
      * Vanishing N (CR 702.62) as two keyword-derived triggered abilities: the upkeep countdown
      * (702.62b) and the last-time-counter sacrifice (702.62c). A vanishing card prints one keyword
      * line and a reminder, never these two abilities, so the engine supplies them — the same shape
@@ -799,6 +850,30 @@ class TriggerAbilityResolver(
         } else {
             emptyList()
         }
+
+    /**
+     * Echo [cost] (CR 702.30a) as the keyword-derived upkeep trigger it is. A card prints one
+     * keyword line and a reminder, never the ability itself, so the engine supplies it — the same
+     * shape as [getVanishingTriggeredAbilities]. The *gate* is the projected [Keyword.ECHO]; the
+     * *cost* is read from each printed [KeywordAbility.Echo] on the card definition.
+     */
+    private fun getEchoTriggeredAbilities(
+        entityId: EntityId,
+        cardDefinitionId: String,
+        state: GameState,
+    ): List<TriggeredAbility> {
+        if (!state.projectedState.hasKeyword(entityId, com.wingedsheep.sdk.core.Keyword.ECHO)) {
+            return emptyList()
+        }
+        val cardDef = cardRegistry.getCard(cardDefinitionId) ?: return emptyList()
+        val costs = com.wingedsheep.sdk.scripting.Echo.printedCosts(cardDef)
+        // A granted ECHO with no printed KeywordAbility.Echo falls back to the card's mana cost,
+        // matching CR 702.30b errata for the legacy no-cost-printed shape.
+        val resolvedCosts = costs.ifEmpty { listOf(cardDef.manaCost) }
+        return resolvedCosts.mapIndexed { instance, cost ->
+            com.wingedsheep.sdk.scripting.Echo.upkeepAbility(cost, instance)
+        }
+    }
 
     /**
      * Fabricate N (CR 702.123) as the keyword-derived enters-the-battlefield ability it is. A

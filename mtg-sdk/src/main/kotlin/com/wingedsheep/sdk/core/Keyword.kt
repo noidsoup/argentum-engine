@@ -237,6 +237,18 @@ enum class Keyword(val displayName: String) {
     EVOKE("Evoke"),
 
     /**
+     * Echo [cost] (CR 702.30, Urza block). "At the beginning of your upkeep, if this permanent
+     * came under your control since the beginning of your last upkeep, sacrifice it unless you pay
+     * [cost]."
+     *
+     * Display tag plus cost carrier on [com.wingedsheep.sdk.scripting.KeywordAbility.Echo]; the
+     * upkeep trigger is synthesized by the engine for any permanent whose projected keywords
+     * include ECHO ([com.wingedsheep.sdk.scripting.Echo.upkeepAbility]). Upkeep-boundary tracking
+     * lives in [com.wingedsheep.engine.mechanics.echo.EchoUpkeepTracking].
+     */
+    ECHO("Echo"),
+
+    /**
      * Sneak [cost] (CR 702.190, Teenage Mutant Ninja Turtles).
      * "Any time you could cast an instant during your declare blockers step, you may cast
      * this spell by paying [cost] and returning an unblocked creature you control to its
@@ -631,6 +643,16 @@ enum class Keyword(val displayName: String) {
      * run its leaves trigger against an empty pile, and then exiles a permanent that never returns.
      */
     CHAMPION("Champion"),
+
+    /**
+     * Melee (CR 702.121). "Whenever this creature attacks, it gets +1/+1 until end of turn for
+     * each opponent you attacked with a creature this combat."
+     *
+     * Display-only on the keyword; the behavior is composed by the `melee()` DSL helper and
+     * synthesized by the engine for any permanent that has the projected keyword (printed or
+     * granted — "Other Spirits you control have melee"). See [com.wingedsheep.sdk.scripting.Melee].
+     */
+    MELEE("Melee"),
 
     /**
      * Training (CR 702.149, Innistrad: Midnight Hunt). A triggered attack ability:

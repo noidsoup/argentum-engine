@@ -18,6 +18,7 @@ import com.wingedsheep.engine.state.components.battlefield.chosenOpponent
 import com.wingedsheep.engine.state.components.battlefield.CountersComponent
 import com.wingedsheep.engine.state.components.battlefield.GrantsStationUsingToughnessComponent
 import com.wingedsheep.engine.state.components.identity.CardComponent
+import com.wingedsheep.engine.state.components.identity.CommanderComponent
 import com.wingedsheep.engine.state.components.identity.ControllerComponent
 import com.wingedsheep.engine.state.components.identity.FaceDownComponent
 import com.wingedsheep.engine.state.components.identity.LifeTotalComponent
@@ -370,6 +371,25 @@ class DynamicAmountEvaluator(
                 }
             }
 
+            is DynamicAmount.OpponentsControllingFromCollection -> {
+                val collection = context.pipeline.storedCollections[amount.collectionName] ?: return 0
+                if (collection.isEmpty()) return 0
+                val opponents = resolveUnifiedPlayerIds(state, Player.EachOpponent, context).toSet()
+                if (opponents.isEmpty()) return 0
+                val projection = projectedState ?: state.projectedState
+                val controllingOpponents = mutableSetOf<EntityId>()
+                for (entityId in collection) {
+                    if (entityId !in state.getBattlefield()) continue
+                    val controllerId = projection.getController(entityId)
+                        ?: state.getEntity(entityId)?.get<ControllerComponent>()?.playerId
+                        ?: continue
+                    if (controllerId in opponents) {
+                        controllingOpponents.add(controllerId)
+                    }
+                }
+                controllingOpponents.size
+            }
+
             // Math operations — propagate [projectedState] so a mid-projection caller's
             // intermediate snapshot survives nested aggregates. Arithmetic is saturating
             // (GameLimits.*Clamped): a "twice the number of X" / doubling chain must clamp at
@@ -437,6 +457,14 @@ class DynamicAmountEvaluator(
             is DynamicAmount.GreatestPerPlayerNumber ->
                 context.pipeline.storedPerPlayerNumbers[amount.storeAs]?.values?.maxOrNull() ?: 0
 
+            is DynamicAmount.GreatestManaValueAmongOwnedCommanders ->
+                evaluateGreatestManaValueAmongOwnedCommanders(
+                    state,
+                    amount,
+                    context,
+                    projectedState,
+                )
+
             // Devotion (CR 700.5): the number of mana symbols of the named colors among the mana
             // costs of permanents the player controls. Hybrid ({W/U}), monocolored hybrid ({2/B}),
             // and Phyrexian ({B/P}) symbols each count toward their color(s); a symbol matching more
@@ -468,6 +496,18 @@ class DynamicAmountEvaluator(
             // resolveUnifiedPlayerIds already yields only players still in the game, so a pod that
             // has lost a player reports the live number (CR 800.4a).
             is DynamicAmount.PlayerCount -> resolveUnifiedPlayerIds(state, amount.scope, context).size
+
+            is DynamicAmount.OpponentsAttackedThisCombat -> {
+                val attackerIds = resolveUnifiedPlayerIds(state, amount.player, context)
+                attackerIds.sumOf { attackerId ->
+                    val defenders = state.getEntity(attackerId)
+                        ?.get<com.wingedsheep.engine.state.components.combat.PlayerAttackedPlayersThisCombatComponent>()
+                        ?.defendingPlayerIds ?: emptySet()
+                    defenders.count { defenderId ->
+                        state.isOpponentOf(defenderId, attackerId)
+                    }
+                }
+            }
 
             is DynamicAmount.CountPlayersWith -> {
                 val eval = conditionEvaluator ?: ConditionEvaluator()
@@ -834,6 +874,12 @@ class DynamicAmountEvaluator(
             is DynamicAmount.TotalPowerSacrificedThisWay ->
                 context.sacrificedPermanents.sumOf { it.power ?: 0 }
 
+            // "The greatest power among creatures sacrificed this way" over the same snapshots —
+            // last-known power as each permanent was sacrificed (Rule 608.2h). Noncreatures add
+            // nothing; ties across opponents all contribute the same max value.
+            is DynamicAmount.GreatestPowerSacrificedThisWay ->
+                context.sacrificedPermanents.mapNotNull { it.power }.maxOrNull() ?: 0
+
             // "The greatest number of creatures you control that have a creature type in common"
             // (White Lotus Tile). For every creature type present among the player's creatures,
             // tally how many of those creatures have it, then take the max. A creature with several
@@ -1195,6 +1241,45 @@ class DynamicAmountEvaluator(
                 }.size
             }
         }
+    }
+
+    /**
+     * Greatest mana value among commanders a player owns on the battlefield and/or in their command
+     * zone. Battlefield candidates are matched by immutable owner, not projected controller, so a
+     * stolen commander still counts for its owner (Imposing Grandeur ruling).
+     */
+    private fun evaluateGreatestManaValueAmongOwnedCommanders(
+        state: GameState,
+        amount: DynamicAmount.GreatestManaValueAmongOwnedCommanders,
+        context: EffectContext,
+        explicitProjection: ProjectedState?,
+    ): Int {
+        val playerIds = resolveUnifiedPlayerIds(state, amount.player, context)
+        val projection = resolveProjection(state, explicitProjection)
+
+        return playerIds.maxOfOrNull { playerId ->
+            val candidates = buildList {
+                if (amount.includeBattlefield) {
+                    addAll(
+                        state.getBattlefield().filter { entityId ->
+                            val container = state.getEntity(entityId)
+                            container?.has<CommanderComponent>() == true &&
+                                container.get<CardComponent>()?.ownerId == playerId
+                        },
+                    )
+                }
+                if (amount.includeCommandZone) {
+                    addAll(
+                        state.getZone(ZoneKey(playerId, Zone.COMMAND)).filter { entityId ->
+                            state.getEntity(entityId)?.has<CommanderComponent>() == true
+                        },
+                    )
+                }
+            }
+            candidates.maxOfOrNull { entityId ->
+                resolveCardNumericProperty(state, projection, entityId, CardNumericProperty.MANA_VALUE)
+            } ?: 0
+        } ?: 0
     }
 
     private fun resolveUnifiedPlayerIds(

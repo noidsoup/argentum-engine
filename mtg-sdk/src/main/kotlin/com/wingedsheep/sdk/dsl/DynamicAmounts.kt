@@ -330,6 +330,14 @@ object DynamicAmounts {
     fun manaValueSumOf(collectionName: String): DynamicAmount =
         DynamicAmount.ManaValueSumOfCollection(collectionName)
 
+    /**
+     * Distinct opponents of the effect's controller who currently control at least one permanent
+     * on the battlefield from the named pipeline collection. For "draw a card for each opponent who
+     * controls one or more of those permanents" after a return step — Sudden Salvation.
+     */
+    fun opponentsControllingFrom(collectionName: String): DynamicAmount =
+        DynamicAmount.OpponentsControllingFromCollection(collectionName)
+
     // =========================================================================
     // Graveyard counting
     // =========================================================================
@@ -632,6 +640,21 @@ object DynamicAmounts {
     fun energyCount(player: Player = Player.You): DynamicAmount =
         DynamicAmount.PlayerCounterCount(com.wingedsheep.sdk.core.Counters.ENERGY, player)
 
+    /**
+     * Greatest mana value among commanders [player] owns on the battlefield and/or in their command
+     * zone (Imposing Grandeur, Majestic Genesis, Visions of Glory). Pass `includeCommandZone = false`
+     * for battlefield-only wordings (Cloudkill).
+     */
+    fun greatestOwnedCommanderManaValue(
+        player: Player = Player.You,
+        includeBattlefield: Boolean = true,
+        includeCommandZone: Boolean = true,
+    ): DynamicAmount = DynamicAmount.GreatestManaValueAmongOwnedCommanders(
+        player = player,
+        includeBattlefield = includeBattlefield,
+        includeCommandZone = includeCommandZone,
+    )
+
     // =========================================================================
     // Entity property shortcuts (composable entity + property)
     // =========================================================================
@@ -768,6 +791,15 @@ object DynamicAmounts {
      */
     fun totalPowerSacrificedThisWay(): DynamicAmount =
         DynamicAmount.TotalPowerSacrificedThisWay
+
+    /**
+     * Greatest power among permanents sacrificed by the current resolving effect ("the greatest
+     * power among creatures sacrificed this way"), read from the same `sacrificedPermanents`
+     * snapshots as [permanentsSacrificedThisWay]. See [DynamicAmount.GreatestPowerSacrificedThisWay].
+     * Used by Shadowgrange Archfiend's life-gain rider after a greatest-power edict.
+     */
+    fun greatestPowerSacrificedThisWay(): DynamicAmount =
+        DynamicAmount.GreatestPowerSacrificedThisWay
 
     /**
      * "That many" — the number of repetitions a

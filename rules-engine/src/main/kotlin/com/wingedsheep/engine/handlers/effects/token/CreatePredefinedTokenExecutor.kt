@@ -110,7 +110,10 @@ class CreatePredefinedTokenExecutor(
                 // Fall back to the mana-cost-derived colors for tokens without an override.
                 colors = cardDef.colorIdentityOverride ?: cardDef.colors,
                 ownerId = tokenControllerId,
-                imageUri = resolvedImageUri
+                imageUri = resolvedImageUri,
+                hasNonManaActivatedAbility = cardDef.hasNonManaActivatedAbility,
+                hasActivatedAbility = cardDef.hasActivatedAbility,
+                hasManaActivatedAbility = cardDef.hasManaActivatedAbility,
             )
 
             var container = ComponentContainer.of(

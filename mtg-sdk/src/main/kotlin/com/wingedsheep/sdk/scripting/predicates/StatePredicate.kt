@@ -275,6 +275,18 @@ sealed interface StatePredicate {
         override val description: String = "entered the battlefield this turn"
     }
 
+    /**
+     * Was under its controller's control when that controller's previous upkeep step ended (CR
+     * 702.30a). Echo's intervening-`if` is the negation: a permanent that does *not* match was
+     * not present at the beginning of its controller's last upkeep and therefore echoes.
+     */
+    @SerialName("PresentAtControllersLastUpkeep")
+    @Serializable
+    data object PresentAtControllersLastUpkeep : Entity {
+        override val description: String =
+            "was under its controller's control at that controller's last upkeep"
+    }
+
     // =============================================================================
     // Tap History (History)
     // =============================================================================
@@ -958,6 +970,18 @@ sealed interface StatePredicate {
     @Serializable
     data object IsRenowned : Entity {
         override val description: String = "renowned"
+    }
+
+    /**
+     * Carries the engine's `CommanderComponent` — a card designated as a player's commander in
+     * Commander/Brawl formats. Matches in the command zone and on the battlefield (including a
+     * commander you own but another player controls). Token copies of a commander do not carry
+     * this marker (CR 903.10a).
+     */
+    @SerialName("IsCommander")
+    @Serializable
+    data object IsCommander : Entity {
+        override val description: String = "commander"
     }
 
     // =============================================================================

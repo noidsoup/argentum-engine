@@ -184,6 +184,7 @@ class StackResolver(
         wasWebSlung: Boolean = false,
         webSlungReturnedManaValue: Int = 0,
         wasMayhem: Boolean = false,
+        wasMadness: Boolean = false,
         chosenModes: List<Int> = emptyList(),
         modeTargetsOrdered: List<List<ChosenTarget>> = emptyList(),
         modeTargetRequirements: Map<Int, List<TargetRequirement>> = emptyMap(),
@@ -356,6 +357,7 @@ class StackResolver(
                 wasWebSlung = wasWebSlung,
                 webSlungReturnedManaValue = webSlungReturnedManaValue,
                 wasMayhem = wasMayhem,
+                wasMadness = wasMadness,
                 beheldCards = beheldCards,
                 discardedAsCostCards = discardedAsCostCards,
                 exiledAsCostCards = exiledAsCostCards,
@@ -431,8 +433,12 @@ class StackResolver(
             updated = updated.without<com.wingedsheep.engine.state.components.identity.PlayWithCostIncreaseComponent>()
             updated = updated.without<com.wingedsheep.engine.state.components.identity.PlayWithFixedAlternativeManaCostComponent>()
             // The madness offer (CR 702.35a) is spent the moment the card is cast; drop the marker
-            // with the fixed madness cost it published so the two never outlive each other.
-            updated = updated.without<com.wingedsheep.engine.state.components.identity.MadnessExiledComponent>()
+            // with the fixed madness cost it published so the two never outlive each other. The
+            // bundled pay-life (or other) additional cost stamped alongside madness exile goes too.
+            if (c.has<com.wingedsheep.engine.state.components.identity.MadnessExiledComponent>()) {
+                updated = updated.without<com.wingedsheep.engine.state.components.identity.MadnessExiledComponent>()
+                updated = updated.without<com.wingedsheep.engine.state.components.identity.PlayWithAdditionalCostComponent>()
+            }
             // A card cast face up is revealed as it goes on the stack. Foretold cards (and any
             // other hidden-in-exile card) carry a FaceDownComponent for opponent masking while
             // exiled; strip it here so the spell isn't masked on the stack (CR 702.143 — casting a
@@ -1525,6 +1531,14 @@ class StackResolver(
                         com.wingedsheep.engine.state.components.battlefield.ChoiceValue.Flag
                     )
                 }
+                // Madness (CR 702.35): durably mark a permanent cast from exile for its madness
+                // cost so Conditions.MadnessCostWasPaid reads it for the permanent's whole life.
+                if (spellComponent.wasMadness) {
+                    bag = bag.withChoice(
+                        com.wingedsheep.sdk.scripting.ChoiceSlot.MADNESS_CAST,
+                        com.wingedsheep.engine.state.components.battlefield.ChoiceValue.Flag
+                    )
+                }
                 // Waterbend (Avatar): durably mark a permanent cast with its (optional) waterbend
                 // cost paid so Conditions.WaterbendWasPaid reads it for the permanent's whole life.
                 if (spellComponent.wasWaterbendPaid) {
@@ -1645,17 +1659,6 @@ class StackResolver(
                 updated = updated.with(
                     com.wingedsheep.engine.state.components.battlefield.AttachedToComponent(auraTargetId)
                 )
-            }
-
-            // CR 707.10f token-copy riders: a copy of a permanent spell that carried added keywords
-            // (e.g. "the copy gains haste", Choreographed Sparks) bakes them onto the resulting
-            // token's base keywords for its whole life on the battlefield.
-            val copyRiders = updated.get<com.wingedsheep.engine.state.components.stack.SpellCopyTokenRidersComponent>()
-            if (copyRiders != null && copyRiders.addedKeywords.isNotEmpty()) {
-                val card = updated.get<CardComponent>()
-                if (card != null) {
-                    updated = updated.with(card.copy(baseKeywords = card.baseKeywords + copyRiders.addedKeywords))
-                }
             }
 
             updated
@@ -2181,6 +2184,7 @@ class StackResolver(
                 wasSneaked = spellComponent.wasSneaked,
                 wasWebSlung = spellComponent.wasWebSlung,
                 wasMayhem = spellComponent.wasMayhem,
+                wasMadness = spellComponent.wasMadness,
                 sacrificedPermanents = spellComponent.sacrificedPermanents,
                 discardedAsCostCards = spellComponent.discardedAsCostCards,
                 exiledAsCostCards = spellComponent.exiledAsCostCards,

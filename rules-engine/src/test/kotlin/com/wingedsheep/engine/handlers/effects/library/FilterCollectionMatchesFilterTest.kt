@@ -223,4 +223,56 @@ class FilterCollectionMatchesFilterTest : FunSpec({
 
         result.isSuccess shouldBe false
     }
+
+    test("MostVotes keeps every option tied for the greatest vote count") {
+        val state = GameState()
+            .withEntity(playerId, ComponentContainer())
+            .withEntity(opponentId, ComponentContainer())
+
+        val ctx = context(
+            playerId,
+            mapOf(
+                "options" to listOf(creatureId1, creatureId2, creatureId3),
+                "votes" to listOf(creatureId1, creatureId2, creatureId1),
+            ),
+        )
+        val result = executor.execute(
+            state,
+            FilterCollectionEffect(
+                from = "options",
+                filter = CollectionFilter.MostVotes("votes"),
+                storeMatching = "winners",
+            ),
+            ctx,
+        )
+
+        result.isSuccess shouldBe true
+        result.updatedCollections["winners"]!!.shouldContainExactlyInAnyOrder(creatureId1)
+    }
+
+    test("MostVotes includes every tied winner") {
+        val state = GameState()
+            .withEntity(playerId, ComponentContainer())
+            .withEntity(opponentId, ComponentContainer())
+
+        val ctx = context(
+            playerId,
+            mapOf(
+                "options" to listOf(creatureId1, creatureId2),
+                "votes" to listOf(creatureId1, creatureId2),
+            ),
+        )
+        val result = executor.execute(
+            state,
+            FilterCollectionEffect(
+                from = "options",
+                filter = CollectionFilter.MostVotes("votes"),
+                storeMatching = "winners",
+            ),
+            ctx,
+        )
+
+        result.isSuccess shouldBe true
+        result.updatedCollections["winners"]!!.shouldContainExactlyInAnyOrder(creatureId1, creatureId2)
+    }
 })

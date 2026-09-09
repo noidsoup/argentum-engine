@@ -377,6 +377,7 @@ val engineSerializersModule = SerializersModule {
         subclass(CastSpellAdditionalCostContinuation::class)
         subclass(PutFromHandContinuation::class)
         subclass(SecretBidContinuation::class)
+        subclass(VoteContinuation::class)
         subclass(OpenLifeBidContinuation::class)
         subclass(ContestedRetargetContinuation::class)
         subclass(DistributeCountersContinuation::class)
@@ -490,6 +491,7 @@ val engineSerializersModule = SerializersModule {
         subclass(AttachmentHostLeftComponent::class)
         subclass(LastKnownPermanentComponent::class)
         subclass(EnteredThisTurnComponent::class)
+        subclass(PresentAtControllersLastUpkeepComponent::class)
         subclass(WasDealtDamageThisTurnComponent::class)
         subclass(DamageUnpreventableThisTurnComponent::class)
         subclass(HasDealtDamageComponent::class)
@@ -585,6 +587,7 @@ val engineSerializersModule = SerializersModule {
         subclass(PlayerAttackersThisTurnComponent::class)
         subclass(PlayerAttackersLastTurnComponent::class)
         subclass(PlayerAttackedPlayersThisTurnComponent::class)
+        subclass(PlayerAttackedPlayersThisCombatComponent::class)
 
         // Player components
         subclass(ManaPoolComponent::class)

@@ -16,6 +16,7 @@ import com.wingedsheep.engine.state.components.battlefield.AttachedToComponent
 import com.wingedsheep.engine.state.components.battlefield.AttachmentsComponent
 import com.wingedsheep.engine.state.components.battlefield.CrewSaddleContributorsComponent
 import com.wingedsheep.engine.state.components.battlefield.EnteredThisTurnComponent
+import com.wingedsheep.engine.state.components.battlefield.PresentAtControllersLastUpkeepComponent
 import com.wingedsheep.engine.state.components.battlefield.LastKnownPermanentComponent
 import com.wingedsheep.engine.state.components.battlefield.DealtCombatDamageToPlayersThisTurnComponent
 import com.wingedsheep.engine.state.components.battlefield.HasDealtCombatDamageToPlayerComponent
@@ -24,6 +25,7 @@ import com.wingedsheep.engine.state.components.battlefield.TappedComponent
 import com.wingedsheep.engine.state.components.battlefield.SaddledComponent
 import com.wingedsheep.engine.state.components.battlefield.SolvedComponent
 import com.wingedsheep.engine.state.components.battlefield.RenownedComponent
+import com.wingedsheep.engine.state.components.identity.CommanderComponent
 import com.wingedsheep.engine.state.components.combat.AttackedThisCombatComponent
 import com.wingedsheep.engine.state.components.combat.AttackersDeclaredThisTurnComponent
 import com.wingedsheep.engine.state.components.combat.AttackingComponent
@@ -501,6 +503,7 @@ class PredicateEvaluator(
             CardPredicate.IsNonlegendary -> "LEGENDARY" !in types
             CardPredicate.HasNonManaActivatedAbility -> card.hasNonManaActivatedAbility
             CardPredicate.HasActivatedAbility -> card.hasActivatedAbility
+            CardPredicate.WithoutManaAbilities -> !card.hasManaActivatedAbility
 
             // Color predicates - use projected colors
             is CardPredicate.HasColor -> predicate.color.name in colors
@@ -664,7 +667,7 @@ class PredicateEvaluator(
                 cmc <= refManaValue
             }
             is CardPredicate.ManaValueEqualsEntity -> {
-                val refEntityId = resolveEntityReference(state, predicate.reference, context) ?: return false
+                val refEntityId = resolveEntityReference(state, predicate.reference, context, projected) ?: return false
                 val refManaValue = state.getEntity(refEntityId)?.get<CardComponent>()?.manaValue ?: return false
                 val cmc = if (projectedValues?.isFaceDown == true) 0 else card.manaValue
                 cmc == refManaValue
@@ -1604,6 +1607,11 @@ class PredicateEvaluator(
                 container.has<EnteredThisTurnComponent>()
             }
 
+            StatePredicate.PresentAtControllersLastUpkeep -> {
+                val marker = container.get<PresentAtControllersLastUpkeepComponent>()
+                marker != null && projected.getController(entityId) == marker.controllerId
+            }
+
             // Counter history — "one or more counters were put on it this turn", optionally scoped
             // to a kind and to placements by the permanent's own controller. Reads the per-turn
             // marker rather than the live counters, so it survives their removal. Also the engine
@@ -1963,6 +1971,8 @@ class PredicateEvaluator(
             // (CR 702.112b). Sticky until the permanent leaves the battlefield.
             StatePredicate.IsRenowned -> container.has<RenownedComponent>()
 
+            StatePredicate.IsCommander -> container.has<CommanderComponent>()
+
             // Suspected designation (CR 701.60a) — a Layer-ability floating effect, so the answer
             // lives in the projection rather than on a component. Unlike saddled it never expires.
             StatePredicate.IsSuspected -> projected.isSuspected(entityId)
@@ -2248,6 +2258,7 @@ class PredicateEvaluator(
             // A cast-spell record has no battlefield permanent to inspect for activated abilities.
             CardPredicate.HasNonManaActivatedAbility -> false
             CardPredicate.HasActivatedAbility -> false
+            CardPredicate.WithoutManaAbilities -> false
 
             // Stack-relative targeting predicate — historical cast records have no
             // chosen-target snapshot, so this always returns false here.

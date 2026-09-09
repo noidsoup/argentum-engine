@@ -231,6 +231,7 @@ class PreventDamageExecutor(
                 modification = SerializableModification.PreventAllDamageToGroup(
                     filter = effect.recipientGroup?.baseFilter,
                     combatOnly = effect.scope == PreventionScope.CombatOnly,
+                    noncombatOnly = effect.scope == PreventionScope.NoncombatOnly,
                     includesController = effect.recipientGroupIncludesController,
                     // "… by creatures" — a FromGroup source filter narrows a recipient-group shield
                     // to matching damage sources. Other PreventionSourceFilter kinds are

@@ -3,6 +3,7 @@ package com.wingedsheep.engine.handlers.continuations
 import com.wingedsheep.engine.core.*
 import com.wingedsheep.engine.handlers.DecisionHandler
 import com.wingedsheep.engine.handlers.EffectContext
+import com.wingedsheep.engine.handlers.effects.library.resumeVote
 import com.wingedsheep.engine.handlers.effects.player.OpenLifeBidLogic
 import com.wingedsheep.engine.state.GameState
 import com.wingedsheep.sdk.model.EntityId
@@ -14,6 +15,7 @@ class CardSpecificContinuationResumer(
 
     override fun resumers(): List<ContinuationResumer<*>> = listOf(
         resumer(SecretBidContinuation::class, ::resumeSecretBid),
+        resumer(VoteContinuation::class, ::resumeVoteContinuation),
         resumer(OpenLifeBidContinuation::class, ::resumeOpenLifeBid),
         resumer(ContestedRetargetContinuation::class, ::resumeContestedRetarget)
     )
@@ -111,6 +113,20 @@ class CardSpecificContinuationResumer(
                 if (result.pendingDecision != null) result else checkForMore(result.state, result.events)
             }
         }
+    }
+
+    fun resumeVoteContinuation(
+        state: GameState,
+        continuation: VoteContinuation,
+        response: DecisionResponse,
+        checkForMore: CheckForMore,
+    ): ExecutionResult {
+        if (response !is CardsSelectedResponse) {
+            return ExecutionResult.error(state, "Expected card selection response for vote")
+        }
+        val chosen = response.selectedCards.singleOrNull()
+            ?: return ExecutionResult.error(state, "Vote requires exactly one selection")
+        return resumeVote(state, continuation, chosen, checkForMore)
     }
 
     fun resumeSecretBid(

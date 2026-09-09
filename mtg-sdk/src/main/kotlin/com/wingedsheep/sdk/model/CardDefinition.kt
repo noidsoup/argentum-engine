@@ -451,6 +451,17 @@ data class CardDefinition(
         }
 
     /**
+     * True if this card has at least one intrinsic activated mana ability activatable from the
+     * battlefield. Used by `CardPredicate.WithoutManaAbilities` for "artifacts without mana
+     * abilities" (Midnight Arsonist). Printed abilities only — granted abilities are not counted.
+     */
+    val hasManaActivatedAbility: Boolean
+        get() = script.activatedAbilities.any {
+            it.isManaAbility &&
+                it.activateFromZone == com.wingedsheep.sdk.core.Zone.BATTLEFIELD
+        }
+
+    /**
      * True if this card has at least one intrinsic activated ability (of any kind — mana,
      * loyalty, or otherwise) activatable from the battlefield or the graveyard. Unlike
      * [hasNonManaActivatedAbility] this counts mana abilities, because "a permanent/card with an

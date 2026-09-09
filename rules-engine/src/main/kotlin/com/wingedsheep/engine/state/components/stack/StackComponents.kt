@@ -109,6 +109,8 @@ data class SpellOnStackComponent(
     val webSlungReturnedManaValue: Int = 0,
     /** For mayhem (CR 702.187) — the mayhem cost was paid; readable via MayhemCostWasPaid. */
     val wasMayhem: Boolean = false,
+    /** For madness (CR 702.35) — the madness cost was paid; readable via MadnessCostWasPaid. */
+    val wasMadness: Boolean = false,
     val beheldCards: List<EntityId> = emptyList(),  // Cards chosen via Behold (stored in pipeline as named collection)
     /**
      * Entity ids of cards discarded to pay this spell's additional discard cost
@@ -582,7 +584,10 @@ data class SpellGrantedKeywordsComponent(
 data class SpellCopyTokenRidersComponent(
     val addedKeywords: Set<Keyword> = emptySet(),
     val sacrificeAtStep: Step? = null,
-    val sacrificeOnlyOnControllersTurn: Boolean = false
+    val sacrificeOnlyOnControllersTurn: Boolean = false,
+    /** Characteristic overrides baked onto the token at resolution (CR 707.10f / 707.9b). */
+    val exceptions: com.wingedsheep.sdk.scripting.effects.CopyExceptions =
+        com.wingedsheep.sdk.scripting.effects.CopyExceptions.None,
 ) : Component
 
 /**

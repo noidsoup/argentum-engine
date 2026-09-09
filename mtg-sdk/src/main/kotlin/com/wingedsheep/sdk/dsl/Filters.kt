@@ -162,6 +162,9 @@ object Filters {
      */
     val NonOutlawCreature: GameObjectFilter = GameObjectFilter.Creature.notAnyOfSubtypes(Subtype.OUTLAW_TYPES)
 
+    /** Predefined Blood artifact token (CR token — Artifact — Blood). */
+    val BloodToken: GameObjectFilter = GameObjectFilter.Artifact.withSubtype("Blood")
+
     /**
      * Card with mana value at most N.
      */

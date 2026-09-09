@@ -180,6 +180,19 @@ sealed interface AffectsFilter {
             return if (new === groupFilter) this else Generic(new)
         }
     }
+
+    /**
+     * Creatures a matching [equipmentFilter] permanent is attached to — the equipped creature,
+     * not the equipment. Used by [com.wingedsheep.sdk.scripting.ModifyStatsOnCreaturesEquippedTo]
+     * when a lord grants an equipment-style pump to tokens it does not itself attach to.
+     */
+    @Serializable
+    data class CreaturesEquippedToMatching(val equipmentFilter: GroupFilter) : AffectsFilter {
+        override fun applyTextReplacement(replacer: TextReplacer): AffectsFilter {
+            val new = equipmentFilter.applyTextReplacement(replacer)
+            return if (new === equipmentFilter) this else copy(equipmentFilter = new)
+        }
+    }
 }
 
 /**

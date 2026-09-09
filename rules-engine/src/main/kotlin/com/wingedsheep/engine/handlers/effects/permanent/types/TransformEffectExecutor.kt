@@ -391,6 +391,7 @@ internal fun buildCardComponentForDfcFace(
     // (otherwise a transformed permanent silently reports the default `false`).
     hasNonManaActivatedAbility = face.hasNonManaActivatedAbility,
     hasActivatedAbility = face.hasActivatedAbility,
+    hasManaActivatedAbility = face.hasManaActivatedAbility,
     manaValueOverride = manaValueOverride,
 )
 

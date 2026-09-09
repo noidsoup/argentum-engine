@@ -5,6 +5,7 @@ import com.wingedsheep.engine.event.DelayedTriggeredAbility
 import com.wingedsheep.engine.handlers.DynamicAmountEvaluator
 import com.wingedsheep.engine.handlers.EffectContext
 import com.wingedsheep.engine.handlers.effects.EffectExecutor
+import com.wingedsheep.engine.handlers.effects.TargetResolutionUtils
 import com.wingedsheep.engine.state.GameState
 import com.wingedsheep.engine.state.components.battlefield.BattlefieldEntryTimestampComponent
 import com.wingedsheep.engine.state.components.identity.CardComponent
@@ -19,6 +20,8 @@ import com.wingedsheep.sdk.scripting.effects.CreateTokenEffect
 import com.wingedsheep.sdk.scripting.effects.DelayedTriggerExpiry
 import com.wingedsheep.sdk.scripting.effects.DelayedTriggerTiming
 import com.wingedsheep.sdk.scripting.effects.DealDamagePerEntityInZoneEffect
+import com.wingedsheep.sdk.scripting.effects.DrawCardsEffect
+import com.wingedsheep.sdk.scripting.effects.DrawUpToEffect
 import com.wingedsheep.sdk.scripting.effects.Effect
 import com.wingedsheep.sdk.scripting.effects.DestroyAllEquipmentOnTargetEffect
 import com.wingedsheep.sdk.scripting.effects.FlipCoinEffect
@@ -274,6 +277,7 @@ class CreateDelayedTriggerExecutor : EffectExecutor<CreateDelayedTriggerEffect> 
         is DynamicAmount.DistinctEntitiesInCollections,
         is DynamicAmount.DistinctCardTypesInCollections,
         is DynamicAmount.ManaValueSumOfCollection,
+        is DynamicAmount.OpponentsControllingFromCollection,
         is DynamicAmount.StoredCardManaValue,
         is DynamicAmount.VariableReference -> true
 
@@ -431,12 +435,41 @@ class CreateDelayedTriggerExecutor : EffectExecutor<CreateDelayedTriggerEffect> 
                 // resolved here, so leave them untouched.
                 if (effect.gate is Gate.MayDecide && effect.otherwise == null) {
                     val inner = resolveContextTargets(effect.then, context, state)
-                    if (inner !== effect.then) effect.copy(then = inner) else effect
+                    val bakedMaker = effect.decisionMaker?.let { bakePlayerTargetIfNeeded(it, context, state) }
+                    var result = effect
+                    if (inner !== effect.then) result = result.copy(then = inner)
+                    if (bakedMaker != null && bakedMaker !== effect.decisionMaker) {
+                        result = result.copy(decisionMaker = bakedMaker)
+                    }
+                    result
                 } else {
                     effect
                 }
             }
+            is DrawUpToEffect -> {
+                val baked = bakePlayerTargetIfNeeded(effect.target, context, state)
+                if (baked !== effect.target) effect.copy(target = baked) else effect
+            }
+            is DrawCardsEffect -> {
+                val baked = bakePlayerTargetIfNeeded(effect.target, context, state)
+                if (baked !== effect.target) effect.copy(target = baked) else effect
+            }
             else -> effect
         }
+    }
+
+    /**
+     * Freeze a relational player target (e.g. "that spell's controller") into a concrete player id
+     * while the scheduling context still knows it. [EffectTarget.Controller] is left alone so
+     * "you draw" on a delayed trigger still reads the ability's controller at fire time.
+     */
+    private fun bakePlayerTargetIfNeeded(
+        target: EffectTarget,
+        context: EffectContext,
+        state: GameState,
+    ): EffectTarget {
+        if (target is EffectTarget.SpecificEntity || target is EffectTarget.Controller) return target
+        val playerId = TargetResolutionUtils.resolvePlayerTarget(target, context, state) ?: return target
+        return EffectTarget.SpecificEntity(playerId)
     }
 }

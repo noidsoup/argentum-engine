@@ -23,6 +23,7 @@ internal fun AnswerContinuation.objectReferences(): ObjectReferenceEnvironment? 
     is ChooseOpponentDeciderContinuation -> baseContext.objectReferences
     is PutFromHandContinuation -> objectReferences
     is SecretBidContinuation -> objectReferences
+    is VoteContinuation -> objectReferences
     is OpenLifeBidContinuation -> objectReferences
     is ContestedRetargetContinuation -> objectReferences
     is DistributeCountersContinuation -> objectReferences
@@ -131,6 +132,7 @@ internal fun AnswerContinuation.withObjectReferences(refs: ObjectReferenceEnviro
     is ChooseOpponentDeciderContinuation -> copy(baseContext = baseContext.copy(objectReferences = refs))
     is PutFromHandContinuation -> copy(objectReferences = refs)
     is SecretBidContinuation -> copy(objectReferences = refs)
+    is VoteContinuation -> copy(objectReferences = refs)
     is OpenLifeBidContinuation -> copy(objectReferences = refs)
     is ContestedRetargetContinuation -> copy(objectReferences = refs)
     is DistributeCountersContinuation -> copy(objectReferences = refs)

@@ -2799,6 +2799,10 @@ class CastFromZoneEnumerator : ActionEnumerator {
                 val amount = state.getEntity(cardId)?.get<CardComponent>()?.manaCost?.cmc ?: 0
                 AdditionalCostData(description = "Pay $amount life", costType = "PayLife")
             }
+            (cost as? AdditionalCost.Atom)?.atom is CostAtom.PayLife -> {
+                val amount = ((cost as AdditionalCost.Atom).atom as CostAtom.PayLife).amount
+                AdditionalCostData(description = "Pay $amount life", costType = "PayLife")
+            }
             else -> AdditionalCostData(description = cost.description, costType = "Other")
         }
     }
@@ -2814,6 +2818,9 @@ class CastFromZoneEnumerator : ActionEnumerator {
                 is CostAtom.Discard -> {
                     val handSize = state.getZone(ZoneKey(playerId, Zone.HAND)).size
                     if (handSize < atom.count) return false
+                }
+                is CostAtom.PayLife -> {
+                    if (state.lifeTotal(playerId) < atom.amount) return false
                 }
                 else -> if (cost is AdditionalCost.PayLifeEqualToManaValueOfSpell) {
                     val amount = state.getEntity(cardId)?.get<CardComponent>()?.manaCost?.cmc ?: 0

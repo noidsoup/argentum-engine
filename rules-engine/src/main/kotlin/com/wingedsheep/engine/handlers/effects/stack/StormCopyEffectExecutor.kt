@@ -4,6 +4,7 @@ import com.wingedsheep.engine.core.*
 import com.wingedsheep.engine.handlers.EffectContext
 import com.wingedsheep.engine.handlers.TargetFinder
 import com.wingedsheep.engine.handlers.effects.EffectExecutor
+import com.wingedsheep.engine.handlers.effects.copy.CopyExceptionApplier
 import com.wingedsheep.engine.mechanics.stack.StackResolver
 import com.wingedsheep.engine.state.GameState
 import com.wingedsheep.engine.state.components.stack.ChosenTarget
@@ -329,8 +330,10 @@ class StormCopyEffectExecutor(
 
         /**
          * After a [StackResolver.putSpellCopy] result, patch the new copy entity:
-         * - strip the Legendary supertype if [removeLegendary] (CR 707.10f token-copy clause)
+         * - apply token-side [CopyExceptions] (P/T, subtypes, supertypes, …) via
+         *   [CopyExceptionApplier], including the legacy [removeLegendary] boolean
          * - record granted spell keywords (e.g., wither, lifelink) on the copy
+         * - attach [SpellCopyTokenRidersComponent] when a delayed sacrifice trigger is registered
          */
         internal fun applyCopyMutations(
             state: GameState,
@@ -339,19 +342,21 @@ class StormCopyEffectExecutor(
             removeLegendary: Boolean,
             tokenRiders: com.wingedsheep.engine.state.components.stack.SpellCopyTokenRidersComponent? = null
         ): GameState {
-            val hasRiders = tokenRiders != null &&
-                (tokenRiders.addedKeywords.isNotEmpty() || tokenRiders.sacrificeAtStep != null)
-            if (keywordsForCopy.isEmpty() && !removeLegendary && !hasRiders) return state
+            val mergedExceptions = CopyExceptionApplier.mergedSpellCopyTokenExceptions(
+                removeLegendary, tokenRiders
+            )
+            val needsSacrificeRider = tokenRiders?.sacrificeAtStep != null
+            if (keywordsForCopy.isEmpty() && mergedExceptions.isEmpty && !needsSacrificeRider) return state
             val copyId = events.asReversed()
                 .firstNotNullOfOrNull { e ->
                     if (e is com.wingedsheep.engine.core.SpellCopiedEvent) e.copyEntityId else null
                 } ?: return state
             return state.updateEntity(copyId) { container ->
                 var updated = container
-                if (removeLegendary) {
+                if (!mergedExceptions.isEmpty) {
                     val card = updated.get<com.wingedsheep.engine.state.components.identity.CardComponent>()
                     if (card != null) {
-                        updated = updated.with(card.copy(typeLine = card.typeLine.withoutLegendary()))
+                        updated = updated.with(CopyExceptionApplier.apply(card, mergedExceptions))
                     }
                 }
                 if (keywordsForCopy.isNotEmpty()) {
@@ -362,7 +367,7 @@ class StormCopyEffectExecutor(
                         )
                     )
                 }
-                if (hasRiders) {
+                if (needsSacrificeRider && tokenRiders != null) {
                     updated = updated.with(tokenRiders)
                 }
                 updated

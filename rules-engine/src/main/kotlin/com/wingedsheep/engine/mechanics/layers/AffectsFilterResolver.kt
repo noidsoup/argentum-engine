@@ -9,9 +9,11 @@ import com.wingedsheep.engine.handlers.predicates.hasDealtDamage
 import com.wingedsheep.engine.handlers.predicates.receivedCounterThisTurn
 import com.wingedsheep.engine.state.ComponentContainer
 import com.wingedsheep.engine.state.GameState
+import com.wingedsheep.engine.state.components.battlefield.AttachedToComponent
 import com.wingedsheep.engine.state.components.battlefield.AttachmentsComponent
 import com.wingedsheep.engine.state.components.battlefield.CountersComponent
 import com.wingedsheep.engine.state.components.battlefield.EnteredThisTurnComponent
+import com.wingedsheep.engine.state.components.battlefield.PresentAtControllersLastUpkeepComponent
 import com.wingedsheep.engine.state.components.battlefield.HasDealtCombatDamageToPlayerComponent
 import com.wingedsheep.engine.state.components.battlefield.TappedComponent
 import com.wingedsheep.engine.state.components.battlefield.WasDealtDamageThisTurnComponent
@@ -225,6 +227,17 @@ internal class AffectsFilterResolver {
             is AffectsFilter.Generic -> {
                 resolveGenericFilter(state, sourceId, filter.groupFilter, projectedValues)
             }
+            is AffectsFilter.CreaturesEquippedToMatching -> {
+                val equipmentIds = resolveGenericFilter(
+                    state,
+                    sourceId,
+                    filter.equipmentFilter,
+                    projectedValues,
+                )
+                equipmentIds.mapNotNull { equipmentId ->
+                    state.getEntity(equipmentId)?.get<AttachedToComponent>()?.targetId
+                }.toSet()
+            }
         }
     }
 
@@ -244,7 +257,8 @@ internal class AffectsFilterResolver {
             filter is AffectsFilter.OtherCreaturesYouControl ||
             filter is AffectsFilter.OwnCreaturesWithCounter ||
             filter is AffectsFilter.OtherCreaturesWithSubtype ||
-            (filter is AffectsFilter.Generic && filter.groupFilter.baseFilter.controllerPredicate != null)
+            (filter is AffectsFilter.Generic && filter.groupFilter.baseFilter.controllerPredicate != null) ||
+            filter is AffectsFilter.CreaturesEquippedToMatching
     }
 
     /**
@@ -541,6 +555,12 @@ internal class AffectsFilterResolver {
         // group-static projection.
         StatePredicate.ExiledWithSource -> false
         StatePredicate.EnteredThisTurn -> container.has<EnteredThisTurnComponent>()
+        StatePredicate.PresentAtControllersLastUpkeep -> {
+            val marker = container.get<PresentAtControllersLastUpkeepComponent>()
+            val controller = projectedValues[entityId]?.controllerId
+                ?: container.get<ControllerComponent>()?.playerId
+            marker != null && controller != null && marker.controllerId == controller
+        }
         // Counter history — the per-permanent marker, so a group static gated on "each creature you
         // control that you've put one or more +1/+1 counters on this turn" (Kid Loki) resolves
         // during projection. Plain per-entity state with no source-relative half, so the answer here
@@ -706,6 +726,8 @@ internal class AffectsFilterResolver {
         // (Goblin Glory Chaser) be a plain conditional static.
         StatePredicate.IsRenowned ->
             container.has<com.wingedsheep.engine.state.components.battlefield.RenownedComponent>()
+        StatePredicate.IsCommander ->
+            container.has<com.wingedsheep.engine.state.components.identity.CommanderComponent>()
         // Suspected (CR 701.60a) is itself a Layer-ability modification, so it is read off the
         // values accumulated so far in this projection pass — the same source `ProjectedState`
         // exposes as `isSuspected`, and the same self-referential caveat as IsModified above.
@@ -883,6 +905,7 @@ internal class AffectsFilterResolver {
         CardPredicate.IsNonlegendary -> "LEGENDARY" !in types
         CardPredicate.HasNonManaActivatedAbility -> card.hasNonManaActivatedAbility
         CardPredicate.HasActivatedAbility -> card.hasActivatedAbility
+        CardPredicate.WithoutManaAbilities -> !card.hasManaActivatedAbility
         is CardPredicate.HasSubtype -> if (isFaceDown) false else subtypes.any { it.equals(predicate.subtype.value, ignoreCase = true) }
         is CardPredicate.NotSubtype -> if (isFaceDown) true else subtypes.none { it.equals(predicate.subtype.value, ignoreCase = true) }
         is CardPredicate.HasAnyOfSubtypes -> if (isFaceDown) false else predicate.subtypes.any { sub -> subtypes.any { it.equals(sub.value, ignoreCase = true) } }

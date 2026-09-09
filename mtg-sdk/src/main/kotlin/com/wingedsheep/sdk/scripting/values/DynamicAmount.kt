@@ -875,6 +875,23 @@ sealed interface DynamicAmount : TextReplaceable<DynamicAmount> {
         override val description: String = "the total mana value of the $collectionName cards"
     }
 
+    /**
+     * Number of distinct **opponents** of the effect's controller who currently control at least one
+     * permanent on the battlefield whose entity id appears in the named pipeline collection.
+     *
+     * Reads **live projected control** — only entities still on the battlefield count, and an opponent
+     * controlling two of those permanents still contributes 1. Used after a return step that leaves
+     * the returned entity ids in the collection: "You draw a card for each opponent who controls one
+     * or more of those permanents" (Sudden Salvation). Pair with [com.wingedsheep.sdk.scripting.effects.DrawCardsEffect]
+     * or facade [com.wingedsheep.sdk.dsl.Effects.DrawCardsForEachOpponentControllingFromCollection].
+     */
+    @SerialName("OpponentsControllingFromCollection")
+    @Serializable
+    data class OpponentsControllingFromCollection(val collectionName: String) : DynamicAmount {
+        override val description: String =
+            "the number of opponents who control one or more of those permanents"
+    }
+
     // =========================================================================
     // Math Operations - Composable arithmetic on DynamicAmounts
     // =========================================================================
@@ -1020,6 +1037,22 @@ sealed interface DynamicAmount : TextReplaceable<DynamicAmount> {
     @Serializable
     data class PlayerCount(val scope: Player = Player.EachOpponent) : DynamicAmount {
         override val description: String = "the number of ${scope.description}"
+    }
+
+    /**
+     * How many distinct **opponents** [player] has attacked with a creature this combat (CR
+     * 508.6 / 702.121a). Attacking an opponent's planeswalker or battle counts as having attacked
+     * that opponent. Cleared at end of combat, so a second combat in the same turn starts from zero.
+     *
+     * Backed by the attacking player's `PlayerAttackedPlayersThisCombatComponent`, stamped at
+     * declare attackers. Used by [com.wingedsheep.sdk.scripting.Melee] and any future effect that
+     * scales on "each opponent you attacked this combat".
+     */
+    @SerialName("OpponentsAttackedThisCombat")
+    @Serializable
+    data class OpponentsAttackedThisCombat(val player: Player = Player.You) : DynamicAmount {
+        override val description: String =
+            "the number of opponents ${player.description} attacked with a creature this combat"
     }
 
     /**
@@ -1314,6 +1347,38 @@ sealed interface DynamicAmount : TextReplaceable<DynamicAmount> {
     ) : DynamicAmount {
         override val description: String =
             "the greatest number recorded under $storeAs"
+
+        override fun applyTextReplacement(replacer: TextReplacer): DynamicAmount = this
+    }
+
+    /**
+     * The greatest mana value among commanders [player] owns on the battlefield and/or in their
+     * command zone — "the greatest mana value of a commander you own on the battlefield or in the
+     * command zone" (Imposing Grandeur, Majestic Genesis, Visions of Glory). Cloudkill uses the
+     * battlefield-only variant (`includeCommandZone = false`).
+     *
+     * Ownership, not control, is what matters on the battlefield: a commander you own still counts
+     * even when another player controls it. The command zone is per-player, so ownership there is
+     * implicit. Returns 0 when no qualifying commander is present.
+     */
+    @SerialName("GreatestManaValueAmongOwnedCommanders")
+    @Serializable
+    data class GreatestManaValueAmongOwnedCommanders(
+        val player: Player = Player.You,
+        val includeBattlefield: Boolean = true,
+        val includeCommandZone: Boolean = true,
+    ) : DynamicAmount {
+        override val description: String = buildString {
+            append("the greatest mana value of a commander ")
+            append(if (player == Player.You) "you" else player.description)
+            append(" own")
+            when {
+                includeBattlefield && includeCommandZone ->
+                    append(" on the battlefield or in the command zone")
+                includeBattlefield -> append(" on the battlefield")
+                includeCommandZone -> append(" in the command zone")
+            }
+        }
 
         override fun applyTextReplacement(replacer: TextReplacer): DynamicAmount = this
     }
@@ -1734,6 +1799,24 @@ sealed interface DynamicAmount : TextReplaceable<DynamicAmount> {
     @Serializable
     data object TotalPowerSacrificedThisWay : DynamicAmount {
         override val description: String = "their total power"
+    }
+
+    /**
+     * Greatest power among the permanents sacrificed by the current resolving effect ("the greatest
+     * power among creatures sacrificed this way"). Reads the same `EffectContext.sacrificedPermanents`
+     * snapshot list as [PermanentsSacrificedThisWay] and [TotalPowerSacrificedThisWay], taking the
+     * maximum last-known power rather than the sum.
+     *
+     * Snapshots without power (a sacrificed noncreature) are ignored. When nothing with power was
+     * sacrificed, the amount is zero — "gain life equal to…" then gains no life.
+     *
+     * Used by Shadowgrange Archfiend's ETB rider after an edict that sacrifices each opponent's
+     * greatest-power creature.
+     */
+    @SerialName("GreatestPowerSacrificedThisWay")
+    @Serializable
+    data object GreatestPowerSacrificedThisWay : DynamicAmount {
+        override val description: String = "the greatest power among creatures sacrificed this way"
     }
 
     /**

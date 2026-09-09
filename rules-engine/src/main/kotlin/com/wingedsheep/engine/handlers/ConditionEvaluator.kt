@@ -132,6 +132,7 @@ import com.wingedsheep.sdk.scripting.conditions.BlightWasPaid
 import com.wingedsheep.sdk.scripting.conditions.SneakCostWasPaid
 import com.wingedsheep.sdk.scripting.conditions.WebSlungCostWasPaid
 import com.wingedsheep.sdk.scripting.conditions.MayhemCostWasPaid
+import com.wingedsheep.sdk.scripting.conditions.MadnessCostWasPaid
 import com.wingedsheep.sdk.scripting.conditions.WaterbendWasPaid
 import com.wingedsheep.sdk.scripting.conditions.SourceIsRingBearer
 import com.wingedsheep.sdk.scripting.conditions.YouChoseOtherCreatureAsRingBearer
@@ -147,6 +148,7 @@ import com.wingedsheep.sdk.scripting.conditions.PlayerCommittedCrimeThisTurn
 import com.wingedsheep.sdk.scripting.conditions.PlayerHasCitysBlessing
 import com.wingedsheep.sdk.scripting.conditions.PlayerHasEnduringStory
 import com.wingedsheep.sdk.scripting.conditions.PlayerControlsMostPermanents
+import com.wingedsheep.sdk.scripting.conditions.PlayerControlsCommander
 import com.wingedsheep.sdk.scripting.conditions.PlayerHasMostLife
 import com.wingedsheep.sdk.scripting.conditions.TriggeringPlayerIs
 import com.wingedsheep.sdk.scripting.conditions.RingHasTemptedPlayerAtLeast
@@ -158,6 +160,7 @@ import com.wingedsheep.sdk.scripting.conditions.SourcePlottedOnPriorTurn
 import com.wingedsheep.sdk.scripting.conditions.SourceForetoldOnPriorTurn
 import com.wingedsheep.sdk.scripting.conditions.YouDiscardedThisCardThisTurn
 import com.wingedsheep.engine.handlers.triggers.CreatureDiedThisTurnConditionEvaluator
+import com.wingedsheep.engine.state.components.identity.CommanderComponent
 import com.wingedsheep.engine.state.components.identity.PlottedComponent
 import com.wingedsheep.engine.state.components.identity.ForetoldComponent
 import com.wingedsheep.sdk.scripting.conditions.YouWereAttackedThisStep
@@ -563,6 +566,9 @@ class ConditionEvaluator(
             is PlayerControlsMostPermanents ->
                 evaluatePlayerControlsMostPermanentsCtx(state, condition, ctx)
 
+            is PlayerControlsCommander ->
+                evaluatePlayerControlsCommanderCtx(state, condition, ctx)
+
             is RingHasTemptedPlayerAtLeast -> {
                 val playerId = resolvePlayer(state, condition.player, ctx)
                 val tempted = playerId?.let {
@@ -640,6 +646,7 @@ class ConditionEvaluator(
             is SneakCostWasPaid -> ifResolution { evaluateSneakCostWasPaid(state, it) }
             is WebSlungCostWasPaid -> ifResolution { evaluateWebSlungCostWasPaid(state, it) }
             is MayhemCostWasPaid -> ifResolution { evaluateMayhemCostWasPaid(state, it) }
+            is MadnessCostWasPaid -> ifResolution { evaluateMadnessCostWasPaid(state, it) }
             is BlightWasPaid -> ifResolution { it.wasBlightPaid }
             is WaterbendWasPaid -> ifResolution { evaluateWaterbendWasPaid(state, it) }
             is ManaSpentToCastIncludes -> ifResolution { evaluateManaSpentToCastIncludes(state, condition, it) }
@@ -1082,6 +1089,30 @@ class ConditionEvaluator(
         return state.turnOrder.all { (counts[it] ?: 0) <= mine }
     }
 
+    /**
+     * True when [condition.player] controls a commander — a card with [CommanderComponent] in
+     * their command zone or on the battlefield under their control (projected). Commanders in
+     * graveyard, exile, hand, or library do not satisfy the check.
+     */
+    private fun evaluatePlayerControlsCommanderCtx(
+        state: GameState,
+        condition: PlayerControlsCommander,
+        ctx: ConditionEvaluationContext,
+    ): Boolean {
+        val playerId = resolvePlayer(state, condition.player, ctx) ?: return false
+        val projected = ctx.projectedStateFor(state)
+
+        val onBattlefield = state.getBattlefield().any { entityId ->
+            projected.getController(entityId) == playerId &&
+                state.getEntity(entityId)?.has<CommanderComponent>() == true
+        }
+        if (onBattlefield) return true
+
+        return state.getZone(ZoneKey(playerId, Zone.COMMAND)).any { entityId ->
+            state.getEntity(entityId)?.has<CommanderComponent>() == true
+        }
+    }
+
     private fun evaluateCanSoulbondPair(state: GameState, ctx: ConditionEvaluationContext): Boolean {
         val sourceId = ctx.sourceId ?: return false
         val controllerId = ctx.controllerId ?: return false
@@ -1255,7 +1286,11 @@ class ConditionEvaluator(
                 val c = ctx.controllerId ?: return null
                 state.getOpponents(c).firstOrNull()
             }
-            is Player.TriggeringPlayer -> (ctx as? Resolution)?.effectContext?.triggeringPlayerId
+            is Player.TriggeringPlayer -> (ctx as? Resolution)?.effectContext?.let {
+                // Step triggers set triggeringEntityId to the active player; damage triggers set
+                // triggeringPlayerId to the damaged player. Mirror TargetResolutionUtils.
+                it.triggeringPlayerId ?: it.triggeringEntityId
+            }
             // The attacked player for the source's attack assignment (read from its
             // AttackingComponent by resolveDefendingPlayer) — Preacher of the Schism's "attacks the
             // player with the most life".
@@ -1633,6 +1668,18 @@ class ConditionEvaluator(
             ?.containsKey(ChoiceSlot.MAYHEM_CAST) == true
         if (flagged) return true
         return context.wasMayhem
+    }
+
+    private fun evaluateMadnessCostWasPaid(state: GameState, context: EffectContext): Boolean {
+        // Durable bag on the resolved permanent first (ETB / ongoing reads); fall back to the
+        // resolution context for a non-permanent spell's own resolving effect (Avacyn's Judgment).
+        val sourceId = context.sourceId ?: return context.wasMadness
+        val flagged = state.getEntity(sourceId)
+            ?.get<CastChoicesComponent>()
+            ?.chosen
+            ?.containsKey(ChoiceSlot.MADNESS_CAST) == true
+        if (flagged) return true
+        return context.wasMadness
     }
 
     private fun evaluateWaterbendWasPaid(state: GameState, context: EffectContext): Boolean {

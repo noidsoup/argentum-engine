@@ -9594,7 +9594,9 @@ composite abilities).
   clause: it is a no-op when the card is on the stack (cast) and puts it in the graveyard when it isn't (declined, or
   the cost couldn't be paid). Because the cast happens while the trigger resolves, **timing restrictions don't apply** —
   a discarded madness *sorcery* can be cast on an opponent's turn (CR 702.35b). Both markers are stripped the moment the
-  card leaves exile, so a lingering fixed cost can never re-price a later graveyard cast.
+  card leaves exile, so a lingering fixed cost can never re-price a later graveyard cast. Riders that branch on whether
+  "this spell's madness cost was paid" read `Conditions.MadnessCostWasPaid` off the resolution context (or the durable
+  `ChoiceSlot.MADNESS_CAST` flag on a resolving permanent) — e.g. *Avacyn's Judgment*.
   *Fiery Temper*, *Gisa's Bidding*, *Bloodmad Vampire*.
   - **Granting madness** — `GrantMadnessToOwnedCards(filter)` is the static half of Falkenrath Gorger:
     *"Each Vampire creature card you own that isn't on the battlefield has madness. The madness cost is equal to its
@@ -10178,6 +10180,7 @@ answer it and would silently return `false`.
 - `SneakCostWasPaid` — the source was cast for its `Sneak` cost (CR 702.190 — mana + returning an unblocked attacker). Reads the durable `ChoiceSlot.SNEAK` flag on a resolved permanent, falling back to the resolution context for a non-permanent spell's own effect. Backs riders like Leonardo, Leader in Blue and The Last Ronin's Technique.
 - `WebSlungCostWasPaid` — the source was cast using web-slinging (CR 702.188 — mana + returning a tapped creature you control). Reads the durable `ChoiceSlot.WEB_SLUNG` flag on a resolved permanent, falling back to the resolution context for a non-permanent spell's own effect. Backs riders like *Spiders-Man, Heroic Horde* and *Scarlet Spider, Ben Reilly*; the latter also reads the returned creature's mana value via `DynamicAmount.CastChoice(ChoiceSlot.WEB_SLUNG_RETURNED_MV)`.
 - `MayhemCostWasPaid` — the source was cast from the graveyard for its Mayhem cost (CR 702.187). Reads the durable `ChoiceSlot.MAYHEM_CAST` flag on a resolved permanent, falling back to the resolution context (`wasMayhem`) for a non-permanent spell's own effect. Backs riders like *Sandman's Quicksand* ("if this spell's mayhem cost was paid, creatures your opponents control get -2/-2 instead").
+- `MadnessCostWasPaid` — the source was cast for its madness cost (CR 702.35). Reads the durable `ChoiceSlot.MADNESS_CAST` flag on a resolved permanent, falling back to the resolution context (`wasMadness`) for a non-permanent spell's own effect. Backs riders like *Avacyn's Judgment* ("if this spell's madness cost was paid, it deals X damage divided as you choose among any number of targets" instead of 2).
 - `YouDiscardedThisCardThisTurn` — the source card in a graveyard was discarded by its owner this turn (CR 702.187b). Reads the per-player `CardsDiscardedThisTurnComponent` id list (entity ids are stable across the hand→graveyard move). Engine-internal — the Mayhem enumerator and cast-permission check wire it up; cards don't reference it directly.
 - `GiftWasPromised` — the spell's **gift** additional cost was paid, i.e. "if the gift was promised"
   (CR 702.174a/b, Bloomburrow). A facade over `CastChoiceMade(ChoiceSlot.GIFT_PROMISED)` — the flag the

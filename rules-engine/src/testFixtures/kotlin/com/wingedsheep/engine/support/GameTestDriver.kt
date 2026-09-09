@@ -670,6 +670,7 @@ class GameTestDriver {
             spellEffect = cardDef.spellEffect,
             hasNonManaActivatedAbility = cardDef.hasNonManaActivatedAbility,
             hasActivatedAbility = cardDef.hasActivatedAbility,
+            hasManaActivatedAbility = cardDef.hasManaActivatedAbility,
             // Keep driver-minted cards in step with CardEntityFactory: precomputed printed
             // characteristics other code reads back (SpellCastPredicate.CastAsAdventure,
             // CardPredicate.HasAdventure / OriginallyPrintedInSet).
@@ -730,6 +731,7 @@ class GameTestDriver {
             spellEffect = cardDef.spellEffect,
             hasNonManaActivatedAbility = cardDef.hasNonManaActivatedAbility,
             hasActivatedAbility = cardDef.hasActivatedAbility,
+            hasManaActivatedAbility = cardDef.hasManaActivatedAbility,
             // Keep driver-minted cards in step with CardEntityFactory: precomputed printed
             // characteristics other code reads back (SpellCastPredicate.CastAsAdventure,
             // CardPredicate.HasAdventure / OriginallyPrintedInSet).
@@ -826,6 +828,7 @@ class GameTestDriver {
             spellEffect = cardDef.spellEffect,
             hasNonManaActivatedAbility = cardDef.hasNonManaActivatedAbility,
             hasActivatedAbility = cardDef.hasActivatedAbility,
+            hasManaActivatedAbility = cardDef.hasManaActivatedAbility,
             // Keep driver-minted cards in step with CardEntityFactory: precomputed printed
             // characteristics other code reads back (SpellCastPredicate.CastAsAdventure,
             // CardPredicate.HasAdventure / OriginallyPrintedInSet).
@@ -891,6 +894,7 @@ class GameTestDriver {
             spellEffect = cardDef.spellEffect,
             hasNonManaActivatedAbility = cardDef.hasNonManaActivatedAbility,
             hasActivatedAbility = cardDef.hasActivatedAbility,
+            hasManaActivatedAbility = cardDef.hasManaActivatedAbility,
             // Keep driver-minted cards in step with CardEntityFactory: precomputed printed
             // characteristics other code reads back (SpellCastPredicate.CastAsAdventure,
             // CardPredicate.HasAdventure / OriginallyPrintedInSet).
@@ -1008,6 +1012,7 @@ class GameTestDriver {
             spellEffect = cardDef.spellEffect,
             hasNonManaActivatedAbility = cardDef.hasNonManaActivatedAbility,
             hasActivatedAbility = cardDef.hasActivatedAbility,
+            hasManaActivatedAbility = cardDef.hasManaActivatedAbility,
             // Keep driver-minted cards in step with CardEntityFactory: precomputed printed
             // characteristics other code reads back (SpellCastPredicate.CastAsAdventure,
             // CardPredicate.HasAdventure / OriginallyPrintedInSet).

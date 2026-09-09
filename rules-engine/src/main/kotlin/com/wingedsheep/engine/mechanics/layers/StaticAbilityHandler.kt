@@ -189,6 +189,7 @@ import com.wingedsheep.sdk.scripting.filters.unified.GroupFilter
 import com.wingedsheep.sdk.scripting.predicates.CardPredicate
 import com.wingedsheep.sdk.scripting.predicates.ControllerPredicate
 import com.wingedsheep.sdk.scripting.ModifyStats
+import com.wingedsheep.sdk.scripting.ModifyStatsOnCreaturesEquippedTo
 import com.wingedsheep.sdk.scripting.predicates.StatePredicate
 import com.wingedsheep.sdk.scripting.StaticAbility
 
@@ -673,6 +674,12 @@ class StaticAbilityHandler(
                 ContinuousEffectData(
                     modification = Modification.ModifyPowerToughness(ability.powerBonus, ability.toughnessBonus),
                     affectsFilter = convertGroupFilter(ability.filter)
+                )
+            }
+            is ModifyStatsOnCreaturesEquippedTo -> {
+                ContinuousEffectData(
+                    modification = Modification.ModifyPowerToughness(ability.powerBonus, ability.toughnessBonus),
+                    affectsFilter = AffectsFilter.CreaturesEquippedToMatching(ability.equipmentFilter),
                 )
             }
             is GrantDynamicStatsEffect -> {

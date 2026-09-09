@@ -8,6 +8,7 @@ import com.wingedsheep.engine.core.ZoneTransitionCause
 import com.wingedsheep.engine.core.GameEvent as EngineGameEvent
 import com.wingedsheep.engine.handlers.ConditionEvaluator
 import com.wingedsheep.engine.handlers.EffectContext
+import com.wingedsheep.engine.mechanics.MadnessGrants
 import com.wingedsheep.engine.mechanics.layers.SerializableModification
 import com.wingedsheep.engine.mechanics.layers.StaticAbilityHandler
 import com.wingedsheep.engine.mechanics.daynight.DayNightService
@@ -29,6 +30,7 @@ import com.wingedsheep.engine.state.components.identity.FaceDownComponent
 import com.wingedsheep.engine.state.components.identity.MadnessExiledComponent
 import com.wingedsheep.engine.state.components.identity.FaceDownModeComponent
 import com.wingedsheep.sdk.scripting.effects.FaceDownMode
+import com.wingedsheep.engine.state.components.identity.PlayWithAdditionalCostComponent
 import com.wingedsheep.engine.state.components.identity.PlayWithFixedAlternativeManaCostComponent
 import com.wingedsheep.engine.state.components.identity.MorphDataComponent
 import com.wingedsheep.engine.state.components.identity.RevealedToComponent
@@ -548,6 +550,7 @@ object ZoneTransitionService {
                 newState = newState.updateEntity(entityId) { c ->
                     c.without<MadnessExiledComponent>()
                         .without<PlayWithFixedAlternativeManaCostComponent>()
+                        .without<PlayWithAdditionalCostComponent>()
                 }
             }
         }
@@ -1027,9 +1030,16 @@ object ZoneTransitionService {
                 state, entityId, container, fromZone, destinationZone
             )
             if (madnessCost != null) {
+                val madness = MadnessGrants.effectiveMadness(state, entityId, container)
                 newState = newState.updateEntity(entityId) { c ->
-                    c.with(MadnessExiledComponent(ownerId))
+                    var updated = c.with(MadnessExiledComponent(ownerId))
                         .with(PlayWithFixedAlternativeManaCostComponent(ownerId, madnessCost))
+                    madness?.additionalCost?.let { additional ->
+                        updated = updated.with(
+                            PlayWithAdditionalCostComponent(ownerId, listOf(additional))
+                        )
+                    }
+                    updated
                 }
                 events.add(CardExiledWithMadnessEvent(ownerId, entityId, cardComponent.name))
             }
@@ -1339,6 +1349,9 @@ object ZoneTransitionService {
             // craft-return executor explicitly re-attaches the component immediately after
             // this entry path runs.
             updated = updated.without<CraftedFromExiledComponent>()
+
+            // Echo (CR 702.30a) — a new battlefield object has no upkeep-presence memory.
+            updated = updated.without<PresentAtControllersLastUpkeepComponent>()
 
             // Track that this permanent entered the battlefield this turn
             updated = updated.with(EnteredThisTurnComponent)

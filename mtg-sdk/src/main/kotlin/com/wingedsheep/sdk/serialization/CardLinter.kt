@@ -594,6 +594,8 @@ object CardLinter {
         // on a loss or a tie. `Patterns.Mechanic.clash` reads it back through
         // SuccessCriterion.CollectionNonEmpty, which is the "If you win, ..." rider.
         put("Clash" to "storeWonAs", write(Space.COLLECTION))
+        put("Vote" to "storeVotesAs", write(Space.COLLECTION))
+        put("Vote" to "storeWinnersAs", write(Space.COLLECTION))
         put("Discover" to "storeDiscoveredAs", write(Space.COLLECTION))
         put("CopyCardIntoCollection" to "storeAs", write(Space.COLLECTION))
         put("CopyCollectionIntoCollection" to "storeAs", write(Space.COLLECTION))
@@ -645,6 +647,7 @@ object CardLinter {
         put("ControllerOfPipelineTarget" to "collectionName", read(Space.COLLECTION))
         put("StoredCardManaValue" to "collectionName", read(Space.COLLECTION))
         put("ManaValueSumOfCollection" to "collectionName", read(Space.COLLECTION))
+        put("OpponentsControllingFromCollection" to "collectionName", read(Space.COLLECTION))
         put("FromCostStorage" to "collectionName", read(Space.COLLECTION))
         put("RetargetChooser.OwnerOfStored" to "collectionName", read(Space.COLLECTION))
         put("TapUntapCollection" to "collectionName", read(Space.COLLECTION))
@@ -803,6 +806,7 @@ object CardLinter {
         "GrantLandwalkOfChosenType" to "LAND_TYPE",
         "NotOfSourceChosenType" to "CREATURE_TYPE",
         "SneakCostWasPaid" to "SNEAK",
+        "MadnessCostWasPaid" to "MADNESS_CAST",
         "SourceChosenModeIs" to "MODE",
         "CardTypeEqualsChosenComponent" to "CARD_TYPE",
     )

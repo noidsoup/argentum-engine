@@ -1415,6 +1415,7 @@ object DamageUtils {
                 val mod = it.effect.modification
                 mod is SerializableModification.PreventAllDamageTo &&
                     (!mod.combatOnly || isCombatDamage) &&
+                    (!mod.noncombatOnly || !isCombatDamage) &&
                     targetId in it.effect.affectedEntities
             }) {
             return state to 0
@@ -1432,6 +1433,7 @@ object DamageUtils {
                 val mod = fe.effect.modification
                 if (mod !is SerializableModification.PreventAllDamageToGroup) return@any false
                 if (mod.combatOnly && !isCombatDamage) return@any false
+                if (mod.noncombatOnly && isCombatDamage) return@any false
                 val predicateContext = PredicateContext(controllerId = fe.controllerId)
                 val recipientFilter = mod.filter
                 val recipientMatches = (mod.includesController && targetId == fe.controllerId) ||

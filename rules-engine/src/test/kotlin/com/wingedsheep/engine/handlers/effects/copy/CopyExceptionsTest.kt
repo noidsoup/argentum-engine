@@ -171,6 +171,28 @@ class CopyExceptionsTest : FunSpec({
         result.baseKeywords shouldBe setOf(Keyword.TRAMPLE, Keyword.VIGILANCE)
     }
 
+    test("removedKeywords strips keywords — 'except it loses soulbond'") {
+        val base = legendaryArtifactBear().copy(
+            baseKeywords = setOf(Keyword.TRAMPLE, Keyword.SOULBOND),
+        )
+        val result = CopyExceptionApplier.apply(
+            base,
+            CopyExceptions(removedKeywords = setOf(Keyword.SOULBOND)),
+        )
+        result.baseKeywords shouldBe setOf(Keyword.TRAMPLE)
+    }
+
+    test("a keyword named as both added and removed ends up removed") {
+        val result = CopyExceptionApplier.apply(
+            legendaryArtifactBear(),
+            CopyExceptions(
+                addedKeywords = setOf(Keyword.SOULBOND),
+                removedKeywords = setOf(Keyword.SOULBOND),
+            ),
+        )
+        result.baseKeywords shouldBe setOf(Keyword.TRAMPLE)
+    }
+
     test("nameOverride and noManaCost replace name and mana cost") {
         val result = CopyExceptionApplier.apply(
             legendaryArtifactBear(),
@@ -313,5 +335,25 @@ class CopyExceptionsTest : FunSpec({
         )
         result.typeLine.isLegendary shouldBe false
         result.typeLine.cardTypes shouldBe setOf(CardType.ARTIFACT, CardType.CREATURE)
+    }
+
+    test("mergedSpellCopyTokenExceptions folds removeLegendary and addedKeywords into exceptions") {
+        val riders = com.wingedsheep.engine.state.components.stack.SpellCopyTokenRidersComponent(
+            addedKeywords = setOf(Keyword.HASTE),
+            exceptions = CopyExceptions(
+                powerOverride = 1,
+                toughnessOverride = 1,
+                addedSubtypes = setOf(Subtype.SPIRIT),
+            ),
+        )
+        val merged = CopyExceptionApplier.mergedSpellCopyTokenExceptions(
+            removeLegendary = true,
+            riders = riders,
+        )
+        merged.removedSupertypes shouldBe setOf(Supertype.LEGENDARY)
+        merged.addedKeywords shouldBe setOf(Keyword.HASTE)
+        merged.powerOverride shouldBe 1
+        merged.toughnessOverride shouldBe 1
+        merged.addedSubtypes shouldBe setOf(Subtype.SPIRIT)
     }
 })

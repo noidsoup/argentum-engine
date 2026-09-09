@@ -550,6 +550,14 @@ data class LastKnownPermanentComponent(
 data object EnteredThisTurnComponent : Component
 
 /**
+ * Permanent was under [controllerId]'s control when that player's previous upkeep step ended.
+ * Used by echo (CR 702.30a) to decide whether a permanent "came under your control since the
+ * beginning of your last upkeep." Cleared on battlefield entry and control change.
+ */
+@Serializable
+data class PresentAtControllersLastUpkeepComponent(val controllerId: EntityId) : Component
+
+/**
  * Permanent was exerted (CR 701.43a) — it won't untap during its controller's next untap step.
  *
  * Unlike a stun counter (CR 122.1d), which is only consumed when it actually prevents an untap,

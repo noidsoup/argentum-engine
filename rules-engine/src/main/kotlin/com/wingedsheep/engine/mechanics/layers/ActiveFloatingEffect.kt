@@ -341,7 +341,10 @@ sealed interface SerializableModification {
      * that would be dealt to it this turn" — Fleeting Flight).
      */
     @Serializable
-    data class PreventAllDamageTo(val combatOnly: Boolean = false) : SerializableModification
+    data class PreventAllDamageTo(
+        val combatOnly: Boolean = false,
+        val noncombatOnly: Boolean = false,
+    ) : SerializableModification
 
     /**
      * Regeneration shield: the next time the target permanent would be destroyed this turn,
@@ -609,6 +612,7 @@ sealed interface SerializableModification {
     data class PreventAllDamageToGroup(
         val filter: GameObjectFilter? = null,
         val combatOnly: Boolean = false,
+        val noncombatOnly: Boolean = false,
         val includesController: Boolean = false,
         val sourceFilter: GameObjectFilter? = null
     ) : SerializableModification

@@ -311,6 +311,23 @@ data object MayhemCostWasPaid : Condition {
 }
 
 /**
+ * Condition: "If this spell's madness cost was paid" (CR 702.35).
+ *
+ * True when the source spell/permanent was cast from exile for its
+ * [Madness][com.wingedsheep.sdk.scripting.KeywordAbility.Madness] cost after the discard
+ * replacement diverted it there. Pairs with the durable
+ * [com.wingedsheep.sdk.scripting.ChoiceSlot.MADNESS_CAST] flag the engine stamps on a resolved
+ * permanent and the `wasMadness` flag carried in the resolution context for a non-permanent
+ * spell. Used by riders such as Avacyn's Judgment that change behavior when the madness cost was
+ * paid.
+ */
+@SerialName("MadnessCostWasPaid")
+@Serializable
+data object MadnessCostWasPaid : Condition {
+    override val description: String = "this spell's madness cost was paid"
+}
+
+/**
  * Condition: "If this spell's blight additional cost was paid"
  * Used for Lorwyn Eclipsed cards (e.g., Cinder Strike) where the effect changes
  * based on whether the optional Blight additional cost was actually paid.
