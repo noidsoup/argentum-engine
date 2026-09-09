@@ -984,6 +984,84 @@
     ]
 }
 
+// Haunting Imitation
+{
+    "name": "Haunting Imitation",
+    "manaCost": "{2}{U}",
+    "typeLine": "Sorcery",
+    "oracleText": "Each player reveals the top card of their library. For each creature card revealed this way, create a token that's a copy of that card, except it's 1/1, it's a Spirit in addition to its other types, and it has flying. If no creature cards were revealed this way, return Haunting Imitation to its owner's hand.",
+    "script": {
+        "spellEffect": {
+            "type": "Composite",
+            "effects": [
+                {
+                    "type": "GatherCards",
+                    "source": {
+                        "type": "TopOfLibrary",
+                        "count": {
+                            "type": "Fixed",
+                            "amount": 1
+                        },
+                        "player": "Each"
+                    },
+                    "storeAs": "haunting_allRevealed",
+                    "revealed": true
+                },
+                {
+                    "type": "FilterCollection",
+                    "from": "haunting_allRevealed",
+                    "filter": {
+                        "type": "MatchesFilter",
+                        "filter": "creature"
+                    },
+                    "storeMatching": "haunting_creatures"
+                },
+                {
+                    "type": "ForEach",
+                    "space": {
+                        "type": "IterationSpace.Collection",
+                        "collection": "haunting_creatures"
+                    },
+                    "body": {
+                        "type": "CreateTokenCopyOfTarget",
+                        "target": "Self",
+                        "overridePower": 1,
+                        "overrideToughness": 1,
+                        "addedKeywords": [
+                            "FLYING"
+                        ],
+                        "addedSubtypes": [
+                            "Spirit"
+                        ]
+                    }
+                },
+                {
+                    "type": "ConditionalOnCollection",
+                    "collection": "haunting_creatures",
+                    "ifNotEmpty": {
+                        "type": "Composite",
+                        "effects": []
+                    },
+                    "ifEmpty": {
+                        "type": "ReturnSpellOrPermanentToOwnersHand",
+                        "target": "Self"
+                    }
+                }
+            ],
+            "descriptionOverride": "Each player reveals the top card of their library. For each creature card revealed this way, create a token that's a copy of that card. If no creature cards were revealed this way, return this spell to its owner's hand."
+        }
+    },
+    "metadata": {
+        "collectorNumber": "13",
+        "rarity": "RARE",
+        "artist": "Liiga Smilshkalne",
+        "imageUri": "https://cards.scryfall.io/normal/front/8/4/8418fd80-2c92-40d4-87de-0c149f6815bc.jpg?1783925003"
+    },
+    "colorIdentityOverride": [
+        "BLUE"
+    ]
+}
+
 // Hollowhenge Overlord
 {
     "name": "Hollowhenge Overlord",
