@@ -1076,3 +1076,91 @@
     },
     "colorIdentityOverride": []
 }
+
+// Urge to Feed
+{
+    "name": "Urge to Feed",
+    "manaCost": "{B}{B}",
+    "typeLine": "Instant",
+    "oracleText": "Target creature gets -3/-3 until end of turn. You may tap any number of untapped Vampire creatures you control. If you do, put a +1/+1 counter on each of those Vampires.",
+    "script": {
+        "spellEffect": {
+            "type": "Composite",
+            "effects": [
+                {
+                    "type": "ModifyStats",
+                    "powerModifier": {
+                        "type": "Fixed",
+                        "amount": -3
+                    },
+                    "toughnessModifier": {
+                        "type": "Fixed",
+                        "amount": -3
+                    },
+                    "target": {
+                        "type": "BoundVariable",
+                        "name": "target creature"
+                    }
+                },
+                {
+                    "type": "Gated",
+                    "gate": {
+                        "type": "Gate.DoAction",
+                        "action": {
+                            "type": "Composite",
+                            "effects": [
+                                {
+                                    "type": "GatherCards",
+                                    "source": {
+                                        "type": "ControlledPermanents",
+                                        "filter": "creature Vampire untapped ctrl:you"
+                                    },
+                                    "storeAs": "vampires"
+                                },
+                                {
+                                    "type": "SelectFromCollection",
+                                    "from": "vampires",
+                                    "selection": "ChooseAnyNumber",
+                                    "storeSelected": "tapped",
+                                    "prompt": "Tap any number of untapped Vampire creatures you control",
+                                    "useTargetingUI": true
+                                },
+                                {
+                                    "type": "TapUntapCollection",
+                                    "collectionName": "tapped"
+                                }
+                            ]
+                        },
+                        "successCriterion": {
+                            "type": "SuccessCriterion.CollectionNonEmpty",
+                            "name": "tapped"
+                        }
+                    },
+                    "then": {
+                        "type": "AddCountersToCollection",
+                        "collectionName": "tapped",
+                        "counterType": "+1/+1"
+                    }
+                }
+            ]
+        },
+        "targetRequirements": [
+            {
+                "type": "TargetObject",
+                "filter": {
+                    "baseFilter": "creature"
+                },
+                "id": "target creature"
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "70",
+        "rarity": "UNCOMMON",
+        "artist": "Johann Bodin",
+        "imageUri": "https://cards.scryfall.io/normal/front/b/3/b388d4d9-62b6-4174-897e-f933a4badcf9.jpg?1783942054"
+    },
+    "colorIdentityOverride": [
+        "BLACK"
+    ]
+}

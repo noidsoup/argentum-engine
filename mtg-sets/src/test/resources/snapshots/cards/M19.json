@@ -3058,6 +3058,75 @@
     ]
 }
 
+// Remorseful Cleric
+{
+    "name": "Remorseful Cleric",
+    "manaCost": "{1}{W}",
+    "typeLine": "Creature — Spirit Cleric",
+    "oracleText": "Flying\nSacrifice this creature: Exile target player's graveyard.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 1
+    },
+    "keywords": [
+        "FLYING"
+    ],
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": "CostSacrificeSelf",
+                "effect": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "GatherCards",
+                            "source": {
+                                "type": "FromZone",
+                                "zone": "Graveyard",
+                                "player": {
+                                    "type": "ContextPlayer",
+                                    "index": 0
+                                }
+                            },
+                            "storeAs": "targetGraveyard"
+                        },
+                        {
+                            "type": "MoveCollection",
+                            "from": "targetGraveyard",
+                            "destination": {
+                                "type": "ToZone",
+                                "zone": "Exile",
+                                "player": {
+                                    "type": "ContextPlayer",
+                                    "index": 0
+                                }
+                            }
+                        }
+                    ]
+                },
+                "targetRequirements": [
+                    {
+                        "type": "TargetPlayer",
+                        "id": "target player"
+                    }
+                ],
+                "descriptionOverride": "Sacrifice this creature: Exile target player's graveyard."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "33",
+        "rarity": "RARE",
+        "artist": "Grzegorz Rutkowski",
+        "flavorText": "A lifetime of keeping up appearances is not enough to earn an eternity of rest.",
+        "imageUri": "https://cards.scryfall.io/normal/front/9/6/9620716d-9be8-4ebd-80d2-679373f4f897.jpg?1783934598"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
 // Resplendent Angel
 {
     "name": "Resplendent Angel",

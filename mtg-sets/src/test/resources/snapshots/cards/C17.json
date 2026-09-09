@@ -1,3 +1,61 @@
+// Bloodline Necromancer
+{
+    "name": "Bloodline Necromancer",
+    "manaCost": "{4}{B}",
+    "typeLine": "Creature — Vampire Wizard",
+    "oracleText": "Lifelink\nWhen this creature enters, you may return target Vampire or Wizard creature card from your graveyard to the battlefield.",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 2
+    },
+    "keywords": [
+        "LIFELINK"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "ZoneChangeEvent",
+                    "to": "Battlefield"
+                },
+                "effect": {
+                    "type": "Gated",
+                    "gate": "Gate.MayDecide",
+                    "then": {
+                        "type": "MoveToZone",
+                        "target": {
+                            "type": "BoundVariable",
+                            "name": "target"
+                        },
+                        "destination": "Battlefield",
+                        "fromZone": "Graveyard"
+                    },
+                    "descriptionOverride": "When this creature enters, you may return target Vampire or Wizard creature card from your graveyard to the battlefield."
+                },
+                "targetRequirement": {
+                    "type": "TargetObject",
+                    "filter": {
+                        "baseFilter": "creature Vampire|Wizard own:you",
+                        "zone": "Graveyard"
+                    },
+                    "id": "target"
+                },
+                "descriptionOverride": "When this creature enters, you may return target Vampire or Wizard creature card from your graveyard to the battlefield."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "14",
+        "rarity": "UNCOMMON",
+        "artist": "Joe Slucher",
+        "imageUri": "https://cards.scryfall.io/normal/front/4/2/42bffd03-3821-4b0f-9535-2eb455154587.jpg?1783935946"
+    },
+    "colorIdentityOverride": [
+        "BLACK"
+    ]
+}
+
 // Crimson Honor Guard
 {
     "name": "Crimson Honor Guard",

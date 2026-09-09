@@ -459,6 +459,75 @@
     ]
 }
 
+// Oyobi, Who Split the Heavens
+{
+    "name": "Oyobi, Who Split the Heavens",
+    "manaCost": "{6}{W}",
+    "typeLine": "Legendary Creature — Spirit",
+    "oracleText": "Flying\nWhenever you cast a Spirit or Arcane spell, create a 3/3 white Spirit creature token with flying.",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 6
+    },
+    "keywords": [
+        "FLYING"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "SpellCastEvent",
+                    "spellFilter": {
+                        "cardPredicates": [
+                            {
+                                "type": "Or",
+                                "predicates": [
+                                    {
+                                        "type": "HasSubtype",
+                                        "subtype": "Spirit"
+                                    },
+                                    {
+                                        "type": "HasSubtype",
+                                        "subtype": "Arcane"
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "CreateToken",
+                    "power": 3,
+                    "toughness": 3,
+                    "colors": [
+                        "WHITE"
+                    ],
+                    "creatureTypes": [
+                        "Spirit"
+                    ],
+                    "keywords": [
+                        "FLYING"
+                    ],
+                    "imageUri": "https://cards.scryfall.io/normal/front/e/6/e6e361f5-a662-495f-a8e5-e4a647833af5.jpg?1783924702"
+                },
+                "descriptionOverride": "Whenever you cast a Spirit or Arcane spell, create a 3/3 white Spirit creature token with flying."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "18",
+        "rarity": "RARE",
+        "artist": "Christopher Moeller",
+        "flavorText": "Her angry call split the sky. From that rift descended her champions.",
+        "imageUri": "https://cards.scryfall.io/normal/front/3/1/313bd276-2f69-447e-a2b1-240cf839614a.jpg?1783944211"
+    },
+    "colorIdentityOverride": [
+        "WHITE"
+    ]
+}
+
 // Skullsnatcher
 {
     "name": "Skullsnatcher",
