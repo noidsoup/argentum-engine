@@ -1331,6 +1331,116 @@
     ]
 }
 
+// Strefan, Maurer Progenitor
+{
+    "name": "Strefan, Maurer Progenitor",
+    "manaCost": "{2}{B}{R}",
+    "typeLine": "Legendary Creature — Vampire Noble",
+    "oracleText": "Flying\nAt the beginning of your end step, create a Blood token for each player who lost life this turn.\nWhenever Strefan attacks, you may sacrifice two Blood tokens. If you do, you may put a Vampire card from your hand onto the battlefield tapped and attacking. It gains indestructible until end of turn.",
+    "creatureStats": {
+        "power": 3,
+        "toughness": 2
+    },
+    "keywords": [
+        "FLYING"
+    ],
+    "script": {
+        "triggeredAbilities": [
+            {
+                "id": "ability_1",
+                "trigger": {
+                    "type": "StepEvent",
+                    "step": "END"
+                },
+                "binding": "ANY",
+                "effect": {
+                    "type": "CreatePredefinedToken",
+                    "tokenType": "Blood",
+                    "dynamicCount": {
+                        "type": "TurnTracking",
+                        "player": "Each",
+                        "tracker": "LIFE_LOST"
+                    }
+                },
+                "descriptionOverride": "At the beginning of your end step, create a Blood token for each player who lost life this turn."
+            },
+            {
+                "id": "ability_2",
+                "trigger": "AttackEvent",
+                "effect": {
+                    "type": "Gated",
+                    "gate": {
+                        "type": "Gate.MayPay",
+                        "cost": {
+                            "type": "Sacrifice",
+                            "filter": "artifact Blood",
+                            "count": 2
+                        }
+                    },
+                    "then": {
+                        "type": "Composite",
+                        "effects": [
+                            {
+                                "type": "GatherCards",
+                                "source": {
+                                    "type": "FromZone",
+                                    "zone": "Hand",
+                                    "filter": "creature Vampire"
+                                },
+                                "storeAs": "put_candidates"
+                            },
+                            {
+                                "type": "SelectFromCollection",
+                                "from": "put_candidates",
+                                "selection": {
+                                    "type": "ChooseUpTo",
+                                    "count": {
+                                        "type": "Fixed",
+                                        "amount": 1
+                                    }
+                                },
+                                "storeSelected": "putting"
+                            },
+                            {
+                                "type": "MoveCollection",
+                                "from": "putting",
+                                "destination": {
+                                    "type": "ToZone",
+                                    "zone": "Battlefield",
+                                    "placement": "TappedAndAttacking"
+                                }
+                            },
+                            {
+                                "type": "ConditionalOnCollection",
+                                "collection": "putting",
+                                "ifNotEmpty": {
+                                    "type": "GrantKeyword",
+                                    "keyword": "INDESTRUCTIBLE",
+                                    "target": {
+                                        "type": "PipelineTarget",
+                                        "collectionName": "putting"
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                },
+                "descriptionOverride": "Whenever Strefan attacks, you may sacrifice two Blood tokens. If you do, you may put a Vampire card from your hand onto the battlefield tapped and attacking. It gains indestructible until end of turn."
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "2",
+        "rarity": "MYTHIC",
+        "artist": "Chris Rallis",
+        "imageUri": "https://cards.scryfall.io/normal/front/8/f/8f54c6ce-fde4-47ef-a106-5c68b4397f99.jpg?1783925008"
+    },
+    "colorIdentityOverride": [
+        "BLACK",
+        "RED"
+    ]
+}
+
 // Thundering Mightmare
 {
     "name": "Thundering Mightmare",

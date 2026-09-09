@@ -3648,6 +3648,59 @@
     ]
 }
 
+// Underworld Connections
+{
+    "name": "Underworld Connections",
+    "manaCost": "{1}{B}{B}",
+    "typeLine": "Enchantment — Aura",
+    "oracleText": "Enchant land\nEnchanted land has \"{T}, Pay 1 life: Draw a card.\"",
+    "script": {
+        "staticAbilities": [
+            {
+                "type": "GrantActivatedAbility",
+                "ability": {
+                    "id": "ability_1",
+                    "cost": {
+                        "type": "CostComposite",
+                        "costs": [
+                            "CostTap",
+                            {
+                                "type": "CostAtomWrapper",
+                                "atom": {
+                                    "type": "AtomPayLife",
+                                    "amount": 1
+                                }
+                            }
+                        ]
+                    },
+                    "effect": {
+                        "type": "DrawCards",
+                        "count": {
+                            "type": "Fixed",
+                            "amount": 1
+                        }
+                    }
+                }
+            }
+        ],
+        "auraTarget": {
+            "type": "TargetObject",
+            "filter": {
+                "baseFilter": "land"
+            }
+        }
+    },
+    "metadata": {
+        "collectorNumber": "83",
+        "rarity": "RARE",
+        "artist": "Yeong-Hao Han",
+        "imageUri": "https://cards.scryfall.io/normal/front/1/9/19c52e3b-b3b8-4243-96fe-fa4c8eea7c59.jpg?1783940358"
+    },
+    "colorIdentityOverride": [
+        "BLACK"
+    ]
+}
+
 // Vassal Soul
 {
     "name": "Vassal Soul",
