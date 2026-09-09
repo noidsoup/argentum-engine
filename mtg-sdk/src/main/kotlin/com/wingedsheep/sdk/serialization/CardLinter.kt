@@ -594,6 +594,8 @@ object CardLinter {
         // on a loss or a tie. `Patterns.Mechanic.clash` reads it back through
         // SuccessCriterion.CollectionNonEmpty, which is the "If you win, ..." rider.
         put("Clash" to "storeWonAs", write(Space.COLLECTION))
+        put("Vote" to "storeVotesAs", write(Space.COLLECTION))
+        put("Vote" to "storeWinnersAs", write(Space.COLLECTION))
         put("Discover" to "storeDiscoveredAs", write(Space.COLLECTION))
         put("CopyCardIntoCollection" to "storeAs", write(Space.COLLECTION))
         put("CopyCollectionIntoCollection" to "storeAs", write(Space.COLLECTION))

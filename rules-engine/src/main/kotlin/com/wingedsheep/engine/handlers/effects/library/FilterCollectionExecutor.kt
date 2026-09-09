@@ -140,6 +140,17 @@ class FilterCollectionExecutor : EffectExecutor<FilterCollectionEffect> {
                     }
                 }
             }
+
+            is CollectionFilter.MostVotes -> {
+                val votes = context.pipeline.storedCollections[filter.votesCollection] ?: emptyList()
+                if (votes.isEmpty()) {
+                    emptyList<EntityId>() to cards
+                } else {
+                    val tally = votes.groupingBy { it }.eachCount()
+                    val maxVotes = tally.values.max()
+                    cards.partition { tally[it] == maxVotes }
+                }
+            }
         }
 
         val updatedCollections = mutableMapOf(effect.storeMatching to matching)

@@ -1901,6 +1901,17 @@ sealed interface CollectionFilter {
     data object GreatestManaValue : CollectionFilter
 
     /**
+     * Keep only the options that received the greatest number of votes in [votesCollection].
+     * Ties all qualify — "or tied for most votes" (Custodi Squire, Plea for Power-style payoffs).
+     *
+     * Pair with [VoteEffect]: [votesCollection] is the pipeline key that holds one entity id per
+     * cast vote; [from] is the option pool being filtered.
+     */
+    @SerialName("MostVotes")
+    @Serializable
+    data class MostVotes(val votesCollection: String) : CollectionFilter
+
+    /**
      * Keep only entities whose mana value is at most a dynamic amount.
      * The amount is resolved at execution time from the effect context.
      *

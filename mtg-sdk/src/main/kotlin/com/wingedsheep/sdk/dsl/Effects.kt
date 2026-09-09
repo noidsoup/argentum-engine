@@ -27,6 +27,7 @@ import com.wingedsheep.sdk.scripting.effects.ManaSpellRider
 import com.wingedsheep.sdk.scripting.effects.AddCardTypeEffect
 import com.wingedsheep.sdk.scripting.effects.CantBeRegeneratedEffect
 import com.wingedsheep.sdk.scripting.effects.OpenLifeBidEffect
+import com.wingedsheep.sdk.scripting.effects.VoteEffect
 import com.wingedsheep.sdk.scripting.effects.AddCountersEffect
 import com.wingedsheep.sdk.scripting.effects.AddCountersUpToEffect
 import com.wingedsheep.sdk.scripting.effects.AddDynamicCountersEffect
@@ -3848,6 +3849,28 @@ object Effects {
      */
     fun OpenLifeBid(onWin: Effect, participant: Player = Player.AnOpponent): Effect =
         OpenLifeBidEffect(onWin = onWin, participant = participant)
+
+    /**
+     * Non-secret vote (CR 701.38): each player, starting with [startingPlayer] and proceeding in
+     * turn order, chooses exactly one option from the pipeline collection [from]. Winners — options
+     * with the greatest vote count, ties included — are written to [storeWinnersAs].
+     *
+     * Prefer [Patterns.Hand.playerChoiceFromGraveyard] for the common council shape over a
+     * controller's graveyard, and [Patterns.Mechanic.council] to chain vote + payoff.
+     */
+    fun Vote(
+        from: String,
+        storeVotesAs: String = com.wingedsheep.sdk.scripting.effects.COUNCIL_VOTES,
+        storeWinnersAs: String = com.wingedsheep.sdk.scripting.effects.COUNCIL_WINNERS,
+        startingPlayer: Player = Player.You,
+        prompt: String? = null,
+    ): Effect = VoteEffect(
+        from = from,
+        storeVotesAs = storeVotesAs,
+        storeWinnersAs = storeWinnersAs,
+        startingPlayer = startingPlayer,
+        prompt = prompt,
+    )
 
     /**
      * Counter target spell or activated/triggered ability. Used by cards like

@@ -377,6 +377,7 @@ val engineSerializersModule = SerializersModule {
         subclass(CastSpellAdditionalCostContinuation::class)
         subclass(PutFromHandContinuation::class)
         subclass(SecretBidContinuation::class)
+        subclass(VoteContinuation::class)
         subclass(OpenLifeBidContinuation::class)
         subclass(ContestedRetargetContinuation::class)
         subclass(DistributeCountersContinuation::class)

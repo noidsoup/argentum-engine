@@ -31,7 +31,13 @@ import com.wingedsheep.sdk.scripting.effects.SelectFromCollectionEffect
 import com.wingedsheep.sdk.scripting.effects.SelectTargetEffect
 import com.wingedsheep.sdk.scripting.effects.SelectionMode
 import com.wingedsheep.sdk.scripting.effects.SelectionRestriction
+import com.wingedsheep.sdk.scripting.effects.COUNCIL_OPTIONS
+import com.wingedsheep.sdk.scripting.effects.COUNCIL_VOTES
+import com.wingedsheep.sdk.scripting.effects.COUNCIL_WINNERS
+import com.wingedsheep.sdk.scripting.effects.CollectionFilter
+import com.wingedsheep.sdk.scripting.effects.FilterCollectionEffect
 import com.wingedsheep.sdk.scripting.effects.StoreNumberEffect
+import com.wingedsheep.sdk.scripting.effects.VoteEffect
 import com.wingedsheep.sdk.scripting.effects.ZonePlacement
 import com.wingedsheep.sdk.scripting.references.Player
 import com.wingedsheep.sdk.scripting.targets.EffectTarget
@@ -914,5 +920,46 @@ object HandPatterns {
             )
         )
     }
+
+    /**
+     * Will-of-the-council vote over [owner]'s graveyard: gather eligible cards, then run a
+     * [VoteEffect] starting with the ability's controller (CR 701.38a).
+     *
+     * Each player votes for exactly one card matching [filter] in [owner]'s graveyard. Winners —
+     * the card(s) with the most votes, ties included — land in [storeWinnersAs].
+     *
+     * Used by Custodi Squire ("vote for an artifact, creature, or enchantment card in your
+     * graveyard") and any similar council that polls the table over a public graveyard pool.
+     */
+    fun playerChoiceFromGraveyard(
+        owner: Player = Player.You,
+        filter: GameObjectFilter = GameObjectFilter.ArtifactCreatureOrEnchantment,
+        storeWinnersAs: String = COUNCIL_WINNERS,
+        prompt: String? = null,
+    ): CompositeEffect = CompositeEffect(
+        listOf(
+            GatherCardsEffect(
+                source = CardSource.FromZone(Zone.GRAVEYARD, owner),
+                storeAs = COUNCIL_OPTIONS,
+            ),
+            FilterCollectionEffect(
+                from = COUNCIL_OPTIONS,
+                filter = CollectionFilter.MatchesFilter(filter),
+                storeMatching = COUNCIL_OPTIONS,
+            ),
+            VoteEffect(
+                from = COUNCIL_OPTIONS,
+                storeVotesAs = COUNCIL_VOTES,
+                storeWinnersAs = storeWinnersAs,
+                startingPlayer = Player.You,
+                prompt = prompt,
+            ),
+        ),
+        descriptionOverride = buildString {
+            append("Starting with you, each player votes for ")
+            append(filter.description.replaceFirstChar { it.lowercase() })
+            append(" in ${owner.description}'s graveyard")
+        },
+    )
 
 }

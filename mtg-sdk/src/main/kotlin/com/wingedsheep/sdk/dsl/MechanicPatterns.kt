@@ -556,4 +556,33 @@ object MechanicPatterns {
             destination = SearchDestination.HAND,
             reveal = true,
         )
+
+    // =========================================================================
+    // Will of the Council (Conspiracy / CR 701.38)
+    // =========================================================================
+
+    /**
+     * **Will of the council** — run a [vote] step, then [payoff] on the winning option(s).
+     *
+     * The vote primitive handles turn-order sequencing and tallying; [payoff] should read the
+     * winners from [com.wingedsheep.sdk.scripting.effects.COUNCIL_WINNERS] (or a custom
+     * [VoteEffect.storeWinnersAs] passed through [vote]).
+     *
+     * ```kotlin
+     * // Custodi Squire — vote on graveyard cards, return the winner(s) to hand.
+     * Patterns.Mechanic.council(
+     *     vote = Patterns.Hand.playerChoiceFromGraveyard(Player.You, GameObjectFilter.ArtifactCreatureOrEnchantment),
+     *     payoff = MoveCollectionEffect(COUNCIL_WINNERS, CardDestination.ToZone(Zone.HAND, Player.You)),
+     * )
+     * ```
+     */
+    fun council(vote: Effect, payoff: Effect): CompositeEffect = CompositeEffect(
+        listOf(vote, payoff),
+        descriptionOverride = buildString {
+            append("Will of the council — ")
+            append(vote.description.replaceFirstChar { it.lowercase() })
+            append(". ")
+            append(payoff.description.replaceFirstChar { it.uppercase() })
+        }
+    )
 }

@@ -3358,6 +3358,24 @@ one-off pipeline belongs inline in the card file via `Effects.Pipeline { }` (§5
   Scoring is CR 701.30d, *strictly* greater mana value: **a tie wins for nobody**, and a player with
   an empty library reveals nothing and so can never win — though their opponent still wins with any
   card at all, a `{0}` included. Adder-Staff Boggart, Oaken Brawler, Paperfin Rascal, Lash Out.
+- `Effects.Vote(from, storeVotesAs?, storeWinnersAs?, startingPlayer?, prompt?)` — non-secret
+  **vote** (CR 701.38): each player, starting with `startingPlayer` (default `Player.You` —
+  "starting with you") and proceeding in turn order, chooses exactly one option from the pipeline
+  collection `from`. Votes are public. When every player has voted, every option that received the
+  greatest number of votes — ties included — is written to `storeWinnersAs` (default
+  `councilWinners`); every cast vote is recorded in `storeVotesAs` (default `councilVotes`). A
+  no-op when `from` is empty. Word-based council options ("time or knowledge") compose
+  `ChooseOptionEffect` in a per-player loop instead.
+- `Patterns.Hand.playerChoiceFromGraveyard(owner?, filter?, storeWinnersAs?, prompt?)` — gather
+  eligible cards from `owner`'s graveyard (default `Player.You`), filter them, then run `VoteEffect`
+  over that pool. Custodi Squire's "vote for an artifact, creature, or enchantment card in your
+  graveyard" shape; default filter is `GameObjectFilter.ArtifactCreatureOrEnchantment`.
+- `Patterns.Mechanic.council(vote, payoff)` — **Will of the council** wrapper: run a `vote` step,
+  then `payoff` on the winning option(s). Pair `playerChoiceFromGraveyard` with a
+  `MoveCollectionEffect` from `councilWinners` to hand for Custodi Squire.
+- `CollectionFilter.MostVotes(votesCollection)` — keep only the options in `from` that received the
+  greatest number of votes in `votesCollection` (ties all qualify). Alternative to reading
+  `VoteEffect`'s built-in `storeWinnersAs` when a custom tally path is needed.
 - `Patterns.Mechanic.learn()` — **Learn** (CR 701.48, Strixhaven), the keyword action printed as a
   bare "Learn." with reminder text. CR 701.48a is sequential, not a choose-one: *"You may discard a
   card. If you do, draw a card. If you didn't discard a card, you may reveal a Lesson card you own
@@ -6237,6 +6255,15 @@ Triggers.youCastSpell(
   | "Clash with an opponent. If you win, …" (the card clashes) | `Patterns.Mechanic.clash(ifYouWin, otherwise?)` — reads the `clashWon` pipeline collection |
   | "Whenever you clash **and win**, …" (whole ability) | `Triggers.WheneverYouClashAndWin` — nothing goes on the stack on a loss |
   | "Whenever you clash, X. **If you won**, Y." (part of the effect) | `Triggers.WheneverYouClash` + `ConditionalEffect(Conditions.YouWonTheClash, …)` |
+
+### Vote / Will of the council
+
+- `VoteEffect` / `Effects.Vote` — CR 701.38. Each player votes in turn order starting with the
+  resolved `startingPlayer` (default: the ability's controller). Players cannot abstain. Later
+  voters see earlier votes. `VoteExecutor` pauses once per player via `VoteContinuation`.
+- `Patterns.Hand.playerChoiceFromGraveyard` — object voting over a public graveyard pool.
+- `Patterns.Mechanic.council` — chains vote + payoff for the Will of the council ability word.
+- `CollectionFilter.MostVotes` — filter options to the greatest vote tally (ties included).
 
 ### Scry / Surveil
 
