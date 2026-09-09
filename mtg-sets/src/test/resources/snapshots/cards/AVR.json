@@ -1169,6 +1169,92 @@
     ]
 }
 
+// Dark Impostor
+{
+    "name": "Dark Impostor",
+    "manaCost": "{2}{B}",
+    "typeLine": "Creature — Vampire Assassin",
+    "oracleText": "{4}{B}{B}: Exile target creature and put a +1/+1 counter on this creature.\nThis creature has all activated abilities of all creature cards exiled with it.",
+    "creatureStats": {
+        "power": 2,
+        "toughness": 2
+    },
+    "script": {
+        "activatedAbilities": [
+            {
+                "id": "ability_1",
+                "cost": {
+                    "type": "CostAtomWrapper",
+                    "atom": {
+                        "type": "AtomMana",
+                        "cost": "{4}{B}{B}"
+                    }
+                },
+                "effect": {
+                    "type": "Composite",
+                    "effects": [
+                        {
+                            "type": "MoveToZone",
+                            "target": {
+                                "type": "BoundVariable",
+                                "name": "target creature"
+                            },
+                            "destination": "Exile",
+                            "linkToSource": true
+                        },
+                        {
+                            "type": "AddCounters",
+                            "counterType": "+1/+1",
+                            "count": 1,
+                            "target": "Self"
+                        }
+                    ]
+                },
+                "targetRequirements": [
+                    {
+                        "type": "TargetObject",
+                        "filter": {
+                            "baseFilter": "creature"
+                        },
+                        "id": "target creature"
+                    }
+                ],
+                "descriptionOverride": "Exile target creature and put a +1/+1 counter on Dark Impostor."
+            }
+        ],
+        "staticAbilities": [
+            {
+                "type": "HasAllActivatedAbilitiesOfCards",
+                "donors": "LinkedExile",
+                "cardFilter": "creature"
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "92",
+        "rarity": "RARE",
+        "artist": "Johannes Voss",
+        "imageUri": "https://cards.scryfall.io/normal/front/8/f/8f5e8815-cda8-407d-847c-968b72c061e8.jpg?1783940704",
+        "rulings": [
+            {
+                "date": "2012-05-01",
+                "text": "Dark Impostor gains only activated abilities. It doesn't gain triggered abilities or static abilities."
+            },
+            {
+                "date": "2012-05-01",
+                "text": "If an activated ability of a card in exile references the card it's printed on by name, treat Dark Impostor's version of that ability as though it referenced Dark Impostor by name instead."
+            },
+            {
+                "date": "2012-05-01",
+                "text": "Once Dark Impostor leaves the battlefield, it will no longer have the activated abilities of the creature cards exiled with it."
+            }
+        ]
+    },
+    "colorIdentityOverride": [
+        "BLACK"
+    ]
+}
+
 // Deadeye Navigator
 {
     "name": "Deadeye Navigator",
