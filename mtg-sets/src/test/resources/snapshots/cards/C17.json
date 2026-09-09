@@ -56,6 +56,66 @@
     ]
 }
 
+// Bloodsworn Steward
+{
+    "name": "Bloodsworn Steward",
+    "manaCost": "{2}{R}{R}",
+    "typeLine": "Creature — Vampire Knight",
+    "oracleText": "Flying\nCommander creatures you control get +2/+2 and have haste.",
+    "creatureStats": {
+        "power": 4,
+        "toughness": 4
+    },
+    "keywords": [
+        "FLYING"
+    ],
+    "script": {
+        "staticAbilities": [
+            {
+                "type": "ModifyStats",
+                "powerBonus": 2,
+                "toughnessBonus": 2,
+                "filter": {
+                    "baseFilter": {
+                        "cardPredicates": [
+                            "IsCreature"
+                        ],
+                        "statePredicates": [
+                            "IsCommander"
+                        ],
+                        "controllerPredicate": "ControlledByYou"
+                    }
+                }
+            },
+            {
+                "type": "GrantKeyword",
+                "keyword": "HASTE",
+                "filter": {
+                    "baseFilter": {
+                        "cardPredicates": [
+                            "IsCreature"
+                        ],
+                        "statePredicates": [
+                            "IsCommander"
+                        ],
+                        "controllerPredicate": "ControlledByYou"
+                    }
+                }
+            }
+        ]
+    },
+    "metadata": {
+        "collectorNumber": "22",
+        "rarity": "RARE",
+        "artist": "Daarken",
+        "flavorText": "\"My liege will lead and I will follow—to the battlefield, to the grave, and beyond.\"",
+        "imageUri": "https://cards.scryfall.io/normal/front/e/1/e185f493-57c3-47dd-8dac-de8690ce8fbc.jpg?1783935943"
+    },
+    "colorIdentityOverride": [
+        "RED"
+    ]
+}
+
 // Crimson Honor Guard
 {
     "name": "Crimson Honor Guard",
