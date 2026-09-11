@@ -4,6 +4,8 @@
 
 ## Quick start
 
+**Machine setup:** run `just bootstrap` in [argentum-tandem-coverage](https://github.com/noidsoup/argentum-tandem-coverage) (clones this repo as a sibling, `.env`, tool checks).
+
 1. Clone **engine** + **campaign** as siblings under `~/Projects/`.
 2. Open the **campaign** repo; follow [ONBOARD-WORKER.md](https://github.com/noidsoup/argentum-tandem-coverage/blob/main/docs/ONBOARD-WORKER.md) or say **set up and grind**.
 3. Implement cards in **this** repo: `add-card` skill, `./.verify.sh`, merge to `origin/main` on the fork — never push `upstream`.
