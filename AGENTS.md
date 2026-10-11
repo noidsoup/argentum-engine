@@ -33,7 +33,8 @@ docs it points at; load those when the work needs them.
   - Any engine/SDK/server/client capability that isn't a single card — effect, trigger, condition,
     keyword, decision flow → **`add-feature`** (composition-first design, cross-layer tracing, perf + UX).
   - Starting a set that has no `backlog/sets/` entry yet → **`create-backlog-for-set`** (Scryfall dump,
-    `cards.md` checklist, `definitions/<code>/` scaffold, `mechanics.md`). It runs *before* `set-loop`.
+    `backlog/sets/<set>/cards.md` checklist, `definitions/<code>/` scaffold,
+    `backlog/sets/<set>/mechanics.md`). It runs *before* `set-loop`.
   - Implementing every *Assay-ready* card for a set — the ⚡ badge on the Set Completion view, i.e.
     the cards Argentum Assay reads whole that the set hasn't authored → **`assay-ready-sweep`**
     (`just assay-ready <CODE>` for the four-way split; canonical placement + reprint rows are half
@@ -67,7 +68,7 @@ docs it points at; load those when the work needs them.
 |--------|---------|------|
 | `mtg-sdk` | DSLs, data models, primitives — pure data, no logic | — |
 | `mtg-sets` | Aggregator — re-exports the whole card corpus; catalog, Scryfall sync, corpus-wide tests | sdk, sets/* |
-| `mtg-sets/core` | `CardDiscovery`, token art, the setless `custom/` cards | sdk |
+| `mtg-sets/core` | `CardDiscovery`, token art, the setless cards in `mtg-sets/core/src/main/kotlin/com/wingedsheep/mtg/sets/definitions/custom/` | sdk |
 | `mtg-sets/<era>` | Card definitions, one module per fixed release-year range, chained oldest→newest | sdk, sets/core |
 | `mtg-sets/<era>/tests` | Card scenario tests for that era's sets | engine, sets |
 | `rules-engine` | Core MTG rules (zero server deps) | sdk |
@@ -127,7 +128,7 @@ These are the ones that have actually caused bugs here.
 
 - **Cards are data** — `cardDef { }` DSL, never class inheritance. No registration step: `CardDiscovery`
   scans `definitions/{set}/cards/` for top-level `val`s, so a card in the right package is picked up
-  automatically. A new *set* only needs an `MtgSet` object under `definitions/` — `MtgSetCatalog` finds it
+  automatically. A new *set* only needs an `MtgSet` object under `definitions/{set}/` — `MtgSetCatalog` finds it
   the same way.
 - **Facades, not raw constructors** — `Effects.DrawCards(1)`, `Effects.Destroy()`. `FacadeBoundaryTest`
   enforces this for cards. Compositions (Scry, Mill, SearchLibrary) live behind the single `Patterns`
@@ -140,6 +141,8 @@ These are the ones that have actually caused bugs here.
 ## Commands
 
 `just --list` is the self-documenting index (groups: build, dev, e2e, env, ai).
+
+**Full gate (this fork):** `./.verify.sh` runs `just build` then `just test-rules`; it needs `just` and JDK 21.
 
 **Always run heavy builds through `just`, never raw `./gradlew`.** Parallel agents each spawn their own
 daemons and thrash the box into watchdog timeouts; the `just` recipes limit the machine to two concurrent
@@ -168,20 +171,20 @@ optional unless explicitly requested. The following rules apply when working on 
 
 | Doc | Topic |
 |-----|-------|
-| [`architecture-principles.md`](docs/architecture-principles.md) | Core design (ECS, continuations, layer system, mana, priority) |
-| [`build-performance-plan.md`](docs/build-performance-plan.md) | Why the card corpus and scenario suite are split into per-era modules; daemon heap and cache tuning |
-| [`sdk-design-principles.md`](docs/sdk-design-principles.md) | The bar for a new SDK type: composition, reusability, naming |
-| [`card-sdk-language-reference.md`](docs/card-sdk-language-reference.md) | Full card SDK / DSL catalog — update on any SDK change |
-| [`api-guide.md`](docs/api-guide.md) | Adding cards/mechanics step-by-step |
-| [`continuous-effect-dependency-system.md`](docs/continuous-effect-dependency-system.md) | Rule 613.8 dependency resolution |
-| [`managing-complex-and-rare-abilities.md`](docs/managing-complex-and-rare-abilities.md) | Patterns for complex abilities |
-| [`engine-server-interface.md`](docs/engine-server-interface.md) | Engine ↔ API contract |
-| [`accounts-and-persistence.md`](docs/accounts-and-persistence.md) | Opt-in accounts, magic-link auth, PostgreSQL |
-| [`player-input.md`](docs/player-input.md) | Async I/O and decision protocol |
-| [`data-contracts.md`](docs/data-contracts.md) | Client/server JSON payloads |
-| [`web-client-architecture.md`](docs/web-client-architecture.md) | Frontend architecture, WebSocket API |
-| [`e2e-test-patterns.md`](docs/e2e-test-patterns.md) | Playwright fixtures, GamePage helpers, scenario config |
-| [`gym-deckbuild-env.md`](docs/gym-deckbuild-env.md) | Sealed deckbuild gym env + custom win-rate reward |
-| [`gym-self-play-testing.md`](docs/gym-self-play-testing.md) | Driving the gym server over HTTP to surface broken cards |
-| [`agent-loops/`](docs/agent-loops/) | Long-running set-implementation prompts for Claude Code `/loop` and Codex `/goal` |
-| [`oracle-assay.md`](docs/oracle-assay.md) | Argentum Assay design — first-party Scryfall→SDK Oracle parser; also audits `mtg-sdk` vocabulary. **Phase 1 + the differential gate shipped** ([`:oracle-assay`](oracle-assay/README.md)); the MVP and remaining phases are in [`docs/plans/oracle-assay.md`](docs/plans/oracle-assay.md) |
+| [`docs/architecture-principles.md`](docs/architecture-principles.md) | Core design (ECS, continuations, layer system, mana, priority) |
+| [`docs/build-performance-plan.md`](docs/build-performance-plan.md) | Why the card corpus and scenario suite are split into per-era modules; daemon heap and cache tuning |
+| [`docs/sdk-design-principles.md`](docs/sdk-design-principles.md) | The bar for a new SDK type: composition, reusability, naming |
+| [`docs/card-sdk-language-reference.md`](docs/card-sdk-language-reference.md) | Full card SDK / DSL catalog — update on any SDK change |
+| [`docs/api-guide.md`](docs/api-guide.md) | Adding cards/mechanics step-by-step |
+| [`docs/continuous-effect-dependency-system.md`](docs/continuous-effect-dependency-system.md) | Rule 613.8 dependency resolution |
+| [`docs/managing-complex-and-rare-abilities.md`](docs/managing-complex-and-rare-abilities.md) | Patterns for complex abilities |
+| [`docs/engine-server-interface.md`](docs/engine-server-interface.md) | Engine ↔ API contract |
+| [`docs/accounts-and-persistence.md`](docs/accounts-and-persistence.md) | Opt-in accounts, magic-link auth, PostgreSQL |
+| [`docs/player-input.md`](docs/player-input.md) | Async I/O and decision protocol |
+| [`docs/data-contracts.md`](docs/data-contracts.md) | Client/server JSON payloads |
+| [`docs/web-client-architecture.md`](docs/web-client-architecture.md) | Frontend architecture, WebSocket API |
+| [`docs/e2e-test-patterns.md`](docs/e2e-test-patterns.md) | Playwright fixtures, GamePage helpers, scenario config |
+| [`docs/gym-deckbuild-env.md`](docs/gym-deckbuild-env.md) | Sealed deckbuild gym env + custom win-rate reward |
+| [`docs/gym-self-play-testing.md`](docs/gym-self-play-testing.md) | Driving the gym server over HTTP to surface broken cards |
+| [`docs/agent-loops/`](docs/agent-loops/) | Long-running set-implementation prompts for Claude Code `/loop` and Codex `/goal` |
+| [`docs/oracle-assay.md`](docs/oracle-assay.md) | Argentum Assay design — first-party Scryfall→SDK Oracle parser; also audits `mtg-sdk` vocabulary. **Phase 1 + the differential gate shipped** ([`:oracle-assay`](oracle-assay/README.md)); the MVP and remaining phases are in [`docs/plans/oracle-assay.md`](docs/plans/oracle-assay.md) |

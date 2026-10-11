@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web-client",
+      "runtimeExecutable": "just",
+      "runtimeArgs": ["client"],
+      "port": 5173
+    },
+    {
+      "name": "game-server",
+      "runtimeExecutable": "just",
+      "runtimeArgs": ["server"],
+      "port": 8080
+    }
+  ]
+}

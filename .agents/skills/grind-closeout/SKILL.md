@@ -1,6 +1,6 @@
 ---
-description: Grind sessions must close out with verify + quality gate + commit + merge; build missing engine primitives inline (add-feature)
-alwaysApply: true
+name: grind-closeout
+description: "Use when Nicholas says \"grind for <N> hours/minutes\", \"grind PC2\", \"compose grind\", or starts similar card-coverage factory work. Claim cards, build missing engine primitives inline (add-feature), run the pre-merge quality gate, then commit and land on fork main."
 ---
 
 # Grind closeout (mandatory)
